@@ -13,8 +13,8 @@
 
 | Stage | Status | Notes |
 |---|---|---|
-| 0. Foundation | ✅ | All T0.1–T0.7 done. 23 tests passing. Real config verified. Pushed. |
-| 1. Onboarding engine: Voice Profile | ⬜ Next | 8 playbooks ready. Needs playbook runner + prompt templates. |
+| 0. Foundation | ✅ | All T0.1–T0.7 done. 28 tests passing. Real config verified. Pushed. |
+| 1. Onboarding engine: Voice Profile | 🔄 | T1.1 done (playbook runner + Flask console, 15 tests). T1.2–T1.5 next. |
 | 2. Remaining playbooks wired | ⬜ | Playbooks split. Awaits M1. |
 | 3. Co-production loop | ⬜ | Direct-edit mode in BUILD_PLAN (T3.3). Drafter A/B at checkpoint. |
 | 4. Publish + metrics automation | ⬜ | Postiz self-hosted confirmed. |
@@ -36,10 +36,17 @@
 - [x] T0.4: Validator — JSON-schema + allowlist, nested validation, unknown tag rejected (8 tests)
 - [x] T0.5: Provenance log — SQLite, every call writes input_hash + prompt + model + output + verdict (3 tests)
 - [x] T0.6: Content-hash cache — SHA-256, same input twice = one call, deterministic (4 tests)
-- [x] 23 tests all passing, real StackPenni config files verified
+- [x] 28 tests all passing, real StackPenni config files verified
+- [x] T1.1: Generic playbook runner — parser + runner + Flask console (15 tests)
+  - PlaybookParser parses markdown into structured Playbook object
+  - PlaybookRunner persists state to SQLite (start, input, LLM output, gate, complete)
+  - Flask app: dashboard, onboard, playbook run pages, API endpoints, health check
+  - Proven generic: trivial test playbook run end-to-end (parse → start → input → gate → done)
+  - Real voice-profile-builder.md parses correctly (7 steps, intake + gate identified)
+  - 6 web integration tests (Flask test client + real config)
 
 ## What's Next
-- [ ] M1: Playbook runner (T1.1) — generic, executes markdown procedures as console flows
-- [ ] M1: Materials intake UI (T1.2)
-- [ ] M1: Voice Profile playbook end-to-end (T1.3)
-- [ ] Tag review-w1 when M0 is confirmed stable after Claude review
+- [ ] T1.2: Materials intake UI — file upload, paste, audio recording
+- [ ] T1.3: Voice Profile playbook end-to-end — prompt templates + LLM call
+- [ ] T1.4: Calibration gate UI — 3 samples, pick + react, revise loop
+- [ ] T1.5: Interview fallback — guided Q&A produces corpus from nothing
