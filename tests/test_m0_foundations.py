@@ -29,6 +29,7 @@ from validator import (
 )
 from provenance import ProvenanceLog
 from cache import ContentHashCache
+from llm_adapter import LLMAdapter, LLMAdapterError
 
 
 # --- Fixtures ---
@@ -413,3 +414,80 @@ class TestCache:
         v1 = {"a": 1, "b": 2}
         v2 = {"b": 2, "a": 1}
         assert ContentHashCache.hash_variables(v1) == ContentHashCache.hash_variables(v2)
+
+
+# --- T0.3: LLM Adapter Tests ---
+
+class TestLLMAdapter:
+
+    def test_adapter_initializes(self, tmp_db):
+        """Adapter initializes with cache and provenance."""
+        models_config = {
+            "default": {
+                "provider": "ollama_cloud",
+                "model": "qwen2.5:32b",
+                "temperature": 0,
+                "max_tokens": 4096,
+                "base_url": "https://example.com",
+            },
+            "drafter": {
+                "provider": "ollama_cloud",
+                "model": "qwen2.5:32b",
+                "temperature": 0.7,
+                "max_tokens": 8192,
+                "base_url": "https://example.com",
+            }
+        }
+        adapter = LLMAdapter(models_config, db_path=tmp_db)
+        assert adapter.cache.count() == 0
+        assert adapter.provenance.count() == 0
+        adapter.cache.close()
+        adapter.provenance.close()
+
+    def test_prompt_loading_and_version_extraction(self, tmp_db):
+        """Prompt file loads and version is extracted from comment."""
+        import tempfile, os
+        prompts_dir = tempfile.mkdtemp()
+        prompt_path = os.path.join(prompts_dir, "test_prompt.md")
+        with open(prompt_path, "w") as f:
+            f.write("<!-- version: 2.1 -->\nAnalyze this: {input}")
+
+        models_config = {"default": {"provider": "ollama", "model": "test", "temperature": 0, "max_tokens": 100, "base_url": ""}}
+        adapter = LLMAdapter(models_config, db_path=tmp_db, prompts_dir=prompts_dir)
+        template, version = adapter._load_prompt("test_prompt.md")
+        assert version == "2.1"
+        assert "{input}" in template
+
+        adapter.cache.close()
+        adapter.provenance.close()
+        os.unlink(prompt_path)
+        os.rmdir(prompts_dir)
+
+    def test_prompt_rendering(self, tmp_db):
+        """Variables are substituted into the prompt template."""
+        models_config = {"default": {"provider": "ollama", "model": "test", "temperature": 0, "max_tokens": 100, "base_url": ""}}
+        adapter = LLMAdapter(models_config, db_path=tmp_db)
+        rendered = adapter._render_prompt("Hello {name}, you are {role}.", {"name": "Daimon", "role": "operator"})
+        assert "Daimon" in rendered
+        assert "operator" in rendered
+        assert "{name}" not in rendered
+        adapter.cache.close()
+        adapter.provenance.close()
+
+    def test_missing_backend_rejected(self, tmp_db):
+        """Asking for a backend not in config raises error."""
+        models_config = {"default": {"provider": "ollama", "model": "test", "temperature": 0, "max_tokens": 100, "base_url": ""}}
+        adapter = LLMAdapter(models_config, db_path=tmp_db)
+        with pytest.raises(LLMAdapterError, match="not found"):
+            adapter.complete("test.md", {}, {"type": "object", "required": [], "properties": {}}, backend="nonexistent")
+        adapter.cache.close()
+        adapter.provenance.close()
+
+    def test_missing_prompt_file_rejected(self, tmp_db):
+        """Missing prompt file raises error."""
+        models_config = {"default": {"provider": "ollama", "model": "test", "temperature": 0, "max_tokens": 100, "base_url": ""}}
+        adapter = LLMAdapter(models_config, db_path=tmp_db)
+        with pytest.raises(LLMAdapterError, match="not found"):
+            adapter.complete("nonexistent.md", {}, {"type": "object", "required": [], "properties": {}})
+        adapter.cache.close()
+        adapter.provenance.close()

@@ -24,9 +24,15 @@ from typing import Any, Optional
 
 import requests
 
-from .cache import ContentHashCache
-from .provenance import ProvenanceLog
-from .validator import validate_llm_output, ValidationError
+# Support both package imports (from src.llm_adapter) and direct imports
+try:
+    from .cache import ContentHashCache
+    from .provenance import ProvenanceLog
+    from .validator import validate_llm_output, ValidationError
+except ImportError:
+    from cache import ContentHashCache
+    from provenance import ProvenanceLog
+    from validator import validate_llm_output, ValidationError
 
 
 class LLMAdapterError(Exception):
