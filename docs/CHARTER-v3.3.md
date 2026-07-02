@@ -1,7 +1,7 @@
-# ViralFactory Charter — v3.2
+# ViralFactory Charter — v3.3
 
 *The constitution of the system. Any AI or collaborator reads this before working on it.*
-*v3.2 — 2026-07-02 — supersedes v3.1. Incorporates AMENDMENT-003 (`docs/decisions/AMENDMENT-003-staged-content-pipeline.md`) — the staged content pipeline with four content gates. All prior amendments (DIVERGENCE-001, DIVERGENCE-002) remain in force. Repo location: `docs/CHARTER-v3.2.md`.*
+*v3.3 — 2026-07-02 — supersedes v3.2. Incorporates AMENDMENT-004 (`docs/decisions/AMENDMENT-004-treatment-block.md`) — the treatment block on idea cards. All prior amendments (DIVERGENCE-001, DIVERGENCE-002, AMENDMENT-003) remain in force. Repo location: `docs/CHARTER-v3.3.md`.*
 
 ## What this is
 
@@ -61,7 +61,7 @@ Eight versioned markdown documents per business in `modules/{business}/` — the
    - **ai-originated:** AI proposes from the Source Bank × modules
    - **human-seeded:** the person's raw seed (spoken or typed; messy is fine)
    - **human-seeded, ai-developed:** the person's seed sharpened by AI — angle variants proposed, supporting Source Bank material attached. This is the primary path; the person supplies sparks, never finished ideas.
-   Each card carries: the idea, its hook/title options, suggested format, origin, and evidence links.
+   Each card carries: the idea, its hook/title options, a **treatment** (scope, format from the Format Guide — including experimental formats debuting on the card, capture-required tasks, reuse links, rationale), origin, and evidence links. Cards approved with outstanding capture tasks wait in **awaiting-capture** until the human supplies the material through the materials intake; only then do they flow to Draft.
    **GATE (rigorous):** approve / kill / park per card. The funnel kills most here — by design. Kill reasons logged to the Feedback Log.
 3. **Draft** — AI, all modules loaded, self-audited against the Tells Checklist. A draft is: **full text in voice + light visual direction** (image prompts, reference notes, shot/format choices per the Visual Style Guide). **No rendered images at this stage** — visual direction is text; render cost is only spent on survivors. *(Amendable: if co-production evidence shows drafts can't be judged without pixels, a single rough reference render per draft may be added via a future amendment — evidence first.)*
    **GATE (the human pass, unchanged from v3.1):** react via chips + text and/or direct edits (authoritative, highest Feedback Log weight); AI revises; **ship-forward or kill.**
@@ -75,7 +75,7 @@ Gate intensity tapers: Ideas is rigorous, Draft is the deep human pass, Assets i
 
 ## Provenance requirement
 
-`origin` (ai-originated | human-seeded | human-seeded-ai-developed) travels with a piece from idea card to Results. The nightly performance note records it, so the inward loop can answer: do the operator's seeds outperform AI-originated ideas? This is a measurable claim of the whole product thesis — it must be instrumented from the first piece.
+`origin` (ai-originated | human-seeded | human-seeded-ai-developed), `format`, and `scope` travel with a piece from idea card to Results. The nightly performance note records them, so the inward loop can answer: do the operator's seeds outperform AI-originated ideas? Do certain formats or scopes perform better? These are measurable claims of the whole product thesis — they must be instrumented from the first piece.
 
 ## The learning system (two loops, one asynchronous gate)
 

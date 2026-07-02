@@ -1,6 +1,6 @@
 # AMENDMENT-004 — Treatment block on idea cards (v2, revised per operator direction)
 
-*Repo location: `docs/decisions/AMENDMENT-004-treatment-block.md` · Proposed by Claude architect, revised per operator direction (Daimon) 2026-07-02 · **Status: PROPOSED — operator flips to APPROVED before Hermes applies anything.***
+*Repo location: `docs/decisions/AMENDMENT-004-treatment-block.md` · Proposed by Claude architect, revised per operator direction (Daimon) 2026-07-02 · **Status: APPROVED by operator (Daimon) 2026-07-02 — Hermes applies to charter.***
 
 ## What changes
 

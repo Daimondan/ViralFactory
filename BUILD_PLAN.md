@@ -1,6 +1,6 @@
 # BUILD_PLAN.md — ViralFactory
 
-*Instructions to the builder agent (Hermes). Read `docs/CHARTER-v3.2.md` and all of `playbooks/` before writing any code. This file is the single source of truth for what to build and in what order. v1.2 — 2026-07-02 — updated per AMENDMENT-003 (staged content pipeline: four content gates, ideas stage, assets stage, provenance `origin` field).*
+*Instructions to the builder agent (Hermes). Read `docs/CHARTER-v3.3.md` and all of `playbooks/` before writing any code. This file is the single source of truth for what to build and in what order. v1.3 — 2026-07-02 — updated per AMENDMENT-004 (treatment block on idea cards: scope, format, capture_required, reuse, rationale; format experimentation mechanism; awaiting-capture state).*
 
 ## How to work (non-negotiable)
 
@@ -65,16 +65,19 @@
 - [ ] R15 — Derive gate step numbers from parsed playbook (not hardcoded in routes) — AC: gate step index derived from playbook markdown, not literal strings
 - [ ] **Checkpoint:** operator end-to-end test (review-w1_1.md checklist, with R10 deployment posture in place). Tag `review-w2`.
 
-### M3 — Co-production loop (staged pipeline per AMENDMENT-003; est. weeks 5–6)
-- [ ] T3.1 Idea card generation: AI-originated ideas from Source Bank × modules (Viral/Audience/Story/Format); human-seeded and human-seeded-ai-developed paths. Each card: idea, hook/title options, format, `origin` tag, evidence links — AC: cards from all 3 origins producible; origin tag present on every card
-- [ ] T3.2 Ideas gate UI (Gate 1 — rigorous): card queue with origin badge, hook options, evidence links; approve / kill / park per card; kill reasons → Feedback Log — AC: kill reason logged; approved cards flow to Draft; parked cards retrievable
-- [ ] T3.3 Seed intake: typed + audio with transcription — AC: a 30-second voice note becomes a stored seed and generates a human-seeded idea card
-- [ ] T3.4 Drafter: approved idea card + ALL modules → draft (full text in voice + light visual direction block: image prompts, reference notes, shot/format choices) → self-audit vs Tells Checklist → flagged lines — AC: flags visible with the rule that fired; visual direction block present in draft schema; NO rendered images; prompts in `prompts/draft/`
-- [ ] T3.5 Human pass UI (Gate 2): per-line reaction chips + typed feedback **+ direct-edit mode** (editable draft; human text authoritative, overrides AI; logged to Feedback Log at highest weight with the draft version) — AC: reaction path and edit path both produce Feedback Log entries; revise honors both; ship-forward/kill works
-- [ ] T3.6 Assets stage: for ship-forward drafts — real images generated per visual direction + Visual Style Guide; captions rendered; per-platform fan-out (X thread, IG carousel/reel, …) — AC: images generated from visual direction block; per-platform variants produced from Format Guide
-- [ ] T3.7 Assets gate UI (Gate 3 — quick, per platform): per-platform variants shown side by side; approve / fix / kill per variant — AC: per-variant approve/fix/kill works; approved variants flow to Publish
-- [ ] T3.8 `origin` field threaded through pipeline: idea card → draft → assets → results tables; nightly performance note records origin — AC: origin tag travels end-to-end; nightly note includes origin breakdown
-- [ ] T3.9 Manual publish handoff (Gate 4 — go/hold + timing) — AC: shipped pieces exportable per platform format from the Format Guide
+### M3 — Co-production loop (staged pipeline per AMENDMENT-003 + treatment block per AMENDMENT-004; est. weeks 5–6)
+- [ ] T3.1 Idea card generation (with treatment block per AMENDMENT-004): AI-originated ideas from Source Bank × modules; human-seeded and human-seeded-ai-developed paths. Each card: idea, hook/title options, **treatment** (scope: one_off | series_of_n | pillar_with_derivatives; format from Format Guide; capture_required tasks; reuse links; rationale), `origin` tag, evidence links — AC: cards from all 3 origins producible; origin + treatment present on every card
+- [ ] T3.2 Ideas gate UI (Gate 1 — rigorous): card queue with origin badge, hook options, evidence links, compact treatment line (scope · format · capture flag), expandable full treatment (all editable per D1 direct-edit authority); approve / kill / park per card; kill reasons → Feedback Log — AC: kill reason logged; approved cards flow to Draft (or awaiting-capture if capture_required ≠ none); parked cards retrievable
+- [ ] T3.3 Awaiting-capture state: cards approved with capture_required ≠ none enter awaiting-capture; capture task list shown; uploads flow through existing materials intake; audio transcribed via T2.6; transcript becomes draft input — AC: awaiting-capture card with outstanding tasks shown separately; fulfilled capture triggers flow to Draft
+- [ ] T3.4 Seed intake: typed + audio with transcription — AC: a 30-second voice note becomes a stored seed and generates a human-seeded idea card with treatment
+- [ ] T3.5 Drafter: approved idea card + ALL modules → draft (full text in voice + light visual direction block: image prompts, reference notes, shot/format choices) → self-audit vs Tells Checklist → flagged lines — AC: flags visible with the rule that fired; visual direction block present in draft schema; NO rendered images; prompts in `prompts/draft/`
+- [ ] T3.6 Human pass UI (Gate 2): per-line reaction chips + typed feedback **+ direct-edit mode** (editable draft; human text authoritative, overrides AI; logged to Feedback Log at highest weight with the draft version) — AC: reaction path and edit path both produce Feedback Log entries; revise honors both; ship-forward/kill works
+- [ ] T3.7 Assets stage: for ship-forward drafts — real images generated per visual direction + Visual Style Guide; captions rendered; per-platform fan-out (X thread, IG carousel/reel, …) — AC: images generated from visual direction block; per-platform variants produced from Format Guide
+- [ ] T3.8 Assets gate UI (Gate 3 — quick, per platform): per-platform variants shown side by side; approve / fix / kill per variant — AC: per-variant approve/fix/kill works; approved variants flow to Publish
+- [ ] T3.9 `origin` + `format` + `scope` threaded through pipeline: idea card → draft → assets → results tables; nightly performance note records all three — AC: tags travel end-to-end; nightly note includes origin + format + scope breakdown
+- [ ] T3.10 Series spawning: approval of a `series_of_n` treatment spawns linked child cards sharing `parent_id` + cadence — AC: child cards created with parent link; cadence hands scheduled dates to Publish gate
+- [ ] T3.11 Experimental-format debut: card approval with `experimental: true` format auto-writes the Format Guide entry with provenance pointing at the debut card — AC: approving a card with experimental format creates the guide entry; no separate format-approval queue
+- [ ] T3.12 Manual publish handoff (Gate 4 — go/hold + timing) — AC: shipped pieces exportable per platform format from the Format Guide
 - [ ] **Checkpoint:** 10-piece co-production sprint through the full staged pipeline. **Drafter A/B:** same seeds through two configured backends; operator reacts blind; winner set in `models.yaml`. Tag `review-w6`.
 
 ### M4 — Publish + metrics (est. week 7)

@@ -1,6 +1,6 @@
 # BUILD_PLAN.md — ViralFactory
 
-*Instructions to the builder agent (Hermes). Read `docs/CHARTER-v3.2.md` and all of `playbooks/` before writing any code. This file is the single source of truth for what to build and in what order. v1.2 — 2026-07-02 — updated per AMENDMENT-003 (staged content pipeline: four content gates, ideas stage, assets stage, provenance `origin` field).*
+*Instructions to the builder agent (Hermes). Read `docs/CHARTER-v3.3.md` and all of `playbooks/` before writing any code. This file is the single source of truth for what to build and in what order. v1.3 — 2026-07-02 — updated per AMENDMENT-004 (treatment block on idea cards: scope, format, capture_required, reuse, rationale; format experimentation mechanism; awaiting-capture state).*
 
 ## How to work (non-negotiable)
 
