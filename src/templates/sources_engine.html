@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sources Engine — ViralFactory</title>
+    <style>
+        :root {
+            --bg: #0d1117; --surface: #161b22; --border: #30363d;
+            --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7;
+            --green: #3fb950; --red: #f85149; --yellow: #d29922;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg); color: var(--text); line-height: 1.6;
+            padding: 2rem; max-width: 1200px; margin: 0 auto;
+        }
+        h1 { color: var(--accent); margin-bottom: 0.5rem; }
+        h2 { margin: 1.5rem 0 0.5rem; }
+        h3 { margin: 1rem 0 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        .nav { display: flex; gap: 1.5rem; margin-bottom: 2rem; }
+        .nav a { color: var(--muted); }
+        .nav a.active { color: var(--text); font-weight: 600; }
+        .card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 8px; padding: 1.2rem; margin-bottom: 1rem;
+        }
+        .btn {
+            display: inline-block; padding: 0.4rem 1rem;
+            border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem;
+            text-decoration: none; margin-right: 0.5rem;
+        }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-approve { background: var(--green); color: white; }
+        .btn-reject { background: var(--red); color: white; }
+        .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+        .muted { color: var(--muted); font-size: 0.85rem; }
+        textarea, input[type="text"], input[type="url"] {
+            width: 100%; background: var(--bg);
+            border: 1px solid var(--border); border-radius: 6px;
+            padding: 0.5rem 0.8rem; color: var(--text); font-family: inherit;
+            font-size: 0.9rem; margin: 0.3rem 0;
+        }
+        .source-item {
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 4px; padding: 0.5rem; margin: 0.3rem 0;
+            font-size: 0.85rem;
+        }
+        .source-item .url { color: var(--accent); }
+        .source-item .v2-badge {
+            display: inline-block; padding: 0.1rem 0.4rem; border-radius: 8px;
+            font-size: 0.7rem; background: rgba(210,153,34,0.2); color: var(--yellow);
+            margin-left: 0.5rem;
+        }
+        pre {
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 6px; padding: 0.8rem; overflow-x: auto;
+            font-size: 0.85rem; white-space: pre-wrap; word-break: break-word;
+        }
+        .loading { color: var(--yellow); }
+        .error { color: var(--red); }
+        .success { color: var(--green); }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+        .tag {
+            display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px;
+            font-size: 0.75rem; background: rgba(47,129,247,0.15);
+            color: var(--accent); margin: 0.1rem;
+        }
+        .red-tag {
+            display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px;
+            font-size: 0.75rem; background: rgba(248,81,73,0.15);
+            color: var(--red); margin: 0.1rem;
+        }
+        .warning-box {
+            background: rgba(210,153,34,0.1); border: 1px solid var(--yellow);
+            border-radius: 6px; padding: 0.8rem; margin: 0.5rem 0;
+        }
+        .evidence {
+            color: var(--muted); font-size: 0.8rem; font-style: italic;
+            margin-left: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">Home</a>
+        <a href="/onboard" class="active">Onboard</a>
+        <a href="/library">Library</a>
+    </div>
+
+    <h1>Sources Engine — Part A</h1>
+    <p class="muted">Run #{{ run_id }} · Add your trusted sources, anti-examples, and the AI builds criteria for what a good source is for your business.</p>
+
+    <!-- V2 bulk import (optional, disabled by default) -->
+    {% if v2_backup_available %}
+    <div class="warning-box">
+        <h3>V2 Bulk Import (optional)</h3>
+        <p class="muted">A v2 backup database was found. You can bulk-import sources from the old StackPenni v2 pipeline as seed sources. They'll go through the same gate — nothing is auto-imported.</p>
+        <button class="btn btn-secondary" onclick="v2Import()">Import v2 Sources</button>
+        <span id="v2-status" class="muted"></span>
+    </div>
+    {% endif %}
+
+    <!-- Step 1: Seed Sources -->
+    <div class="card">
+        <h2>1. Seed Sources ({{ seed_sources|length }})</h2>
+        <p class="muted">Add 10–30 URLs, RSS feeds, YouTube channels, newsletters, or social accounts you already trust and read.</p>
+
+        <div class="grid-2">
+            <input type="text" id="src-name" placeholder="Source name (e.g., 'TechCrunch AI')">
+            <input type="url" id="src-url" placeholder="https://...">
+            <input type="text" id="src-type" placeholder="rss | youtube | newsletter | social" value="rss">
+        </div>
+        <button class="btn btn-primary" onclick="addSource()">Add Source</button>
+        <span id="src-status" class="muted"></span>
+
+        {% if seed_sources %}
+        <div style="margin-top: 0.5rem;">
+        {% for s in seed_sources %}
+        <div class="source-item">
+            <span class="url">{{ s.url }}</span> — {{ s.name }} ({{ s.type }})
+            {% if s.v2_imported %}<span class="v2-badge">v2</span>{% endif %}
+        </div>
+        {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Step 2: Anti-Examples -->
+    <div class="card">
+        <h2>2. Anti-Examples ({{ anti_examples|length }})</h2>
+        <p class="muted">3–5 sources or content types you consider junk for your business. These inform the disqualifiers.</p>
+
+        <textarea id="anti-desc" placeholder="e.g., 'Content-mill SEO blogs that regurgitate AI news without original reporting'"></textarea>
+        <button class="btn btn-primary" onclick="addAnti()">Add Anti-Example</button>
+        <span id="anti-status" class="muted"></span>
+
+        {% if anti_examples %}
+        <div style="margin-top: 0.5rem;">
+        {% for a in anti_examples %}
+        <div class="source-item">{{ a }}</div>
+        {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Step 3: Analyze -->
+    <div class="card">
+        <h2>3. Generate Source Criteria</h2>
+        <p class="muted">The AI analyzes your sources and writes explicit, human-readable criteria. You review and edit at the gate.</p>
+        <button class="btn btn-primary" onclick="analyze()" id="analyze-btn">Run AI Analysis</button>
+        <span id="analyze-status"></span>
+    </div>
+
+    <!-- Step 4: Review + Gate -->
+    <div class="card" id="review-section" style="display: none;">
+        <h2>4. Review — Source Criteria</h2>
+        <div id="criteria-display"></div>
+
+        <h3>Gate</h3>
+        <p class="muted">Approve to write sources.yaml + source-criteria module. Criteria are editable — park to come back later.</p>
+        <button class="btn btn-approve" onclick="storeSources(true)">Approve</button>
+        <button class="btn btn-secondary" onclick="storeSources(false)">Park</button>
+        <span id="store-status"></span>
+    </div>
+
+    <script>
+    function esc(s) {
+        const d = document.createElement('div');
+        d.textContent = s || '';
+        return d.innerHTML;
+    }
+
+    async function addSource() {
+        const name = document.getElementById('src-name').value.trim();
+        const url = document.getElementById('src-url').value.trim();
+        const type = document.getElementById('src-type').value.trim() || 'rss';
+        const status = document.getElementById('src-status');
+        if (!url) { status.className = 'error'; status.textContent = 'URL required'; return; }
+
+        const resp = await fetch(`/api/run/{{ run_id }}/seed-source`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({url, name, type}),
+        });
+        const data = await resp.json();
+        if (data.status === 'ok') {
+            document.getElementById('src-name').value = '';
+            document.getElementById('src-url').value = '';
+            status.className = 'success';
+            status.textContent = `✓ ${data.count} sources total`;
+            setTimeout(() => location.reload(), 500);
+        } else { status.className = 'error'; status.textContent = data.error || 'Error'; }
+    }
+
+    async function addAnti() {
+        const desc = document.getElementById('anti-desc').value.trim();
+        const status = document.getElementById('anti-status');
+        if (!desc) return;
+
+        const resp = await fetch(`/api/run/{{ run_id }}/anti-example`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({description: desc}),
+        });
+        const data = await resp.json();
+        if (data.status === 'ok') {
+            document.getElementById('anti-desc').value = '';
+            status.className = 'success';
+            status.textContent = `✓ ${data.count} anti-examples`;
+            setTimeout(() => location.reload(), 500);
+        } else { status.className = 'error'; status.textContent = data.error || 'Error'; }
+    }
+
+    async function analyze() {
+        const btn = document.getElementById('analyze-btn');
+        const status = document.getElementById('analyze-status');
+        btn.disabled = true;
+        status.className = 'loading';
+        status.textContent = 'Analyzing sources... (may take 20-30s)';
+
+        try {
+            const resp = await fetch(`/api/run/{{ run_id }}/analyze-sources`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({}),
+            });
+            const data = await resp.json();
+            if (data.status === 'ok') {
+                status.className = 'success';
+                status.textContent = '✓ Analysis complete.';
+                displayCriteria(data.criteria);
+            } else {
+                status.className = 'error';
+                status.textContent = data.error || 'Error';
+            }
+        } catch (e) { status.className = 'error'; status.textContent = e.message; }
+        btn.disabled = false;
+    }
+
+    function displayCriteria(c) {
+        document.getElementById('review-section').style.display = 'block';
+        const d = document.getElementById('criteria-display');
+        let h = '';
+
+        h += `<p><strong>Summary:</strong> ${esc(c.criteria_summary)}</p>`;
+
+        h += '<h3>Subjects covered</h3>';
+        for (const s of c.subjects_covered) {
+            h += `<span class="tag">${esc(s.subject)}</span>`;
+            h += `<div class="evidence">Evidence: ${s.evidence.map(esc).join(', ')}</div>`;
+        }
+
+        h += '<h3>Formats favored</h3>';
+        for (const f of c.formats_favored) {
+            h += `<span class="tag">${esc(f.format)}</span>`;
+            h += `<div class="evidence">Evidence: ${f.evidence.map(esc).join(', ')}</div>`;
+        }
+
+        h += `<h3>Freshness</h3><p>${esc(c.freshness.expectation)}</p>`;
+        h += `<div class="evidence">Evidence: ${c.freshness.evidence.map(esc).join(', ')}</div>`;
+
+        h += '<h3>Quality signals</h3><ul>';
+        for (const q of c.quality_signals) {
+            h += `<li><strong>${esc(q.signal)}</strong> — ${esc(q.description)}`;
+            h += `<div class="evidence">Evidence: ${q.evidence.map(esc).join(', ')}</div></li>`;
+        }
+        h += '</ul>';
+
+        h += '<h3>Disqualifiers</h3>';
+        for (const d of c.disqualifiers) {
+            h += `<span class="red-tag">${esc(d.disqualifier)}</span>`;
+            h += `<div class="evidence">Evidence: ${d.evidence.map(esc).join(', ')}</div>`;
+        }
+
+        h += `<h3>Regional relevance</h3><p>${esc(c.regional_relevance.requirement)}</p>`;
+        h += `<div class="evidence">Evidence: ${c.regional_relevance.evidence.map(esc).join(', ')}</div>`;
+
+        const mp = c.monitoring_plan;
+        if (mp.feeds.length) {
+            h += '<h3>Feeds</h3><ul>';
+            for (const f of mp.feeds) h += `<li>${esc(f.name)} (${esc(f.type)}) — <a href="${esc(f.url)}">${esc(f.url)}</a></li>`;
+            h += '</ul>';
+        }
+        if (mp.channels.length) {
+            h += '<h3>Channels</h3><ul>';
+            for (const c of mp.channels) h += `<li>${esc(c.name)} (${esc(c.platform)}/${esc(c.handle)})</li>`;
+            h += '</ul>';
+        }
+        if (mp.queries.length) {
+            h += '<h3>Search queries</h3><ul>';
+            for (const q of mp.queries) h += `<li>"${esc(q.query)}" (${esc(q.engine)})</li>`;
+            h += '</ul>';
+        }
+
+        d.innerHTML = h;
+    }
+
+    async function storeSources(approved) {
+        const status = document.getElementById('store-status');
+        const resp = await fetch(`/api/run/{{ run_id }}/store-sources`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({approved, version: '1.0'}),
+        });
+        const data = await resp.json();
+        if (data.status === 'ok') {
+            status.className = approved ? 'success' : 'loading';
+            status.textContent = approved ? '✓ sources.yaml + source-criteria module written.' : 'Parked.';
+            setTimeout(() => location.reload(), 1500);
+        } else { status.className = 'error'; status.textContent = data.error || 'Error'; }
+    }
+
+    async function v2Import() {
+        const status = document.getElementById('v2-status');
+        status.className = 'loading';
+        status.textContent = 'Importing...';
+        const resp = await fetch(`/api/run/{{ run_id }}/v2-bulk-import`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({enabled: true}),
+        });
+        const data = await resp.json();
+        if (data.status === 'ok') {
+            status.className = 'success';
+            status.textContent = `✓ Imported ${data.imported} sources (${data.total_seed_sources} total)`;
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            status.className = 'error';
+            status.textContent = data.error || data.message || 'Error';
+        }
+    }
+    </script>
+</body>
+</html>

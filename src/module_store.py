@@ -318,3 +318,196 @@ def brand_context_to_markdown(profile: dict, version: str = "1.0") -> str:
     lines.append(f"- Schema: brand_context_v1")
 
     return "\n".join(lines)
+
+
+# Source Criteria output schema (for the validator)
+SOURCE_CRITERIA_SCHEMA = {
+    "type": "object",
+    "required": [
+        "subjects_covered", "formats_favored", "freshness",
+        "quality_signals", "disqualifiers", "regional_relevance",
+        "monitoring_plan", "criteria_summary",
+    ],
+    "properties": {
+        "subjects_covered": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["subject", "evidence"],
+                "properties": {
+                    "subject": {"type": "string"},
+                    "evidence": {"type": "array", "items": {"type": "string"}},
+                },
+            },
+        },
+        "formats_favored": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["format", "evidence"],
+                "properties": {
+                    "format": {"type": "string"},
+                    "evidence": {"type": "array", "items": {"type": "string"}},
+                },
+            },
+        },
+        "freshness": {
+            "type": "object",
+            "required": ["expectation", "evidence"],
+            "properties": {
+                "expectation": {"type": "string"},
+                "evidence": {"type": "array", "items": {"type": "string"}},
+            },
+        },
+        "quality_signals": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["signal", "description", "evidence"],
+                "properties": {
+                    "signal": {"type": "string"},
+                    "description": {"type": "string"},
+                    "evidence": {"type": "array", "items": {"type": "string"}},
+                },
+            },
+        },
+        "disqualifiers": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["disqualifier", "evidence"],
+                "properties": {
+                    "disqualifier": {"type": "string"},
+                    "evidence": {"type": "array", "items": {"type": "string"}},
+                },
+            },
+        },
+        "regional_relevance": {
+            "type": "object",
+            "required": ["requirement", "evidence"],
+            "properties": {
+                "requirement": {"type": "string"},
+                "evidence": {"type": "array", "items": {"type": "string"}},
+            },
+        },
+        "monitoring_plan": {
+            "type": "object",
+            "required": ["feeds", "channels", "queries"],
+            "properties": {
+                "feeds": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["name", "url", "type", "enabled"],
+                        "properties": {
+                            "name": {"type": "string"},
+                            "url": {"type": "string"},
+                            "type": {"type": "string"},
+                            "enabled": {"type": "boolean"},
+                        },
+                    },
+                },
+                "channels": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["name", "platform", "handle", "enabled"],
+                        "properties": {
+                            "name": {"type": "string"},
+                            "platform": {"type": "string"},
+                            "handle": {"type": "string"},
+                            "enabled": {"type": "boolean"},
+                        },
+                    },
+                },
+                "queries": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["query", "engine", "enabled"],
+                        "properties": {
+                            "query": {"type": "string"},
+                            "engine": {"type": "string"},
+                            "enabled": {"type": "boolean"},
+                        },
+                    },
+                },
+            },
+        },
+        "criteria_summary": {"type": "string"},
+    },
+}
+
+
+def source_criteria_to_markdown(criteria: dict, version: str = "1.0") -> str:
+    """Convert validated Source Criteria JSON into the module markdown."""
+    lines = [f"# Source Criteria — v{version}"]
+
+    lines.append(f"\n## Summary\n{criteria.get('criteria_summary', '')}")
+
+    lines.append("\n## Subjects covered")
+    for s in criteria.get("subjects_covered", []):
+        lines.append(f"- **{s['subject']}**")
+        for ev in s.get("evidence", []):
+            lines.append(f'  - Evidence: "{ev}"')
+
+    lines.append("\n## Formats favored")
+    for f in criteria.get("formats_favored", []):
+        lines.append(f"- **{f['format']}**")
+        for ev in f.get("evidence", []):
+            lines.append(f'  - Evidence: "{ev}"')
+
+    fr = criteria.get("freshness", {})
+    lines.append(f"\n## Freshness\n{fr.get('expectation', '')}")
+    for ev in fr.get("evidence", []):
+        lines.append(f'- Evidence: "{ev}"')
+
+    lines.append("\n## Quality signals")
+    for q in criteria.get("quality_signals", []):
+        lines.append(f"- **{q['signal']}** — {q['description']}")
+        for ev in q.get("evidence", []):
+            lines.append(f'  - Evidence: "{ev}"')
+
+    lines.append("\n## Disqualifiers")
+    for d in criteria.get("disqualifiers", []):
+        lines.append(f"- **{d['disqualifier']}**")
+        for ev in d.get("evidence", []):
+            lines.append(f'  - Evidence: "{ev}"')
+
+    rr = criteria.get("regional_relevance", {})
+    lines.append(f"\n## Regional relevance\n{rr.get('requirement', '')}")
+    for ev in rr.get("evidence", []):
+        lines.append(f'- Evidence: "{ev}"')
+
+    lines.append("\n## Monitoring plan")
+    mp = criteria.get("monitoring_plan", {})
+    if mp.get("feeds"):
+        lines.append("\n### Feeds")
+        for f in mp["feeds"]:
+            lines.append(f"- {f['name']} ({f['type']}) — {f['url']}")
+    if mp.get("channels"):
+        lines.append("\n### Channels")
+        for c in mp["channels"]:
+            lines.append(f"- {c['name']} ({c['platform']}/{c['handle']})")
+    if mp.get("queries"):
+        lines.append("\n### Search queries")
+        for q in mp["queries"]:
+            lines.append(f"- \"{q['query']}\" ({q['engine']})")
+
+    lines.append(f"\n## Provenance\n- Version: {version}")
+    lines.append(f"- Generated: {datetime.now(timezone.utc).isoformat()}")
+    lines.append(f"- Schema: source_criteria_v1")
+
+    return "\n".join(lines)
+
+
+def monitoring_plan_to_yaml(criteria: dict) -> str:
+    """Extract the monitoring plan from Source Criteria JSON into sources.yaml format."""
+    import yaml as _yaml
+    mp = criteria.get("monitoring_plan", {})
+    sources = {
+        "feeds": mp.get("feeds", []),
+        "channels": mp.get("channels", []),
+        "queries": mp.get("queries", []),
+    }
+    return _yaml.dump(sources, default_flow_style=False, sort_keys=False, allow_unicode=True)

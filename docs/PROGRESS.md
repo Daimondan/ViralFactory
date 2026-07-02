@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-02
-**Current Phase:** M2 in progress. T2.1 done (Business Profile intake). 116 tests passing.
+**Current Phase:** M2 in progress. T2.1–T2.2 done. 133 tests passing.
 
 ---
 
@@ -15,7 +15,7 @@
 |---|---|---|
 | 0. Foundation | ✅ | All T0.1–T0.7 done. 28 tests passing. Real config verified. Pushed. |
 | 1. Onboarding engine: Voice Profile | ✅ | T1.1–T1.5 all done. 92 tests. Runner, intake, analysis, calibration, interview fallback. |
-| 2. Remaining playbooks wired | 🔧 | T2.1 done (Business Profile intake: Q&A→AI→gate→business.yaml+brand-context). 116 tests. T2.2–T2.11 next. |
+| 2. Remaining playbooks wired | 🔧 | T2.1 done (Business Profile) + T2.2 done (Sources Engine Part A: criteria + sources.yaml + v2 bulk-import). 133 tests. T2.3–T2.11 next. |
 | 3. Co-production loop | ⬜ | Direct-edit mode in BUILD_PLAN (T3.3). Drafter A/B at checkpoint. |
 | 4. Publish + metrics automation | ⬜ | Postiz self-hosted confirmed. |
 | 5. Inward learning loop | ⬜ | Async gate queue (superseding, age, no pressure). |
@@ -76,4 +76,5 @@
 ## What's Next
 - [ ] Tag review-w1 for Claude architect review
 - [x] T2.1: Business Profile intake — Q&A UI, AI analysis prompt, schema, gate enforcement, business.yaml + brand-context module (15 new tests, 116 total)
-- [ ] M2 continues: T2.2 Sources Engine, T2.3–T2.4 remaining playbooks, T2.5 module store, T2.6–T2.11 (transcription, voice cloning, R7–R9)
+- [x] T2.2: Sources Engine Part A — seed sources + anti-examples → AI criteria → sources.yaml + source-criteria module; v2 bulk-import path (disabled by default) (17 new tests, 133 total)
+- [ ] M2 continues: T2.3–T2.4 remaining playbooks, T2.5 module store, T2.6–T2.11 (transcription, voice cloning, R7–R9)

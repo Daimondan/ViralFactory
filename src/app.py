@@ -624,6 +624,261 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             result["paths"] = paths
         return jsonify(result)
 
+    # --- Sources Engine Part A (T2.2) ---
+
+    @app.route("/onboard/<playbook_name>/<int:run_id>/sources-engine")
+    def sources_engine_page(playbook_name, run_id):
+        """Sources Engine Part A UI — seed sources, anti-examples, criteria generation."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return "Run not found", 404
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        seed_sources = collected.get("seed_sources", [])
+        anti_examples = collected.get("anti_examples", [])
+
+        llm_outputs = json.loads(run.get("llm_outputs") or "{}")
+        criteria = llm_outputs.get("criteria")
+
+        # Check for v2 backup availability (deferred bulk-import path)
+        v2_backup_path = os.environ.get("V2_BACKUP_PATH", "/home/daimon/v2-backups/")
+        v2_backup_available = os.path.exists(v2_backup_path)
+
+        return render_template("sources_engine.html",
+            playbook_name=playbook_name, run_id=run_id,
+            seed_sources=seed_sources, anti_examples=anti_examples,
+            criteria=criteria, v2_backup_available=v2_backup_available)
+
+    @app.route("/api/run/<int:run_id>/seed-source", methods=["POST"])
+    def add_seed_source(run_id):
+        """Add a seed source URL."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        url = request.json.get("url", "").strip()
+        name = request.json.get("name", "").strip()
+        source_type = request.json.get("type", "rss").strip()
+        if not url:
+            return jsonify({"error": "URL required"}), 400
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        if "seed_sources" not in collected:
+            collected["seed_sources"] = []
+        collected["seed_sources"].append({"url": url, "name": name or url, "type": source_type})
+        runner.update_run(run_id, collected_inputs=json.dumps(collected))
+
+        return jsonify({"status": "ok", "count": len(collected["seed_sources"])})
+
+    @app.route("/api/run/<int:run_id>/anti-example", methods=["POST"])
+    def add_anti_example(run_id):
+        """Add an anti-example source."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        description = request.json.get("description", "").strip()
+        if not description:
+            return jsonify({"error": "Description required"}), 400
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        if "anti_examples" not in collected:
+            collected["anti_examples"] = []
+        collected["anti_examples"].append(description)
+        runner.update_run(run_id, collected_inputs=json.dumps(collected))
+
+        return jsonify({"status": "ok", "count": len(collected["anti_examples"])})
+
+    @app.route("/api/run/<int:run_id>/analyze-sources", methods=["POST"])
+    def analyze_sources(run_id):
+        """Run the Source Criteria analysis LLM call."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        seed_sources = collected.get("seed_sources", [])
+        if len(seed_sources) < 3:
+            return jsonify({"error": "Need at least 3 seed sources. Add more first."}), 400
+
+        # Build seed sources text
+        seeds_text = ""
+        for i, s in enumerate(seed_sources, 1):
+            seeds_text += f"  {i}. {s.get('name', '')} — {s['url']} ({s.get('type', 'rss')})\n"
+
+        anti_text = ""
+        for i, a in enumerate(collected.get("anti_examples", []), 1):
+            anti_text += f"  {i}. {a}\n"
+        if not anti_text:
+            anti_text = "  (none provided)"
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+            business = config["business"]
+        except ConfigError as e:
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        from module_store import SOURCE_CRITERIA_SCHEMA
+        from llm_adapter import LLMAdapter, LLMAdapterError
+
+        adapter = LLMAdapter(
+            models_config,
+            db_path=app.config["DB_PATH"],
+            prompts_dir="prompts",
+        )
+
+        try:
+            result = adapter.complete(
+                prompt_file="sources_engine/analyze_v1.md",
+                variables={
+                    "business_name": business["business"]["name"],
+                    "subjects": ", ".join(business.get("subjects", [])),
+                    "audience_description": business.get("audience_description", ""),
+                    "seed_sources": seeds_text,
+                    "anti_examples": anti_text,
+                },
+                schema=SOURCE_CRITERIA_SCHEMA,
+                backend="default",
+                context=f"Source Criteria analysis for run {run_id}",
+            )
+        except LLMAdapterError as e:
+            return jsonify({"error": str(e)}), 500
+        except Exception as e:
+            return jsonify({"error": f"LLM call failed: {e}"}), 500
+
+        runner.add_llm_output(run_id, "criteria", result)
+        return jsonify({"status": "ok", "criteria": result})
+
+    @app.route("/api/run/<int:run_id>/store-sources", methods=["POST"])
+    def store_sources(run_id):
+        """Store source criteria: write sources.yaml + source-criteria module."""
+        from module_store import (
+            ModuleStore, source_criteria_to_markdown, monitoring_plan_to_yaml,
+        )
+
+        approved = request.json.get("approved", False)
+        version = request.json.get("version", "1.0")
+        note = request.json.get("note", "")
+
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        llm_outputs = json.loads(run.get("llm_outputs") or "{}")
+        criteria = llm_outputs.get("criteria")
+        if not criteria:
+            return jsonify({"error": "No source criteria found. Run analysis first."}), 400
+
+        paths = {}
+        if approved:
+            # Write sources.yaml
+            yaml_content = monitoring_plan_to_yaml(criteria)
+            sources_yaml_path = os.path.join(app.config["CONFIG_DIR"], "sources.yaml")
+            with open(sources_yaml_path, "w") as f:
+                f.write("# ViralFactory sources config\n")
+                f.write("# Generated by the Sources Engine playbook (Part A).\n")
+                f.write("# All monitoring targets — feeds, channels, search queries.\n\n")
+                f.write(yaml_content)
+            paths["sources_yaml"] = sources_yaml_path
+
+            # Write source-criteria module
+            try:
+                config = load_all(app.config["CONFIG_DIR"])
+                business_slug = config["business"]["business"]["slug"]
+            except ConfigError:
+                business_slug = criteria.get("business_slug", "unknown")
+            md = source_criteria_to_markdown(criteria, version)
+            store = ModuleStore(modules_dir="modules")
+            module_path = store.store(
+                business_slug, "source-criteria", md,
+                version=version,
+                provenance={
+                    "version": version, "approved": approved,
+                    "note": note, "run_id": run_id,
+                    "playbook": "sources-engine",
+                },
+            )
+            paths["source_criteria"] = module_path
+
+        runner.set_gate_result(run_id, "5", "approve" if approved else "park", note)
+        runner.update_run(run_id, status="completed" if approved else "awaiting_gate")
+
+        result = {"status": "ok", "version": version, "approved": approved}
+        if paths:
+            result["paths"] = paths
+        return jsonify(result)
+
+    @app.route("/api/run/<int:run_id>/v2-bulk-import", methods=["POST"])
+    def v2_bulk_import(run_id):
+        """
+        Optional deferred v2 bulk-import path.
+        Reads the T0.7 backup of the v2 SQLite DB and proposes source entries.
+        Ships DISABLED by default — operator must explicitly enable.
+        """
+        enabled = request.json.get("enabled", False)
+        if not enabled:
+            return jsonify({"status": "disabled", "message": "V2 bulk import is disabled. Set enabled=true to proceed."})
+
+        v2_backup_path = os.environ.get("V2_BACKUP_PATH", "/home/daimon/v2-backups/")
+        # Find the v2 SQLite backup
+        import glob
+        db_files = glob.glob(os.path.join(v2_backup_path, "*.db")) + \
+                   glob.glob(os.path.join(v2_backup_path, "*.sqlite")) + \
+                   glob.glob(os.path.join(v2_backup_path, "**/*.db"), recursive=True)
+
+        if not db_files:
+            return jsonify({"error": f"No v2 backup database found in {v2_backup_path}"}), 404
+
+        import sqlite3
+        try:
+            conn = sqlite3.connect(db_files[0])
+            conn.row_factory = sqlite3.Row
+            # Try to read sources table (v2 schema may vary)
+            try:
+                rows = conn.execute("SELECT * FROM sources LIMIT 100").fetchall()
+            except sqlite3.OperationalError:
+                return jsonify({"error": "V2 backup found but 'sources' table does not exist or has different schema."}), 500
+
+            sources = []
+            for row in rows:
+                row_dict = dict(row)
+                sources.append({
+                    "url": row_dict.get("url", row_dict.get("feed_url", "")),
+                    "name": row_dict.get("name", row_dict.get("title", "")),
+                    "type": row_dict.get("type", "rss"),
+                    "score": row_dict.get("score", row_dict.get("quality_score", None)),
+                })
+            conn.close()
+        except Exception as e:
+            return jsonify({"error": f"Failed to read v2 backup: {e}"}), 500
+
+        # Add as seed sources (operator reviews at the gate)
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        if "seed_sources" not in collected:
+            collected["seed_sources"] = []
+        imported = 0
+        for s in sources:
+            if s["url"]:
+                collected["seed_sources"].append({
+                    "url": s["url"], "name": s["name"] or s["url"],
+                    "type": s["type"], "v2_imported": True,
+                })
+                imported += 1
+        runner.update_run(run_id, collected_inputs=json.dumps(collected))
+
+        return jsonify({"status": "ok", "imported": imported, "total_seed_sources": len(collected["seed_sources"])})
+
     @app.route("/api/run/<int:run_id>/interview-question", methods=["POST"])
     def interview_question(run_id):
         """Generate the next interview question."""
