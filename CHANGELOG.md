@@ -6,6 +6,12 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-02 BUILD T2.4 — Visual Style intake + shot-library index
+**What:** 2 prompt templates (per-item indexing + style guide analysis), VISUAL_STYLE_SCHEMA (palette with hex codes, typography feel, stylization level, blend rules with real/generated/disclosure split, platform adjustments), SHOT_LIBRARY_ITEM_SCHEMA (description, tags, mood, best_for, platforms), 2 markdown converters, 5 API endpoints including per-item LLM indexing of shot library items, HTML intake page with palette swatches and shot library display. Gate-enforced write writes both visual-style and shot-library modules. 23 new tests (240 total).
+**Rationale:** M2 BUILD_PLAN T2.4 — the visual identity module and shot library that feed the drafter's visual direction blocks. Blend rules enforce the charter principle: real footage anchors trust, generated is supporting.
+
+---
+
 ### 2026-07-02 BUILD R15 — Gate step derived from parsed playbook, not hardcoded
 **What:** PlaybookParser now handles numbered-list procedure format (N. Description) in addition to ### Step N format. Added get_gate_step_number() to PlaybookRunner. All 7 store endpoints (voice, business, sources, viral-patterns, audience-insights, story-frameworks, format-guide) now derive the gate step from the parsed playbook instead of hardcoded strings. create_app() defaults to absolute playbooks path so CWD changes don't break file resolution. 16 new tests (217 total).
 **Rationale:** R15 correction — hardcoded gate step strings are fragile. If a playbook's procedure changes (step renumbered), the store endpoint would record the gate result on the wrong step. Deriving from the playbook makes the system self-correcting.

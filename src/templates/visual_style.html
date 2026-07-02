@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual Style — ViralFactory</title>
+    <style>
+        :root { --bg: #0d1117; --surface: #161b22; --border: #30363d; --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7; --green: #3fb950; --red: #f85149; --yellow: #d29922; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 2rem; max-width: 1200px; margin: 0 auto; }
+        h1 { color: var(--accent); margin-bottom: 0.5rem; } h2 { margin: 1.5rem 0 0.5rem; } h3 { margin: 1rem 0 0.3rem; } h4 { margin: 0.8rem 0 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        .nav { display: flex; gap: 1.5rem; margin-bottom: 2rem; } .nav a { color: var(--muted); }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.2rem; margin-bottom: 1rem; }
+        .btn { display: inline-block; padding: 0.4rem 1rem; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; margin-right: 0.5rem; }
+        .btn-primary { background: var(--accent); color: white; } .btn-approve { background: var(--green); color: white; } .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+        .muted { color: var(--muted); font-size: 0.85rem; }
+        textarea, input[type="text"] { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.8rem; color: var(--text); font-family: inherit; font-size: 0.9rem; margin: 0.3rem 0; }
+        .item { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem; margin: 0.3rem 0; font-size: 0.85rem; }
+        .loading { color: var(--yellow); } .error { color: var(--red); } .success { color: var(--green); }
+        .tag { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.75rem; background: rgba(47,129,247,0.15); color: var(--accent); margin: 0.1rem; }
+        .swatch { display: inline-block; width: 1rem; height: 1rem; border-radius: 3px; border: 1px solid var(--border); vertical-align: middle; margin-right: 0.3rem; }
+    </style>
+</head>
+<body>
+    <div class="nav"><a href="/">Home</a><a href="/onboard" class="active">Onboard</a><a href="/library">Library</a></div>
+    <h1>Visual Style Intake</h1>
+    <p class="muted">Run #{{ run_id }} · Establish visual identity, blend rules, and index your shot library.</p>
+
+    <div class="card">
+        <h2>1. Shot Library ({{ shot_library|length }})</h2>
+        <p class="muted">Describe photos/clips from your world. The AI indexes each with tags, mood, and usage hints so the drafter can reference them.</p>
+        <textarea id="shot-desc" rows="2" placeholder="e.g., 'Street market in the capital at noon, vendors selling fruit, wide shot'"></textarea>
+        <button class="btn btn-primary" onclick="addShot()">Add Item</button>
+        <span id="shot-status" class="muted"></span>
+        {% if shot_library %}
+        <div style="margin-top: 0.5rem;">
+        {% for item in shot_library %}
+        <div class="item">
+            {% if item.tags %}
+            <strong>{{ item.description }}</strong>
+            {% for t in item.tags %}<span class="tag">{{ t }}</span>{% endfor %}
+            <span class="muted">· mood: {{ item.mood }}</span>
+            {% else %}
+            {{ item.raw_description }} <span class="muted">(un-indexed)</span>
+            {% endif %}
+        </div>
+        {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h2>2. Index Shot Library</h2>
+        <p class="muted">The AI tags and describes each item so the drafter can look them up by mood, tag, or content type.</p>
+        <button class="btn btn-primary" onclick="indexShots()" id="index-btn">Index Items</button>
+        <span id="index-status"></span>
+    </div>
+
+    <div class="card">
+        <h2>3. Brand Assets (optional)</h2>
+        <p class="muted">Logo description, brand colors, type preferences. Leave empty if you don't have any yet.</p>
+        <textarea id="brand-assets" rows="3" placeholder="e.g., 'Logo: geometric mark in blue. Colors: navy, electric blue, white. Type: clean sans-serif'">{{ brand_assets }}</textarea>
+        <button class="btn btn-primary" onclick="saveInput('brand_assets', 'brand-assets')">Save</button>
+        <span id="brand-status" class="muted"></span>
+    </div>
+
+    <div class="card">
+        <h2>4. Visual Examples You Like (optional)</h2>
+        <p class="muted">3–5 references with notes on what you like about them.</p>
+        <textarea id="visual-ex" rows="3" placeholder="e.g., 'https://example.com/feed — clean minimal carousels with bold type'">{{ visual_examples }}</textarea>
+        <button class="btn btn-primary" onclick="saveInput('visual_examples', 'visual-ex')">Save</button>
+        <span id="ex-status" class="muted"></span>
+    </div>
+
+    <div class="card">
+        <h2>5. Generate Visual Style Guide</h2>
+        <p class="muted">The AI drafts palette, typography feel, blend rules, and platform adjustments from your inputs.</p>
+        <button class="btn btn-primary" onclick="analyze()" id="analyze-btn">Run AI Analysis</button>
+        <span id="analyze-status"></span>
+    </div>
+
+    <div class="card" id="review-section" style="display: none;">
+        <h2>6. Review — Visual Style Guide</h2>
+        <div id="guide-display"></div>
+        <h3>Gate</h3>
+        <button class="btn btn-approve" onclick="store(true)">Approve</button>
+        <button class="btn btn-secondary" onclick="store(false)">Park</button>
+        <span id="store-status"></span>
+    </div>
+
+    <script>
+    function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+    async function addShot() {
+        const desc = document.getElementById('shot-desc').value.trim();
+        const status = document.getElementById('shot-status');
+        if (!desc) return;
+        const resp = await fetch(`/api/run/{{ run_id }}/shot-library-item`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({description: desc}), });
+        const data = await resp.json();
+        if (data.status === 'ok') { document.getElementById('shot-desc').value = ''; status.className = 'success'; status.textContent = `✓ ${data.count} items`; setTimeout(() => location.reload(), 500); }
+        else { status.className = 'error'; status.textContent = data.error; }
+    }
+
+    async function saveInput(key, inputId) {
+        const value = document.getElementById(inputId).value.trim();
+        const status = document.getElementById(inputId.split('-')[0] + '-status') || document.getElementById('brand-status');
+        if (!value) return;
+        const resp = await fetch(`/api/run/{{ run_id }}/visual-style-input`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key, value}) });
+        const data = await resp.json();
+        if (data.status === 'ok') { status.className = 'success'; status.textContent = '✓ Saved'; }
+        else { status.className = 'error'; status.textContent = data.error; }
+    }
+
+    async function indexShots() {
+        const btn = document.getElementById('index-btn'); const status = document.getElementById('index-status');
+        btn.disabled = true; status.className = 'loading'; status.textContent = 'Indexing items... (may take time per item)';
+        try {
+            const resp = await fetch(`/api/run/{{ run_id }}/index-shot-library`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({}) });
+            const data = await resp.json();
+            if (data.status === 'ok') { status.className = 'success'; status.textContent = `✓ ${data.indexed}/${data.total} items indexed.`; setTimeout(() => location.reload(), 1500); }
+            else { status.className = 'error'; status.textContent = data.error; }
+        } catch(e) { status.className = 'error'; status.textContent = e.message; }
+        btn.disabled = false;
+    }
+
+    async function analyze() {
+        const btn = document.getElementById('analyze-btn'); const status = document.getElementById('analyze-status');
+        btn.disabled = true; status.className = 'loading'; status.textContent = 'Analyzing...';
+        try {
+            const resp = await fetch(`/api/run/{{ run_id }}/analyze-visual-style`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({}) });
+            const data = await resp.json();
+            if (data.status === 'ok') { status.className = 'success'; status.textContent = '✓ Analysis complete.'; display(data.style_guide); }
+            else { status.className = 'error'; status.textContent = data.error; }
+        } catch(e) { status.className = 'error'; status.textContent = e.message; }
+        btn.disabled = false;
+    }
+
+    function display(g) {
+        document.getElementById('review-section').style.display = 'block';
+        const d = document.getElementById('guide-display');
+        let h = `<p class="muted">${esc(g.summary)}</p>`;
+
+        h += '<h3>Palette</h3>';
+        const pal = g.palette;
+        for (const [k, c] of Object.entries(pal)) {
+            h += `<span class="swatch" style="background:${esc(c.hex)}"></span><strong>${esc(k)}</strong>: ${esc(c.name)} (${esc(c.hex)})<br>`;
+        }
+
+        h += '<h3>Typography</h3>';
+        h += `<p><strong>Feel:</strong> ${esc(g.typography.feel)} · <strong>Weight:</strong> ${esc(g.typography.weight)} · <strong>Sizing:</strong> ${esc(g.typography.sizing)}</p>`;
+
+        h += `<h3>Stylization: ${esc(g.stylization_level)}</h3><p class="muted">${esc(g.stylization_rationale)}</p>`;
+
+        h += '<h3>Blend rules</h3>';
+        h += '<h4>Real anchors</h4><ul>';
+        for (const r of g.blend_rules.real_anchors) h += `<li>${esc(r)}</li>`;
+        h += '</ul><h4>Generated supporting</h4><ul>';
+        for (const g2 of g.blend_rules.generated_supporting) h += `<li>${esc(g2)}</li>`;
+        h += '</ul><h4>Disclosure</h4><ul>';
+        for (const d2 of g.blend_rules.disclosure) h += `<li>${esc(d2)}</li>`;
+        h += '</ul>';
+
+        h += '<h3>Platform adjustments</h3><ul>';
+        for (const p of g.platform_adjustments) h += `<li><strong>${esc(p.platform)}</strong> — ${esc(p.aspect_ratio)}: ${esc(p.notes)}</li>`;
+        h += '</ul>';
+
+        if (g.shot_library_usage) h += `<h3>Shot library usage</h3><p>${esc(g.shot_library_usage)}</p>`;
+
+        d.innerHTML = h;
+    }
+
+    async function store(approved) {
+        const status = document.getElementById('store-status');
+        const resp = await fetch(`/api/run/{{ run_id }}/store-visual-style`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({approved, version: '1.0'}) });
+        const data = await resp.json();
+        if (data.status === 'ok') { status.className = approved ? 'success' : 'loading'; status.textContent = approved ? '✓ visual-style + shot-library modules written.' : 'Parked.'; setTimeout(() => location.reload(), 1500); }
+        else { status.className = 'error'; status.textContent = data.error; }
+    }
+    </script>
+</body>
+</html>

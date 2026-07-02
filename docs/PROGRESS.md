@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-02
-**Current Phase:** M2 in progress. T2.1–T2.3, T2.9, R15 done. Charter v3.3. 217 tests passing.
+**Current Phase:** M2 in progress. T2.1–T2.4, T2.9, R15 done. Charter v3.3. 240 tests passing.
 
 ---
 
@@ -81,4 +81,5 @@
 - [x] T2.9: Gate-token enforcement — all write paths (ModuleStore.store, business.yaml, sources.yaml) require verified gate token from approved run (12 new tests, 154 total)
 - [x] T2.3: Viral Patterns + Audience Insights + Story Frameworks + Format Guide playbooks — 4 prompt templates, 4 schemas, 4 markdown converters, 4 sets of API endpoints (input + analyze + store), 4 HTML intake pages, Format Guide with AMENDMENT-004 enrichment (requires_human_capture, effort_level, best_for, platforms, reuse_pathways, status, provenance), 47 new tests, 201 total
 - [x] R15: Gate step numbers derived from parsed playbook — parser now handles numbered-list format (N. Description) in addition to ### Step N format; get_gate_step_number() replaces all hardcoded gate step strings in 7 store endpoints; create_app() defaults to absolute playbooks path (16 new tests, 217 total)
-- [ ] M2 remaining: T2.4 (Visual Style) → T2.5 (module store schema-check) → T2.6 (audio transcription) → T2.8 (voice samples) → T2.7 (voice cloning smoke test) → T2.10 (security fixes) → T2.11 (provenance business_slug) → operator end-to-end test → tag review-w2
+- [x] T2.4: Visual Style intake + shot-library index — 2 prompt templates (item indexing + style guide analysis), VISUAL_STYLE_SCHEMA + SHOT_LIBRARY_ITEM_SCHEMA, 2 markdown converters, 5 API endpoints (shot-library item, visual-style input, index-shot-library, analyze-visual-style, store-visual-style), HTML intake page with palette swatches + shot library display, gate-enforced writes both visual-style + shot-library modules (23 new tests, 240 total)
+- [ ] M2 remaining: T2.5 (module store schema-check) → T2.6 (audio transcription) → T2.8 (voice samples) → T2.7 (voice cloning smoke test) → T2.10 (security fixes) → T2.11 (provenance business_slug) → operator end-to-end test → tag review-w2

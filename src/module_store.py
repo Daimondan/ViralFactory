@@ -948,3 +948,145 @@ def format_guide_to_markdown(data: dict, version: str = "1.0") -> str:
     lines.append(f"- Schema: format_guide_v1")
 
     return "\n".join(lines)
+
+
+# ────────────────────────────────────────────────────────────────────
+# T2.4: Visual Style Guide + Shot Library
+# ────────────────────────────────────────────────────────────────────
+
+SHOT_LIBRARY_ITEM_SCHEMA = {
+    "type": "object",
+    "required": ["description", "tags", "mood", "best_for", "platforms"],
+    "properties": {
+        "description": {"type": "string"},
+        "tags": {"type": "array", "items": {"type": "string"}},
+        "mood": {"type": "string"},
+        "best_for": {"type": "array", "items": {"type": "string"}},
+        "platforms": {"type": "array", "items": {"type": "string"}},
+    },
+}
+
+
+VISUAL_STYLE_SCHEMA = {
+    "type": "object",
+    "required": ["palette", "typography", "stylization_level",
+                 "blend_rules", "platform_adjustments", "summary"],
+    "properties": {
+        "palette": {
+            "type": "object",
+            "required": ["primary", "secondary", "accent", "background"],
+            "properties": {
+                "primary": {"type": "object", "required": ["hex", "name"],
+                    "properties": {"hex": {"type": "string"}, "name": {"type": "string"}}},
+                "secondary": {"type": "object", "required": ["hex", "name"],
+                    "properties": {"hex": {"type": "string"}, "name": {"type": "string"}}},
+                "accent": {"type": "object", "required": ["hex", "name"],
+                    "properties": {"hex": {"type": "string"}, "name": {"type": "string"}}},
+                "background": {"type": "object", "required": ["hex", "name"],
+                    "properties": {"hex": {"type": "string"}, "name": {"type": "string"}}},
+            },
+        },
+        "typography": {
+            "type": "object",
+            "required": ["feel", "weight", "sizing"],
+            "properties": {
+                "feel": {"type": "string"},
+                "weight": {"type": "string"},
+                "sizing": {"type": "string"},
+            },
+        },
+        "stylization_level": {"type": "string"},
+        "stylization_rationale": {"type": "string"},
+        "blend_rules": {
+            "type": "object",
+            "required": ["real_anchors", "generated_supporting", "disclosure"],
+            "properties": {
+                "real_anchors": {"type": "array", "items": {"type": "string"}},
+                "generated_supporting": {"type": "array", "items": {"type": "string"}},
+                "disclosure": {"type": "array", "items": {"type": "string"}},
+            },
+        },
+        "platform_adjustments": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["platform", "aspect_ratio", "notes"],
+                "properties": {
+                    "platform": {"type": "string"},
+                    "aspect_ratio": {"type": "string"},
+                    "notes": {"type": "string"},
+                },
+            },
+        },
+        "shot_library_usage": {"type": "string"},
+        "summary": {"type": "string"},
+    },
+}
+
+
+def visual_style_to_markdown(data: dict, version: str = "1.0") -> str:
+    """Convert validated Visual Style Guide JSON into the module markdown."""
+    lines = [f"# Visual Style Guide — v{version}"]
+
+    lines.append(f"\n## Summary\n{data.get('summary', '')}")
+
+    lines.append("\n## Palette")
+    pal = data.get("palette", {})
+    for key in ["primary", "secondary", "accent", "background"]:
+        c = pal.get(key, {})
+        lines.append(f"- **{key.title()}:** {c.get('name', '')} ({c.get('hex', '')})")
+
+    lines.append("\n## Typography")
+    typ = data.get("typography", {})
+    lines.append(f"- **Feel:** {typ.get('feel', '')}")
+    lines.append(f"- **Weight:** {typ.get('weight', '')}")
+    lines.append(f"- **Sizing:** {typ.get('sizing', '')}")
+
+    lines.append(f"\n## Stylization level\n{data.get('stylization_level', '')}")
+    if data.get("stylization_rationale"):
+        lines.append(f"\n{data['stylization_rationale']}")
+
+    lines.append("\n## Blend rules")
+    br = data.get("blend_rules", {})
+    lines.append("\n### Real anchors (require real footage)")
+    for r in br.get("real_anchors", []):
+        lines.append(f"- {r}")
+    lines.append("\n### Generated supporting (what AI visuals are for)")
+    for g in br.get("generated_supporting", []):
+        lines.append(f"- {g}")
+    lines.append("\n### Disclosure (platform AI-disclosure rules)")
+    for d in br.get("disclosure", []):
+        lines.append(f"- {d}")
+
+    lines.append("\n## Platform adjustments")
+    for p in data.get("platform_adjustments", []):
+        lines.append(f"- **{p['platform']}** — {p['aspect_ratio']}: {p['notes']}")
+
+    if data.get("shot_library_usage"):
+        lines.append(f"\n## Shot library usage\n{data['shot_library_usage']}")
+
+    lines.append(f"\n## Provenance\n- Version: {version}")
+    lines.append(f"- Generated: {datetime.now(timezone.utc).isoformat()}")
+    lines.append(f"- Schema: visual_style_v1")
+
+    return "\n".join(lines)
+
+
+def shot_library_to_markdown(items: list, version: str = "1.0") -> str:
+    """Convert a list of indexed shot-library items into the module markdown."""
+    lines = [f"# Shot Library — v{version}"]
+    lines.append(f"\n*{len(items)} indexed items. Grows continuously.*")
+
+    for i, item in enumerate(items, 1):
+        lines.append(f"\n### Item {i}")
+        lines.append(f"- **Description:** {item.get('description', '')}")
+        lines.append(f"- **Tags:** {', '.join(item.get('tags', []))}")
+        lines.append(f"- **Mood:** {item.get('mood', '')}")
+        lines.append(f"- **Best for:** {', '.join(item.get('best_for', []))}")
+        lines.append(f"- **Platforms:** {', '.join(item.get('platforms', []))}")
+
+    lines.append(f"\n## Provenance\n- Version: {version}")
+    lines.append(f"- Generated: {datetime.now(timezone.utc).isoformat()}")
+    lines.append(f"- Schema: shot_library_v1")
+
+    return "\n".join(lines)

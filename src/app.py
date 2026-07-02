@@ -1640,6 +1640,262 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             result["paths"] = paths
         return jsonify(result)
 
+    # ── T2.4: Visual Style Intake + Shot Library ──
+
+    @app.route("/onboard/<playbook_name>/<int:run_id>/visual-style")
+    def visual_style_page(playbook_name, run_id):
+        """Visual Style intake UI."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return "Run not found", 404
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        shot_library = collected.get("shot_library", [])
+        brand_assets = collected.get("brand_assets", "")
+        visual_examples = collected.get("visual_examples", "")
+        llm_outputs = json.loads(run.get("llm_outputs") or "{}")
+        style_guide = llm_outputs.get("style_guide")
+
+        return render_template("visual_style.html",
+            playbook_name=playbook_name, run_id=run_id,
+            shot_library=shot_library, brand_assets=brand_assets,
+            visual_examples=visual_examples, style_guide=style_guide)
+
+    @app.route("/api/run/<int:run_id>/shot-library-item", methods=["POST"])
+    def add_shot_library_item(run_id):
+        """Add a shot-library item description (operator describes what they uploaded)."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        description = request.json.get("description", "").strip()
+        if not description:
+            return jsonify({"error": "Description required"}), 400
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        if "shot_library" not in collected:
+            collected["shot_library"] = []
+        # Store the raw description; indexing happens on analyze
+        collected["shot_library"].append({"raw_description": description})
+        runner.update_run(run_id, collected_inputs=json.dumps(collected))
+
+        return jsonify({"status": "ok", "count": len(collected["shot_library"])})
+
+    @app.route("/api/run/<int:run_id>/visual-style-input", methods=["POST"])
+    def add_visual_style_input(run_id):
+        """Add visual style input (brand assets, visual examples)."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        key = request.json.get("key", "")
+        value = request.json.get("value", "").strip()
+        if not key or not value:
+            return jsonify({"error": "Key and value required"}), 400
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        collected[key] = value
+        runner.update_run(run_id, collected_inputs=json.dumps(collected))
+
+        return jsonify({"status": "ok"})
+
+    @app.route("/api/run/<int:run_id>/index-shot-library", methods=["POST"])
+    def index_shot_library(run_id):
+        """Index all un-indexed shot library items via LLM."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        shot_library = collected.get("shot_library", [])
+        if not shot_library:
+            return jsonify({"error": "No shot library items. Add some first."}), 400
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+            business = config["business"]
+        except ConfigError as e:
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        from module_store import SHOT_LIBRARY_ITEM_SCHEMA
+        from llm_adapter import LLMAdapter, LLMAdapterError
+
+        adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
+
+        indexed = []
+        errors = []
+        for i, item in enumerate(shot_library):
+            if "tags" in item:
+                # Already indexed
+                indexed.append(item)
+                continue
+
+            raw_desc = item.get("raw_description", "")
+            if not raw_desc:
+                continue
+
+            try:
+                result = adapter.complete(
+                    prompt_file="visual_style/index_item_v1.md",
+                    variables={
+                        "business_name": business["business"]["name"],
+                        "subjects": ", ".join(business.get("subjects", [])),
+                        "item_description": raw_desc,
+                    },
+                    schema=SHOT_LIBRARY_ITEM_SCHEMA,
+                    backend="default",
+                    context=f"Shot library indexing item {i+1} for run {run_id}",
+                )
+                # Preserve raw_description and add indexed fields
+                item.update(result)
+                indexed.append(item)
+            except (LLMAdapterError, Exception) as e:
+                errors.append(f"Item {i+1}: {e}")
+                indexed.append(item)  # Keep un-indexed item
+
+        # Update collected with indexed items
+        collected["shot_library"] = indexed
+        runner.update_run(run_id, collected_inputs=json.dumps(collected))
+
+        # Also store as LLM output for the style guide analysis to use
+        runner.add_llm_output(run_id, "shot_library", indexed)
+
+        result = {"status": "ok", "indexed": len([i for i in indexed if "tags" in i]),
+                  "total": len(indexed)}
+        if errors:
+            result["errors"] = errors
+        return jsonify(result)
+
+    @app.route("/api/run/<int:run_id>/analyze-visual-style", methods=["POST"])
+    def analyze_visual_style(run_id):
+        """Run the Visual Style Guide analysis LLM call."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        shot_library = collected.get("shot_library", [])
+
+        # Build shot library summary from indexed items
+        shot_summary = ""
+        for i, item in enumerate(shot_library, 1):
+            if "tags" in item:
+                shot_summary += f"  {i}. {item.get('description', '')} [tags: {', '.join(item.get('tags', []))}] [mood: {item.get('mood', '')}]\n"
+            else:
+                shot_summary += f"  {i}. {item.get('raw_description', '(un-indexed)')}\n"
+
+        if not shot_summary:
+            shot_summary = "  (no items uploaded yet)"
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+            business = config["business"]
+        except ConfigError as e:
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        platforms_text = ", ".join(
+            f"{p['name']} ({p.get('handle', '')})" for p in business.get("platforms", [])
+        )
+
+        from module_store import VISUAL_STYLE_SCHEMA
+        from llm_adapter import LLMAdapter, LLMAdapterError
+
+        adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
+
+        try:
+            result = adapter.complete(
+                prompt_file="visual_style/analyze_v1.md",
+                variables={
+                    "business_name": business["business"]["name"],
+                    "platforms": platforms_text,
+                    "subjects": ", ".join(business.get("subjects", [])),
+                    "brand_assets": collected.get("brand_assets", "(none provided)"),
+                    "visual_examples": collected.get("visual_examples", "(none provided)"),
+                    "shot_library_summary": shot_summary,
+                },
+                schema=VISUAL_STYLE_SCHEMA,
+                backend="default",
+                context=f"Visual Style Guide analysis for run {run_id}",
+            )
+        except (LLMAdapterError, Exception) as e:
+            return jsonify({"error": str(e)}), 500
+
+        runner.add_llm_output(run_id, "style_guide", result)
+        return jsonify({"status": "ok", "style_guide": result})
+
+    @app.route("/api/run/<int:run_id>/store-visual-style", methods=["POST"])
+    def store_visual_style(run_id):
+        """Store visual style guide + shot library modules (gate enforced)."""
+        from module_store import (ModuleStore, visual_style_to_markdown,
+            shot_library_to_markdown, GateTokenError, generate_gate_token)
+
+        approved = request.json.get("approved", False)
+        version = request.json.get("version", "1.0")
+        note = request.json.get("note", "")
+
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        llm_outputs = json.loads(run.get("llm_outputs") or "{}")
+        style_guide = llm_outputs.get("style_guide")
+        if not style_guide:
+            return jsonify({"error": "No visual style guide found. Run analysis first."}), 400
+
+        runner.set_gate_result(run_id, PlaybookRunner.get_gate_step_number(
+            PlaybookParser.parse(os.path.join(app.config["PLAYBOOKS_DIR"], "visual-style-intake.md"))
+        ), "approve" if approved else "park", note)
+
+        paths = {}
+        if approved:
+            gate_token = generate_gate_token(run_id)
+            runner.update_run(run_id, status="completed")
+            try:
+                config = load_all(app.config["CONFIG_DIR"])
+                business_slug = config["business"]["business"]["slug"]
+                if not business_slug or business_slug == "unknown":
+                    return jsonify({"error": "Cannot write: business slug missing."}), 500
+
+                # Write visual-style module
+                md = visual_style_to_markdown(style_guide, version)
+                store = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
+                path = store.store(business_slug, "visual-style", md,
+                    version=version,
+                    provenance={"version": version, "approved": True, "note": note,
+                                "run_id": run_id, "playbook": "visual-style-intake"},
+                    gate_token=gate_token, run_id=run_id)
+                paths["visual_style"] = path
+
+                # Write shot-library module (if items exist)
+                collected = json.loads(run.get("collected_inputs") or "{}")
+                shot_library = collected.get("shot_library", [])
+                indexed_items = [item for item in shot_library if "tags" in item]
+                if indexed_items:
+                    sl_md = shot_library_to_markdown(indexed_items, version)
+                    sl_path = store.store(business_slug, "shot-library", sl_md,
+                        version=version,
+                        provenance={"version": version, "approved": True, "note": note,
+                                    "run_id": run_id, "playbook": "visual-style-intake"},
+                        gate_token=gate_token, run_id=run_id)
+                    paths["shot_library"] = sl_path
+            except GateTokenError as e:
+                return jsonify({"error": str(e)}), 403
+        else:
+            runner.update_run(run_id, status="awaiting_gate")
+
+        result = {"status": "ok", "version": version, "approved": approved}
+        if paths:
+            result["paths"] = paths
+        return jsonify(result)
+
     @app.route("/health")
     def health():
         """Health check endpoint."""
