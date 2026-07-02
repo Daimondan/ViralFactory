@@ -1939,10 +1939,494 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             result["paths"] = paths
         return jsonify(result)
 
+    # ── M3: Co-production loop ──────────────────────────────────────────
+
+    def _get_pipeline_store():
+        """Get a PipelineStore instance."""
+        from pipeline import PipelineStore
+        return PipelineStore(db_path=app.config["DB_PATH"])
+
+    def _load_all_modules(business_slug: str) -> dict:
+        """Load all available modules for a business as markdown text.
+        Returns dict of {module_name: markdown_content or '(not yet built)'}.
+        The drafter and idea generator consult these modules."""
+        from module_store import ModuleStore
+        store = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
+        modules = {}
+        for name in ["voice-profile", "viral-patterns", "story-frameworks",
+                      "format-guide", "audience-insights", "visual-style",
+                      "source-criteria", "brand-context"]:
+            content = store.load(business_slug, name)
+            modules[name] = content if content else f"({name} not yet built)"
+        return modules
+
+    def _get_business_slug() -> str:
+        """Get the current business slug from config."""
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            return config["business"]["business"]["slug"]
+        except ConfigError:
+            return None
+
+    # ── T3.1 + T3.2: Idea cards + Ideas gate ──
+
+    @app.route("/ideas")
+    def ideas_queue():
+        """Ideas gate UI — card queue with origin badge, treatment, approve/kill/park."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return "Business not configured", 500
+
+        from config_loader import load_all, ConfigError
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            business_name = config["business"]["business"]["name"]
+        except ConfigError:
+            business_name = "Not configured"
+
+        store = _get_pipeline_store()
+
+        # Determine active tab
+        active_tab = request.args.get("tab", "queue")
+
+        # Map tabs to states
+        state_map = {
+            "queue": ["new"],
+            "awaiting": ["awaiting_capture"],
+            "approved": ["approved", "capture_fulfilled"],
+            "parked": ["parked"],
+            "killed": ["killed"],
+            "all": None,
+        }
+        states = state_map.get(active_tab, ["new"])
+
+        if states:
+            cards_raw = store.list_idea_cards_by_states(business_slug, states)
+        else:
+            cards_raw = store.list_idea_cards(business_slug)
+
+        # Enrich cards for display
+        cards = []
+        for c in cards_raw:
+            card = dict(c)
+            card["hook_options"] = json.loads(c.get("hook_options") or "[]")
+            treatment = json.loads(c.get("treatment") or "{}")
+            card["treatment"] = treatment
+            card["evidence_links"] = json.loads(c.get("evidence_links") or "[]")
+
+            # Compact treatment line: scope · format · capture flag
+            scope = treatment.get("scope", {})
+            fmt = treatment.get("format", {})
+            capture = treatment.get("capture_required", [])
+            compact = []
+            compact.append(f"Scope: {scope.get('type', '?')}")
+            if scope.get("type") == "series_of_n":
+                compact.append(f"({scope.get('n', '?')} × {scope.get('cadence', '?')})")
+            compact.append(f"Format: {fmt.get('format_name', '?')}")
+            if fmt.get("experimental"):
+                compact.append('<span class="capture-flag">EXPERIMENTAL</span>')
+            if capture:
+                compact.append(f'<span class="capture-flag">Capture: {len(capture)} tasks</span>')
+            else:
+                compact.append("Capture: none")
+            card["treatment_compact"] = compact
+
+            # Full treatment (expandable)
+            full = f"<dl>"
+            full += f"<dt>Scope</dt><dd>{scope.get('type', '?')}"
+            if scope.get("n"):
+                full += f" — {scope['n']} pieces, {scope.get('cadence', '')}"
+            full += "</dd>"
+            full += f"<dt>Format</dt><dd>{fmt.get('format_name', '?')}"
+            if fmt.get("experimental"):
+                full += " (experimental debut)"
+            if fmt.get("format_spec"):
+                full += f"<br><em>{fmt['format_spec']}</em>"
+            full += "</dd>"
+            if capture:
+                full += f"<dt>Capture required</dt><dd><ul>"
+                for task in capture:
+                    full += f"<li>{task}</li>"
+                full += "</ul></dd>"
+            if treatment.get("reuse", {}).get("reuse_notes"):
+                full += f"<dt>Reuse</dt><dd>{treatment['reuse']['reuse_notes']}</dd>"
+            full += f"<dt>Rationale</dt><dd>{treatment.get('rationale', '')}</dd>"
+            full += "</dl>"
+            card["treatment_full"] = full
+
+            # Capture tasks for display
+            card["capture_tasks"] = capture if capture else None
+
+            cards.append(card)
+
+        # Count cards per state for tab badges
+        all_cards = store.list_idea_cards(business_slug)
+        counts = {}
+        for c in all_cards:
+            s = c["card_state"]
+            counts[s] = counts.get(s, 0) + 1
+        counts_display = {
+            "new": counts.get("new", 0),
+            "awaiting_capture": counts.get("awaiting_capture", 0),
+            "approved": counts.get("approved", 0) + counts.get("capture_fulfilled", 0),
+            "parked": counts.get("parked", 0),
+            "killed": counts.get("killed", 0),
+            "all": len(all_cards),
+        }
+
+        return render_template("ideas.html",
+            business_name=business_name, business_slug=business_slug,
+            cards=cards, active_tab=active_tab, counts=counts_display)
+
+    @app.route("/api/ideas/seed", methods=["POST"])
+    def ideas_seed():
+        """Create a human-seeded idea card from a raw seed (T3.4 seed intake)."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        seed = request.json.get("seed", "").strip()
+        origin = request.json.get("origin", "human_seeded")
+        if not seed:
+            return jsonify({"error": "No seed provided"}), 400
+        if origin not in ("human_seeded", "human_seeded_ai_developed"):
+            return jsonify({"error": "Invalid origin for seed. Use human_seeded or human_seeded_ai_developed"}), 400
+
+        store = _get_pipeline_store()
+
+        if origin == "human_seeded":
+            # Simple: the idea IS the seed; no AI development
+            # Generate a basic treatment via LLM
+            card = _generate_card_from_seed(business_slug, seed, "human_seeded")
+            return jsonify(card)
+        else:
+            # AI-developed: sharpen the seed via LLM
+            card = _generate_card_from_seed(business_slug, seed, "human_seeded_ai_developed")
+            return jsonify(card)
+
+    def _generate_card_from_seed(business_slug: str, seed: str, origin: str) -> dict:
+        """Generate an idea card from a human seed using the LLM."""
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+            business = config["business"]
+        except ConfigError as e:
+            return {"status": "error", "error": f"Config error: {e}"}
+
+        modules = _load_all_modules(business_slug)
+
+        from llm_adapter import LLMAdapter, LLMAdapterError
+        from pipeline import IDEA_CARD_SCHEMA
+
+        adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
+
+        try:
+            result = adapter.complete(
+                prompt_file="ideas/generate_v1.md",
+                variables={
+                    "business_name": business["business"]["name"],
+                    "subjects": ", ".join(business.get("subjects", [])),
+                    "audience_description": business.get("audience_description", ""),
+                    "origin_type": origin,
+                    "source_material": f"Operator seed: {seed}",
+                    "viral_patterns": modules.get("viral-patterns", "(not built)")[:2000],
+                    "audience_insights": modules.get("audience-insights", "(not built)")[:2000],
+                    "story_frameworks": modules.get("story-frameworks", "(not built)")[:2000],
+                    "format_guide": modules.get("format-guide", "(not built)")[:2000],
+                    "num_cards": "1",
+                },
+                schema=IDEA_CARD_SCHEMA,
+                backend="default",
+                context=f"Idea card generation from seed ({origin})",
+                business_slug=business_slug,
+            )
+        except (LLMAdapterError, Exception) as e:
+            return {"status": "error", "error": str(e)}
+
+        store = _get_pipeline_store()
+        cards_created = []
+        for card_data in result.get("cards", []):
+            treatment = card_data.get("treatment", {})
+            card_id = store.create_idea_card(
+                business_slug=business_slug,
+                idea=card_data["idea"],
+                hook_options=card_data.get("hook_options", []),
+                treatment=treatment,
+                origin=origin,
+                evidence_links=card_data.get("evidence_links", []),
+                seed_text=card_data.get("seed_text", seed),
+            )
+            cards_created.append(card_id)
+
+        return {"status": "ok", "card_ids": cards_created}
+
+    @app.route("/api/ideas/generate", methods=["POST"])
+    def ideas_generate():
+        """Generate AI-originated idea cards from Source Bank × modules (T3.1)."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        num_cards = request.json.get("count", 3)
+        if num_cards < 1 or num_cards > 10:
+            return jsonify({"error": "Count must be 1-10"}), 400
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+            business = config["business"]
+        except ConfigError as e:
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        modules = _load_all_modules(business_slug)
+
+        # Build source material from source-criteria module + sources config
+        source_material = modules.get("source-criteria", "(not built)")
+        try:
+            sources_config = config.get("sources", {})
+            if sources_config:
+                source_material += "\n\n## Configured monitoring\n"
+                for feed in sources_config.get("feeds", [])[:5]:
+                    source_material += f"- {feed.get('name', '')}: {feed.get('url', '')}\n"
+                for ch in sources_config.get("channels", [])[:5]:
+                    source_material += f"- {ch.get('name', '')} ({ch.get('platform', '')}/{ch.get('handle', '')})\n"
+        except Exception:
+            pass
+
+        from llm_adapter import LLMAdapter, LLMAdapterError
+        from pipeline import IDEA_CARD_SCHEMA
+
+        adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
+
+        try:
+            result = adapter.complete(
+                prompt_file="ideas/generate_v1.md",
+                variables={
+                    "business_name": business["business"]["name"],
+                    "subjects": ", ".join(business.get("subjects", [])),
+                    "audience_description": business.get("audience_description", ""),
+                    "origin_type": "ai_originated",
+                    "source_material": source_material[:4000],
+                    "viral_patterns": modules.get("viral-patterns", "(not built)")[:2000],
+                    "audience_insights": modules.get("audience-insights", "(not built)")[:2000],
+                    "story_frameworks": modules.get("story-frameworks", "(not built)")[:2000],
+                    "format_guide": modules.get("format-guide", "(not built)")[:2000],
+                    "num_cards": str(num_cards),
+                },
+                schema=IDEA_CARD_SCHEMA,
+                backend="default",
+                context=f"AI idea card generation ({num_cards} cards)",
+                business_slug=business_slug,
+            )
+        except (LLMAdapterError, Exception) as e:
+            return jsonify({"error": str(e)}), 500
+
+        store = _get_pipeline_store()
+        cards_created = []
+        for card_data in result.get("cards", []):
+            treatment = card_data.get("treatment", {})
+            card_id = store.create_idea_card(
+                business_slug=business_slug,
+                idea=card_data["idea"],
+                hook_options=card_data.get("hook_options", []),
+                treatment=treatment,
+                origin="ai_originated",
+                evidence_links=card_data.get("evidence_links", []),
+            )
+            cards_created.append(card_id)
+
+        return jsonify({"status": "ok", "card_ids": cards_created, "count": len(cards_created)})
+
+    @app.route("/api/ideas/<int:card_id>/gate", methods=["POST"])
+    def ideas_gate_decision(card_id):
+        """Gate 1 decision: approve / kill / park an idea card (T3.2)."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        action = request.json.get("action", "")
+        kill_reason = request.json.get("kill_reason", "")
+
+        if action not in ("approve", "kill", "park"):
+            return jsonify({"error": "Invalid action. Use approve, kill, or park."}), 400
+
+        store = _get_pipeline_store()
+        card = store.get_idea_card(card_id)
+        if not card:
+            return jsonify({"error": "Card not found"}), 404
+        if card["business_slug"] != business_slug:
+            return jsonify({"error": "Card does not belong to this business"}), 403
+
+        # Handle state transitions
+        if action == "approve":
+            # Check if card has capture tasks
+            treatment = json.loads(card.get("treatment") or "{}")
+            capture_required = treatment.get("capture_required", [])
+            if capture_required:
+                new_state = "awaiting_capture"
+            else:
+                new_state = "approved"
+
+            # T3.10: Series spawning — if scope is series_of_n, spawn child cards
+            scope = treatment.get("scope", {})
+            if scope.get("type") == "series_of_n" and not card.get("parent_id"):
+                n = scope.get("n", 1)
+                cadence = scope.get("cadence", "")
+                for i in range(1, n):
+                    child_id = store.create_idea_card(
+                        business_slug=business_slug,
+                        idea=f"{card['idea']} (Part {i+1}/{n})",
+                        hook_options=json.loads(card.get("hook_options") or "[]"),
+                        treatment=treatment,
+                        origin=card["origin"],
+                        evidence_links=json.loads(card.get("evidence_links") or "[]"),
+                        parent_id=card_id,
+                    )
+                    # Children start as 'approved' (parent was approved)
+                    store.update_card_state(child_id, "approved")
+
+            # T3.11: Experimental format debut — auto-write Format Guide entry
+            fmt = treatment.get("format", {})
+            if fmt.get("experimental") and fmt.get("format_spec"):
+                _debut_experimental_format(business_slug, card_id, fmt, treatment)
+
+            store.update_card_state(card_id, new_state)
+            return jsonify({"status": "ok", "new_state": new_state})
+
+        elif action == "kill":
+            store.update_card_state(card_id, "killed", kill_reason=kill_reason)
+            # Log kill reason to Feedback Log
+            store.add_feedback(
+                business_slug=business_slug,
+                feedback_type="kill_reason",
+                feedback_text=kill_reason or "No reason given",
+                idea_card_id=card_id,
+            )
+            return jsonify({"status": "ok", "new_state": "killed"})
+
+        elif action == "park":
+            store.update_card_state(card_id, "parked")
+            return jsonify({"status": "ok", "new_state": "parked"})
+
+    def _debut_experimental_format(business_slug: str, card_id: int, fmt: dict, treatment: dict):
+        """T3.11: Auto-write an experimental format entry to the Format Guide module."""
+        from module_store import ModuleStore
+
+        store = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
+        existing = store.load(business_slug, "format-guide")
+
+        # Build the new format entry
+        new_entry = f"""
+### {fmt['format_name']} (EXPERIMENTAL — debut via card #{card_id})
+
+- **Platforms:** (as specified in treatment)
+- **Status:** experimental
+- **Provenance:** Debuted via idea card #{card_id}. {fmt.get('format_spec', '')}
+- **Structure notes:** {fmt.get('format_spec', 'See format spec in treatment.')}
+- **Effort level:** (to be assessed)
+- **Requires human capture:** {treatment.get('capture_required', [])}
+"""
+
+        if existing:
+            # Append the new entry before the Provenance section
+            updated = existing.replace(
+                "\n## Provenance\n",
+                f"\n{new_entry}\n## Provenance\n"
+            )
+            if updated == existing:
+                # No Provenance section found; append at end
+                updated = existing + new_entry
+            store.store(
+                business_slug, "format-guide", updated,
+                version="1.1",  # minor version bump for new entry
+                provenance={
+                    "version": "1.1",
+                    "note": f"Experimental format debut: {fmt['format_name']} via card #{card_id}",
+                    "debut_card_id": card_id,
+                },
+                gate_token=f"run_0_approved",  # card approval is the gate
+                run_id=0,  # not a playbook run — this is a pipeline gate
+            )
+        # If no existing format guide, we can't auto-create it (needs the full playbook)
+        # — the format will be recorded when the Format Guide playbook is next run
+
+    @app.route("/ideas/<int:card_id>/capture")
+    def capture_page(card_id):
+        """T3.3: Awaiting-capture state UI — capture task list + upload flow."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return "Business not configured", 500
+
+        store = _get_pipeline_store()
+        card = store.get_idea_card(card_id)
+        if not card:
+            return "Card not found", 404
+
+        treatment = json.loads(card.get("treatment") or "{}")
+        capture_required = treatment.get("capture_required", [])
+        uploads = json.loads(card.get("capture_uploads") or "[]")
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            business_name = config["business"]["business"]["name"]
+        except ConfigError:
+            business_name = "Not configured"
+
+        return render_template("capture.html",
+            business_name=business_name, card=card,
+            capture_required=capture_required, uploads=uploads,
+            treatment=treatment)
+
+    @app.route("/api/ideas/<int:card_id>/capture-upload", methods=["POST"])
+    def capture_upload(card_id):
+        """T3.3: Upload capture material for an awaiting-capture card."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        store = _get_pipeline_store()
+        card = store.get_idea_card(card_id)
+        if not card:
+            return jsonify({"error": "Card not found"}), 404
+
+        # Accept text-based capture (paste) or file upload
+        content = request.json.get("content", "").strip() if request.is_json else ""
+        if not content and "file" not in request.files:
+            return jsonify({"error": "No content or file provided"}), 400
+
+        # Store as material via materials intake
+        from materials import MaterialsIntake
+        intake = MaterialsIntake(app.config["DB_PATH"], upload_dir="data/uploads")
+
+        if content:
+            material_id = intake.ingest_text(
+                content, run_id=None, business_slug=business_slug,
+                material_type="pasted", channel="capture_upload",
+            )
+        else:
+            file = request.files["file"]
+            upload_dir = os.path.join(app.config.get("UPLOAD_DIR", "data/uploads"))
+            os.makedirs(upload_dir, exist_ok=True)
+            filepath = os.path.join(upload_dir, file.filename)
+            file.save(filepath)
+            material_id = intake.ingest_file(
+                filepath, run_id=None, business_slug=business_slug,
+                channel="capture_upload",
+            )
+
+        # Record upload against the card
+        store.add_capture_upload(card_id, material_id)
+
+        # Check if all capture tasks are fulfilled
+        if store.check_capture_fulfilled(card_id):
+            store.update_card_state(card_id, "capture_fulfilled")
+
+        return jsonify({"status": "ok", "material_id": material_id})
+
     @app.route("/health")
     def health():
         """Health check endpoint."""
-        return jsonify({"status": "ok", "version": "0.1.0"})
+        return jsonify({"status": "ok", "version": "0.2.0"})
 
     return app
 

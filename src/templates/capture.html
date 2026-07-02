@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Awaiting Capture — {{ business_name }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f1117; color: #e0e0e0; }
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { font-size: 1.5rem; margin-bottom: 6px; }
+        h2 { font-size: 1.1rem; margin: 20px 0 10px; }
+        .subtle { color: #888; font-size: 0.85rem; margin-bottom: 20px; }
+        a { color: #5b9fd6; text-decoration: none; }
+        .nav { display: flex; gap: 15px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #2a2d36; }
+        .card { background: #1a1d27; border-radius: 10px; padding: 18px; border: 1px solid #2a2d36; margin-bottom: 16px; }
+        .card-idea { font-size: 1rem; margin-bottom: 10px; }
+        .task-list { list-style: none; }
+        .task-list li { padding: 10px; background: #12131a; border-radius: 6px; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+        .task-list li.done { opacity: 0.5; text-decoration: line-through; }
+        .task-icon { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #555; flex-shrink: 0; }
+        .task-icon.done { background: #4acc6a; border-color: #4acc6a; }
+        .upload-area { background: #12131a; border: 2px dashed #333; border-radius: 8px; padding: 20px; text-align: center; margin: 10px 0; }
+        .upload-area textarea { width: 100%; min-height: 60px; padding: 10px; border-radius: 6px; border: 1px solid #333; background: #0f1117; color: #e0e0e0; font-size: 0.9rem; resize: vertical; font-family: inherit; margin-bottom: 8px; }
+        .btn { padding: 6px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 500; }
+        .btn-upload { background: #1a3a5a; color: #6ab0ff; }
+        .btn:hover { opacity: 0.85; }
+        .uploads-list { font-size: 0.8rem; color: #888; margin-top: 10px; }
+        .uploads-list li { margin-left: 16px; }
+        .fulfilled-msg { color: #4acc6a; font-weight: 600; padding: 10px; background: #1a2a1a; border-radius: 6px; margin-top: 10px; text-align: center; }
+        .btn-draft { background: #1a4a2a; color: #4acc6a; font-size: 0.9rem; padding: 8px 20px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="nav">
+        <a href="/ideas">← Back to Ideas</a>
+        <a href="/">Dashboard</a>
+    </div>
+
+    <h1>Awaiting Capture</h1>
+    <p class="subtle">Capture real material for this idea before drafting.</p>
+
+    <div class="card">
+        <div class="card-idea">{{ card.idea }}</div>
+        <p class="subtle">Format: {{ treatment.format.format_name if treatment.format else '?' }} · Scope: {{ treatment.scope.type if treatment.scope else '?' }}</p>
+    </div>
+
+    <h2>Capture tasks</h2>
+    <ul class="task-list">
+        {% for task in capture_required %}
+        <li>
+            <div class="task-icon {{ 'done' if uploads|length > loop.index0 }}"></div>
+            <span>{{ task }}</span>
+        </li>
+        {% endfor %}
+    </ul>
+
+    <h2>Upload capture material</h2>
+    <div class="upload-area">
+        <textarea id="captureText" placeholder="Paste text, transcript, or notes here..."></textarea>
+        <div style="display: flex; gap: 10px; justify-content: center;">
+            <button class="btn btn-upload" onclick="uploadText()">Upload text</button>
+            <form id="fileForm" style="display: inline;">
+                <input type="file" id="captureFile" style="display: none;" onchange="uploadFile()">
+                <button class="btn btn-upload" type="button" onclick="document.getElementById('captureFile').click()">Upload file</button>
+            </form>
+        </div>
+    </div>
+
+    {% if uploads %}
+    <div class="uploads-list">
+        <strong>Uploaded ({{ uploads|length }}):</strong>
+        <ul>
+            {% for upload_id in uploads %}
+            <li>Material #{{ upload_id }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if card.card_state == 'capture_fulfilled' %}
+    <div class="fulfilled-msg">✓ All capture tasks fulfilled — ready to draft!</div>
+    <div style="text-align: center; margin-top: 16px;">
+        <button class="btn btn-draft" onclick="window.location.href='/create/draft/{{ card.id }}'">Start draft →</button>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function uploadText() {
+    const text = document.getElementById('captureText').value.trim();
+    if (!text) return alert('Enter some text first.');
+    fetch('/api/ideas/{{ card.id }}/capture-upload', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({content: text}),
+    }).then(r => r.json()).then(data => {
+        if (data.status === 'ok') window.location.reload();
+        else alert('Error: ' + (data.error || 'unknown'));
+    });
+}
+
+function uploadFile() {
+    const fileInput = document.getElementById('captureFile');
+    if (!fileInput.files[0]) return;
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    fetch('/api/ideas/{{ card.id }}/capture-upload', {
+        method: 'POST',
+        body: formData,
+    }).then(r => r.json()).then(data => {
+        if (data.status === 'ok') window.location.reload();
+        else alert('Error: ' + (data.error || 'unknown'));
+    });
+}
+</script>
+</body>
+</html>

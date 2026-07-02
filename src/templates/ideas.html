@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ideas — {{ business_name }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f1117; color: #e0e0e0; }
+        .container { max-width: 1280px; margin: 0 auto; padding: 20px; }
+        h1 { font-size: 1.8rem; margin-bottom: 8px; }
+        h2 { font-size: 1.3rem; margin: 20px 0 10px; }
+        .subtle { color: #888; font-size: 0.9rem; margin-bottom: 20px; }
+        a { color: #5b9fd6; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .nav { display: flex; gap: 15px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #2a2d36; }
+        .nav a { color: #aaa; font-size: 0.9rem; }
+        .nav a.active { color: #5b9fd6; }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+        .tab { padding: 6px 16px; border-radius: 6px 6px 0 0; background: #1a1d27; color: #888; cursor: pointer; font-size: 0.85rem; border: none; }
+        .tab.active { background: #252836; color: #e0e0e0; }
+
+        /* Card grid */
+        .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 16px; }
+        .card { background: #1a1d27; border-radius: 10px; padding: 18px; border: 1px solid #2a2d36; }
+        .card:hover { border-color: #3a3d46; }
+        .card-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px; }
+        .origin-badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+        .origin-ai { background: #1a3a5a; color: #6ab0ff; }
+        .origin-human { background: #2a4a1a; color: #8acc4a; }
+        .origin-developed { background: #4a2a1a; color: #ff9a4a; }
+        .card-state { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; }
+        .state-new { background: #2a2d36; color: #aaa; }
+        .state-approved { background: #1a3a2a; color: #4acc6a; }
+        .state-killed { background: #3a1a1a; color: #cc4a4a; }
+        .state-parked { background: #2a2a1a; color: #ccaa4a; }
+        .state-awaiting { background: #2a1a3a; color: #aa6acc; }
+        .state-drafting { background: #1a2a3a; color: #4a8acc; }
+
+        .card-idea { font-size: 1rem; line-height: 1.5; margin-bottom: 10px; }
+        .card-hooks { font-size: 0.85rem; color: #999; margin-bottom: 10px; }
+        .card-hooks li { margin-left: 18px; margin-bottom: 2px; }
+
+        /* Treatment compact line */
+        .treatment-line { font-size: 0.78rem; color: #777; padding: 6px 10px; background: #12131a; border-radius: 6px; margin-bottom: 8px; display: flex; gap: 10px; flex-wrap: wrap; }
+        .treatment-line span { white-space: nowrap; }
+        .capture-flag { color: #ff9a4a; font-weight: 600; }
+
+        /* Treatment expandable */
+        .treatment-full { display: none; font-size: 0.8rem; line-height: 1.5; color: #aaa; padding: 10px; background: #12131a; border-radius: 6px; margin-bottom: 10px; }
+        .treatment-full.show { display: block; }
+        .treatment-full dt { font-weight: 600; color: #ccc; margin-top: 6px; }
+        .treatment-full dd { margin-left: 12px; margin-bottom: 4px; }
+
+        .evidence-links { font-size: 0.75rem; color: #666; margin-bottom: 10px; }
+        .evidence-links a { color: #5b9fd6; }
+
+        .card-actions { display: flex; gap: 8px; }
+        .btn { padding: 5px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.8rem; font-weight: 500; }
+        .btn-approve { background: #1a4a2a; color: #4acc6a; }
+        .btn-kill { background: #4a1a1a; color: #cc4a4a; }
+        .btn-park { background: #3a3a1a; color: #ccaa4a; }
+        .btn-secondary { background: #2a2d36; color: #aaa; }
+        .btn:hover { opacity: 0.85; }
+        .btn:disabled { opacity: 0.4; cursor: default; }
+
+        .kill-reason { display: none; margin-top: 8px; }
+        .kill-reason.show { display: flex; gap: 6px; }
+        .kill-reason input { flex: 1; padding: 5px 8px; border-radius: 4px; border: 1px solid #333; background: #12131a; color: #e0e0e0; font-size: 0.8rem; }
+
+        /* Seed form */
+        .seed-box { background: #1a1d27; border-radius: 10px; padding: 18px; border: 1px solid #2a2d36; margin-bottom: 20px; }
+        .seed-box textarea { width: 100%; min-height: 60px; padding: 10px; border-radius: 6px; border: 1px solid #333; background: #12131a; color: #e0e0e0; font-size: 0.9rem; resize: vertical; font-family: inherit; }
+        .seed-box .btn { margin-top: 8px; }
+
+        /* Generate form */
+        .gen-form { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+        .gen-form select { padding: 5px 10px; border-radius: 4px; border: 1px solid #333; background: #12131a; color: #e0e0e0; font-size: 0.85rem; }
+        .gen-form input[type=number] { width: 50px; padding: 5px; border-radius: 4px; border: 1px solid #333; background: #12131a; color: #e0e0e0; font-size: 0.85rem; }
+
+        .empty { color: #666; font-style: italic; padding: 20px; text-align: center; }
+        .loading { color: #5b9fd6; font-style: italic; }
+
+        .capture-tasks { font-size: 0.78rem; color: #ff9a4a; margin-top: 6px; }
+        .capture-tasks li { margin-left: 16px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Ideas — {{ business_name }}</h1>
+    <p class="subtle">Gate 1: approve / kill / park. The funnel kills most here — by design.</p>
+    <div class="nav">
+        <a href="/">Dashboard</a>
+        <a href="/onboard">Onboard</a>
+        <a href="/library">Library</a>
+        <a href="/ideas" class="active">Ideas</a>
+        <a href="/create">Create</a>
+    </div>
+
+    <div class="tabs">
+        <button class="tab {{ 'active' if active_tab == 'queue' else '' }}" onclick="window.location.href='/ideas?tab=queue'">Queue ({{ counts.new }})</button>
+        <button class="tab {{ 'active' if active_tab == 'awaiting' else '' }}" onclick="window.location.href='/ideas?tab=awaiting'">Awaiting Capture ({{ counts.awaiting_capture }})</button>
+        <button class="tab {{ 'active' if active_tab == 'approved' else '' }}" onclick="window.location.href='/ideas?tab=approved'">Approved ({{ counts.approved }})</button>
+        <button class="tab {{ 'active' if active_tab == 'parked' else '' }}" onclick="window.location.href='/ideas?tab=parked'">Parked ({{ counts.parked }})</button>
+        <button class="tab {{ 'active' if active_tab == 'killed' else '' }}" onclick="window.location.href='/ideas?tab=killed'">Killed ({{ counts.killed }})</button>
+        <button class="tab {{ 'active' if active_tab == 'all' else '' }}" onclick="window.location.href='/ideas?tab=all'">All ({{ counts.all }})</button>
+    </div>
+
+    {% if active_tab == 'queue' %}
+    <div class="seed-box">
+        <h2>Seed an idea</h2>
+        <p class="subtle" style="margin-bottom: 10px;">Type or paste a raw idea. The AI will develop it into a card with treatment.</p>
+        <textarea id="seedText" placeholder="e.g. BiMPay is killing it but nobody talking about how it changes the game for small vendors..."></textarea>
+        <div style="display: flex; gap: 10px; margin-top: 8px;">
+            <button class="btn btn-secondary" onclick="submitSeed('human_seeded')">Seed as-is</button>
+            <button class="btn btn-secondary" onclick="submitSeed('human_seeded_ai_developed')">Seed + AI develop</button>
+        </div>
+    </div>
+
+    <div class="seed-box">
+        <h2>Generate AI ideas</h2>
+        <p class="subtle" style="margin-bottom: 10px;">AI-originated ideas from Source Bank × living modules.</p>
+        <div class="gen-form">
+            <label>Count: <input type="number" id="genCount" value="3" min="1" max="10"></label>
+            <button class="btn btn-secondary" onclick="generateAI()">Generate</button>
+            <span id="genStatus" class="loading" style="display: none;">Generating...</span>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if cards %}
+    <div class="card-grid">
+        {% for card in cards %}
+        <div class="card" id="card-{{ card.id }}">
+            <div class="card-header">
+                <span class="origin-badge origin-{{ {'ai_originated': 'ai', 'human_seeded': 'human', 'human_seeded_ai_developed': 'developed'}.get(card.origin, 'ai') }}">
+                    {{ {'ai_originated': 'AI', 'human_seeded': 'Human', 'human_seeded_ai_developed': 'Human+AI'}.get(card.origin, card.origin) }}
+                </span>
+                <span class="card-state state-{{ card.card_state }}">{{ card.card_state }}</span>
+            </div>
+            <div class="card-idea">{{ card.idea }}</div>
+
+            {% if card.hook_options %}
+            <ul class="card-hooks">
+                {% for hook in card.hook_options %}
+                <li>{{ hook }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+
+            {% if card.treatment_compact %}
+            <div class="treatment-line">
+                {% for part in card.treatment_compact %}
+                <span>{{ part | safe }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if card.treatment_full %}
+            <div class="treatment-full" id="treatment-{{ card.id }}">
+                {{ card.treatment_full | safe }}
+            </div>
+            <button class="btn btn-secondary" style="font-size: 0.72rem; padding: 3px 8px; margin-bottom: 8px;" onclick="toggleTreatment({{ card.id }})">Expand treatment</button>
+            {% endif %}
+
+            {% if card.evidence_links %}
+            <div class="evidence-links">
+                {% for link in card.evidence_links %}
+                <a href="{{ link.url }}" target="_blank">{{ link.note or link.url }}</a>{% if not loop.last %} · {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if card.capture_tasks %}
+            <div class="capture-tasks">
+                <strong>Capture required:</strong>
+                <ul>
+                    {% for task in card.capture_tasks %}
+                    <li>{{ task }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            {% if card.card_state == 'new' %}
+            <div class="card-actions">
+                <button class="btn btn-approve" onclick="cardAction({{ card.id }}, 'approve')">Approve</button>
+                <button class="btn btn-kill" onclick="cardAction({{ card.id }}, 'kill')">Kill</button>
+                <button class="btn btn-park" onclick="cardAction({{ card.id }}, 'park')">Park</button>
+            </div>
+            <div class="kill-reason" id="kill-reason-{{ card.id }}">
+                <input type="text" id="kill-text-{{ card.id }}" placeholder="Why kill? (goes to Feedback Log)">
+                <button class="btn btn-kill" onclick="confirmKill({{ card.id }})">Confirm</button>
+            </div>
+            {% elif card.card_state == 'awaiting_capture' %}
+            <div class="card-actions">
+                <button class="btn btn-secondary" onclick="window.location.href='/ideas/{{ card.id }}/capture'">Manage capture</button>
+            </div>
+            {% elif card.card_state == 'approved' or card.card_state == 'capture_fulfilled' %}
+            <div class="card-actions">
+                <button class="btn btn-approve" onclick="window.location.href='/create/draft/{{ card.id }}'">Start draft →</button>
+            </div>
+            {% elif card.card_state == 'drafting' or card.card_state == 'drafted' %}
+            <div class="card-actions">
+                <button class="btn btn-secondary" onclick="window.location.href='/create/draft/{{ card.id }}'">View draft →</button>
+            </div>
+            {% elif card.card_state == 'parked' %}
+            <div class="card-actions">
+                <button class="btn btn-approve" onclick="cardAction({{ card.id }}, 'approve')">Reactivate</button>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty">No cards in this view yet.</p>
+    {% endif %}
+</div>
+
+<script>
+function toggleTreatment(id) {
+    const el = document.getElementById('treatment-' + id);
+    el.classList.toggle('show');
+}
+
+function cardAction(id, action) {
+    if (action === 'kill') {
+        document.getElementById('kill-reason-' + id).classList.add('show');
+        return;
+    }
+    if (action === 'approve') {
+        // Check if card has capture tasks
+        const cardEl = document.getElementById('card-' + id);
+        const hasCapture = cardEl.querySelector('.capture-tasks');
+        if (hasCapture) {
+            actionCard(id, 'approve');
+        } else {
+            actionCard(id, 'approve');
+        }
+        return;
+    }
+    actionCard(id, action);
+}
+
+function confirmKill(id) {
+    const reason = document.getElementById('kill-text-' + id).value;
+    actionCard(id, 'kill', reason);
+}
+
+function actionCard(id, action, reason) {
+    fetch('/api/ideas/' + id + '/gate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: action, kill_reason: reason || ''}),
+    }).then(r => r.json()).then(data => {
+        if (data.status === 'ok') window.location.reload();
+        else alert('Error: ' + (data.error || 'unknown'));
+    });
+}
+
+function submitSeed(originType) {
+    const text = document.getElementById('seedText').value.trim();
+    if (!text) return alert('Enter a seed first.');
+    fetch('/api/ideas/seed', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({seed: text, origin: originType}),
+    }).then(r => r.json()).then(data => {
+        if (data.status === 'ok') window.location.reload();
+        else alert('Error: ' + (data.error || 'unknown'));
+    });
+}
+
+function generateAI() {
+    const count = document.getElementById('genCount').value;
+    document.getElementById('genStatus').style.display = 'inline';
+    fetch('/api/ideas/generate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({count: parseInt(count)}),
+    }).then(r => r.json()).then(data => {
+        if (data.status === 'ok') window.location.reload();
+        else {
+            document.getElementById('genStatus').style.display = 'none';
+            alert('Error: ' + (data.error || 'unknown'));
+        }
+    });
+}
+</script>
+</body>
+</html>
