@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Onboard — ViralFactory</title>
+    <style>
+        :root {
+            --bg: #0d1117; --surface: #161b22; --border: #30363d;
+            --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7;
+            --green: #3fb950; --red: #f85149;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg); color: var(--text); line-height: 1.6;
+            padding: 2rem; max-width: 1200px; margin: 0 auto;
+        }
+        h1 { color: var(--accent); margin-bottom: 1rem; }
+        h2 { margin: 1.5rem 0 0.5rem; }
+        a { color: var(--accent); text-decoration: none; }
+        .nav { display: flex; gap: 1.5rem; margin-bottom: 2rem; }
+        .nav a { color: var(--muted); }
+        .nav a.active { color: var(--text); font-weight: 600; }
+        .card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 8px; padding: 1.2rem; margin-bottom: 1rem;
+        }
+        .card:hover { border-color: var(--accent); }
+        .btn {
+            display: inline-block; padding: 0.5rem 1.2rem;
+            background: var(--accent); color: white; border: none;
+            border-radius: 6px; cursor: pointer; font-size: 0.9rem;
+            text-decoration: none;
+        }
+        .muted { color: var(--muted); font-size: 0.85rem; }
+        .badge {
+            display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px;
+            font-size: 0.7rem; font-weight: 600; background: rgba(47,129,247,0.2);
+            color: var(--accent); margin-left: 0.5rem;
+        }
+        .badge-gate { background: rgba(210,153,34,0.2); color: #d29922; }
+    </style>
+</head>
+<body>
+    <h1>Onboarding</h1>
+    <div class="nav">
+        <a href="/">Home</a>
+        <a href="/onboard" class="active">Onboard</a>
+        <a href="/library">Library</a>
+    </div>
+
+    <p>Available playbooks. Run them in order — Business Profile first, then Voice Profile.</p>
+
+    {% for pb in playbooks %}
+    <div class="card">
+        <h2>{{ pb.name|replace('-', ' ')|title }} <span class="badge">v{{ pb.version }}</span>{% if pb.has_gate %}<span class="badge badge-gate">GATE</span>{% endif %}</h2>
+        <p>{{ pb.purpose }}</p>
+        <p class="muted">{{ pb.num_steps }} steps</p>
+        <a href="/onboard/{{ pb.name }}" class="btn">Start</a>
+    </div>
+    {% endfor %}
+
+    {% if not playbooks %}
+    <p>No playbooks found. Check the playbooks/ directory.</p>
+    {% endif %}
+</body>
+</html>
