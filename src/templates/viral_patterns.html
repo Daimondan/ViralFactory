@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Viral Patterns — ViralFactory</title>
+    <style>
+        :root { --bg: #0d1117; --surface: #161b22; --border: #30363d; --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7; --green: #3fb950; --red: #f85149; --yellow: #d29922; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 2rem; max-width: 1200px; margin: 0 auto; }
+        h1 { color: var(--accent); margin-bottom: 0.5rem; } h2 { margin: 1.5rem 0 0.5rem; } h3 { margin: 1rem 0 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        .nav { display: flex; gap: 1.5rem; margin-bottom: 2rem; } .nav a { color: var(--muted); }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.2rem; margin-bottom: 1rem; }
+        .btn { display: inline-block; padding: 0.4rem 1rem; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; margin-right: 0.5rem; }
+        .btn-primary { background: var(--accent); color: white; } .btn-approve { background: var(--green); color: white; } .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+        .muted { color: var(--muted); font-size: 0.85rem; }
+        textarea, input[type="text"], input[type="url"] { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.8rem; color: var(--text); font-family: inherit; font-size: 0.9rem; margin: 0.3rem 0; }
+        .item { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem; margin: 0.3rem 0; font-size: 0.85rem; }
+        pre { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem; overflow-x: auto; font-size: 0.85rem; white-space: pre-wrap; }
+        .loading { color: var(--yellow); } .error { color: var(--red); } .success { color: var(--green); }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+        .tag { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.75rem; background: rgba(47,129,247,0.15); color: var(--accent); margin: 0.1rem; }
+        .red-tag { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.75rem; background: rgba(248,81,73,0.15); color: var(--red); margin: 0.1rem; }
+        .evidence { color: var(--muted); font-size: 0.8rem; font-style: italic; margin-left: 1rem; }
+    </style>
+</head>
+<body>
+    <div class="nav"><a href="/">Home</a><a href="/onboard" class="active">Onboard</a><a href="/library">Library</a></div>
+    <h1>Viral Patterns Starter</h1>
+    <p class="muted">Run #{{ run_id }} · Add content you admire and content you'd never make. The AI identifies patterns to emulate and slop to avoid.</p>
+
+    <div class="card">
+        <h2>1. Admired Examples ({{ admired|length }})</h2>
+        <p class="muted">5–10 links to content you wish you'd made. Include a note on what you admire about each.</p>
+        <div class="grid-2">
+            <input type="text" id="ex-name" placeholder="Title (e.g., 'TechCrunch AI deep dive')">
+            <input type="url" id="ex-url" placeholder="https://...">
+        </div>
+        <textarea id="ex-note" placeholder="What do you admire? (optional)"></textarea>
+        <button class="btn btn-primary" onclick="addAdmired()">Add Example</button>
+        <span id="admired-status" class="muted"></span>
+        {% if admired %}
+        <div style="margin-top: 0.5rem;">
+        {% for a in admired %}
+        <div class="item"><a href="{{ a.url }}">{{ a.name }}</a> — {{ a.note }}</div>
+        {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h2>2. Anti-Examples ({{ anti|length }})</h2>
+        <p class="muted">3–5 examples of content you consider slop you'd never make.</p>
+        <textarea id="anti-desc" placeholder="e.g., 'Content-mill SEO blogs that regurgitate AI news without original reporting'"></textarea>
+        <button class="btn btn-primary" onclick="addAnti()">Add Anti-Example</button>
+        <span id="anti-status" class="muted"></span>
+        {% if anti %}
+        <div style="margin-top: 0.5rem;">
+        {% for a in anti %}<div class="item">{{ a }}</div>{% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h2>3. Generate Viral Patterns</h2>
+        <p class="muted">The AI analyzes your examples and writes named patterns with hypothesis-framed analysis.</p>
+        <button class="btn btn-primary" onclick="analyze()" id="analyze-btn">Run AI Analysis</button>
+        <span id="analyze-status"></span>
+    </div>
+
+    <div class="card" id="review-section" style="display: none;">
+        <h2>4. Review — Viral Patterns Playbook</h2>
+        <div id="patterns-display"></div>
+        <h3>Gate</h3>
+        <p class="muted">Approve to write the viral-patterns module. Park to come back later.</p>
+        <button class="btn btn-approve" onclick="store(true)">Approve</button>
+        <button class="btn btn-secondary" onclick="store(false)">Park</button>
+        <span id="store-status"></span>
+    </div>
+
+    <script>
+    function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+    async function addAdmired() {
+        const name = document.getElementById('ex-name').value.trim();
+        const url = document.getElementById('ex-url').value.trim();
+        const note = document.getElementById('ex-note').value.trim();
+        const status = document.getElementById('admired-status');
+        if (!url) { status.className = 'error'; status.textContent = 'URL required'; return; }
+        const resp = await fetch(`/api/run/{{ run_id }}/admired-example`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({url, name, note}), });
+        const data = await resp.json();
+        if (data.status === 'ok') { document.getElementById('ex-name').value = ''; document.getElementById('ex-url').value = ''; document.getElementById('ex-note').value = ''; status.className = 'success'; status.textContent = `✓ ${data.count} examples`; setTimeout(() => location.reload(), 500); }
+        else { status.className = 'error'; status.textContent = data.error; }
+    }
+
+    async function addAnti() {
+        const desc = document.getElementById('anti-desc').value.trim();
+        const status = document.getElementById('anti-status');
+        if (!desc) return;
+        const resp = await fetch(`/api/run/{{ run_id }}/viral-anti-example`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({description: desc}), });
+        const data = await resp.json();
+        if (data.status === 'ok') { document.getElementById('anti-desc').value = ''; status.className = 'success'; status.textContent = `✓ ${data.count} anti-examples`; setTimeout(() => location.reload(), 500); }
+        else { status.className = 'error'; status.textContent = data.error; }
+    }
+
+    async function analyze() {
+        const btn = document.getElementById('analyze-btn'); const status = document.getElementById('analyze-status');
+        btn.disabled = true; status.className = 'loading'; status.textContent = 'Analyzing... (may take 20-30s)';
+        try {
+            const resp = await fetch(`/api/run/{{ run_id }}/analyze-viral-patterns`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({}) });
+            const data = await resp.json();
+            if (data.status === 'ok') { status.className = 'success'; status.textContent = '✓ Analysis complete.'; display(data.patterns); }
+            else { status.className = 'error'; status.textContent = data.error; }
+        } catch(e) { status.className = 'error'; status.textContent = e.message; }
+        btn.disabled = false;
+    }
+
+    function display(p) {
+        document.getElementById('review-section').style.display = 'block';
+        const d = document.getElementById('patterns-display');
+        let h = `<p><strong>Summary:</strong> ${esc(p.summary)}</p>`;
+        h += '<h3>Patterns</h3>';
+        for (const pat of p.patterns) {
+            h += `<h4>${esc(pat.name)}</h4><ul>`;
+            h += `<li><strong>Hook:</strong> ${esc(pat.hook_type)}</li>`;
+            h += `<li><strong>Structure:</strong> ${esc(pat.structure)}</li>`;
+            h += `<li><strong>Emotional beat:</strong> ${esc(pat.emotional_beat)}</li>`;
+            h += `<li><strong>Format:</strong> ${esc(pat.format)}</li>`;
+            h += `<li><strong>Pacing:</strong> ${esc(pat.pacing)}</li>`;
+            h += `<li><strong>Why it likely worked:</strong> ${esc(pat.why_it_likely_worked)}</li>`;
+            h += `<li><strong>Examples:</strong><ul>`;
+            for (const ex of pat.examples) h += `<li><a href="${esc(ex.url)}">${esc(ex.name)}</a> — ${esc(ex.note)}</li>`;
+            h += `</ul></li></ul>`;
+        }
+        h += '<h3>Never list</h3>';
+        for (const n of p.never_list) { h += `<span class="red-tag">${esc(n.pattern)}</span> — ${esc(n.reason)}<div class="evidence">Evidence: "${esc(n.evidence)}"</div>`; }
+        d.innerHTML = h;
+    }
+
+    async function store(approved) {
+        const status = document.getElementById('store-status');
+        const resp = await fetch(`/api/run/{{ run_id }}/store-viral-patterns`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({approved, version: '1.0'}) });
+        const data = await resp.json();
+        if (data.status === 'ok') { status.className = approved ? 'success' : 'loading'; status.textContent = approved ? '✓ viral-patterns module written.' : 'Parked.'; setTimeout(() => location.reload(), 1500); }
+        else { status.className = 'error'; status.textContent = data.error; }
+    }
+    </script>
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Format Guide — ViralFactory</title>
+    <style>
+        :root { --bg: #0d1117; --surface: #161b22; --border: #30363d; --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7; --green: #3fb950; --red: #f85149; --yellow: #d29922; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 2rem; max-width: 1200px; margin: 0 auto; }
+        h1 { color: var(--accent); margin-bottom: 0.5rem; } h2 { margin: 1.5rem 0 0.5rem; } h3 { margin: 1rem 0 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        .nav { display: flex; gap: 1.5rem; margin-bottom: 2rem; } .nav a { color: var(--muted); }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.2rem; margin-bottom: 1rem; }
+        .btn { display: inline-block; padding: 0.4rem 1rem; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; margin-right: 0.5rem; }
+        .btn-primary { background: var(--accent); color: white; } .btn-approve { background: var(--green); color: white; } .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+        .muted { color: var(--muted); font-size: 0.85rem; }
+        textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.8rem; color: var(--text); font-family: inherit; font-size: 0.9rem; margin: 0.3rem 0; }
+        .loading { color: var(--yellow); } .error { color: var(--red); } .success { color: var(--green); }
+        .tag { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin: 0.1rem; }
+        .tag-proven { background: rgba(63,185,80,0.15); color: var(--green); }
+        .tag-experimental { background: rgba(210,153,34,0.15); color: var(--yellow); }
+        .tag-retired { background: rgba(248,81,73,0.15); color: var(--red); }
+        .tag-effort-low { background: rgba(63,185,80,0.15); color: var(--green); }
+        .tag-effort-medium { background: rgba(210,153,34,0.15); color: var(--yellow); }
+        .tag-effort-high { background: rgba(248,81,73,0.15); color: var(--red); }
+        pre { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem; overflow-x: auto; font-size: 0.85rem; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <div class="nav"><a href="/">Home</a><a href="/onboard" class="active">Onboard</a><a href="/library">Library</a></div>
+    <h1>Format Guide Starter</h1>
+    <p class="muted">Run #{{ run_id }} · Which format fits which message on which platform. Includes capture requirements and reuse pathways.</p>
+
+    <div class="card">
+        <h2>1. Format Observations (optional)</h2>
+        <p class="muted">Observations from your Viral Patterns analysis — which formats worked in the content you admire.</p>
+        <textarea id="fmt-obs" rows="3" placeholder="e.g., 'Threads with contrarian openings get the most engagement on X&#10;Reels with text overlays work for quick tips'">{{ format_observations }}</textarea>
+        <button class="btn btn-primary" onclick="saveInput('format_observations', 'fmt-obs')">Save</button>
+        <span id="obs-status" class="muted"></span>
+    </div>
+
+    <div class="card">
+        <h2>2. Platform Norms (optional)</h2>
+        <p class="muted">Any specific platform knowledge you have. Leave empty and the AI uses general knowledge.</p>
+        <textarea id="plat-norms" rows="3" placeholder="e.g., 'X threads max 15 tweets, IG carousels max 10 slides'">{{ platform_norms }}</textarea>
+        <button class="btn btn-primary" onclick="saveInput('platform_norms', 'plat-norms')">Save</button>
+        <span id="norms-status" class="muted"></span>
+    </div>
+
+    <div class="card">
+        <h2>3. Generate Format Guide</h2>
+        <p class="muted">The AI builds a decision table with per-format skeletons, capture requirements, and reuse pathways.</p>
+        <button class="btn btn-primary" onclick="analyze()" id="analyze-btn">Run AI Analysis</button>
+        <span id="analyze-status"></span>
+    </div>
+
+    <div class="card" id="review-section" style="display: none;">
+        <h2>4. Review — Format Guide</h2>
+        <div id="guide-display"></div>
+        <h3>Gate</h3>
+        <button class="btn btn-approve" onclick="store(true)">Approve</button>
+        <button class="btn btn-secondary" onclick="store(false)">Park</button>
+        <span id="store-status"></span>
+    </div>
+
+    <script>
+    function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+    async function saveInput(key, inputId) {
+        const value = document.getElementById(inputId).value.trim();
+        const statusId = inputId.split('-')[0] + '-status';
+        const status = document.getElementById(statusId);
+        if (!value) return;
+        const resp = await fetch(`/api/run/{{ run_id }}/format-input`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key, value}) });
+        const data = await resp.json();
+        if (data.status === 'ok') { status.className = 'success'; status.textContent = '✓ Saved'; }
+        else { status.className = 'error'; status.textContent = data.error; }
+    }
+
+    async function analyze() {
+        const btn = document.getElementById('analyze-btn'); const status = document.getElementById('analyze-status');
+        btn.disabled = true; status.className = 'loading'; status.textContent = 'Analyzing...';
+        try {
+            const resp = await fetch(`/api/run/{{ run_id }}/analyze-format-guide`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({}) });
+            const data = await resp.json();
+            if (data.status === 'ok') { status.className = 'success'; status.textContent = '✓ Analysis complete.'; display(data.guide); }
+            else { status.className = 'error'; status.textContent = data.error; }
+        } catch(e) { status.className = 'error'; status.textContent = e.message; }
+        btn.disabled = false;
+    }
+
+    function display(g) {
+        document.getElementById('review-section').style.display = 'block';
+        const d = document.getElementById('guide-display');
+        let h = `<p class="muted">${esc(g.summary)}</p>`;
+        h += '<h3>Formats</h3>';
+        for (const f of g.formats) {
+            h += `<h4>${esc(f.format_name)}</h4>`;
+            h += `<span class="tag tag-${esc(f.status)}">${esc(f.status)}</span>`;
+            h += `<span class="tag tag-effort-${esc(f.effort_level)}">${esc(f.effort_level)} effort</span>`;
+            h += `<ul>`;
+            h += `<li><strong>Platforms:</strong> ${esc(f.platforms.join(', '))}</li>`;
+            h += `<li><strong>Best for:</strong> ${esc(f.best_for.join(', '))}</li>`;
+            h += `<li><strong>Length:</strong> ${esc(f.length)}</li>`;
+            h += `<li><strong>Requires human capture:</strong> ${esc(f.requires_human_capture)}</li>`;
+            if (f.capture_tasks && f.capture_tasks.length) {
+                h += `<li><strong>Capture tasks:</strong><ul>`;
+                for (const t of f.capture_tasks) h += `<li>${esc(t)}</li>`;
+                h += `</ul></li>`;
+            }
+            h += `<li><strong>Reuse pathways:</strong> ${esc(f.reuse_pathways.join(', '))}</li>`;
+            h += `<li><strong>Provenance:</strong> ${esc(f.provenance)}</li>`;
+            h += `<li><strong>Structure notes:</strong> ${esc(f.structure_notes)}</li>`;
+            h += `</ul>`;
+            h += `<pre>${esc(f.skeleton)}</pre>`;
+        }
+        h += '<h3>Decision table</h3><ul>';
+        for (const dt of g.decision_table) {
+            h += `<li><strong>${esc(dt.message_type)}</strong> on ${esc(dt.platform)} → <strong>${esc(dt.recommended_format)}</strong> — ${esc(dt.rationale)}</li>`;
+        }
+        h += '</ul>';
+        d.innerHTML = h;
+    }
+
+    async function store(approved) {
+        const status = document.getElementById('store-status');
+        const resp = await fetch(`/api/run/{{ run_id }}/store-format-guide`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({approved, version: '1.0'}) });
+        const data = await resp.json();
+        if (data.status === 'ok') { status.className = approved ? 'success' : 'loading'; status.textContent = approved ? '✓ format-guide module written.' : 'Parked.'; setTimeout(() => location.reload(), 1500); }
+        else { status.className = 'error'; status.textContent = data.error; }
+    }
+    </script>
+</body>
+</html>

@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-02
-**Current Phase:** M2 in progress. T2.1–T2.2, T2.9 done. Charter v3.3. 154 tests passing.
+**Current Phase:** M2 in progress. T2.1–T2.3, T2.9 done. Charter v3.3. 201 tests passing.
 
 ---
 
@@ -15,7 +15,7 @@
 |---|---|---|
 | 0. Foundation | ✅ | All T0.1–T0.7 done. 28 tests passing. Real config verified. Pushed. |
 | 1. Onboarding engine: Voice Profile | ✅ | T1.1–T1.5 all done. 92 tests. Runner, intake, analysis, calibration, interview fallback. |
-| 2. Remaining playbooks wired | 🔧 | T2.1 done (Business Profile) + T2.2 done (Sources Engine Part A: criteria + sources.yaml + v2 bulk-import). 133 tests. T2.3–T2.11 next. |
+| 2. Remaining playbooks wired | 🔧 | T2.1 (Business Profile) + T2.2 (Sources Engine Part A) + T2.9 (gate-token enforcement) + T2.3 (Viral Patterns + Audience Insights + Story Frameworks + Format Guide with AMENDMENT-004 enrichment) done. 201 tests. T2.4–T2.11 next. |
 | 3. Co-production loop | ⬜ | Direct-edit mode in BUILD_PLAN (T3.3). Drafter A/B at checkpoint. |
 | 4. Publish + metrics automation | ⬜ | Postiz self-hosted confirmed. |
 | 5. Inward learning loop | ⬜ | Async gate queue (superseding, age, no pressure). |
@@ -78,4 +78,6 @@
 - [x] Review-w2 interim review corrections R10–R16 applied (R10: repo public decision, R11: v2 import server-side switch, R12: tenant strings in templates/prompts, R13: T2.9 pulled forward, R14: config archiving, R15: queued, R16: VPS constraint on T2.6–T2.8)
 - [x] T2.1: Business Profile intake — Q&A UI, AI analysis prompt, schema, gate enforcement, business.yaml + brand-context module (15 new tests, 116 total)
 - [x] T2.2: Sources Engine Part A — seed sources + anti-examples → AI criteria → sources.yaml + source-criteria module; v2 bulk-import path (server-side env var switch) (17 new tests, 133 total)
-- [ ] M2 revised order: T2.9 (gate-token, pulled forward) → R15 (minor fixes) → T2.3 → T2.4 → T2.5 → T2.6 → T2.8 → T2.7 (smoke test first per R16) → T2.10 → T2.11 → operator end-to-end test → tag review-w2
+- [x] T2.9: Gate-token enforcement — all write paths (ModuleStore.store, business.yaml, sources.yaml) require verified gate token from approved run (12 new tests, 154 total)
+- [x] T2.3: Viral Patterns + Audience Insights + Story Frameworks + Format Guide playbooks — 4 prompt templates, 4 schemas, 4 markdown converters, 4 sets of API endpoints (input + analyze + store), 4 HTML intake pages, Format Guide with AMENDMENT-004 enrichment (requires_human_capture, effort_level, best_for, platforms, reuse_pathways, status, provenance), 47 new tests, 201 total
+- [ ] M2 revised order: R15 (derive gate step from playbook) → T2.4 (Visual Style) → T2.5 (module store schema-check) → T2.6 (audio transcription) → T2.8 (voice samples) → T2.7 (voice cloning smoke test) → T2.10 (security fixes) → T2.11 (provenance business_slug) → operator end-to-end test → tag review-w2

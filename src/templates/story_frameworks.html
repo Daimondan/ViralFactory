@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Story Frameworks — ViralFactory</title>
+    <style>
+        :root { --bg: #0d1117; --surface: #161b22; --border: #30363d; --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7; --green: #3fb950; --red: #f85149; --yellow: #d29922; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 2rem; max-width: 1200px; margin: 0 auto; }
+        h1 { color: var(--accent); margin-bottom: 0.5rem; } h2 { margin: 1.5rem 0 0.5rem; } h3 { margin: 1rem 0 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        .nav { display: flex; gap: 1.5rem; margin-bottom: 2rem; } .nav a { color: var(--muted); }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.2rem; margin-bottom: 1rem; }
+        .btn { display: inline-block; padding: 0.4rem 1rem; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; margin-right: 0.5rem; }
+        .btn-primary { background: var(--accent); color: white; } .btn-approve { background: var(--green); color: white; } .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+        .muted { color: var(--muted); font-size: 0.85rem; }
+        textarea, input[type="text"] { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.8rem; color: var(--text); font-family: inherit; font-size: 0.9rem; margin: 0.3rem 0; }
+        .loading { color: var(--yellow); } .error { color: var(--red); } .success { color: var(--green); }
+    </style>
+</head>
+<body>
+    <div class="nav"><a href="/">Home</a><a href="/onboard" class="active">Onboard</a><a href="/library">Library</a></div>
+    <h1>Story Frameworks Starter</h1>
+    <p class="muted">Run #{{ run_id }} · How to tell a story per subject type, grounded in examples you admire and stories you tell.</p>
+
+    <div class="card">
+        <h2>1. Admired Examples (references)</h2>
+        <p class="muted">Paste URLs or descriptions of admired content that will ground the frameworks.</p>
+        <textarea id="admired-refs" rows="3" placeholder="e.g., 'https://x.com/... — great thread on AI ROI&#10;https://youtube.com/... — video essay on entrepreneurship'">{{ admired_refs }}</textarea>
+        <button class="btn btn-primary" onclick="saveInput('story_admired_refs', 'admired-refs')">Save</button>
+        <span id="admired-status" class="muted"></span>
+    </div>
+
+    <div class="card">
+        <h2>2. Your Stories</h2>
+        <p class="muted">2–3 stories you tell often (spoken or typed). These ground the frameworks in your actual voice.</p>
+        <textarea id="op-stories" rows="6" placeholder="Tell a story you often share with friends or clients about your domain...">{{ operator_stories }}</textarea>
+        <button class="btn btn-primary" onclick="saveInput('operator_stories', 'op-stories')">Save</button>
+        <span id="stories-status" class="muted"></span>
+    </div>
+
+    <div class="card">
+        <h2>3. Voice Profile Summary (optional)</h2>
+        <p class="muted">Paste your Voice Profile summary or key patterns. Frameworks will be checked against it.</p>
+        <textarea id="voice-sum" rows="3" placeholder="e.g., 'Direct, uses Bajan dialect, avoids jargon, leading with questions'">{{ voice_summary }}</textarea>
+        <button class="btn btn-primary" onclick="saveInput('voice_summary', 'voice-sum')">Save</button>
+        <span id="voice-status" class="muted"></span>
+    </div>
+
+    <div class="card">
+        <h2>4. Generate Story Frameworks</h2>
+        <p class="muted">The AI drafts one framework per subject type, grounded in your examples and stories.</p>
+        <button class="btn btn-primary" onclick="analyze()" id="analyze-btn">Run AI Analysis</button>
+        <span id="analyze-status"></span>
+    </div>
+
+    <div class="card" id="review-section" style="display: none;">
+        <h2>5. Review — Story Frameworks</h2>
+        <div id="frameworks-display"></div>
+        <h3>Gate</h3>
+        <button class="btn btn-approve" onclick="store(true)">Approve</button>
+        <button class="btn btn-secondary" onclick="store(false)">Park</button>
+        <span id="store-status"></span>
+    </div>
+
+    <script>
+    function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+    async function saveInput(key, inputId) {
+        const value = document.getElementById(inputId).value.trim();
+        const statusId = inputId.split('-')[0] + '-status';
+        const status = document.getElementById(statusId);
+        if (!value) return;
+        const resp = await fetch(`/api/run/{{ run_id }}/story-input`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key, value}) });
+        const data = await resp.json();
+        if (data.status === 'ok') { status.className = 'success'; status.textContent = '✓ Saved'; }
+        else { status.className = 'error'; status.textContent = data.error; }
+    }
+
+    async function analyze() {
+        const btn = document.getElementById('analyze-btn'); const status = document.getElementById('analyze-status');
+        btn.disabled = true; status.className = 'loading'; status.textContent = 'Analyzing...';
+        try {
+            const resp = await fetch(`/api/run/{{ run_id }}/analyze-story-frameworks`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({}) });
+            const data = await resp.json();
+            if (data.status === 'ok') { status.className = 'success'; status.textContent = '✓ Analysis complete.'; display(data.frameworks); }
+            else { status.className = 'error'; status.textContent = data.error; }
+        } catch(e) { status.className = 'error'; status.textContent = e.message; }
+        btn.disabled = false;
+    }
+
+    function display(fw) {
+        document.getElementById('review-section').style.display = 'block';
+        const d = document.getElementById('frameworks-display');
+        let h = `<p class="muted">${esc(fw.summary)}</p>`;
+        for (const f of fw.frameworks) {
+            h += `<h3>${esc(f.subject_type)}</h3><ul>`;
+            h += `<li><strong>Entry point:</strong> ${esc(f.entry_point)}</li>`;
+            h += `<li><strong>Tension:</strong> ${esc(f.tension)}</li>`;
+            h += `<li><strong>Turn:</strong> ${esc(f.turn)}</li>`;
+            h += `<li><strong>Landing:</strong> ${esc(f.landing)}</li>`;
+            h += `<li><strong>Grounded in:</strong> ${esc(f.grounded_in_example)} / ${esc(f.grounded_in_story)}</li>`;
+            const vc = f.voice_compatible ? '✓' : '✗';
+            h += `<li><strong>Voice compatible:</strong> ${vc}${f.voice_note ? ' — ' + esc(f.voice_note) : ''}</li>`;
+            h += `</ul>`;
+        }
+        d.innerHTML = h;
+    }
+
+    async function store(approved) {
+        const status = document.getElementById('store-status');
+        const resp = await fetch(`/api/run/{{ run_id }}/store-story-frameworks`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({approved, version: '1.0'}) });
+        const data = await resp.json();
+        if (data.status === 'ok') { status.className = approved ? 'success' : 'loading'; status.textContent = approved ? '✓ story-frameworks module written.' : 'Parked.'; setTimeout(() => location.reload(), 1500); }
+        else { status.className = 'error'; status.textContent = data.error; }
+    }
+    </script>
+</body>
+</html>

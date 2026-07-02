@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audience Insights — ViralFactory</title>
+    <style>
+        :root { --bg: #0d1117; --surface: #161b22; --border: #30363d; --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7; --green: #3fb950; --red: #f85149; --yellow: #d29922; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 2rem; max-width: 1200px; margin: 0 auto; }
+        h1 { color: var(--accent); margin-bottom: 0.5rem; } h2 { margin: 1.5rem 0 0.5rem; } h3 { margin: 1rem 0 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        .nav { display: flex; gap: 1.5rem; margin-bottom: 2rem; } .nav a { color: var(--muted); }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.2rem; margin-bottom: 1rem; }
+        .btn { display: inline-block; padding: 0.4rem 1rem; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; margin-right: 0.5rem; }
+        .btn-primary { background: var(--accent); color: white; } .btn-approve { background: var(--green); color: white; } .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+        .muted { color: var(--muted); font-size: 0.85rem; }
+        textarea, input[type="text"] { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.8rem; color: var(--text); font-family: inherit; font-size: 0.9rem; margin: 0.3rem 0; }
+        .loading { color: var(--yellow); } .error { color: var(--red); } .success { color: var(--green); }
+        .tag { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.75rem; background: rgba(47,129,247,0.15); color: var(--accent); margin: 0.1rem; }
+        .evidence { color: var(--muted); font-size: 0.8rem; font-style: italic; margin-left: 1rem; }
+        .belief-tag { background: rgba(210,153,34,0.15); color: var(--yellow); }
+        .evidence-tag { background: rgba(63,185,80,0.15); color: var(--green); }
+    </style>
+</head>
+<body>
+    <div class="nav"><a href="/">Home</a><a href="/onboard" class="active">Onboard</a><a href="/library">Library</a></div>
+    <h1>Audience Insights Builder</h1>
+    <p class="muted">Run #{{ run_id }} · Who is your content for? What do they respond to?</p>
+
+    <div class="card">
+        <h2>1. Your Audience Description</h2>
+        <p class="muted">Describe your audience in your own words. Who are they? What do they care about?</p>
+        <textarea id="op-desc" rows="4" placeholder="e.g., 'Entrepreneurs 25-45 who are curious about AI but skeptical of hype. They value real talk over jargon.'">{{ operator_desc }}</textarea>
+        <button class="btn btn-primary" onclick="saveInput('audience_operator_desc', 'op-desc')">Save Description</button>
+        <span id="op-status" class="muted"></span>
+    </div>
+
+    <div class="card">
+        <h2>2. Audience Data (optional)</h2>
+        <p class="muted">Paste any analytics exports, comments, DMs, or observed signals. Leave empty if you don't have any yet.</p>
+        <textarea id="aud-data" rows="4" placeholder="Paste comments, DM excerpts, analytics observations...">{{ audience_data }}</textarea>
+        <button class="btn btn-primary" onclick="saveInput('audience_data', 'aud-data')">Save Data</button>
+        <span id="data-status" class="muted"></span>
+    </div>
+
+    <div class="card">
+        <h2>3. Signals from Admired Content (optional)</h2>
+        <p class="muted">What do commenters say on the content you admire? This helps identify audience language.</p>
+        <textarea id="adm-signals" rows="3" placeholder="e.g., 'On TC AI deep dives, commenters ask about ROI and implementation cost'">{{ admired_signals }}</textarea>
+        <button class="btn btn-primary" onclick="saveInput('audience_admired_signals', 'adm-signals')">Save Signals</button>
+        <span id="signals-status" class="muted"></span>
+    </div>
+
+    <div class="card">
+        <h2>4. Generate Audience Insights</h2>
+        <p class="muted">The AI builds a picture of your audience, clearly marking beliefs vs evidence.</p>
+        <button class="btn btn-primary" onclick="analyze()" id="analyze-btn">Run AI Analysis</button>
+        <span id="analyze-status"></span>
+    </div>
+
+    <div class="card" id="review-section" style="display: none;">
+        <h2>5. Review — Audience Insights</h2>
+        <div id="insights-display"></div>
+        <h3>Gate</h3>
+        <button class="btn btn-approve" onclick="store(true)">Approve</button>
+        <button class="btn btn-secondary" onclick="store(false)">Park</button>
+        <span id="store-status"></span>
+    </div>
+
+    <script>
+    function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+    async function saveInput(key, inputId) {
+        const value = document.getElementById(inputId).value.trim();
+        const statusId = inputId.replace(/.+-/, '') + '-status';
+        const status = document.getElementById(statusId) || document.getElementById('op-status');
+        if (!value) return;
+        const resp = await fetch(`/api/run/{{ run_id }}/audience-input`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key, value}) });
+        const data = await resp.json();
+        if (data.status === 'ok') { status.className = 'success'; status.textContent = '✓ Saved'; }
+        else { status.className = 'error'; status.textContent = data.error; }
+    }
+
+    async function analyze() {
+        const btn = document.getElementById('analyze-btn'); const status = document.getElementById('analyze-status');
+        btn.disabled = true; status.className = 'loading'; status.textContent = 'Analyzing...';
+        try {
+            const resp = await fetch(`/api/run/{{ run_id }}/analyze-audience`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({}) });
+            const data = await resp.json();
+            if (data.status === 'ok') { status.className = 'success'; status.textContent = '✓ Analysis complete.'; display(data.insights); }
+            else { status.className = 'error'; status.textContent = data.error; }
+        } catch(e) { status.className = 'error'; status.textContent = e.message; }
+        btn.disabled = false;
+    }
+
+    function display(ins) {
+        document.getElementById('review-section').style.display = 'block';
+        const d = document.getElementById('insights-display');
+        let h = `<p><strong>Who they are:</strong> ${esc(ins.who_they_are)}</p>`;
+        h += '<h3>What they care about</h3>';
+        for (const c of ins.what_they_care_about) {
+            const cls = c.type === 'evidence' ? 'evidence-tag' : 'belief-tag';
+            h += `<span class="tag ${cls}">${esc(c.type)}</span> <strong>${esc(c.concern)}</strong>`;
+            for (const ev of c.evidence) h += `<div class="evidence">"${esc(ev)}"</div>`;
+        }
+        h += '<h3>Language they use</h3>';
+        for (const l of ins.language) { h += `<li>"${esc(l.phrase)}" (${esc(l.type)})${l.context ? ' — ' + esc(l.context) : ''}</li>`; }
+        h += '<h3>What they reward</h3>';
+        for (const r of ins.what_they_reward) {
+            const cls = r.type === 'evidence' ? 'evidence-tag' : 'belief-tag';
+            h += `<span class="tag ${cls}">${esc(r.type)}</span> <strong>${esc(r.behavior)}</strong>`;
+            for (const ev of r.evidence) h += `<div class="evidence">"${esc(ev)}"</div>`;
+        }
+        h += '<h3>What turns them off</h3>';
+        for (const t of ins.what_turns_them_off) {
+            const cls = t.type === 'evidence' ? 'evidence-tag' : 'belief-tag';
+            h += `<span class="tag ${cls}">${esc(t.type)}</span> <strong>${esc(t.turn_off)}</strong>`;
+            for (const ev of t.evidence) h += `<div class="evidence">"${esc(ev)}"</div>`;
+        }
+        if (ins.evidence_vs_belief) h += `<h3>Evidence vs belief</h3><p>${esc(ins.evidence_vs_belief)}</p>`;
+        h += `<p class="muted">${esc(ins.summary)}</p>`;
+        d.innerHTML = h;
+    }
+
+    async function store(approved) {
+        const status = document.getElementById('store-status');
+        const resp = await fetch(`/api/run/{{ run_id }}/store-audience-insights`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({approved, version: '1.0'}) });
+        const data = await resp.json();
+        if (data.status === 'ok') { status.className = approved ? 'success' : 'loading'; status.textContent = approved ? '✓ audience-insights module written.' : 'Parked.'; setTimeout(() => location.reload(), 1500); }
+        else { status.className = 'error'; status.textContent = data.error; }
+    }
+    </script>
+</body>
+</html>

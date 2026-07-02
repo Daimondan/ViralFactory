@@ -1027,6 +1027,597 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         return jsonify(result)
 
+    # ── T2.3: Viral Patterns + Audience Insights + Story Frameworks + Format Guide ──
+
+    def _get_business_context(self):
+        """Helper: load business context for LLM calls. Returns dict or raises."""
+        try:
+            config = load_all(self.config["CONFIG_DIR"])
+            return config["business"], config["models"]
+        except ConfigError as e:
+            return None, None
+
+    # --- Viral Patterns ---
+
+    @app.route("/onboard/<playbook_name>/<int:run_id>/viral-patterns")
+    def viral_patterns_page(playbook_name, run_id):
+        """Viral Patterns intake UI."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return "Run not found", 404
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        admired = collected.get("admired_examples", [])
+        anti = collected.get("viral_anti_examples", [])
+        llm_outputs = json.loads(run.get("llm_outputs") or "{}")
+        patterns = llm_outputs.get("patterns")
+
+        return render_template("viral_patterns.html",
+            playbook_name=playbook_name, run_id=run_id,
+            admired=admired, anti=anti, patterns=patterns)
+
+    @app.route("/api/run/<int:run_id>/admired-example", methods=["POST"])
+    def add_admired_example(run_id):
+        """Add an admired example for Viral Patterns."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        url = request.json.get("url", "").strip()
+        name = request.json.get("name", "").strip()
+        note = request.json.get("note", "").strip()
+        if not url:
+            return jsonify({"error": "URL required"}), 400
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        if "admired_examples" not in collected:
+            collected["admired_examples"] = []
+        collected["admired_examples"].append({"url": url, "name": name or url, "note": note})
+        runner.update_run(run_id, collected_inputs=json.dumps(collected))
+
+        return jsonify({"status": "ok", "count": len(collected["admired_examples"])})
+
+    @app.route("/api/run/<int:run_id>/viral-anti-example", methods=["POST"])
+    def add_viral_anti(run_id):
+        """Add an anti-example for Viral Patterns."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        description = request.json.get("description", "").strip()
+        if not description:
+            return jsonify({"error": "Description required"}), 400
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        if "viral_anti_examples" not in collected:
+            collected["viral_anti_examples"] = []
+        collected["viral_anti_examples"].append(description)
+        runner.update_run(run_id, collected_inputs=json.dumps(collected))
+
+        return jsonify({"status": "ok", "count": len(collected["viral_anti_examples"])})
+
+    @app.route("/api/run/<int:run_id>/analyze-viral-patterns", methods=["POST"])
+    def analyze_viral_patterns(run_id):
+        """Run the Viral Patterns analysis LLM call."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        admired = collected.get("admired_examples", [])
+        if len(admired) < 3:
+            return jsonify({"error": "Need at least 3 admired examples."}), 400
+
+        admired_text = ""
+        for i, a in enumerate(admired, 1):
+            admired_text += f"  {i}. {a.get('name', '')} — {a['url']}"
+            if a.get("note"):
+                admired_text += f" (note: {a['note']})"
+            admired_text += "\n"
+
+        anti_text = ""
+        for i, a in enumerate(collected.get("viral_anti_examples", []), 1):
+            anti_text += f"  {i}. {a}\n"
+        if not anti_text:
+            anti_text = "  (none provided)"
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+            business = config["business"]
+        except ConfigError as e:
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        from module_store import VIRAL_PATTERNS_SCHEMA
+        from llm_adapter import LLMAdapter, LLMAdapterError
+
+        adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
+
+        try:
+            result = adapter.complete(
+                prompt_file="viral_patterns/analyze_v1.md",
+                variables={
+                    "business_name": business["business"]["name"],
+                    "subjects": ", ".join(business.get("subjects", [])),
+                    "audience_description": business.get("audience_description", ""),
+                    "admired_examples": admired_text,
+                    "anti_examples": anti_text,
+                },
+                schema=VIRAL_PATTERNS_SCHEMA,
+                backend="default",
+                context=f"Viral Patterns analysis for run {run_id}",
+            )
+        except (LLMAdapterError, Exception) as e:
+            return jsonify({"error": str(e)}), 500
+
+        runner.add_llm_output(run_id, "patterns", result)
+        return jsonify({"status": "ok", "patterns": result})
+
+    @app.route("/api/run/<int:run_id>/store-viral-patterns", methods=["POST"])
+    def store_viral_patterns(run_id):
+        """Store viral patterns module (gate enforced)."""
+        from module_store import (ModuleStore, viral_patterns_to_markdown,
+            GateTokenError, generate_gate_token)
+
+        approved = request.json.get("approved", False)
+        version = request.json.get("version", "1.0")
+        note = request.json.get("note", "")
+
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        llm_outputs = json.loads(run.get("llm_outputs") or "{}")
+        patterns = llm_outputs.get("patterns")
+        if not patterns:
+            return jsonify({"error": "No viral patterns found. Run analysis first."}), 400
+
+        runner.set_gate_result(run_id, "5", "approve" if approved else "park", note)
+
+        paths = {}
+        if approved:
+            gate_token = generate_gate_token(run_id)
+            runner.update_run(run_id, status="completed")
+            try:
+                config = load_all(app.config["CONFIG_DIR"])
+                business_slug = config["business"]["business"]["slug"]
+                if not business_slug or business_slug == "unknown":
+                    return jsonify({"error": "Cannot write: business slug missing."}), 500
+
+                md = viral_patterns_to_markdown(patterns, version)
+                store = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
+                path = store.store(business_slug, "viral-patterns", md,
+                    version=version,
+                    provenance={"version": version, "approved": True, "note": note,
+                                "run_id": run_id, "playbook": "viral-patterns-starter"},
+                    gate_token=gate_token, run_id=run_id)
+                paths["viral_patterns"] = path
+            except GateTokenError as e:
+                return jsonify({"error": str(e)}), 403
+        else:
+            runner.update_run(run_id, status="awaiting_gate")
+
+        result = {"status": "ok", "version": version, "approved": approved}
+        if paths:
+            result["paths"] = paths
+        return jsonify(result)
+
+    # --- Audience Insights ---
+
+    @app.route("/onboard/<playbook_name>/<int:run_id>/audience-insights")
+    def audience_insights_page(playbook_name, run_id):
+        """Audience Insights intake UI."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return "Run not found", 404
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        operator_desc = collected.get("audience_operator_desc", "")
+        audience_data = collected.get("audience_data", "")
+        admired_signals = collected.get("audience_admired_signals", "")
+        llm_outputs = json.loads(run.get("llm_outputs") or "{}")
+        insights = llm_outputs.get("insights")
+
+        return render_template("audience_insights.html",
+            playbook_name=playbook_name, run_id=run_id,
+            operator_desc=operator_desc, audience_data=audience_data,
+            admired_signals=admired_signals, insights=insights)
+
+    @app.route("/api/run/<int:run_id>/audience-input", methods=["POST"])
+    def add_audience_input(run_id):
+        """Add audience description/data for Audience Insights."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        key = request.json.get("key", "")
+        value = request.json.get("value", "").strip()
+        if not key or not value:
+            return jsonify({"error": "Key and value required"}), 400
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        collected[key] = value
+        runner.update_run(run_id, collected_inputs=json.dumps(collected))
+
+        return jsonify({"status": "ok"})
+
+    @app.route("/api/run/<int:run_id>/analyze-audience", methods=["POST"])
+    def analyze_audience(run_id):
+        """Run the Audience Insights analysis LLM call."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        operator_desc = collected.get("audience_operator_desc", "")
+        if not operator_desc:
+            return jsonify({"error": "Add an audience description first."}), 400
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+            business = config["business"]
+        except ConfigError as e:
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        from module_store import AUDIENCE_INSIGHTS_SCHEMA
+        from llm_adapter import LLMAdapter, LLMAdapterError
+
+        adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
+
+        try:
+            result = adapter.complete(
+                prompt_file="audience_insights/analyze_v1.md",
+                variables={
+                    "business_name": business["business"]["name"],
+                    "subjects": ", ".join(business.get("subjects", [])),
+                    "audience_description": business.get("audience_description", ""),
+                    "operator_description": operator_desc,
+                    "audience_data": collected.get("audience_data", "(none provided)"),
+                    "admired_signals": collected.get("audience_admired_signals", "(none provided)"),
+                },
+                schema=AUDIENCE_INSIGHTS_SCHEMA,
+                backend="default",
+                context=f"Audience Insights analysis for run {run_id}",
+            )
+        except (LLMAdapterError, Exception) as e:
+            return jsonify({"error": str(e)}), 500
+
+        runner.add_llm_output(run_id, "insights", result)
+        return jsonify({"status": "ok", "insights": result})
+
+    @app.route("/api/run/<int:run_id>/store-audience-insights", methods=["POST"])
+    def store_audience_insights(run_id):
+        """Store audience insights module (gate enforced)."""
+        from module_store import (ModuleStore, audience_insights_to_markdown,
+            GateTokenError, generate_gate_token)
+
+        approved = request.json.get("approved", False)
+        version = request.json.get("version", "1.0")
+        note = request.json.get("note", "")
+
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        llm_outputs = json.loads(run.get("llm_outputs") or "{}")
+        insights = llm_outputs.get("insights")
+        if not insights:
+            return jsonify({"error": "No audience insights found. Run analysis first."}), 400
+
+        runner.set_gate_result(run_id, "3", "approve" if approved else "park", note)
+
+        paths = {}
+        if approved:
+            gate_token = generate_gate_token(run_id)
+            runner.update_run(run_id, status="completed")
+            try:
+                config = load_all(app.config["CONFIG_DIR"])
+                business_slug = config["business"]["business"]["slug"]
+                if not business_slug or business_slug == "unknown":
+                    return jsonify({"error": "Cannot write: business slug missing."}), 500
+
+                md = audience_insights_to_markdown(insights, version)
+                store = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
+                path = store.store(business_slug, "audience-insights", md,
+                    version=version,
+                    provenance={"version": version, "approved": True, "note": note,
+                                "run_id": run_id, "playbook": "audience-insights-builder"},
+                    gate_token=gate_token, run_id=run_id)
+                paths["audience_insights"] = path
+            except GateTokenError as e:
+                return jsonify({"error": str(e)}), 403
+        else:
+            runner.update_run(run_id, status="awaiting_gate")
+
+        result = {"status": "ok", "version": version, "approved": approved}
+        if paths:
+            result["paths"] = paths
+        return jsonify(result)
+
+    # --- Story Frameworks ---
+
+    @app.route("/onboard/<playbook_name>/<int:run_id>/story-frameworks")
+    def story_frameworks_page(playbook_name, run_id):
+        """Story Frameworks intake UI."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return "Run not found", 404
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        admired_refs = collected.get("story_admired_refs", "")
+        operator_stories = collected.get("operator_stories", "")
+        voice_summary = collected.get("voice_summary", "")
+        llm_outputs = json.loads(run.get("llm_outputs") or "{}")
+        frameworks = llm_outputs.get("frameworks")
+
+        return render_template("story_frameworks.html",
+            playbook_name=playbook_name, run_id=run_id,
+            admired_refs=admired_refs, operator_stories=operator_stories,
+            voice_summary=voice_summary, frameworks=frameworks)
+
+    @app.route("/api/run/<int:run_id>/story-input", methods=["POST"])
+    def add_story_input(run_id):
+        """Add story framework input (admired refs, operator stories, voice summary)."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        key = request.json.get("key", "")
+        value = request.json.get("value", "").strip()
+        if not key or not value:
+            return jsonify({"error": "Key and value required"}), 400
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        collected[key] = value
+        runner.update_run(run_id, collected_inputs=json.dumps(collected))
+
+        return jsonify({"status": "ok"})
+
+    @app.route("/api/run/<int:run_id>/analyze-story-frameworks", methods=["POST"])
+    def analyze_story_frameworks(run_id):
+        """Run the Story Frameworks analysis LLM call."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        operator_stories = collected.get("operator_stories", "")
+        if not operator_stories:
+            return jsonify({"error": "Add at least one operator story first."}), 400
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+            business = config["business"]
+        except ConfigError as e:
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        from module_store import STORY_FRAMEWORKS_SCHEMA
+        from llm_adapter import LLMAdapter, LLMAdapterError
+
+        adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
+
+        try:
+            result = adapter.complete(
+                prompt_file="story_frameworks/analyze_v1.md",
+                variables={
+                    "business_name": business["business"]["name"],
+                    "subjects": ", ".join(business.get("subjects", [])),
+                    "audience_description": business.get("audience_description", ""),
+                    "admired_examples": collected.get("story_admired_refs", "(none provided)"),
+                    "operator_stories": operator_stories,
+                    "voice_summary": collected.get("voice_summary", "(not yet available)"),
+                },
+                schema=STORY_FRAMEWORKS_SCHEMA,
+                backend="default",
+                context=f"Story Frameworks analysis for run {run_id}",
+            )
+        except (LLMAdapterError, Exception) as e:
+            return jsonify({"error": str(e)}), 500
+
+        runner.add_llm_output(run_id, "frameworks", result)
+        return jsonify({"status": "ok", "frameworks": result})
+
+    @app.route("/api/run/<int:run_id>/store-story-frameworks", methods=["POST"])
+    def store_story_frameworks(run_id):
+        """Store story frameworks module (gate enforced)."""
+        from module_store import (ModuleStore, story_frameworks_to_markdown,
+            GateTokenError, generate_gate_token)
+
+        approved = request.json.get("approved", False)
+        version = request.json.get("version", "1.0")
+        note = request.json.get("note", "")
+
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        llm_outputs = json.loads(run.get("llm_outputs") or "{}")
+        frameworks = llm_outputs.get("frameworks")
+        if not frameworks:
+            return jsonify({"error": "No story frameworks found. Run analysis first."}), 400
+
+        runner.set_gate_result(run_id, "3", "approve" if approved else "park", note)
+
+        paths = {}
+        if approved:
+            gate_token = generate_gate_token(run_id)
+            runner.update_run(run_id, status="completed")
+            try:
+                config = load_all(app.config["CONFIG_DIR"])
+                business_slug = config["business"]["business"]["slug"]
+                if not business_slug or business_slug == "unknown":
+                    return jsonify({"error": "Cannot write: business slug missing."}), 500
+
+                md = story_frameworks_to_markdown(frameworks, version)
+                store = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
+                path = store.store(business_slug, "story-frameworks", md,
+                    version=version,
+                    provenance={"version": version, "approved": True, "note": note,
+                                "run_id": run_id, "playbook": "story-frameworks-starter"},
+                    gate_token=gate_token, run_id=run_id)
+                paths["story_frameworks"] = path
+            except GateTokenError as e:
+                return jsonify({"error": str(e)}), 403
+        else:
+            runner.update_run(run_id, status="awaiting_gate")
+
+        result = {"status": "ok", "version": version, "approved": approved}
+        if paths:
+            result["paths"] = paths
+        return jsonify(result)
+
+    # --- Format Guide ---
+
+    @app.route("/onboard/<playbook_name>/<int:run_id>/format-guide")
+    def format_guide_page(playbook_name, run_id):
+        """Format Guide intake UI."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return "Run not found", 404
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        format_observations = collected.get("format_observations", "")
+        platform_norms = collected.get("platform_norms", "")
+        llm_outputs = json.loads(run.get("llm_outputs") or "{}")
+        guide = llm_outputs.get("guide")
+
+        return render_template("format_guide.html",
+            playbook_name=playbook_name, run_id=run_id,
+            format_observations=format_observations,
+            platform_norms=platform_norms, guide=guide)
+
+    @app.route("/api/run/<int:run_id>/format-input", methods=["POST"])
+    def add_format_input(run_id):
+        """Add format guide input (observations, norms)."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        key = request.json.get("key", "")
+        value = request.json.get("value", "").strip()
+        if not key or not value:
+            return jsonify({"error": "Key and value required"}), 400
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        collected[key] = value
+        runner.update_run(run_id, collected_inputs=json.dumps(collected))
+
+        return jsonify({"status": "ok"})
+
+    @app.route("/api/run/<int:run_id>/analyze-format-guide", methods=["POST"])
+    def analyze_format_guide(run_id):
+        """Run the Format Guide analysis LLM call."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+            business = config["business"]
+        except ConfigError as e:
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+
+        # Build platforms text
+        platforms_text = ", ".join(
+            f"{p['name']} ({p.get('handle', '')})" for p in business.get("platforms", [])
+        )
+
+        from module_store import FORMAT_GUIDE_SCHEMA
+        from llm_adapter import LLMAdapter, LLMAdapterError
+
+        adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
+
+        try:
+            result = adapter.complete(
+                prompt_file="format_guide/analyze_v1.md",
+                variables={
+                    "business_name": business["business"]["name"],
+                    "platforms": platforms_text,
+                    "subjects": ", ".join(business.get("subjects", [])),
+                    "format_observations": collected.get("format_observations", "(none provided)"),
+                    "platform_norms": collected.get("platform_norms", "(use general knowledge)"),
+                },
+                schema=FORMAT_GUIDE_SCHEMA,
+                backend="default",
+                context=f"Format Guide analysis for run {run_id}",
+            )
+        except (LLMAdapterError, Exception) as e:
+            return jsonify({"error": str(e)}), 500
+
+        runner.add_llm_output(run_id, "guide", result)
+        return jsonify({"status": "ok", "guide": result})
+
+    @app.route("/api/run/<int:run_id>/store-format-guide", methods=["POST"])
+    def store_format_guide(run_id):
+        """Store format guide module (gate enforced)."""
+        from module_store import (ModuleStore, format_guide_to_markdown,
+            GateTokenError, generate_gate_token)
+
+        approved = request.json.get("approved", False)
+        version = request.json.get("version", "1.0")
+        note = request.json.get("note", "")
+
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        llm_outputs = json.loads(run.get("llm_outputs") or "{}")
+        guide = llm_outputs.get("guide")
+        if not guide:
+            return jsonify({"error": "No format guide found. Run analysis first."}), 400
+
+        runner.set_gate_result(run_id, "3", "approve" if approved else "park", note)
+
+        paths = {}
+        if approved:
+            gate_token = generate_gate_token(run_id)
+            runner.update_run(run_id, status="completed")
+            try:
+                config = load_all(app.config["CONFIG_DIR"])
+                business_slug = config["business"]["business"]["slug"]
+                if not business_slug or business_slug == "unknown":
+                    return jsonify({"error": "Cannot write: business slug missing."}), 500
+
+                md = format_guide_to_markdown(guide, version)
+                store = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
+                path = store.store(business_slug, "format-guide", md,
+                    version=version,
+                    provenance={"version": version, "approved": True, "note": note,
+                                "run_id": run_id, "playbook": "format-guide-starter"},
+                    gate_token=gate_token, run_id=run_id)
+                paths["format_guide"] = path
+            except GateTokenError as e:
+                return jsonify({"error": str(e)}), 403
+        else:
+            runner.update_run(run_id, status="awaiting_gate")
+
+        result = {"status": "ok", "version": version, "approved": approved}
+        if paths:
+            result["paths"] = paths
+        return jsonify(result)
+
     @app.route("/health")
     def health():
         """Health check endpoint."""

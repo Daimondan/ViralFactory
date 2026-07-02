@@ -6,6 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-02 BUILD T2.3 — Viral Patterns + Audience Insights + Story Frameworks + Format Guide playbooks
+**What:** 4 playbooks fully wired with prompt templates, JSON schemas, markdown converters, API endpoints (input + analyze + store), and HTML intake pages. Format Guide schema includes AMENDMENT-004 enrichment: `requires_human_capture`, `capture_tasks`, `effort_level`, `best_for`, `platforms`, `reuse_pathways`, `status` (proven|experimental|retired), `provenance`. All 4 store endpoints enforce gate tokens (T2.9). 47 new tests (201 total).
+**Rationale:** M2 BUILD_PLAN T2.3 — the remaining onboarding playbooks that feed the co-production loop. Format Guide enrichment enables the treatment block on idea cards (AMENDMENT-004).
+
+---
+
+### 2026-07-02 BUILD T2.9 — Gate-token enforcement on all write paths
+**What:** ModuleStore.store(), business.yaml writes, and sources.yaml writes now require a verified gate token from an approved run. No more honor-system writes. Orphan prevention: "unknown" or empty business slug raises immediately. 12 new tests (154 total at that point).
+**Rationale:** R13 correction — pull gate enforcement forward before building more store endpoints, so enforcement is baked in from the start rather than retrofitted.
+
+---
+
 ### 2026-07-02 STRATEGIC — ViralFactory is a generic system, StackPenni is user #1
 **Rationale:** Daimon confirmed the system is named ViralFactory — a generic content co-creation system. StackPenni is the first tenant. Paying customers are a real near-term plan. The harness is code; the business lives entirely in config and modules. This was established during the grill session and aligns with Charter v3's original design.
 

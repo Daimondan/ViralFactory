@@ -614,3 +614,337 @@ def monitoring_plan_to_yaml(criteria: dict) -> str:
         "queries": mp.get("queries", []),
     }
     return _yaml.dump(sources, default_flow_style=False, sort_keys=False, allow_unicode=True)
+
+
+# ────────────────────────────────────────────────────────────────────
+# T2.3: Viral Patterns + Audience Insights + Story Frameworks + Format Guide
+# ────────────────────────────────────────────────────────────────────
+
+# --- Viral Patterns ---
+
+VIRAL_PATTERNS_SCHEMA = {
+    "type": "object",
+    "required": ["patterns", "never_list", "summary"],
+    "properties": {
+        "patterns": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["name", "hook_type", "structure", "emotional_beat",
+                             "format", "pacing", "why_it_likely_worked", "examples"],
+                "properties": {
+                    "name": {"type": "string"},
+                    "hook_type": {"type": "string"},
+                    "structure": {"type": "string"},
+                    "emotional_beat": {"type": "string"},
+                    "format": {"type": "string"},
+                    "pacing": {"type": "string"},
+                    "why_it_likely_worked": {"type": "string"},
+                    "examples": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": ["url", "name"],
+                            "properties": {
+                                "url": {"type": "string"},
+                                "name": {"type": "string"},
+                                "note": {"type": "string"},
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        "never_list": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["pattern", "reason", "evidence"],
+                "properties": {
+                    "pattern": {"type": "string"},
+                    "reason": {"type": "string"},
+                    "evidence": {"type": "string"},
+                },
+            },
+        },
+        "summary": {"type": "string"},
+    },
+}
+
+
+def viral_patterns_to_markdown(data: dict, version: str = "1.0") -> str:
+    """Convert validated Viral Patterns JSON into the module markdown."""
+    lines = [f"# Viral Patterns Playbook — v{version}"]
+
+    lines.append(f"\n## Summary\n{data.get('summary', '')}")
+
+    lines.append("\n## Patterns")
+    for p in data.get("patterns", []):
+        lines.append(f"\n### {p['name']}")
+        lines.append(f"- **Hook type:** {p['hook_type']}")
+        lines.append(f"- **Structure:** {p['structure']}")
+        lines.append(f"- **Emotional beat:** {p['emotional_beat']}")
+        lines.append(f"- **Format:** {p['format']}")
+        lines.append(f"- **Pacing:** {p['pacing']}")
+        lines.append(f"- **Why it likely worked (hypothesis):** {p['why_it_likely_worked']}")
+        lines.append("- **Examples:**")
+        for ex in p.get("examples", []):
+            lines.append(f'  - [{ex.get("name", ex.get("url", ""))}]({ex.get("url", "")}) — {ex.get("note", "")}')
+
+    lines.append("\n## Never list")
+    for n in data.get("never_list", []):
+        lines.append(f"- **{n['pattern']}** — {n['reason']}")
+        lines.append(f'  - Evidence: "{n["evidence"]}"')
+
+    lines.append(f"\n## Provenance\n- Version: {version}")
+    lines.append(f"- Generated: {datetime.now(timezone.utc).isoformat()}")
+    lines.append(f"- Schema: viral_patterns_v1")
+
+    return "\n".join(lines)
+
+
+# --- Audience Insights ---
+
+AUDIENCE_INSIGHTS_SCHEMA = {
+    "type": "object",
+    "required": ["who_they_are", "what_they_care_about", "language",
+                 "what_they_reward", "what_turns_them_off", "summary"],
+    "properties": {
+        "who_they_are": {"type": "string"},
+        "what_they_care_about": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["concern", "type", "evidence"],
+                "properties": {
+                    "concern": {"type": "string"},
+                    "type": {"type": "string"},
+                    "evidence": {"type": "array", "items": {"type": "string"}},
+                },
+            },
+        },
+        "language": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["phrase", "type"],
+                "properties": {
+                    "phrase": {"type": "string"},
+                    "context": {"type": "string"},
+                    "type": {"type": "string"},
+                },
+            },
+        },
+        "what_they_reward": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["behavior", "type", "evidence"],
+                "properties": {
+                    "behavior": {"type": "string"},
+                    "type": {"type": "string"},
+                    "evidence": {"type": "array", "items": {"type": "string"}},
+                },
+            },
+        },
+        "what_turns_them_off": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["turn_off", "type", "evidence"],
+                "properties": {
+                    "turn_off": {"type": "string"},
+                    "type": {"type": "string"},
+                    "evidence": {"type": "array", "items": {"type": "string"}},
+                },
+            },
+        },
+        "evidence_vs_belief": {"type": "string"},
+        "summary": {"type": "string"},
+    },
+}
+
+
+def audience_insights_to_markdown(data: dict, version: str = "1.0") -> str:
+    """Convert validated Audience Insights JSON into the module markdown."""
+    lines = [f"# Audience Insights — v{version}"]
+
+    lines.append(f"\n## Who they are\n{data.get('who_they_are', '')}")
+
+    lines.append("\n## What they care about")
+    for c in data.get("what_they_care_about", []):
+        lines.append(f"- **{c['concern']}** ({c['type']})")
+        for ev in c.get("evidence", []):
+            lines.append(f'  - Evidence: "{ev}"')
+
+    lines.append("\n## Language they use")
+    for l in data.get("language", []):
+        lines.append(f'- "{l["phrase"]}" ({l["type"]})')
+        if l.get("context"):
+            lines.append(f'  - Context: {l["context"]}')
+
+    lines.append("\n## What they reward")
+    for r in data.get("what_they_reward", []):
+        lines.append(f"- **{r['behavior']}** ({r['type']})")
+        for ev in r.get("evidence", []):
+            lines.append(f'  - Evidence: "{ev}"')
+
+    lines.append("\n## What turns them off")
+    for t in data.get("what_turns_them_off", []):
+        lines.append(f"- **{t['turn_off']}** ({t['type']})")
+        for ev in t.get("evidence", []):
+            lines.append(f'  - Evidence: "{ev}"')
+
+    evb = data.get("evidence_vs_belief")
+    if evb:
+        lines.append(f"\n## Evidence vs belief\n{evb}")
+
+    lines.append(f"\n## Summary\n{data.get('summary', '')}")
+
+    lines.append(f"\n## Provenance\n- Version: {version}")
+    lines.append(f"- Generated: {datetime.now(timezone.utc).isoformat()}")
+    lines.append(f"- Schema: audience_insights_v1")
+
+    return "\n".join(lines)
+
+
+# --- Story Frameworks ---
+
+STORY_FRAMEWORKS_SCHEMA = {
+    "type": "object",
+    "required": ["frameworks", "summary"],
+    "properties": {
+        "frameworks": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["subject_type", "entry_point", "tension", "turn",
+                             "landing", "grounded_in_example", "grounded_in_story",
+                             "voice_compatible", "voice_note"],
+                "properties": {
+                    "subject_type": {"type": "string"},
+                    "entry_point": {"type": "string"},
+                    "tension": {"type": "string"},
+                    "turn": {"type": "string"},
+                    "landing": {"type": "string"},
+                    "grounded_in_example": {"type": "string"},
+                    "grounded_in_story": {"type": "string"},
+                    "voice_compatible": {"type": "boolean"},
+                    "voice_note": {"type": "string"},
+                },
+            },
+        },
+        "summary": {"type": "string"},
+    },
+}
+
+
+def story_frameworks_to_markdown(data: dict, version: str = "1.0") -> str:
+    """Convert validated Story Frameworks JSON into the module markdown."""
+    lines = [f"# Story Frameworks — v{version}"]
+
+    lines.append(f"\n## Summary\n{data.get('summary', '')}")
+
+    lines.append("\n## Frameworks")
+    for f in data.get("frameworks", []):
+        lines.append(f"\n### {f['subject_type']}")
+        lines.append(f"- **Entry point:** {f['entry_point']}")
+        lines.append(f"- **Tension:** {f['tension']}")
+        lines.append(f"- **Turn:** {f['turn']}")
+        lines.append(f"- **Landing:** {f['landing']}")
+        lines.append(f"- **Grounded in example:** {f['grounded_in_example']}")
+        lines.append(f"- **Grounded in story:** {f['grounded_in_story']}")
+        vc = "✓" if f.get("voice_compatible") else "✗"
+        lines.append(f"- **Voice compatible:** {vc}")
+        if f.get("voice_note"):
+            lines.append(f"- **Voice note:** {f['voice_note']}")
+
+    lines.append(f"\n## Provenance\n- Version: {version}")
+    lines.append(f"- Generated: {datetime.now(timezone.utc).isoformat()}")
+    lines.append(f"- Schema: story_frameworks_v1")
+
+    return "\n".join(lines)
+
+
+# --- Format Guide (with AMENDMENT-004 enrichment) ---
+
+FORMAT_GUIDE_SCHEMA = {
+    "type": "object",
+    "required": ["formats", "decision_table", "summary"],
+    "properties": {
+        "formats": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["format_name", "platforms", "best_for", "length",
+                             "structure_notes", "skeleton", "requires_human_capture",
+                             "capture_tasks", "effort_level", "reuse_pathways",
+                             "status", "provenance"],
+                "properties": {
+                    "format_name": {"type": "string"},
+                    "platforms": {"type": "array", "items": {"type": "string"}},
+                    "best_for": {"type": "array", "items": {"type": "string"}},
+                    "length": {"type": "string"},
+                    "structure_notes": {"type": "string"},
+                    "skeleton": {"type": "string"},
+                    "requires_human_capture": {"type": "string"},
+                    "capture_tasks": {"type": "array", "items": {"type": "string"}},
+                    "effort_level": {"type": "string"},
+                    "reuse_pathways": {"type": "array", "items": {"type": "string"}},
+                    "status": {"type": "string"},
+                    "provenance": {"type": "string"},
+                },
+            },
+        },
+        "decision_table": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["message_type", "platform", "recommended_format", "rationale"],
+                "properties": {
+                    "message_type": {"type": "string"},
+                    "platform": {"type": "string"},
+                    "recommended_format": {"type": "string"},
+                    "rationale": {"type": "string"},
+                },
+            },
+        },
+        "summary": {"type": "string"},
+    },
+}
+
+
+def format_guide_to_markdown(data: dict, version: str = "1.0") -> str:
+    """Convert validated Format Guide JSON into the module markdown."""
+    lines = [f"# Format Guide — v{version}"]
+
+    lines.append(f"\n## Summary\n{data.get('summary', '')}")
+
+    lines.append("\n## Formats")
+    for f in data.get("formats", []):
+        lines.append(f"\n### {f['format_name']}")
+        lines.append(f"- **Platforms:** {', '.join(f.get('platforms', []))}")
+        lines.append(f"- **Best for:** {', '.join(f.get('best_for', []))}")
+        lines.append(f"- **Length:** {f.get('length', '')}")
+        lines.append(f"- **Effort level:** {f.get('effort_level', '')}")
+        lines.append(f"- **Requires human capture:** {f.get('requires_human_capture', 'none')}")
+        if f.get("capture_tasks"):
+            lines.append("- **Capture tasks:**")
+            for task in f["capture_tasks"]:
+                lines.append(f"  - {task}")
+        lines.append(f"- **Status:** {f.get('status', 'proven')}")
+        lines.append(f"- **Reuse pathways:** {', '.join(f.get('reuse_pathways', []))}")
+        lines.append(f"- **Provenance:** {f.get('provenance', '')}")
+        lines.append(f"- **Structure notes:** {f.get('structure_notes', '')}")
+        lines.append(f"\n**Skeleton:**\n```\n{f.get('skeleton', '')}\n```")
+
+    lines.append("\n## Decision table")
+    for d in data.get("decision_table", []):
+        lines.append(f"- **{d['message_type']}** on {d['platform']} → **{d['recommended_format']}**")
+        lines.append(f'  - Rationale: {d["rationale"]}')
+
+    lines.append(f"\n## Provenance\n- Version: {version}")
+    lines.append(f"- Generated: {datetime.now(timezone.utc).isoformat()}")
+    lines.append(f"- Schema: format_guide_v1")
+
+    return "\n".join(lines)
