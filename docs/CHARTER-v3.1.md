@@ -50,7 +50,7 @@ For every module there is a **playbook**: procedure + prompt templates + output 
 
 ## The living modules (the accumulating intelligence)
 
-Eight versioned markdown documents per business in `modules/{business}/` — the system of record, gate-only writes, schema-checked on load, provenance per entry. (OB1/Obsidian may mirror them read-only for browsing.) Loaded into every draft:
+Eight versioned markdown documents per business in `modules/{business}/` — the system of record, gate-only writes, schema-checked on load, provenance per entry. Fully standalone — ViralFactory has its own database; no OB1 dependency. Loaded into every draft:
 
 1. **Voice Profile** (incl. Tells Checklist) · 2. **Viral Patterns Playbook** · 3. **Story Frameworks** · 4. **Format Guide** · 5. **Audience Insights** · 6. **Feedback Log** · 7. **Visual Style Guide** · 8. **Source Bank** (+ its Source Criteria)
 

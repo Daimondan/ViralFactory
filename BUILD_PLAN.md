@@ -27,7 +27,7 @@
 - Python + Flask, server-rendered, minimal JS; SQLite; systemd on the VPS.
 - **UI: laptop-first (1280px+), responsive to mobile** per `docs/UI-DIRECTION.md` (patched per review). Multi-column layouts allowed on laptop.
 - LLM adapter: `complete(prompt_file, variables, schema) -> validated JSON`; backend from `config/models.yaml` (Ollama local / Ollama Cloud / external API). Default: Ollama Cloud. Swap = config edit only.
-- trafilatura for extraction · **Postiz self-hosted** for publish/metrics · modules as markdown in `modules/{business}/` (system of record; OB1 mirror optional, later) · cron for scheduling.
+- trafilatura for extraction · **Postiz self-hosted** for publish/metrics · modules as markdown in `modules/{business}/` (system of record — fully standalone, no OB1 dependency) · cron for scheduling.
 
 ## Milestones
 

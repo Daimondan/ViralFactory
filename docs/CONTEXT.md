@@ -203,7 +203,7 @@ Scheduled research of what works in the wild: monitors top accounts/hashtags/cha
 
 ## Open Questions
 
-1. ~~**Module storage:**~~ **RESOLVED** (Claude review): Repo markdown (`modules/{business}/`) is the system of record — versioned, diffable, gate-enforced. OB1 is a read-only mirror for Daimon's browsing (sync job, later, optional).
+1. ~~**Module storage:**~~ **RESOLVED** (Divergence-002): Repo markdown (`modules/{business}/`) is the system of record — fully standalone. No OB1 dependency whatsoever. ViralFactory has its own SQLite database. Every user onboards the same way (upload materials, share docs, connect Obsidian). OB1 is not involved.
 2. ~~**Postiz deployment:**~~ **RESOLVED** (Claude review): Self-host on the VPS (ownership, AGPL, no per-seat cost, API identical to cloud). Revisit only if maintenance burden bites.
 3. ~~**LLM backend:**~~ **RESOLVED** (Claude review): Default Ollama Cloud for processing at temperature 0. For the drafter specifically, run an A/B at the M3 checkpoint — same seeds through two configured backends, Daimon reacts blind. Voice quality is the product; the config swap makes this a measurement, not a debate.
 4. **8 modules in context window:** Load all 8 every draft (may exceed smaller model limits), or load essential 4 (Voice, Viral, Story, Format) always and pull others on demand? — *Genuinely deferrable; resolve at M3 when drafter is built.*

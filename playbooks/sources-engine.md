@@ -11,9 +11,9 @@ Turn the user's trusted sources into explicit, learnable criteria for what a goo
 ## Inputs (onboarding)
 
 - **Seed sources from the user:** 10–30 URLs, RSS feeds, YouTube channels, newsletters, social accounts they already trust and read
-- **Seed content:** documents, notes, saved articles (e.g., OB1 exports) that represent "the kind of material we work from"
+- **Seed content:** documents, notes, saved articles that represent "the kind of material we work from"
 - **Anti-examples (optional but valuable):** 3–5 sources or pieces the user considers junk for this business
-- Existing source bank, if any (user #1: the ~1,545 sources — optional deferred bulk-import path per `docs/reviews/review-divergence-001.md`)
+- Existing source bank, if any (user brings their own files — no privileged import from external systems)
 
 ## Procedure — Part A, onboarding discovery
 

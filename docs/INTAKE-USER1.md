@@ -21,7 +21,7 @@ Any combination — natural speech weighted highest:
 ## 3. Seed sources (10–30 items)
 - [ ] URLs / RSS feeds / newsletters you actually read and trust for this business
 - [ ] YouTube channels + social accounts worth monitoring
-- [ ] Documents & notes that represent "our kind of material" (OB1 exports welcome)
+- [ ] Documents & notes that represent "our kind of material"
 - [ ] 3–5 anti-examples: sources or pieces you consider junk for this business
 *(The existing ~1,545-source bank gets re-scored automatically — no action needed.)*
 
