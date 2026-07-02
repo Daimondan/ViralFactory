@@ -29,6 +29,7 @@
 - [x] CONTEXT.md written with locked-down terms, workflows, rules, edge cases
 - [x] CHANGELOG.md created with all decisions logged
 - [x] Directory structure created (config/, prompts/, playbooks/, modules/, src/, tests/, docs/)
+- [x] Operating loop doc reviewed (docs/OPERATING-LOOP.md) — complies with charter + grill amendments; patched to reference CONTEXT.md and clarify weekly cycle is architect review, not product gate
 
 ## What's Next
 - [ ] Claude (architect) reviews DIVERGENCE-001 and updates Charter to v3.1
