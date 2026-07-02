@@ -90,6 +90,35 @@ def validate_json_schema(output: dict, schema: dict, context: str = "") -> dict:
                             raise ValidationError(
                                 f"Field '{field}[{i}]' must be {item_schema['type']} {context}"
                             )
+            # Validate array items as objects (check required fields + nested properties)
+            if "properties" in item_schema or "required" in item_schema:
+                for i, item in enumerate(value):
+                    if not isinstance(item, dict):
+                        raise ValidationError(
+                            f"Field '{field}[{i}]' must be an object {context}"
+                        )
+                    # Check required fields in each item
+                    for req in item_schema.get("required", []):
+                        if req not in item:
+                            raise ValidationError(
+                                f"Field '{field}[{i}].{req}' is required {context}"
+                            )
+                    # Validate properties in each item
+                    for prop, prop_schema in item_schema.get("properties", {}).items():
+                        if prop not in item:
+                            continue
+                        prop_type = prop_schema.get("type")
+                        if prop_type and prop_type in type_map:
+                            # Don't let bool pass as int
+                            if prop_type == "integer" and isinstance(item[prop], bool):
+                                raise ValidationError(
+                                    f"Field '{field}[{i}].{prop}' must be integer, got boolean {context}"
+                                )
+                            if not isinstance(item[prop], type_map[prop_type]):
+                                raise ValidationError(
+                                    f"Field '{field}[{i}].{prop}' must be {prop_type}, "
+                                    f"got {type(item[prop]).__name__} {context}"
+                                )
 
         # Nested object validation
         if expected_type == "object" and "properties" in field_schema:

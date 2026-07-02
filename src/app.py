@@ -247,6 +247,81 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         corpus = intake.get_corpus(run_id)
         return jsonify(corpus)
 
+    @app.route("/api/run/<int:run_id>/analyze-voice", methods=["POST"])
+    def analyze_voice(run_id):
+        """
+        Run the Voice Profile analysis LLM call.
+        Takes the collected corpus, sends to LLM with the voice analysis prompt,
+        validates the output against the Voice Profile schema, stores the result.
+        """
+        from materials import MaterialsIntake
+        from module_store import ModuleStore, VOICE_PROFILE_SCHEMA, voice_profile_to_markdown
+
+        # Get the corpus
+        intake = MaterialsIntake(app.config["DB_PATH"])
+        corpus = intake.get_corpus(run_id)
+        if corpus["total_words"] < 50:
+            return jsonify({"error": f"Corpus too small ({corpus['total_words']} words). Need at least 50."}), 400
+
+        # Build the corpus text from samples
+        corpus_text = ""
+        for s in corpus["samples"]:
+            content = intake.get_material(s["id"])
+            if content and content["normalized_content"]:
+                corpus_text += content["normalized_content"] + "\n\n"
+            elif content and content["raw_content"]:
+                corpus_text += content["raw_content"] + "\n\n"
+
+        if not corpus_text.strip():
+            return jsonify({"error": "No text content in corpus"}), 400
+
+        # Get config
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+            business = config["business"]
+        except ConfigError as e:
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        # Call the LLM
+        from llm_adapter import LLMAdapter, LLMAdapterError
+        adapter = LLMAdapter(
+            models_config,
+            db_path=app.config["DB_PATH"],
+            prompts_dir="prompts",
+        )
+
+        try:
+            result = adapter.complete(
+                prompt_file="voice_profile/analyze_v1.md",
+                variables={
+                    "corpus": corpus_text[:8000],  # truncate to fit context
+                    "business_name": business["business"]["name"],
+                    "audience_description": business.get("audience_description", ""),
+                },
+                schema=VOICE_PROFILE_SCHEMA,
+                backend="default",
+                context=f"Voice Profile analysis for run {run_id}",
+            )
+        except LLMAdapterError as e:
+            return jsonify({"error": str(e)}), 500
+        except Exception as e:
+            return jsonify({"error": f"LLM call failed: {e}"}), 500
+
+        # Store the LLM output on the run
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        runner.add_llm_output(run_id, "3", result)  # Step 3 = Analyze
+
+        # Convert to markdown (but don't store yet — gate must approve)
+        md = voice_profile_to_markdown(result, business["business"]["name"])
+
+        return jsonify({
+            "status": "ok",
+            "profile": result,
+            "markdown": md,
+            "word_count": corpus["total_words"],
+        })
+
     @app.route("/health")
     def health():
         """Health check endpoint."""
