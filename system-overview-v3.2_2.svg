@@ -1,0 +1,140 @@
+<svg viewBox="0 0 1160 1250" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 z" fill="#555"/>
+    </marker>
+    <marker id="arL" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 z" fill="#2e7d5b"/>
+    </marker>
+  </defs>
+
+  <text x="580" y="36" text-anchor="middle" font-size="22" font-weight="bold" fill="#1f1f1f">ViralFactory — System Overview · Charter v3.2</text>
+  <text x="580" y="58" text-anchor="middle" font-size="12.5" fill="#666">Staged content pipeline (AMENDMENT-003) · fully standalone, own DB (DIVERGENCE-002) · async gates (DIVERGENCE-001)</text>
+
+  <!-- THE PERSON -->
+  <rect x="120" y="84" width="330" height="72" rx="10" fill="#fdeee4" stroke="#c0663a" stroke-width="2"/>
+  <text x="285" y="112" text-anchor="middle" font-size="15" font-weight="bold" fill="#7a3a1a">THE PERSON</text>
+  <text x="285" y="132" text-anchor="middle" font-size="11" fill="#444">materials · seeds · reactions · direct edits · lived domain</text>
+
+  <!-- ONBOARDING -->
+  <rect x="640" y="84" width="330" height="72" rx="10" fill="#eeeafb" stroke="#5b4aa5" stroke-width="2"/>
+  <text x="805" y="112" text-anchor="middle" font-size="15" font-weight="bold" fill="#3a2b6f">ONBOARDING ENGINE</text>
+  <text x="805" y="132" text-anchor="middle" font-size="11" fill="#444">generic playbook runner · 8 playbooks · console-only</text>
+  <line x1="450" y1="120" x2="640" y2="120" stroke="#555" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <!-- MODULES -->
+  <rect x="640" y="196" width="330" height="86" rx="10" fill="#eeeafb" stroke="#5b4aa5" stroke-width="2"/>
+  <text x="805" y="222" text-anchor="middle" font-size="14" font-weight="bold" fill="#3a2b6f">8 LIVING MODULES</text>
+  <text x="805" y="241" text-anchor="middle" font-size="10.5" fill="#444">Voice · Viral · Story · Format · Audience · Feedback · Visual · Sources</text>
+  <text x="805" y="258" text-anchor="middle" font-size="10.5" fill="#444">versioned · gate-only writes · schema-checked · own DB</text>
+  <text x="805" y="274" text-anchor="middle" font-size="10" fill="#8f2b2b" font-weight="bold">no OB1 dependency</text>
+  <line x1="805" y1="156" x2="805" y2="196" stroke="#555" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <!-- GATHER -->
+  <rect x="120" y="196" width="330" height="64" rx="10" fill="#f4f4f4" stroke="#8a8a8a" stroke-width="1.5"/>
+  <text x="285" y="221" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#333">GATHER — automated</text>
+  <text x="285" y="240" text-anchor="middle" font-size="10.5" fill="#555">Sources Engine ingests + scores vs Source Criteria</text>
+  <line x1="285" y1="156" x2="285" y2="196" stroke="#555" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <!-- IDEAS -->
+  <rect x="120" y="300" width="330" height="92" rx="10" fill="#ffffff" stroke="#2f2f2f" stroke-width="2"/>
+  <text x="285" y="326" text-anchor="middle" font-size="14.5" font-weight="bold">IDEAS — cards, 3 origins</text>
+  <text x="285" y="345" text-anchor="middle" font-size="10.5" fill="#444">ai-originated · human-seeded · human-seeded-ai-developed</text>
+  <text x="285" y="361" text-anchor="middle" font-size="10.5" fill="#444">card = idea + hook options + format + origin + evidence</text>
+  <text x="285" y="378" text-anchor="middle" font-size="10" fill="#7a3a1a" font-weight="bold">person's seeds = primary path</text>
+  <line x1="285" y1="260" x2="285" y2="300" stroke="#555" stroke-width="1.5" marker-end="url(#ar)"/>
+  <!-- person's seed side arrow -->
+  <path d="M 120 120 L 60 120 L 60 340 L 120 340" fill="none" stroke="#c0663a" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#ar)"/>
+  <text x="54" y="235" font-size="10" fill="#c0663a" transform="rotate(-90 54 235)" font-weight="bold">raw + AI-developed seeds</text>
+
+  <!-- GATE 1 -->
+  <rect x="150" y="410" width="270" height="46" rx="23" fill="#fdeaea" stroke="#b03a3a" stroke-width="2"/>
+  <text x="285" y="429" text-anchor="middle" font-size="12" font-weight="bold" fill="#8f2b2b">GATE 1 · RIGOROUS</text>
+  <text x="285" y="446" text-anchor="middle" font-size="10.5" fill="#8f2b2b">approve / kill / park — most die here, by design</text>
+  <line x1="285" y1="392" x2="285" y2="410" stroke="#555" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <!-- DRAFT -->
+  <rect x="120" y="486" width="330" height="96" rx="10" fill="#ffffff" stroke="#2f2f2f" stroke-width="2"/>
+  <text x="285" y="512" text-anchor="middle" font-size="14.5" font-weight="bold">DRAFT</text>
+  <text x="285" y="531" text-anchor="middle" font-size="10.5" fill="#444">full text in voice + LIGHT VISUAL DIRECTION</text>
+  <text x="285" y="547" text-anchor="middle" font-size="10.5" fill="#444">(image prompts, refs, format — NO rendered images)</text>
+  <text x="285" y="565" text-anchor="middle" font-size="10" fill="#666">all modules loaded · self-audit vs Tells Checklist</text>
+  <line x1="285" y1="456" x2="285" y2="486" stroke="#555" stroke-width="1.5" marker-end="url(#ar)"/>
+  <line x1="700" y1="282" x2="450" y2="520" stroke="#5b4aa5" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#ar)"/>
+  <text x="590" y="440" font-size="10" fill="#5b4aa5" font-weight="bold">loaded into every draft</text>
+
+  <!-- Modules configure Gather: onboarding inputs dictate scouting -->
+  <line x1="640" y1="216" x2="450" y2="224" stroke="#5b4aa5" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#ar)"/>
+  <text x="545" y="192" text-anchor="middle" font-size="9.5" fill="#5b4aa5" font-weight="bold">Source Criteria + sources.yaml</text>
+  <text x="545" y="204" text-anchor="middle" font-size="9.5" fill="#5b4aa5">onboarding inputs dictate what AI scouts</text>
+
+  <!-- Modules ground idea generation -->
+  <line x1="655" y1="282" x2="450" y2="322" stroke="#5b4aa5" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#ar)"/>
+  <text x="558" y="316" text-anchor="middle" font-size="9.5" fill="#5b4aa5" font-weight="bold">modules ground idea generation</text>
+  <text x="558" y="328" text-anchor="middle" font-size="9.5" fill="#5b4aa5">(Viral · Audience · Story · Format)</text>
+
+  <!-- GATE 2 -->
+  <rect x="150" y="600" width="270" height="46" rx="23" fill="#fdeaea" stroke="#b03a3a" stroke-width="2"/>
+  <text x="285" y="619" text-anchor="middle" font-size="12" font-weight="bold" fill="#8f2b2b">GATE 2 · HUMAN PASS</text>
+  <text x="285" y="636" text-anchor="middle" font-size="10.5" fill="#8f2b2b">chips + text + direct edits (authoritative) → ship / kill</text>
+  <line x1="285" y1="582" x2="285" y2="600" stroke="#555" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <!-- ASSETS -->
+  <rect x="120" y="676" width="330" height="84" rx="10" fill="#ffffff" stroke="#2f2f2f" stroke-width="2"/>
+  <text x="285" y="702" text-anchor="middle" font-size="14.5" font-weight="bold">ASSETS — survivors only</text>
+  <text x="285" y="721" text-anchor="middle" font-size="10.5" fill="#444">real images per Visual Style Guide · captions rendered</text>
+  <text x="285" y="738" text-anchor="middle" font-size="10.5" fill="#444">fan-out per platform: X thread · IG carousel / reel …</text>
+  <line x1="285" y1="646" x2="285" y2="676" stroke="#555" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <!-- GATE 3 -->
+  <rect x="150" y="778" width="270" height="46" rx="23" fill="#fdf2ea" stroke="#b06a3a" stroke-width="2"/>
+  <text x="285" y="797" text-anchor="middle" font-size="12" font-weight="bold" fill="#8f4f2b">GATE 3 · QUICK, PER PLATFORM</text>
+  <text x="285" y="814" text-anchor="middle" font-size="10.5" fill="#8f4f2b">approve / fix / kill — variants side by side</text>
+  <line x1="285" y1="760" x2="285" y2="778" stroke="#555" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <!-- GATE 4 -->
+  <rect x="150" y="842" width="270" height="46" rx="23" fill="#eafbea" stroke="#3a8a3a" stroke-width="2"/>
+  <text x="285" y="861" text-anchor="middle" font-size="12" font-weight="bold" fill="#2b6f2b">GATE 4 · PUBLISH — go / hold</text>
+  <text x="285" y="878" text-anchor="middle" font-size="10.5" fill="#2b6f2b">NO AUTO-PUBLISH, EVER — HARD RULE</text>
+  <line x1="285" y1="824" x2="285" y2="842" stroke="#555" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <!-- POSTIZ -->
+  <rect x="120" y="906" width="330" height="60" rx="10" fill="#f4f4f4" stroke="#8a8a8a" stroke-width="1.5"/>
+  <text x="285" y="930" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#333">SHIP → POSTIZ (self-hosted, VPS)</text>
+  <text x="285" y="948" text-anchor="middle" font-size="10.5" fill="#555">accounts connected in Postiz · schedule · post · metrics</text>
+  <line x1="285" y1="888" x2="285" y2="906" stroke="#555" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <!-- LEARN: inward -->
+  <rect x="120" y="1010" width="330" height="84" rx="10" fill="#e8f6ef" stroke="#2e7d5b" stroke-width="2"/>
+  <text x="285" y="1036" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#1d5a40">INWARD LOOP — weekly</text>
+  <text x="285" y="1055" text-anchor="middle" font-size="10.5" fill="#444">results + Feedback Log (direct edits weighted highest)</text>
+  <text x="285" y="1072" text-anchor="middle" font-size="10.5" fill="#444">origin-tagged: human seeds vs ai ideas compared</text>
+  <line x1="285" y1="966" x2="285" y2="1010" stroke="#555" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <!-- LEARN: outward -->
+  <rect x="640" y="1010" width="330" height="84" rx="10" fill="#e8f6ef" stroke="#2e7d5b" stroke-width="2"/>
+  <text x="805" y="1036" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#1d5a40">OUTWARD LOOP — always on</text>
+  <text x="805" y="1055" text-anchor="middle" font-size="10.5" fill="#444">researches viral content in domain — hypotheses, not facts</text>
+  <text x="805" y="1072" text-anchor="middle" font-size="10.5" fill="#444">→ Source Bank grows · Experiments Queue</text>
+
+  <!-- ASYNC GATE QUEUE -->
+  <rect x="380" y="1140" width="400" height="72" rx="10" fill="#fdeaea" stroke="#b03a3a" stroke-width="2"/>
+  <text x="580" y="1166" text-anchor="middle" font-size="14" font-weight="bold" fill="#8f2b2b">ASYNC GATE QUEUE</text>
+  <text x="580" y="1185" text-anchor="middle" font-size="10.5" fill="#444">person clears when ready · age visible · superseding · no pressure</text>
+  <text x="580" y="1201" text-anchor="middle" font-size="10.5" fill="#444">approve = module version bump with provenance</text>
+
+  <line x1="285" y1="1094" x2="470" y2="1140" stroke="#2e7d5b" stroke-width="1.5" marker-end="url(#arL)"/>
+  <line x1="805" y1="1094" x2="690" y2="1140" stroke="#2e7d5b" stroke-width="1.5" marker-end="url(#arL)"/>
+
+  <!-- queue back to modules -->
+  <path d="M 780 1176 L 1080 1176 L 1080 239 L 970 239" fill="none" stroke="#2e7d5b" stroke-width="1.8" stroke-dasharray="7,5" marker-end="url(#arL)"/>
+  <text x="1093" y="700" font-size="10.5" fill="#2e7d5b" font-weight="bold" transform="rotate(-90 1093 700)">approved proposals bump modules → next draft inherits</text>
+
+  <!-- experiments queue back to ideas -->
+  <path d="M 640 1052 L 520 1052 L 520 346 L 450 346" fill="none" stroke="#2e7d5b" stroke-width="1.5" stroke-dasharray="3,4" marker-end="url(#arL)"/>
+  <text x="533" y="700" font-size="10" fill="#2e7d5b" transform="rotate(-90 533 700)">approved experiments enter as idea cards</text>
+
+  <!-- kill reasons note -->
+  <path d="M 420 433 C 500 433 500 1030 450 1035" fill="none" stroke="#b03a3a" stroke-width="1" stroke-dasharray="2,4" marker-end="url(#ar)"/>
+  <text x="470" y="740" font-size="9.5" fill="#b03a3a" transform="rotate(-90 470 740)">kill reasons (gates 1–3) → Feedback Log → inward loop</text>
+</svg>
