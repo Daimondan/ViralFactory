@@ -54,8 +54,13 @@ def _verify_config_write(db_path: str, run_id: int, gate_token: str):
     verify_gate_token(db_path, run_id, gate_token)
 
 
-def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db", playbooks_dir: str = "playbooks"):
+def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db", playbooks_dir: str = None):
     """Create and configure the Flask app."""
+    if playbooks_dir is None:
+        # Default to repo-root playbooks/ (absolute so CWD changes don't break it)
+        playbooks_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "playbooks")
+        playbooks_dir = os.path.abspath(playbooks_dir)
+
     app = Flask(__name__, template_folder="templates", static_folder="static")
     app.config["CONFIG_DIR"] = config_dir
     app.config["DB_PATH"] = db_path
@@ -461,7 +466,10 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             return jsonify({"error": "No voice profile found"}), 400
 
         # Record gate decision FIRST (before any write attempt)
-        runner.set_gate_result(run_id, "5", "approve" if approved else "park", note)
+        pb_path = os.path.join(app.config["PLAYBOOKS_DIR"], "voice-profile-builder.md")
+        playbook = PlaybookParser.parse(pb_path)
+        gate_step = PlaybookRunner.get_gate_step_number(playbook)
+        runner.set_gate_result(run_id, gate_step, "approve" if approved else "park", note)
 
         # Convert to markdown
         md = voice_profile_to_markdown(profile, business["business"]["name"], version)
@@ -631,7 +639,10 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             return jsonify({"error": "No business profile found. Run analysis first."}), 400
 
         # Record gate decision FIRST
-        runner.set_gate_result(run_id, "4", "approve" if approved else "park", note)
+        pb_path = os.path.join(app.config["PLAYBOOKS_DIR"], "business-profile-intake.md")
+        playbook = PlaybookParser.parse(pb_path)
+        gate_step = PlaybookRunner.get_gate_step_number(playbook)
+        runner.set_gate_result(run_id, gate_step, "approve" if approved else "park", note)
 
         paths = {}
         if approved:
@@ -834,7 +845,10 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             return jsonify({"error": "No source criteria found. Run analysis first."}), 400
 
         # Record gate decision FIRST
-        runner.set_gate_result(run_id, "5", "approve" if approved else "park", note)
+        pb_path = os.path.join(app.config["PLAYBOOKS_DIR"], "sources-engine.md")
+        playbook = PlaybookParser.parse(pb_path)
+        gate_step = PlaybookRunner.get_gate_step_number(playbook)
+        runner.set_gate_result(run_id, gate_step, "approve" if approved else "park", note)
 
         paths = {}
         if approved:
@@ -1177,7 +1191,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         if not patterns:
             return jsonify({"error": "No viral patterns found. Run analysis first."}), 400
 
-        runner.set_gate_result(run_id, "5", "approve" if approved else "park", note)
+        runner.set_gate_result(run_id, PlaybookRunner.get_gate_step_number(
+            PlaybookParser.parse(os.path.join(app.config["PLAYBOOKS_DIR"], "viral-patterns-starter.md"))
+        ), "approve" if approved else "park", note)
 
         paths = {}
         if approved:
@@ -1314,7 +1330,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         if not insights:
             return jsonify({"error": "No audience insights found. Run analysis first."}), 400
 
-        runner.set_gate_result(run_id, "3", "approve" if approved else "park", note)
+        runner.set_gate_result(run_id, PlaybookRunner.get_gate_step_number(
+            PlaybookParser.parse(os.path.join(app.config["PLAYBOOKS_DIR"], "audience-insights-builder.md"))
+        ), "approve" if approved else "park", note)
 
         paths = {}
         if approved:
@@ -1451,7 +1469,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         if not frameworks:
             return jsonify({"error": "No story frameworks found. Run analysis first."}), 400
 
-        runner.set_gate_result(run_id, "3", "approve" if approved else "park", note)
+        runner.set_gate_result(run_id, PlaybookRunner.get_gate_step_number(
+            PlaybookParser.parse(os.path.join(app.config["PLAYBOOKS_DIR"], "story-frameworks-starter.md"))
+        ), "approve" if approved else "park", note)
 
         paths = {}
         if approved:
@@ -1588,7 +1608,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         if not guide:
             return jsonify({"error": "No format guide found. Run analysis first."}), 400
 
-        runner.set_gate_result(run_id, "3", "approve" if approved else "park", note)
+        runner.set_gate_result(run_id, PlaybookRunner.get_gate_step_number(
+            PlaybookParser.parse(os.path.join(app.config["PLAYBOOKS_DIR"], "format-guide-starter.md"))
+        ), "approve" if approved else "park", note)
 
         paths = {}
         if approved:

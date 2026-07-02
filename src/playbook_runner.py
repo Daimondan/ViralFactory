@@ -134,7 +134,23 @@ class PlaybookParser:
 
     @staticmethod
     def _parse_steps(procedure_text: str) -> list[PlaybookStep]:
-        """Parse the procedure section into PlaybookStep objects."""
+        """Parse the procedure section into PlaybookStep objects.
+
+        Handles two formats:
+        1. '### Step N — Title' (structured format, e.g. voice-profile-builder)
+        2. 'N. Description' (numbered-list format, e.g. viral-patterns-starter)
+        """
+        # Try structured format first
+        steps = PlaybookParser._parse_steps_structured(procedure_text)
+        if steps:
+            return steps
+
+        # Fall back to numbered-list format
+        return PlaybookParser._parse_steps_numbered(procedure_text)
+
+    @staticmethod
+    def _parse_steps_structured(procedure_text: str) -> list[PlaybookStep]:
+        """Parse '### Step N — Title' format."""
         steps = []
         lines = procedure_text.split("\n")
         current_step = None
@@ -181,6 +197,35 @@ class PlaybookParser:
 
         if current_step:
             steps.append(current_step)
+
+        return steps
+
+    @staticmethod
+    def _parse_steps_numbered(procedure_text: str) -> list[PlaybookStep]:
+        """Parse 'N. Description' numbered-list format.
+
+        Each line like '1. Do something' or '5. Gate → v1.' becomes a PlaybookStep.
+        Gate steps are detected by 'gate' appearing in the line.
+        """
+        steps = []
+        for line in procedure_text.split("\n"):
+            line = line.strip()
+            # Match 'N. Description' but not sub-bullets or sub-numbers
+            match = re.match(r'^(\d+)\.\s+(.+)', line)
+            if match:
+                num = match.group(1)
+                desc = match.group(2).strip()
+                is_gate = bool(re.match(r'^gate\b', desc.lower()))
+                is_intake = any(kw in desc.lower() for kw in ["intake", "ingest", "collect", "paste", "upload"])
+                is_llm = any(kw in desc.lower() for kw in ["ai analyzes", "ai drafts", "ai generates", "ai builds", "llm"])
+                steps.append(PlaybookStep(
+                    number=num,
+                    title=desc[:80],
+                    description=desc,
+                    is_gate=is_gate,
+                    is_intake=is_intake,
+                    is_llm=is_llm,
+                ))
 
         return steps
 
@@ -317,3 +362,17 @@ class PlaybookRunner:
             ).fetchall()
         conn.close()
         return [dict(r) for r in rows]
+
+    @staticmethod
+    def get_gate_step_number(playbook: Playbook) -> str:
+        """Derive the gate step number from a parsed playbook.
+
+        Returns the step number of the first gate step, or "1" as fallback
+        if no gate step is found (should not happen for valid playbooks).
+
+        This replaces hardcoded gate step strings in route handlers (R15).
+        """
+        for step in playbook.steps:
+            if step.is_gate:
+                return step.number
+        return "1"

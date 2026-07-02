@@ -521,15 +521,13 @@ class TestAPIIntegration:
     def app_client(self, tmp_dirs):
         from app import create_app
         config_dir, modules_dir, db_path = tmp_dirs
-        app = create_app(config_dir=config_dir, db_path=db_path, playbooks_dir="playbooks")
+        # Use absolute path to playbooks dir so it works regardless of CWD
+        repo_root = os.path.join(os.path.dirname(__file__), "..")
+        pb_dir = os.path.abspath(os.path.join(repo_root, "playbooks"))
+        app = create_app(config_dir=config_dir, db_path=db_path, playbooks_dir=pb_dir)
         app.config["MODULES_DIR"] = modules_dir
         client = app.test_client()
-        # Patch modules dir for ModuleStore
-        import app as app_module
-        original_cwd = os.getcwd()
-        os.chdir(os.path.dirname(config_dir))
         yield client, db_path, modules_dir
-        os.chdir(original_cwd)
 
     def test_viral_patterns_admired_example_api(self, app_client):
         """Add admired example via API."""
