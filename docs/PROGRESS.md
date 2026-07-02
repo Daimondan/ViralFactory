@@ -14,7 +14,7 @@
 | Stage | Status | Notes |
 |---|---|---|
 | 0. Foundation | ✅ | All T0.1–T0.7 done. 28 tests passing. Real config verified. Pushed. |
-| 1. Onboarding engine: Voice Profile | 🔄 | T1.1 done (runner+console). T1.2 done (materials intake). T1.3–T1.5 next. |
+| 1. Onboarding engine: Voice Profile | 🔄 | T1.1 done. T1.2 done. T1.3 done (schema+store+prompts). T1.4–T1.5 next. |
 | 2. Remaining playbooks wired | ⬜ | Playbooks split. Awaits M1. |
 | 3. Co-production loop | ⬜ | Direct-edit mode in BUILD_PLAN (T3.3). Drafter A/B at checkpoint. |
 | 4. Publish + metrics automation | ⬜ | Postiz self-hosted confirmed. |
@@ -52,7 +52,14 @@
   - Corpus: word count, sample listing, run-scoped retrieval
   - Flask API + intake UI with live corpus display
 
+- [x] T1.3: Voice Profile schema + module store + prompt templates (17 tests)
+  - VOICE_PROFILE_SCHEMA: validates identity, patterns with evidence, dialect with do_not_sanitize
+  - Validator upgrade: array items now enforce required fields + property types (evidence enforcement)
+  - voice_profile_to_markdown: JSON → fixed markdown schema (drafter-ready)
+  - ModuleStore: versioned storage, auto-archive, provenance, list/search
+  - Prompt templates: analyze_v1.md (corpus → profile) + calibrate_v1.md (profile → 3 samples)
+  - Flask API: POST /api/run/<id>/analyze-voice
+
 ## What's Next
-- [ ] T1.3: Voice Profile playbook end-to-end — prompt templates + LLM call
 - [ ] T1.4: Calibration gate UI — 3 samples, pick + react, revise loop
 - [ ] T1.5: Interview fallback — guided Q&A produces corpus from nothing
