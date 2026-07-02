@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Materials Intake — ViralFactory</title>
+    <style>
+        :root {
+            --bg: #0d1117; --surface: #161b22; --border: #30363d;
+            --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7;
+            --green: #3fb950; --red: #f85149; --yellow: #d29922;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg); color: var(--text); line-height: 1.6;
+            padding: 2rem; max-width: 1200px; margin: 0 auto;
+        }
+        h1 { color: var(--accent); margin-bottom: 0.5rem; }
+        h2 { margin: 1.5rem 0 0.5rem; }
+        a { color: var(--accent); text-decoration: none; }
+        .nav { display: flex; gap: 1.5rem; margin-bottom: 2rem; }
+        .nav a { color: var(--muted); }
+        .nav a.active { color: var(--text); font-weight: 600; }
+        .card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 8px; padding: 1.2rem; margin-bottom: 1rem;
+        }
+        .muted { color: var(--muted); font-size: 0.85rem; }
+        label { display: block; margin-bottom: 0.3rem; font-size: 0.85rem; color: var(--muted); }
+        input[type="text"], select, textarea {
+            width: 100%; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 6px; padding: 0.5rem; color: var(--text);
+            font-family: inherit; font-size: 0.9rem; margin-bottom: 0.8rem;
+        }
+        textarea { min-height: 150px; resize: vertical; }
+        input[type="file"] { margin-bottom: 0.8rem; color: var(--muted); }
+        .btn {
+            display: inline-block; padding: 0.5rem 1.2rem;
+            border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem;
+            color: white; background: var(--accent);
+        }
+        .btn:hover { opacity: 0.9; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+        .material-item {
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 4px; padding: 0.6rem; margin: 0.4rem 0;
+            font-size: 0.85rem;
+        }
+        .material-item .type {
+            display: inline-block; padding: 0.1rem 0.5rem; border-radius: 10px;
+            font-size: 0.7rem; font-weight: 600; margin-left: 0.3rem;
+            background: rgba(47,129,247,0.2); color: var(--accent);
+        }
+        .word-count { color: var(--green); font-weight: 600; }
+        #corpus-summary {
+            margin-top: 1rem; padding: 0.8rem; border-radius: 6px;
+            background: rgba(47,129,247,0.1); border: 1px solid rgba(47,129,247,0.3);
+        }
+        .file-hint {
+            font-size: 0.8rem; color: var(--muted); margin-top: -0.4rem;
+            margin-bottom: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">Home</a>
+        <a href="/onboard" class="active">Onboard</a>
+        <a href="/library">Library</a>
+    </div>
+
+    <h1>Materials Intake</h1>
+    <p class="muted">Playbook: {{ playbook_name }} · Run #{{ run_id }}</p>
+
+    <div class="grid">
+        <div>
+            <div class="card">
+                <h2>Upload File</h2>
+                <p class="muted">WhatsApp export (.txt), plain text, audio (.mp3/.wav/.m4a)</p>
+                <input type="file" id="file-upload" name="file">
+                <p class="file-hint">WhatsApp: use "Export chat without media" → .txt file</p>
+
+                <label>Channel (who was this said/written to?)</label>
+                <select id="upload-channel">
+                    <option value="">— select —</option>
+                    <option value="whatsapp">WhatsApp chat</option>
+                    <option value="email">Email</option>
+                    <option value="voice_note">Voice note</option>
+                    <option value="social_post">Social media post</option>
+                    <option value="chat">Chat/DM</option>
+                    <option value="interview">Interview answer</option>
+                </select>
+
+                <label>Approximate date (optional)</label>
+                <input type="text" id="upload-date" placeholder="e.g. 2024-01-15 or 'last month'">
+
+                <label>Audience (who was it for?)</label>
+                <input type="text" id="upload-audience" placeholder="e.g. family group, public followers, client">
+
+                <button class="btn" onclick="uploadFile({{ run_id }})">Upload</button>
+            </div>
+
+            <div class="card">
+                <h2>Paste Text</h2>
+                <p class="muted">Paste any text you wrote or said (transcripts welcome)</p>
+                <textarea id="paste-content" placeholder="Paste your text here..."></textarea>
+
+                <label>Channel</label>
+                <select id="paste-channel">
+                    <option value="pasted">— select —</option>
+                    <option value="whatsapp">WhatsApp message</option>
+                    <option value="email">Email I wrote</option>
+                    <option value="voice_note">Voice note transcript</option>
+                    <option value="social_post">Social media post</option>
+                    <option value="chat">Chat message</option>
+                    <option value="interview">Interview answer</option>
+                </select>
+
+                <label>Approximate date (optional)</label>
+                <input type="text" id="paste-date" placeholder="e.g. 2024-06-01">
+
+                <label>Audience (optional)</label>
+                <input type="text" id="paste-audience" placeholder="who was it for?">
+
+                <button class="btn" onclick="pasteText({{ run_id }})">Add</button>
+            </div>
+        </div>
+
+        <div>
+            <div class="card">
+                <h2>Collected Corpus</h2>
+                <div id="corpus-list">
+                    <p class="muted">Loading...</p>
+                </div>
+                <div id="corpus-summary" style="display:none;">
+                    <strong>Total words: <span id="total-words" class="word-count">0</span></strong>
+                    <p class="muted" style="margin-top:0.3rem;">Minimum viable corpus: ~2,000 words</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>What to collect</h2>
+                <ul class="muted" style="padding-left:1.2rem; line-height:1.8;">
+                    <li><strong>Natural speech</strong> — voice note transcripts, dictated messages (best signal)</li>
+                    <li><strong>Casual writing</strong> — WhatsApp chats you sent, emails you wrote, social posts</li>
+                    <li><strong>Edited writing</strong> — articles, newsletters (usable but weighted lower)</li>
+                    <li>Don't clean anything up. Raw is signal. Polished is noise.</li>
+                    <li>Don't include other people's messages — the system strips them, but less is better</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    async function uploadFile(runId) {
+        const fileInput = document.getElementById('file-upload');
+        const file = fileInput.files[0];
+        if (!file) { alert('Select a file first'); return; }
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('channel', document.getElementById('upload-channel').value);
+        formData.append('date_approx', document.getElementById('upload-date').value);
+        formData.append('audience', document.getElementById('upload-audience').value);
+
+        const resp = await fetch(`/api/run/${runId}/upload`, {
+            method: 'POST',
+            body: formData,
+        });
+        const data = await resp.json();
+        if (data.status === 'ok') {
+            fileInput.value = '';
+            loadCorpus(runId);
+        } else {
+            alert('Error: ' + (data.error || 'Upload failed'));
+        }
+    }
+
+    async function pasteText(runId) {
+        const content = document.getElementById('paste-content').value.trim();
+        if (!content) { alert('Paste some text first'); return; }
+
+        const resp = await fetch(`/api/run/${runId}/paste`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                content: content,
+                channel: document.getElementById('paste-channel').value,
+                date_approx: document.getElementById('paste-date').value,
+                audience: document.getElementById('paste-audience').value,
+            }),
+        });
+        const data = await resp.json();
+        if (data.status === 'ok') {
+            document.getElementById('paste-content').value = '';
+            loadCorpus(runId);
+        } else {
+            alert('Error: ' + (data.error || 'Paste failed'));
+        }
+    }
+
+    async function loadCorpus(runId) {
+        const resp = await fetch(`/api/run/${runId}/corpus`);
+        const data = await resp.json();
+
+        const list = document.getElementById('corpus-list');
+        const summary = document.getElementById('corpus-summary');
+
+        if (data.samples && data.samples.length > 0) {
+            list.innerHTML = data.samples.map(s => {
+                const preview = document.createElement('div');
+                preview.textContent = s.content_preview;
+                const safePreview = preview.innerHTML;
+                return `
+                <div class="material-item">
+                    <span class="type">${s.type}</span>
+                    <strong>${s.channel || 'unknown'}</strong>
+                    — <span class="word-count">${s.word_count} words</span>
+                    ${s.date ? ' · ' + s.date : ''}
+                    ${s.audience ? ' · to: ' + s.audience : ''}
+                    <br><span class="muted">${safePreview}...</span>
+                </div>`;
+            }).join('');
+            summary.style.display = 'block';
+            document.getElementById('total-words').textContent = data.total_words;
+        } else {
+            list.innerHTML = '<p class="muted">No materials collected yet. Upload or paste above.</p>';
+            summary.style.display = 'none';
+        }
+    }
+
+    loadCorpus({{ run_id }});
+    </script>
+</body>
+</html>

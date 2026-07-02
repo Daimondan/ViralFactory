@@ -163,6 +163,90 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         """Library surface — read-only browse of modules."""
         return render_template("library.html")
 
+    @app.route("/onboard/<playbook_name>/<int:run_id>/intake", methods=["GET"])
+    def intake_page(playbook_name, run_id):
+        """Materials intake UI for a playbook run."""
+        return render_template("intake.html", playbook_name=playbook_name, run_id=run_id)
+
+    @app.route("/api/run/<int:run_id>/upload", methods=["POST"])
+    def upload_file(run_id):
+        """Upload a file (WhatsApp export, plain text, audio)."""
+        if "file" not in request.files:
+            return jsonify({"error": "No file provided"}), 400
+
+        file = request.files["file"]
+        if file.filename == "":
+            return jsonify({"error": "No filename"}), 400
+
+        # Save to temp location
+        upload_dir = os.path.join(app.config.get("UPLOAD_DIR", "data/uploads"))
+        os.makedirs(upload_dir, exist_ok=True)
+        filepath = os.path.join(upload_dir, file.filename)
+        file.save(filepath)
+
+        # Get metadata
+        channel = request.form.get("channel", "")
+        date_approx = request.form.get("date_approx", "")
+        audience = request.form.get("audience", "")
+
+        # Get business slug
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            business_slug = config["business"]["business"]["slug"]
+        except ConfigError:
+            business_slug = "unknown"
+
+        # Ingest
+        try:
+            from materials import MaterialsIntake
+            intake = MaterialsIntake(app.config["DB_PATH"], upload_dir)
+            material_id = intake.ingest_file(
+                filepath, run_id=run_id, business_slug=business_slug,
+                channel=channel, date_approx=date_approx, audience=audience,
+            )
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+        return jsonify({"status": "ok", "material_id": material_id})
+
+    @app.route("/api/run/<int:run_id>/paste", methods=["POST"])
+    def paste_text(run_id):
+        """Paste text directly (no file upload)."""
+        content = request.json.get("content", "").strip()
+        if not content:
+            return jsonify({"error": "No content"}), 400
+
+        channel = request.json.get("channel", "pasted")
+        date_approx = request.json.get("date_approx", "")
+        audience = request.json.get("audience", "")
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            business_slug = config["business"]["business"]["slug"]
+        except ConfigError:
+            business_slug = "unknown"
+
+        try:
+            from materials import MaterialsIntake
+            intake = MaterialsIntake(app.config["DB_PATH"])
+            material_id = intake.ingest_text(
+                content, run_id=run_id, business_slug=business_slug,
+                material_type="pasted", channel=channel,
+                date_approx=date_approx, audience=audience,
+            )
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+        return jsonify({"status": "ok", "material_id": material_id})
+
+    @app.route("/api/run/<int:run_id>/corpus", methods=["GET"])
+    def get_corpus(run_id):
+        """Get the collected corpus for a run."""
+        from materials import MaterialsIntake
+        intake = MaterialsIntake(app.config["DB_PATH"])
+        corpus = intake.get_corpus(run_id)
+        return jsonify(corpus)
+
     @app.route("/health")
     def health():
         """Health check endpoint."""
