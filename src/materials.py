@@ -136,13 +136,13 @@ class MaterialsIntake:
 
     def normalize_whatsapp(self, content: str, user_identifiers: list[str]) -> str:
         """
-        Strip other parties' messages from a WhatsApp chat export.
         Keep only lines from the user.
 
-        WhatsApp export format:
-        12/31/23, 11:45 PM - Sender Name: message text
-        or:
-        [12/31/23, 11:45 PM] Sender Name: message text
+        WhatsApp export formats supported:
+        - Android US 12h:  12/31/23, 11:45 PM - Sender Name: message text
+        - Android 24h:     31/12/2023, 23:45 - Sender Name: message text
+        - iOS 12h:         [12/31/23, 11:45:23 PM] Sender Name: message text
+        - iOS 24h:         [31/12/2023, 23:45:07] Sender Name: message text
 
         user_identifiers: list of sender names that are the user (e.g. ["Daimon", "Daimon Nurse"])
         """
@@ -154,14 +154,21 @@ class MaterialsIntake:
         user_patterns = [uid.lower().strip() for uid in user_identifiers if uid.strip()]
 
         for line in lines:
-            # Match WhatsApp export line: "12/31/23, 11:45 PM - Sender: message" or "[date] Sender: message"
+            # Match WhatsApp export line across all formats:
+            # - Optional opening bracket
+            # - Date: dd/dd/dd or dd/dd/dddd
+            # - Separator: comma + space
+            # - Time: H:MM or HH:MM, optional :SS seconds, optional AM/PM
+            # - Optional closing bracket
+            # - Separator: - or en-dash
+            # - Sender: message
             match = re.match(
-                r'^\[?\d{1,2}/\d{1,2}/\d{2,4}[,,\s]+\d{1,2}:\d{2}\s*[AP]M\]?\s*[-–]\s*(.+?):\s*(.*)',
+                r'^\[?\s*(\d{1,2}/\d{1,2}/\d{2,4})[,\s]+(\d{1,2}:\d{2}(?::\d{2})?)\s*(?:[AP]M)?\]?\s*[-–]?\s*(.+?):\s*(.*)',
                 line
             )
             if match:
-                sender = match.group(1).strip()
-                message = match.group(2).strip()
+                sender = match.group(3).strip()
+                message = match.group(4).strip()
                 if any(uid in sender.lower() for uid in user_patterns):
                     in_user_message = True
                     normalized_lines.append(message)
@@ -254,8 +261,12 @@ class MaterialsIntake:
     def _is_whatsapp_export(self, content: str) -> bool:
         """Detect if text looks like a WhatsApp chat export."""
         # Look for the date/time - Sender: pattern in first 20 lines
+        # Supports: 12h with AM/PM, 24h without, iOS with seconds and brackets
         for line in content.split("\n")[:20]:
-            if re.match(r'^\[?\d{1,2}/\d{1,2}/\d{2,4}[,,\s]+\d{1,2}:\d{2}\s*[AP]M\]?\s*[-–]\s*.+?:', line):
+            if re.match(
+                r'^\[?\s*\d{1,2}/\d{1,2}/\d{2,4}[,\s]+\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AP]M)?\]?\s*[-–]?\s*.+?:',
+                line
+            ):
                 return True
         return False
 

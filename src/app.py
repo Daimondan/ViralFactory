@@ -426,32 +426,38 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         # Convert to markdown
         md = voice_profile_to_markdown(profile, business["business"]["name"], version)
 
-        # Store as versioned module
-        store = ModuleStore(modules_dir="modules")
-        path = store.store(
-            business["business"]["slug"],
-            "voice-profile",
-            md,
-            version=version,
-            provenance={
-                "version": version,
-                "approved": approved,
-                "note": note,
-                "run_id": run_id,
-                "sources": [s["type"] for s in json.loads(run.get("collected_inputs") or "{}").values()
-                           if isinstance(s, list)] if run.get("collected_inputs") else [],
-            },
-        )
+        # Gate enforcement: modules are written ONLY on approval.
+        # On park/reject, the profile stays in run state (llm_outputs) only.
+        path = None
+        if approved:
+            store = ModuleStore(modules_dir="modules")
+            path = store.store(
+                business["business"]["slug"],
+                "voice-profile",
+                md,
+                version=version,
+                provenance={
+                    "version": version,
+                    "approved": approved,
+                    "note": note,
+                    "run_id": run_id,
+                    "sources": [s["type"] for s in json.loads(run.get("collected_inputs") or "{}").values()
+                               if isinstance(s, list)] if run.get("collected_inputs") else [],
+                },
+            )
 
         # Record gate result
         runner.set_gate_result(run_id, "5", "approve" if approved else "park", note)
         runner.update_run(run_id, status="completed" if approved else "awaiting_gate")
 
-        return jsonify({
+        result = {
             "status": "ok",
             "version": version,
-            "path": path,
-        })
+            "approved": approved,
+        }
+        if path:
+            result["path"] = path
+        return jsonify(result)
 
     @app.route("/onboard/<playbook_name>/<int:run_id>/interview")
     def interview_page(playbook_name, run_id):

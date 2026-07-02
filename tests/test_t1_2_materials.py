@@ -98,6 +98,43 @@ because it's a longer thought
         assert "second message" in normalized
         assert "my message" not in normalized
 
+    def test_android_24h_format(self, intake):
+        """R5: Android non-US locale 24-hour format is detected and parsed."""
+        export = """31/12/2023, 23:45 - Daimon: Caribbean wealth is about community
+31/12/2023, 23:46 - Sarah: What do you mean?
+31/12/2023, 23:47 - Daimon: Sou-sou, pooling, helping each other build"""
+        # Detection
+        assert intake._is_whatsapp_export(export), "24h format not detected as WhatsApp export"
+        # Normalization — Sarah's message stripped
+        normalized = intake.normalize_whatsapp(export, ["Daimon"])
+        assert "Caribbean wealth is about community" in normalized
+        assert "Sou-sou, pooling" in normalized
+        assert "What do you mean?" not in normalized
+
+    def test_ios_format_with_seconds(self, intake):
+        """R5: iOS format with seconds and brackets is detected and parsed."""
+        export = """[31/12/2023, 11:45:23 PM] Daimon: The receipts are in the culture
+[31/12/2023, 11:45:45 PM] Sarah: That's interesting
+[31/12/2023, 11:46:02 PM] Daimon: Not just in some spreadsheet"""
+        # Detection
+        assert intake._is_whatsapp_export(export), "iOS format not detected as WhatsApp export"
+        # Normalization
+        normalized = intake.normalize_whatsapp(export, ["Daimon"])
+        assert "The receipts are in the culture" in normalized
+        assert "Not just in some spreadsheet" in normalized
+        assert "That's interesting" not in normalized
+
+    def test_ios_24h_format_with_seconds(self, intake):
+        """R5: iOS 24-hour format with seconds is detected and parsed."""
+        export = """[31/12/2023, 23:45:07] Daimon: One hand can't clap
+[31/12/2023, 23:45:30] Mike: Cool story bro
+[31/12/2023, 23:46:02] Daimon: She meant it literally"""
+        assert intake._is_whatsapp_export(export), "iOS 24h format not detected"
+        normalized = intake.normalize_whatsapp(export, ["Daimon"])
+        assert "One hand can't clap" in normalized
+        assert "She meant it literally" in normalized
+        assert "Cool story bro" not in normalized
+
 
 class TestTextNormalization:
 

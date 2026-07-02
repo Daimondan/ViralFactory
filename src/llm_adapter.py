@@ -105,6 +105,9 @@ class LLMAdapter:
         """
         Call an Ollama-compatible API. Returns (response_text, latency_ms).
         Works with both Ollama local (http://localhost:11434) and Ollama Cloud.
+
+        For Ollama Cloud, set OLLAMA_API_KEY in the environment — the adapter
+        sends it as a Bearer token. Local Ollama needs no auth.
         """
         # Ollama API: POST /api/chat or /api/generate
         # We use /api/chat with messages format
@@ -120,9 +123,14 @@ class LLMAdapter:
             },
         }
 
+        headers = {"Content-Type": "application/json"}
+        api_key = os.environ.get("OLLAMA_API_KEY", "")
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
         start = time.time()
         try:
-            response = requests.post(url, json=payload, timeout=120)
+            response = requests.post(url, json=payload, headers=headers, timeout=120)
             response.raise_for_status()
         except requests.RequestException as e:
             raise LLMAdapterError(f"Ollama API call failed: {e}")
@@ -284,6 +292,21 @@ class LLMAdapter:
                 return validated
             except ValidationError as e:
                 if attempt == 0:
+                    # Log the failed attempt before retrying — every LLM call logged
+                    self.provenance.log(
+                        input_hash=variables_hash,
+                        prompt_file=prompt_file,
+                        prompt_version=prompt_version,
+                        model=model,
+                        provider=provider,
+                        raw_output=raw_output,
+                        validated_output=None,
+                        validator_verdict="invalid",
+                        validator_errors=str(e),
+                        context=f"{context} (attempt 1, failed validation)",
+                        temperature=temperature,
+                        latency_ms=latency_ms,
+                    )
                     # Retry once — append "Please respond with valid JSON only" and re-call
                     retry_prompt = rendered + "\n\n---\nIMPORTANT: Your previous response was not valid JSON. Please respond with ONLY valid JSON, no markdown, no explanation."
                     raw_output, latency_ms = call_fn(
@@ -301,7 +324,7 @@ class LLMAdapter:
                         validated_output=None,
                         validator_verdict="invalid",
                         validator_errors=str(e),
-                        context=context,
+                        context=f"{context} (attempt 2, failed validation)",
                         temperature=temperature,
                         latency_ms=latency_ms,
                     )

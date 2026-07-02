@@ -172,7 +172,6 @@ class TestFlaskCalibration:
     def test_store_voice_without_profile(self):
         """Storing without a profile returns error."""
         from app import create_app
-        import os
         db = "data/viralfactory_test.db"
         if os.path.exists(db):
             os.unlink(db)
@@ -184,6 +183,79 @@ class TestFlaskCalibration:
             data=json.dumps({"version": "1.0", "approved": True}),
             content_type="application/json")
         assert resp.status_code == 404
+
+    def test_store_voice_parked_does_not_write_module(self, tmp_path, monkeypatch):
+        """R1: POST store-voice with approved=false must NOT write a module file."""
+        from app import create_app
+        from playbook_runner import PlaybookRunner
+
+        db = str(tmp_path / "test.db")
+        # Use absolute config path so chdir doesn't break it
+        config_dir = os.path.join(os.path.dirname(__file__), "..", "config")
+        app = create_app(config_dir=config_dir, db_path=db)
+        client = app.test_client()
+
+        # Run from tmp_path so the hardcoded "modules" dir lands here
+        monkeypatch.chdir(tmp_path)
+
+        runner = PlaybookRunner(db)
+        run_id = runner.start_run("voice-profile-builder", "1.0", "testbrand")
+        runner.add_llm_output(run_id, "3", {
+            "identity_line": "Test",
+            "audience": "Test",
+            "positive_patterns": [],
+            "dialect_features": [],
+            "anti_patterns": [],
+            "tells_checklist": [],
+        })
+
+        # POST with approved=false (park)
+        resp = client.post(f"/api/run/{run_id}/store-voice",
+            data=json.dumps({"version": "1.0", "approved": False, "note": "needs work"}),
+            content_type="application/json")
+
+        assert resp.status_code == 200
+        body = json.loads(resp.data)
+        assert body["approved"] is False
+        assert "path" not in body
+
+        # No module file should exist on disk
+        modules_path = tmp_path / "modules"
+        assert not modules_path.exists(), \
+            "Module directory was created even though approved=false — gate bypass!"
+
+    def test_store_voice_approved_writes_module(self, tmp_path, monkeypatch):
+        """R1 companion: POST store-voice with approved=true DOES write the module."""
+        from app import create_app
+        from playbook_runner import PlaybookRunner
+
+        db = str(tmp_path / "test.db")
+        config_dir = os.path.join(os.path.dirname(__file__), "..", "config")
+        app = create_app(config_dir=config_dir, db_path=db)
+        client = app.test_client()
+
+        monkeypatch.chdir(tmp_path)
+
+        runner = PlaybookRunner(db)
+        run_id = runner.start_run("voice-profile-builder", "1.0", "testbrand")
+        runner.add_llm_output(run_id, "3", {
+            "identity_line": "Test",
+            "audience": "Test",
+            "positive_patterns": [],
+            "dialect_features": [],
+            "anti_patterns": [],
+            "tells_checklist": [],
+        })
+
+        resp = client.post(f"/api/run/{run_id}/store-voice",
+            data=json.dumps({"version": "1.0", "approved": True, "note": "looks good"}),
+            content_type="application/json")
+
+        assert resp.status_code == 200
+        body = json.loads(resp.data)
+        assert body["approved"] is True
+        assert "path" in body
+        assert os.path.exists(body["path"]), "Module file should exist when approved=true"
 
     # Cleanup
     @pytest.fixture(autouse=True)

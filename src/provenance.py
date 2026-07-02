@@ -31,8 +31,7 @@ CREATE TABLE IF NOT EXISTS provenance (
     context TEXT,                      -- human-readable context for the call
     temperature REAL,                  -- temperature used
     latency_ms INTEGER,                -- response time in milliseconds
-    cached INTEGER DEFAULT 0,          -- 1 if this was served from cache
-    UNIQUE(input_hash, prompt_file, prompt_version, model)
+    cached INTEGER DEFAULT 0           -- 1 if this was served from cache
 );
 """
 
@@ -79,7 +78,7 @@ class ProvenanceLog:
         validated_json = json.dumps(validated_output) if validated_output else None
 
         self.conn.execute(
-            """INSERT OR REPLACE INTO provenance
+            """INSERT INTO provenance
                (timestamp, input_hash, prompt_file, prompt_version, model, provider,
                 raw_output, validated_output, validator_verdict, validator_errors,
                 context, temperature, latency_ms, cached)

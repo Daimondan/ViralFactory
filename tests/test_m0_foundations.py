@@ -340,6 +340,55 @@ class TestProvenance:
         assert log.count() == 5
         log.close()
 
+    def test_append_only_same_call_twice(self, tmp_db):
+        """R2: Logging the same call twice creates two rows, original intact."""
+        log = ProvenanceLog(tmp_db)
+
+        # First call with real raw output
+        log.log(
+            input_hash="dup_hash",
+            prompt_file="prompts/test.md",
+            prompt_version="1.0",
+            model="qwen2.5:32b",
+            provider="ollama_cloud",
+            raw_output='{"real": "output"}',
+            validated_output={"real": "output"},
+            validator_verdict="valid",
+            context="first attempt",
+        )
+
+        # Second call — same key fields, cached/different raw output
+        log.log(
+            input_hash="dup_hash",
+            prompt_file="prompts/test.md",
+            prompt_version="1.0",
+            model="qwen2.5:32b",
+            provider="ollama_cloud",
+            raw_output="(cached)",
+            validated_output={"real": "output"},
+            validator_verdict="valid",
+            context="cache hit",
+            cached=True,
+        )
+
+        # Must have TWO rows, not one
+        assert log.count() == 2
+
+        entries = log.get_by_hash("dup_hash")
+        assert len(entries) == 2
+
+        # The original row must still have the real raw output
+        originals = [e for e in entries if e["raw_output"] == '{"real": "output"}']
+        assert len(originals) == 1, "Original raw output was overwritten — not append-only!"
+        assert originals[0]["cached"] == 0
+
+        # The second row has the cached marker
+        cached = [e for e in entries if e["raw_output"] == "(cached)"]
+        assert len(cached) == 1
+        assert cached[0]["cached"] == 1
+
+        log.close()
+
 
 # --- T0.6: Cache Tests ---
 
@@ -489,5 +538,110 @@ class TestLLMAdapter:
         adapter = LLMAdapter(models_config, db_path=tmp_db)
         with pytest.raises(LLMAdapterError, match="not found"):
             adapter.complete("nonexistent.md", {}, {"type": "object", "required": [], "properties": {}})
+        adapter.cache.close()
+        adapter.provenance.close()
+
+    def test_invalid_then_valid_logs_both_attempts(self, tmp_db):
+        """R3: When attempt 1 fails validation and attempt 2 succeeds,
+        both the failed AND successful attempts are logged to provenance."""
+        import tempfile, os
+        from unittest.mock import patch, MagicMock
+
+        prompts_dir = tempfile.mkdtemp()
+        prompt_path = os.path.join(prompts_dir, "test_prompt.md")
+        with open(prompt_path, "w") as f:
+            f.write("<!-- version: 1.0 -->\nAnalyze: {input}")
+
+        models_config = {"default": {"provider": "ollama", "model": "test", "temperature": 0, "max_tokens": 100, "base_url": "http://fake"}}
+        adapter = LLMAdapter(models_config, db_path=tmp_db, prompts_dir=prompts_dir)
+
+        # Mock: first call returns invalid JSON, second returns valid JSON
+        call_count = [0]
+        def mock_call(prompt, model, base_url, temperature, max_tokens):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return "not valid json at all", 50
+            else:
+                return '{"result": "ok"}', 70
+
+        with patch.object(adapter, "_call_ollama", side_effect=mock_call):
+            result = adapter.complete(
+                "test_prompt.md",
+                {"input": "test"},
+                {"type": "object", "required": ["result"], "properties": {"result": {"type": "string"}}},
+                context="r3 test",
+            )
+
+        assert result == {"result": "ok"}
+
+        # Two provenance rows: one invalid, one valid
+        assert adapter.provenance.count() == 2
+
+        rows = adapter.provenance.conn.execute(
+            "SELECT * FROM provenance ORDER BY id"
+        ).fetchall()
+        assert rows[0]["validator_verdict"] == "invalid"
+        assert rows[0]["raw_output"] == "not valid json at all"
+        assert "attempt 1" in rows[0]["context"]
+        assert rows[1]["validator_verdict"] == "valid"
+        assert rows[1]["raw_output"] == '{"result": "ok"}'
+
+        adapter.cache.close()
+        adapter.provenance.close()
+        os.unlink(prompt_path)
+        os.rmdir(prompts_dir)
+
+    def test_ollama_sends_auth_header_with_key(self, tmp_db, monkeypatch):
+        """R4: When OLLAMA_API_KEY is set, the adapter sends Authorization: Bearer."""
+        from unittest.mock import patch, MagicMock
+        import requests as req_module
+
+        monkeypatch.setenv("OLLAMA_API_KEY", "test-key-123")
+
+        models_config = {"default": {"provider": "ollama_cloud", "model": "test", "temperature": 0, "max_tokens": 100, "base_url": "https://ollama.com"}}
+        adapter = LLMAdapter(models_config, db_path=tmp_db)
+
+        captured_headers = {}
+        def mock_post(url, json=None, headers=None, timeout=None, **kwargs):
+            captured_headers.update(headers or {})
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.raise_for_status = MagicMock()
+            mock_resp.json = MagicMock(return_value={"message": {"content": '{"ok": true}'}})
+            return mock_resp
+
+        with patch.object(req_module, "post", side_effect=mock_post):
+            adapter._call_ollama("test prompt", "test", "https://ollama.com", 0, 100)
+
+        assert "Authorization" in captured_headers
+        assert captured_headers["Authorization"] == "Bearer test-key-123"
+
+        adapter.cache.close()
+        adapter.provenance.close()
+
+    def test_ollama_no_auth_header_without_key(self, tmp_db, monkeypatch):
+        """R4: Without OLLAMA_API_KEY, no Authorization header is sent (local mode)."""
+        from unittest.mock import patch, MagicMock
+        import requests as req_module
+
+        monkeypatch.delenv("OLLAMA_API_KEY", raising=False)
+
+        models_config = {"default": {"provider": "ollama_local", "model": "test", "temperature": 0, "max_tokens": 100, "base_url": "http://localhost:11434"}}
+        adapter = LLMAdapter(models_config, db_path=tmp_db)
+
+        captured_headers = {}
+        def mock_post(url, json=None, headers=None, timeout=None, **kwargs):
+            captured_headers.update(headers or {})
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.raise_for_status = MagicMock()
+            mock_resp.json = MagicMock(return_value={"message": {"content": '{"ok": true}'}})
+            return mock_resp
+
+        with patch.object(req_module, "post", side_effect=mock_post):
+            adapter._call_ollama("test prompt", "test", "http://localhost:11434", 0, 100)
+
+        assert "Authorization" not in captured_headers
+
         adapter.cache.close()
         adapter.provenance.close()

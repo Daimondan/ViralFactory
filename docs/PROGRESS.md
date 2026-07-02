@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-02
-**Current Phase:** M0 — Foundations complete. Ready for M1 (Onboarding engine).
+**Current Phase:** M1 complete (92 tests passing). Review-w1 corrections applied (R1–R5). Ready for M2.
 
 ---
 
@@ -59,6 +59,18 @@
   - ModuleStore: versioned storage, auto-archive, provenance, list/search
   - Prompt templates: analyze_v1.md (corpus → profile) + calibrate_v1.md (profile → 3 samples)
   - Flask API: POST /api/run/<id>/analyze-voice
+
+- [x] T1.4: Calibration gate UI + store-voice API (11 tests)
+  - Calibration page: presents 3 voice samples, approve/park/reject controls
+  - store-voice API: writes module only on approval (R1 fix: gate enforced)
+  - Version history: v1.0 on approve, v0.9 on 3-round fallback, archived versions visible
+
+- [x] T1.5: Interview fallback — guided Q&A for users with no materials (7 tests)
+  - 5-question guided interview produces a synthetic corpus
+  - Flask API + interview UI page
+
+- [x] Review-w1 corrections (R1–R5): gate bypass fix, provenance append-only,
+  failed-attempt logging, Ollama auth + base_url, WhatsApp 24h/iOS format support (9 new tests, 101 total)
 
 ## What's Next
 - [ ] Tag review-w1 for Claude architect review

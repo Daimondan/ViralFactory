@@ -32,21 +32,21 @@
 ## Milestones
 
 ### M0 — Foundations (est. week 1)
-- [ ] T0.1 Repo layout: `config/ prompts/ playbooks/ modules/ src/ tests/ docs/` — AC: matches charter; README maps folders to charter concepts; playbooks split into individual files under `playbooks/`
-- [ ] T0.2 Config loader: `business.yaml`, `models.yaml`, `sources.yaml` with schema validation — AC: bad config fails loudly; no hidden defaults in code
-- [ ] T0.3 LLM adapter — AC: backend switch via `models.yaml` only; retry-once on invalid JSON then flag "manual review"; temperature 0 default
-- [ ] T0.4 Validator: JSON-schema + allowlist checks — AC: unknown tag rejected in test; missing field rejected
-- [ ] T0.5 Provenance log — AC: every adapter call writes a row; test proves it
-- [ ] T0.6 Content-hash cache — AC: same input twice = one LLM call
-- [ ] T0.7 **v2 database backup**: scripted, verified copy of the v2 SQLite DB to storage outside the v2 app directory — AC: restore tested once; backup location documented in `docs/CONTEXT.md`. (Fresh start ≠ data destruction.)
+- [x] T0.1 Repo layout: `config/ prompts/ playbooks/ modules/ src/ tests/ docs/` — AC: matches charter; README maps folders to charter concepts; playbooks split into individual files under `playbooks/`
+- [x] T0.2 Config loader: `business.yaml`, `models.yaml`, `sources.yaml` with schema validation — AC: bad config fails loudly; no hidden defaults in code
+- [x] T0.3 LLM adapter — AC: backend switch via `models.yaml` only; retry-once on invalid JSON then flag "manual review"; temperature 0 default
+- [x] T0.4 Validator: JSON-schema + allowlist checks — AC: unknown tag rejected in test; missing field rejected
+- [x] T0.5 Provenance log — AC: every adapter call writes a row; test proves it
+- [x] T0.6 Content-hash cache — AC: same input twice = one LLM call
+- [x] T0.7 **v2 database backup**: scripted, verified copy of the v2 SQLite DB to storage outside the v2 app directory — AC: restore tested once; backup location documented in `docs/CONTEXT.md`. (Fresh start ≠ data destruction.)
 
 ### M1 — Onboarding engine: runner + Voice Profile (est. weeks 2–3)
-- [ ] T1.1 Generic playbook runner (procedure steps → console flows → gates) — AC: proven generic by running a trivial test playbook
-- [ ] T1.2 Materials intake UI per `docs/INTAKE-USER1.md` — AC: WhatsApp export, plain text, audio (transcribed) all ingest; other parties' text stripped
-- [ ] T1.3 Voice Profile playbook end-to-end — AC: schema-valid profile; every finding carries verbatim evidence (validator enforces); dialect preserved
-- [ ] T1.4 Calibration gate UI (3 samples → pick + react → revise, max 3 rounds) — AC: v1.0 stored with provenance only on confirmation; v0.9 fallback path works
-- [ ] T1.5 Interview fallback — AC: profile buildable from interview answers alone
-- [ ] **Checkpoint:** operator onboards their own voice. Tag `review-w3`.
+- [x] T1.1 Generic playbook runner (procedure steps → console flows → gates) — AC: proven generic by running a trivial test playbook
+- [x] T1.2 Materials intake UI per `docs/INTAKE-USER1.md` — AC: WhatsApp export, plain text, audio (transcribed) all ingest; other parties' text stripped
+- [x] T1.3 Voice Profile playbook end-to-end — AC: schema-valid profile; every finding carries verbatim evidence (validator enforces); dialect preserved
+- [x] T1.4 Calibration gate UI (3 samples → pick + react → revise, max 3 rounds) — AC: v1.0 stored with provenance only on confirmation; v0.9 fallback path works
+- [x] T1.5 Interview fallback — AC: profile buildable from interview answers alone
+- [ ] **Checkpoint:** operator onboards their own voice. Tag `review-w1`.
 
 ### M2 — Remaining playbooks wired (est. week 4)
 - [ ] T2.1 Business Profile intake → `business.yaml` + brand-context module — AC: tenant values re-entered via console; zero tenant strings in code
