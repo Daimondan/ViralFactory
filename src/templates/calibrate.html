@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calibration — ViralFactory</title>
+    <style>
+        :root {
+            --bg: #0d1117; --surface: #161b22; --border: #30363d;
+            --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7;
+            --green: #3fb950; --red: #f85149; --yellow: #d29922;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg); color: var(--text); line-height: 1.6;
+            padding: 2rem; max-width: 1200px; margin: 0 auto;
+        }
+        h1 { color: var(--accent); margin-bottom: 0.5rem; }
+        h2 { margin: 1.5rem 0 0.5rem; }
+        h3 { margin: 0.8rem 0 0.3rem; }
+        a { color: var(--accent); text-decoration: none; }
+        .nav { display: flex; gap: 1.5rem; margin-bottom: 2rem; }
+        .nav a { color: var(--muted); }
+        .nav a.active { color: var(--text); font-weight: 600; }
+        .card {
+            background: var(--surface); border: 2px solid var(--border);
+            border-radius: 8px; padding: 1.2rem; margin-bottom: 1rem;
+            cursor: pointer; transition: border-color 0.2s;
+        }
+        .card:hover { border-color: var(--accent); }
+        .card.selected { border-color: var(--green); background: rgba(63,185,80,0.05); }
+        .muted { color: var(--muted); font-size: 0.85rem; }
+        .sample-text {
+            white-space: pre-wrap; word-break: break-word; font-size: 0.95rem;
+            line-height: 1.7; margin: 0.5rem 0;
+        }
+        .sample-label {
+            display: inline-block; width: 28px; height: 28px; border-radius: 50%;
+            background: var(--accent); color: white; text-align: center;
+            line-height: 28px; font-weight: 600; margin-right: 0.5rem;
+        }
+        label { display: block; margin: 0.8rem 0 0.3rem; font-size: 0.85rem; color: var(--muted); }
+        textarea {
+            width: 100%; min-height: 80px; background: var(--bg);
+            border: 1px solid var(--border); border-radius: 6px;
+            padding: 0.5rem; color: var(--text); font-family: inherit;
+            font-size: 0.9rem; resize: vertical;
+        }
+        .btn {
+            display: inline-block; padding: 0.5rem 1.2rem; border: none;
+            border-radius: 6px; cursor: pointer; font-size: 0.9rem;
+            color: white; margin-right: 0.5rem;
+        }
+        .btn-primary { background: var(--accent); }
+        .btn-approve { background: var(--green); }
+        .btn-secondary { background: var(--surface); border: 1px solid var(--border); }
+        .round-badge {
+            display: inline-block; padding: 0.2rem 0.8rem; border-radius: 12px;
+            font-size: 0.8rem; font-weight: 600; background: rgba(47,129,247,0.2);
+            color: var(--accent);
+        }
+        .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+        .reaction-chips { display: flex; gap: 0.4rem; flex-wrap: wrap; margin: 0.5rem 0; }
+        .chip {
+            padding: 0.2rem 0.8rem; border: 1px solid var(--border);
+            border-radius: 16px; font-size: 0.8rem; cursor: pointer;
+            background: var(--bg); color: var(--muted);
+        }
+        .chip:hover { border-color: var(--accent); color: var(--text); }
+        .chip.selected { background: var(--accent); color: white; border-color: var(--accent); }
+        .hidden { display: none; }
+        #status-box {
+            padding: 0.8rem; border-radius: 6px; margin: 1rem 0;
+            background: rgba(47,129,247,0.1); border: 1px solid rgba(47,129,247,0.3);
+        }
+        .error { color: var(--red); }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">Home</a>
+        <a href="/onboard" class="active">Onboard</a>
+        <a href="/library">Library</a>
+    </div>
+
+    <h1>Voice Calibration</h1>
+    <p class="muted">Run #{{ run_id }} · Round <span class="round-badge" id="round-display">1</span> of 3</p>
+
+    <div id="status-box" class="hidden"></div>
+
+    <div id="loading">
+        <p>Generating 3 calibration samples from your voice profile...</p>
+        <button class="btn btn-primary" onclick="generateSamples()">Generate Samples</button>
+    </div>
+
+    <div id="samples-section" class="hidden">
+        <h2>Which sounds most like you?</h2>
+        <p class="muted">Click the sample closest to your voice, then tell us what's off.</p>
+
+        <div class="grid" id="samples-grid"></div>
+
+        <div id="feedback-section">
+            <h2>What's off?</h2>
+            <div class="reaction-chips">
+                <span class="chip" onclick="toggleChip(this)">not me</span>
+                <span class="chip" onclick="toggleChip(this)">too polished</span>
+                <span class="chip" onclick="toggleChip(this)">flat</span>
+                <span class="chip" onclick="toggleChip(this)">too long</span>
+                <span class="chip" onclick="toggleChip(this)">wrong tone</span>
+                <span class="chip" onclick="toggleChip(this)">close but not quite</span>
+            </div>
+            <label>Anything else? (typed or spoken — your call)</label>
+            <textarea id="feedback-text" placeholder="Tell us what's off in your own words..."></textarea>
+        </div>
+
+        <div style="margin-top: 1rem;">
+            <button class="btn btn-primary" onclick="revise()">Revise with my feedback</button>
+            <button class="btn btn-approve" onclick="approve()">Sounds like me — Approve</button>
+        </div>
+    </div>
+
+    <div id="approved-section" class="hidden">
+        <div class="card" style="border-color: var(--green);">
+            <h2 style="color: var(--green);">Voice Profile Stored ✅</h2>
+            <p id="stored-version"></p>
+            <p class="muted" id="stored-details"></p>
+        </div>
+        <a href="/onboard" class="btn btn-secondary">Back to Onboarding</a>
+    </div>
+
+    <script>
+    let selectedSample = null;
+    let round = 1;
+    const runId = {{ run_id }};
+
+    async function generateSamples() {
+        document.getElementById('loading').innerHTML = '<p>Generating...</p>';
+        const resp = await fetch(`/api/run/${runId}/calibrate`, { method: 'POST' });
+        const data = await resp.json();
+        if (data.error) {
+            document.getElementById('loading').innerHTML = `<p class="error">Error: ${data.error}</p>`;
+            return;
+        }
+        displaySamples(data.samples);
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('samples-section').classList.remove('hidden');
+    }
+
+    function displaySamples(samples) {
+        const grid = document.getElementById('samples-grid');
+        grid.innerHTML = '';
+        samples.forEach(s => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.onclick = () => selectSample(s.label, card);
+            const text = document.createElement('div');
+            text.className = 'sample-text';
+            text.textContent = s.text;
+            card.innerHTML = `<h3><span class="sample-label">${s.label}</span>${s.emphasis}</h3>`;
+            card.appendChild(text);
+            grid.appendChild(card);
+        });
+    }
+
+    function selectSample(label, cardEl) {
+        selectedSample = label;
+        document.querySelectorAll('#samples-grid .card').forEach(c => c.classList.remove('selected'));
+        cardEl.classList.add('selected');
+    }
+
+    function toggleChip(el) {
+        el.classList.toggle('selected');
+    }
+
+    function getSelectedChips() {
+        return Array.from(document.querySelectorAll('.chip.selected')).map(c => c.textContent);
+    }
+
+    async function revise() {
+        const feedback = {
+            selected: selectedSample,
+            chips: getSelectedChips(),
+            text: document.getElementById('feedback-text').value,
+        };
+        if (!feedback.selected) { alert('Pick a sample first'); return; }
+
+        if (round >= 3) {
+            storeV09();
+            return;
+        }
+        round++;
+        document.getElementById('round-display').textContent = round;
+
+        const resp = await fetch(`/api/run/${runId}/calibrate`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({feedback: feedback}),
+        });
+        const data = await resp.json();
+        if (data.error) { alert(data.error); return; }
+        displaySamples(data.samples);
+        // Clear feedback
+        document.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+        document.getElementById('feedback-text').value = '';
+        selectedSample = null;
+        showStatus(`Round ${round} generated. Pick the closest again.`);
+    }
+
+    async function approve() {
+        const resp = await fetch(`/api/run/${runId}/store-voice`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({version: '1.0', approved: true}),
+        });
+        const data = await resp.json();
+        if (data.error) { alert(data.error); return; }
+        document.getElementById('samples-section').classList.add('hidden');
+        document.getElementById('approved-section').classList.remove('hidden');
+        document.getElementById('stored-version').textContent = `Voice Profile v${data.version} stored.`;
+        document.getElementById('stored-details').textContent = `Location: ${data.path}`;
+    }
+
+    async function storeV09() {
+        const resp = await fetch(`/api/run/${runId}/store-voice`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({version: '0.9', approved: false, note: '3 rounds did not converge — refine via Feedback Log'}),
+        });
+        const data = await resp.json();
+        if (data.error) { alert(data.error); return; }
+        document.getElementById('samples-section').classList.add('hidden');
+        document.getElementById('approved-section').classList.remove('hidden');
+        document.getElementById('stored-version').textContent = `Voice Profile v0.9 stored (needs refinement).`;
+        document.getElementById('stored-details').textContent = `The inward loop will sharpen this over time. Location: ${data.path}`;
+    }
+
+    function showStatus(msg) {
+        const box = document.getElementById('status-box');
+        box.textContent = msg;
+        box.classList.remove('hidden');
+    }
+    </script>
+</body>
+</html>

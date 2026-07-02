@@ -322,6 +322,137 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             "word_count": corpus["total_words"],
         })
 
+    @app.route("/onboard/<playbook_name>/<int:run_id>/calibrate")
+    def calibrate_page(playbook_name, run_id):
+        """Calibration gate UI for voice profile."""
+        return render_template("calibrate.html", run_id=run_id)
+
+    @app.route("/api/run/<int:run_id>/calibrate", methods=["POST"])
+    def calibrate(run_id):
+        """Generate 3 calibration samples from the voice profile."""
+        from materials import MaterialsIntake
+        from module_store import VOICE_PROFILE_SCHEMA
+        from llm_adapter import LLMAdapter, LLMAdapterError
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+            business = config["business"]
+        except ConfigError as e:
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        llm_outputs = json.loads(run.get("llm_outputs") or "{}")
+        profile = llm_outputs.get("3")  # Step 3 = Analyze
+        if not profile:
+            return jsonify({"error": "No voice profile found. Run analysis first."}), 400
+
+        # Check if this is a revise request (has feedback)
+        feedback = request.json.get("feedback") if request.is_json else None
+
+        adapter = LLMAdapter(
+            models_config,
+            db_path=app.config["DB_PATH"],
+            prompts_dir="prompts",
+        )
+
+        # Use a topic from the business config
+        topic = config["business"].get("subjects", ["AI and wealth"])[0]
+
+        try:
+            result = adapter.complete(
+                prompt_file="voice_profile/calibrate_v1.md",
+                variables={
+                    "voice_profile_json": json.dumps(profile),
+                    "topic": topic,
+                },
+                schema={
+                    "type": "object",
+                    "required": ["samples"],
+                    "properties": {
+                        "samples": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "required": ["label", "emphasis", "text"],
+                                "properties": {
+                                    "label": {"type": "string"},
+                                    "emphasis": {"type": "string"},
+                                    "text": {"type": "string"},
+                                },
+                            },
+                        },
+                    },
+                },
+                backend="drafter",
+                context=f"Calibration for run {run_id}",
+            )
+        except LLMAdapterError as e:
+            return jsonify({"error": str(e)}), 500
+        except Exception as e:
+            return jsonify({"error": f"LLM call failed: {e}"}), 500
+
+        return jsonify({"samples": result["samples"]})
+
+    @app.route("/api/run/<int:run_id>/store-voice", methods=["POST"])
+    def store_voice(run_id):
+        """Store the voice profile as a versioned module (gate approval)."""
+        from module_store import ModuleStore, voice_profile_to_markdown
+
+        version = request.json.get("version", "1.0")
+        approved = request.json.get("approved", False)
+        note = request.json.get("note", "")
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            business = config["business"]
+        except ConfigError as e:
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        llm_outputs = json.loads(run.get("llm_outputs") or "{}")
+        profile = llm_outputs.get("3")
+        if not profile:
+            return jsonify({"error": "No voice profile found"}), 400
+
+        # Convert to markdown
+        md = voice_profile_to_markdown(profile, business["business"]["name"], version)
+
+        # Store as versioned module
+        store = ModuleStore(modules_dir="modules")
+        path = store.store(
+            business["business"]["slug"],
+            "voice-profile",
+            md,
+            version=version,
+            provenance={
+                "version": version,
+                "approved": approved,
+                "note": note,
+                "run_id": run_id,
+                "sources": [s["type"] for s in json.loads(run.get("collected_inputs") or "{}").values()
+                           if isinstance(s, list)] if run.get("collected_inputs") else [],
+            },
+        )
+
+        # Record gate result
+        runner.set_gate_result(run_id, "5", "approve" if approved else "park", note)
+        runner.update_run(run_id, status="completed" if approved else "awaiting_gate")
+
+        return jsonify({
+            "status": "ok",
+            "version": version,
+            "path": path,
+        })
+
     @app.route("/health")
     def health():
         """Health check endpoint."""
