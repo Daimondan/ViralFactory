@@ -93,7 +93,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     @app.route("/onboard")
     def onboard():
-        """Onboarding surface — list available playbooks sorted by run_order."""
+        """Onboarding surface — list playbooks sorted by run_order with locked/completed state."""
         playbooks = []
         pb_dir = app.config["PLAYBOOKS_DIR"]
         if os.path.isdir(pb_dir):
@@ -111,11 +111,43 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     })
         # Sort by run_order (UI-REVIEW-001 F1)
         playbooks.sort(key=lambda p: p["run_order"])
+
+        # Determine locked/completed states from playbook runs
+        business_slug = None
+        try:
+            config = load_all(config_dir)
+            business_slug = config["business"]["business"]["slug"]
+        except ConfigError:
+            pass
+
+        if business_slug:
+            runner = PlaybookRunner(app.config["DB_PATH"])
+            all_runs = runner.list_runs(business_slug)
+            # Map playbook name → completed status
+            completed_names = set()
+            for r in all_runs:
+                if r.get("status") == "completed":
+                    completed_names.add(r["playbook_name"])
+            # Mark completed and locked
+            prev_completed = True  # First playbook is always unlocked
+            for pb in playbooks:
+                pb["completed"] = pb["name"] in completed_names
+                pb["locked"] = not prev_completed and not pb["completed"]
+                if pb["completed"]:
+                    prev_completed = True
+                else:
+                    prev_completed = False
+        else:
+            # No business slug — only first playbook is unlocked
+            for i, pb in enumerate(playbooks):
+                pb["completed"] = False
+                pb["locked"] = i > 0
+
         return render_template("onboard.html", playbooks=playbooks)
 
     @app.route("/onboard/<playbook_name>")
     def start_playbook(playbook_name):
-        """Start or resume a playbook."""
+        """Start or resume a playbook — renders session UI for Business Profile, falls back to original for others."""
         pb_path = os.path.join(app.config["PLAYBOOKS_DIR"], f"{playbook_name}.md")
         if not os.path.exists(pb_path):
             return "Playbook not found", 404
@@ -128,11 +160,278 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         run_id = runner.start_run(playbook.name, playbook.file_version, business_slug)
         run = runner.get_run(run_id)
 
+        # UI-REVIEW-001 F3: Business Profile Intake uses the session component
+        if playbook_name == "business-profile-intake":
+            # Build progress rail from playbook steps
+            rail_steps = []
+            for s in playbook.steps:
+                state = "pending"
+                if s.is_gate:
+                    state = "pending"
+                elif s.is_intake:
+                    state = "active"
+                rail_steps.append({"label": s.title[:40], "state": state})
+
+            # Check if analysis already exists
+            llm_outputs = json.loads(run.get("llm_outputs") or "{}")
+            profile = llm_outputs.get("analysis")
+
+            # Build readback text if profile exists
+            readback_text = ""
+            if profile:
+                readback_text = _build_business_readback(profile)
+
+            try:
+                business_name = config["business"]["business"]["name"]
+            except (ConfigError, KeyError):
+                business_name = "Your Business"
+
+            return render_template("session.html",
+                display_label=playbook.display_label or "Business Profile",
+                business_name=business_name, business_slug=business_slug,
+                playbook_name=playbook_name, run_id=run_id, run=run,
+                rail_steps=rail_steps, opening_question=_get_opening_question(playbook),
+                profile=profile, readback_text=readback_text,
+                gate_step=PlaybookRunner.get_gate_step_number(playbook))
+
+        # Other playbooks: use the original playbook_run template for now
         return render_template("playbook_run.html",
             playbook=playbook,
             run_id=run_id,
             run=run,
         )
+
+    def _get_opening_question(playbook):
+        """Extract an operator-facing opening question from the playbook's procedure."""
+        if not playbook.steps:
+            return "Tell me about your business."
+        # Use the first step's description as the opening, cleaned up
+        first = playbook.steps[0]
+        desc = first.description.strip() if first.description else first.title
+        # If it's a Q&A step, ask the first question
+        if "Q&A" in desc or "q&a" in desc.lower():
+            return "Let's start with the basics. What does your business do? Just tell me in your own words — no structure needed."
+        return desc[:200]
+
+    def _build_business_readback(profile):
+        """Build a plain-language readback of the business profile for the operator."""
+        lines = []
+        biz = profile.get("business", {})
+        lines.append(f"Business: {biz.get('name', '?')} — {biz.get('description', '')}")
+        lines.append("")
+
+        brands = profile.get("brands", [])
+        if brands:
+            lines.append("Brands:")
+            for b in brands:
+                lines.append(f"  • {b['name']} — {b.get('purpose', '')}")
+            lines.append("")
+
+        subjects = profile.get("subjects", [])
+        if subjects:
+            lines.append(f"Topics: {', '.join(subjects)}")
+            lines.append("")
+
+        platforms = profile.get("platforms", [])
+        if platforms:
+            lines.append("Platforms:")
+            for p in platforms:
+                lines.append(f"  • {p['name']} ({p.get('handle', '')})")
+            lines.append("")
+
+        goals = profile.get("goals", [])
+        if goals:
+            lines.append("Goals:")
+            for g in goals:
+                lines.append(f"  • {g}")
+            lines.append("")
+
+        red_lines = profile.get("red_lines", [])
+        if red_lines:
+            lines.append("Never do:")
+            for r in red_lines:
+                lines.append(f"  • {r}")
+            lines.append("")
+
+        audience = profile.get("audience_description", "")
+        if audience:
+            lines.append(f"Audience: {audience}")
+
+        return "\n".join(lines)
+
+    # ── Session API endpoints (UI-REVIEW-001 F3) ──
+
+    @app.route("/api/session/<int:run_id>/message", methods=["POST"])
+    def session_message(run_id):
+        """Handle a message from the operator in the chat session.
+        Stores the answer, then either asks a follow-up or triggers analysis."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        text = request.json.get("text", "").strip()
+        files = request.json.get("files", [])
+
+        if not text and not files:
+            return jsonify({"error": "No message provided"}), 400
+
+        # Store the answer as a Q&A pair (reuse the business-qa path)
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        if "business_qa" not in collected:
+            collected["business_qa"] = []
+
+        # If files were uploaded, note them
+        file_note = ""
+        if files:
+            file_note = f"\n[Files attached: {', '.join(files)}]"
+
+        # Store the message — use a contextual question if we can infer one
+        question = _infer_next_question(collected)
+        collected["business_qa"].append({"q": question, "a": text + file_note})
+        runner.update_run(run_id, collected_inputs=json.dumps(collected))
+
+        # Decide: ask follow-up, or trigger analysis
+        qa_count = len(collected["business_qa"])
+
+        if qa_count >= 5:
+            # Enough answers — trigger analysis
+            return _session_trigger_analysis(run_id, runner, run)
+        else:
+            # Ask the next question
+            next_q = _next_question(qa_count)
+            return jsonify({"status": "ok", "reply": next_q, "show_readback": False})
+
+    def _infer_next_question(collected):
+        """Infer which question the operator just answered based on count."""
+        qa_count = len(collected.get("business_qa", []))
+        questions = [
+            "What does your business do?",
+            "What brands or sub-brands do you run?",
+            "What topics does your content cover?",
+            "What platforms do you publish on?",
+            "What are your content goals?",
+            "What are your red lines?",
+            "Who is your audience?",
+            "Anything else?",
+        ]
+        if qa_count < len(questions):
+            return questions[qa_count]
+        return "Anything else?"
+
+    def _next_question(qa_count):
+        """Return the next question for the operator."""
+        questions = [
+            "Good. What brands or sub-brands do you run? What's each one for?",
+            "What topics does your content cover? Just list them — we'll structure later.",
+            "What platforms do you publish on? Drop your handles if you have them.",
+            "What are you trying to achieve with your content? Goals, even vague ones.",
+            "What are your red lines — things you'd NEVER post about or do?",
+            "Who is your audience? Describe them in your own words.",
+            "Anything else you want me to know about the business? This is your chance to add context.",
+            "Thanks — I have enough to draft your profile. Let me put it together...",
+        ]
+        if qa_count < len(questions):
+            return questions[qa_count]
+        return "Thanks — I have enough to draft your profile. Let me put it together..."
+
+    def _session_trigger_analysis(run_id, runner, run):
+        """Trigger the LLM analysis and return a readback signal."""
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        qa_pairs = collected.get("business_qa", [])
+
+        if not qa_pairs:
+            return jsonify({"status": "error", "error": "No Q&A collected yet."}), 400
+
+        # Build transcript
+        transcript = ""
+        for i, pair in enumerate(qa_pairs, 1):
+            transcript += f"Q{i}: {pair.get('q', '(free-form)')}\nA{i}: {pair['a']}\n\n"
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+            business = config["business"]
+        except ConfigError as e:
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        from module_store import BUSINESS_PROFILE_SCHEMA
+        from llm_adapter import LLMAdapter, LLMAdapterError
+
+        adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
+
+        try:
+            result = adapter.complete(
+                prompt_file="business_profile/analyze_v1.md",
+                variables={
+                    "business_name": business["business"]["name"],
+                    "existing_info": business["business"].get("description", ""),
+                    "qa_transcript": transcript[:8000],
+                },
+                schema=BUSINESS_PROFILE_SCHEMA,
+                backend="default",
+                context=f"Business Profile analysis for run {run_id} (session)",
+                business_slug=business["business"]["slug"],
+            )
+        except (LLMAdapterError, Exception) as e:
+            return jsonify({"error": str(e)}), 500
+
+        runner.add_llm_output(run_id, "analysis", result)
+        return jsonify({"status": "ok", "reply": "I've drafted your business profile. Review it below — correct anything, then approve to save.", "show_readback": True})
+
+    @app.route("/api/session/<int:run_id>/upload", methods=["POST"])
+    def session_upload(run_id):
+        """Handle a file upload in the session."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        if "file" not in request.files:
+            return jsonify({"error": "No file provided"}), 400
+
+        file = request.files["file"]
+        if file.filename == "":
+            return jsonify({"error": "No filename"}), 400
+
+        upload_dir = os.path.join(app.config.get("UPLOAD_DIR", "data/uploads"))
+        os.makedirs(upload_dir, exist_ok=True)
+        filepath = os.path.join(upload_dir, file.filename)
+        file.save(filepath)
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            business_slug = config["business"]["business"]["slug"]
+        except ConfigError:
+            business_slug = "unknown"
+
+        from materials import MaterialsIntake
+        intake = MaterialsIntake(app.config["DB_PATH"], upload_dir)
+        material_id = intake.ingest_file(
+            filepath, run_id=run_id, business_slug=business_slug,
+            channel="session_upload",
+        )
+
+        return jsonify({"status": "ok", "material_id": material_id, "filename": file.filename})
+
+    @app.route("/api/session/<int:run_id>/edit-readback", methods=["POST"])
+    def session_edit_readback(run_id):
+        """Save direct edits to the readback draft (authoritative, highest weight)."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        edited_text = request.json.get("text", "").strip()
+        if not edited_text:
+            return jsonify({"error": "No text provided"}), 400
+
+        # Store the edit as a note on the run
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        collected["readback_edit"] = edited_text
+        runner.update_run(run_id, collected_inputs=json.dumps(collected))
+
+        return jsonify({"status": "ok"})
 
     @app.route("/onboard/<playbook_name>/<int:run_id>")
     def view_run(playbook_name, run_id):

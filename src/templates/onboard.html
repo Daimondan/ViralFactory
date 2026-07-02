@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Onboard — ViralFactory</title>
+    <title>Onboard — {{ business_name }}</title>
     <style>
         :root {
             --bg: #0d1117; --surface: #161b22; --border: #30363d;
             --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7;
-            --green: #3fb950; --red: #f85149;
+            --green: #3fb950; --red: #f85149; --yellow: #d29922;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -16,53 +16,79 @@
             background: var(--bg); color: var(--text); line-height: 1.6;
             padding: 2rem; max-width: 1200px; margin: 0 auto;
         }
-        h1 { color: var(--accent); margin-bottom: 1rem; }
-        h2 { margin: 1.5rem 0 0.5rem; }
+        h1 { color: var(--accent); margin-bottom: 0.5rem; }
+        .subtle { color: var(--muted); font-size: 0.9rem; margin-bottom: 2rem; }
         a { color: var(--accent); text-decoration: none; }
-        .nav { display: flex; gap: 1.5rem; margin-bottom: 2rem; }
+        .nav { display: flex; gap: 1.5rem; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
         .nav a { color: var(--muted); }
         .nav a.active { color: var(--text); font-weight: 600; }
-        .card {
+
+        .playbook-card {
+            display: flex; align-items: center; gap: 1rem;
             background: var(--surface); border: 1px solid var(--border);
-            border-radius: 8px; padding: 1.2rem; margin-bottom: 1rem;
+            border-radius: 10px; padding: 1.2rem 1.5rem; margin-bottom: 0.8rem;
+            transition: border-color 0.15s; text-decoration: none; color: var(--text);
         }
-        .card:hover { border-color: var(--accent); }
-        .btn {
-            display: inline-block; padding: 0.5rem 1.2rem;
-            background: var(--accent); color: white; border: none;
-            border-radius: 6px; cursor: pointer; font-size: 0.9rem;
-            text-decoration: none;
+        .playbook-card:hover { border-color: var(--accent); }
+        .playbook-card.locked { opacity: 0.5; cursor: not-allowed; }
+        .playbook-card.locked:hover { border-color: var(--border); }
+        .playbook-card.done { border-color: rgba(63,185,80,0.3); }
+
+        .step-num {
+            flex-shrink: 0; width: 36px; height: 36px;
+            border-radius: 50%; background: var(--bg);
+            border: 2px solid var(--border);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 0.9rem; color: var(--muted);
         }
-        .muted { color: var(--muted); font-size: 0.85rem; }
-        .badge {
-            display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px;
-            font-size: 0.7rem; font-weight: 600; background: rgba(47,129,247,0.2);
-            color: var(--accent); margin-left: 0.5rem;
-        }
-        .badge-gate { background: rgba(210,153,34,0.2); color: #d29922; }
+        .step-num.active { border-color: var(--accent); color: var(--accent); }
+        .step-num.done { border-color: var(--green); color: var(--green); background: rgba(63,185,80,0.1); }
+        .step-num.locked { border-color: var(--border); color: var(--muted); }
+
+        .card-body { flex: 1; min-width: 0; }
+        .card-title { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.2rem; }
+        .card-purpose { font-size: 0.85rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .card-status { flex-shrink: 0; font-size: 0.75rem; font-weight: 600; padding: 0.2rem 0.6rem; border-radius: 10px; }
+        .status-done { background: rgba(63,185,80,0.15); color: var(--green); }
+        .status-locked { background: rgba(139,148,158,0.1); color: var(--muted); }
+        .status-ready { background: rgba(47,129,247,0.15); color: var(--accent); }
+
+        .start-arrow { flex-shrink: 0; color: var(--accent); font-size: 1.2rem; }
+        .locked .start-arrow { color: var(--muted); }
     </style>
 </head>
 <body>
     <h1>Onboarding</h1>
+    <p class="subtle">Run each step in order. The AI guides you through a conversation — you just talk, type, and upload.</p>
     <div class="nav">
         <a href="/">Home</a>
         <a href="/onboard" class="active">Onboard</a>
         <a href="/library">Library</a>
+        <a href="/ideas">Ideas</a>
+        <a href="/create">Create</a>
     </div>
-
-    <p>Available playbooks. Run them in order — Business Profile first, then Voice Profile.</p>
 
     {% for pb in playbooks %}
-    <div class="card">
-        <h2>{{ pb.name|replace('-', ' ')|title }} <span class="badge">v{{ pb.version }}</span>{% if pb.has_gate %}<span class="badge badge-gate">GATE</span>{% endif %}</h2>
-        <p>{{ pb.purpose }}</p>
-        <p class="muted">{{ pb.num_steps }} steps</p>
-        <a href="/onboard/{{ pb.name }}" class="btn">Start</a>
-    </div>
+    <a href="/onboard/{{ pb.name }}" class="playbook-card {{ 'locked' if pb.locked else '' }} {{ 'done' if pb.completed else '' }}">
+        <div class="step-num {{ 'done' if pb.completed else ('locked' if pb.locked else 'active') }}">{{ pb.run_order }}</div>
+        <div class="card-body">
+            <div class="card-title">{{ pb.display_label }}</div>
+            <div class="card-purpose">{{ pb.purpose }}</div>
+        </div>
+        {% if pb.completed %}
+        <span class="card-status status-done">✓ Done</span>
+        {% elif pb.locked %}
+        <span class="card-status status-locked">Locked</span>
+        {% else %}
+        <span class="card-status status-ready">Start</span>
+        {% endif %}
+        <span class="start-arrow">→</span>
+    </a>
     {% endfor %}
 
     {% if not playbooks %}
-    <p>No playbooks found. Check the playbooks/ directory.</p>
+    <p style="color: var(--muted); padding: 2rem; text-align: center;">No playbooks found.</p>
     {% endif %}
 </body>
 </html>
