@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-02
-**Current Phase:** M2 in progress. T2.1–T2.2 done. 133 tests passing.
+**Current Phase:** M2 in progress. T2.1–T2.2 done. R10–R16 corrections applied. 142 tests passing.
 
 ---
 
@@ -23,7 +23,7 @@
 | 7. Generalization proof | ⬜ | Real near-term but not blocking v1. |
 
 ## What's Done
-- [x] Repo created: https://github.com/Daimondan/ViralFactory (private)
+- [x] Repo created: https://github.com/Daimondan/ViralFactory (public — deliberate, so architect can read without auth)
 - [x] Charter v3 grilled and amended (5 divergences → DIVERGENCE-001)
 - [x] Claude architect reviewed all 5 divergences — all APPROVED
 - [x] Charter v3.1 in place. BUILD_PLAN v1.1. UI-DIRECTION v1.1. CONTEXT.md patched.
@@ -74,7 +74,8 @@
 - [x] R4 live smoke test: real Ollama Cloud round-trip, model=gpt-oss:120b, latency=27.9s, provenance row #1, verdict=valid
 
 ## What's Next
-- [ ] Tag review-w1 for Claude architect review
+- [x] Tag review-w1 (exists at commit d24c0c5)
+- [x] Review-w2 interim review corrections R10–R16 applied (R10: repo public decision, R11: v2 import server-side switch, R12: tenant strings in templates/prompts, R13: T2.9 pulled forward, R14: config archiving, R15: queued, R16: VPS constraint on T2.6–T2.8)
 - [x] T2.1: Business Profile intake — Q&A UI, AI analysis prompt, schema, gate enforcement, business.yaml + brand-context module (15 new tests, 116 total)
-- [x] T2.2: Sources Engine Part A — seed sources + anti-examples → AI criteria → sources.yaml + source-criteria module; v2 bulk-import path (disabled by default) (17 new tests, 133 total)
-- [ ] M2 continues: T2.3–T2.4 remaining playbooks, T2.5 module store, T2.6–T2.11 (transcription, voice cloning, R7–R9)
+- [x] T2.2: Sources Engine Part A — seed sources + anti-examples → AI criteria → sources.yaml + source-criteria module; v2 bulk-import path (server-side env var switch) (17 new tests, 133 total)
+- [ ] M2 revised order: T2.9 (gate-token, pulled forward) → R15 (minor fixes) → T2.3 → T2.4 → T2.5 → T2.6 → T2.8 → T2.7 (smoke test first per R16) → T2.10 → T2.11 → operator end-to-end test → tag review-w2

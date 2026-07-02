@@ -237,7 +237,8 @@ Scheduled research of what works in the wild: monitors top accounts/hashtags/cha
 - **LLM adapter:** one function, backend from config — swappable without code changes
 - **trafilatura** for content extraction
 - **systemd** on the VPS for deployment
-- **GitHub** for code AND docs (one repo)
+- **GitHub** for code AND docs (one repo, public — deliberate so architect can read without auth)
+- **Console auth (R10):** the Flask console has no authentication in M0–M2 code. Deployment posture: bind to localhost/VPN only on the VPS, or add auth before the operator end-to-end test. Endpoints trigger paid LLM calls and overwrite config files — not safe to expose publicly.
 - **Claude = architect** | **Hermes = builder** | **Daimon = operator**
 - **LLM backend swappable in config** — Ollama local/cloud, external APIs
 

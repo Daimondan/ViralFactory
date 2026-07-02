@@ -7,6 +7,7 @@ You are analyzing a business's trusted sources to build explicit, learnable crit
 - Business name: {business_name}
 - Business subjects: {subjects}
 - Audience: {audience_description}
+- Business region: {business_region}
 
 ## Seed sources from the operator
 
@@ -27,7 +28,7 @@ The criteria must capture:
 3. **freshness** — how recent content needs to be (e.g., "published within 6 months", "timeless is fine if foundational")
 4. **quality_signals** — what makes a source trustworthy (original data? practitioner-written? regional relevance? peer-reviewed? cited by other trusted sources?)
 5. **disqualifiers** — what makes a source junk (drawn from anti-examples: content-mill SEO? clickbait? no original reporting? regurgitation?)
-6. **regional_relevance** — does the source need to be Caribbean/regional, or is global fine if the insight transfers?
+6. **regional_relevance** — does the source need to be {business_region}/regional, or is global fine if the insight transfers?
 7. **monitoring_plan** — proposed feeds, channels, and search queries derived from the criteria
 8. **criteria_summary** — a one-paragraph plain-language summary the operator can read and edit
 

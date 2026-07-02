@@ -50,7 +50,7 @@ Return a JSON object with this exact structure:
 
 ## Rules
 1. Every pattern, dialect feature, and anti-pattern MUST have verbatim evidence from the corpus.
-2. Dialect features are PRESERVED, never corrected. Bajan, Caribbean English, code-switching — these are signal, not noise.
+2. Dialect features are PRESERVED, never corrected. E.g. regional dialects, code-switching — these are signal, not noise.
 3. Include 8-12 positive patterns across different dimensions.
 4. Include 2-5 dialect features with do_not_sanitize=true.
 5. Include 3-5 anti-patterns (what this person never does).

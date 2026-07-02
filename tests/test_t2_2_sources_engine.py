@@ -271,14 +271,25 @@ class TestSourcesRunner:
 class TestV2BulkImport:
 
     def test_disabled_by_default(self, tmp_db):
-        """v2 bulk-import returns 'disabled' when enabled=false."""
-        runner = PlaybookRunner(tmp_db)
-        run_id = runner.start_run("sources-engine", "1.0", "test")
-
-        # We can't call the Flask endpoint directly, but we test the logic:
-        # The endpoint checks `enabled` and returns disabled status
-        # This test verifies the contract documented in the API
-        assert True  # logic test — the API returns disabled when enabled=false
+        """v2 bulk-import returns 'disabled' when V2_IMPORT_ENABLED env var is not set."""
+        # Ensure env var is not set
+        old = os.environ.pop("V2_IMPORT_ENABLED", None)
+        try:
+            from app import create_app
+            app = create_app(db_path=tmp_db)
+            runner = PlaybookRunner(tmp_db)
+            run_id = runner.start_run("sources-engine", "1.0", "test")
+            client = app.test_client()
+            resp = client.post(f"/api/run/{run_id}/v2-bulk-import",
+                               json={"enabled": True})
+            data = resp.get_json()
+            assert data["status"] == "disabled"
+            assert "V2_IMPORT_ENABLED=true" in data["message"]
+            # Even though we passed enabled=True in the body, the server
+            # must ignore it and honour the env var instead.
+        finally:
+            if old is not None:
+                os.environ["V2_IMPORT_ENABLED"] = old
 
     def test_imports_from_v2_backup(self, tmp_dirs):
         """v2 bulk-import reads sources from a v2 SQLite backup."""
@@ -321,3 +332,162 @@ class TestV2BulkImport:
             assert len(sources) == 2
             assert sources[0]["url"] == "https://feed1.com"
             assert sources[1]["name"] == "Feed 2"
+
+    def test_truncation_reported(self, tmp_dirs):
+        """When sources exceed the fetch limit, truncated=true and total_available are returned."""
+        config_dir, modules_dir, db_path = tmp_dirs
+
+        with tempfile.TemporaryDirectory() as v2_dir:
+            # Create a v2 backup with more than FETCH_LIMIT (500) rows
+            v2_db = os.path.join(v2_dir, "v2_backup.db")
+            conn = sqlite3.connect(v2_db)
+            conn.executescript("""
+                CREATE TABLE sources (
+                    id INTEGER PRIMARY KEY,
+                    url TEXT, name TEXT, type TEXT, score REAL
+                );
+            """)
+            # Insert 600 rows
+            conn.executemany(
+                "INSERT INTO sources (url, name, type, score) VALUES (?, ?, 'rss', 0.5)",
+                [(f"https://feed{i}.com", f"Feed {i}") for i in range(600)],
+            )
+            conn.commit()
+            conn.close()
+
+            old_v2 = os.environ.get("V2_BACKUP_PATH")
+            old_en = os.environ.get("V2_IMPORT_ENABLED")
+            os.environ["V2_BACKUP_PATH"] = v2_dir
+            os.environ["V2_IMPORT_ENABLED"] = "true"
+            try:
+                from app import create_app
+                app = create_app(config_dir=config_dir, db_path=db_path)
+                runner = PlaybookRunner(db_path)
+                run_id = runner.start_run("sources-engine", "1.0", "test")
+                client = app.test_client()
+                resp = client.post(f"/api/run/{run_id}/v2-bulk-import", json={})
+                data = resp.get_json()
+                assert resp.status_code == 200
+                assert data["status"] == "ok"
+                assert data["truncated"] is True
+                assert data["total_available"] == 600
+                # imported should be limited to the fetch page (500)
+                assert data["imported"] == 500
+            finally:
+                if old_v2 is not None:
+                    os.environ["V2_BACKUP_PATH"] = old_v2
+                else:
+                    os.environ.pop("V2_BACKUP_PATH", None)
+                if old_en is not None:
+                    os.environ["V2_IMPORT_ENABLED"] = old_en
+                else:
+                    os.environ.pop("V2_IMPORT_ENABLED", None)
+
+    def test_no_truncation_when_under_limit(self, tmp_dirs):
+        """When sources are within the fetch limit, truncated is not set."""
+        config_dir, modules_dir, db_path = tmp_dirs
+
+        with tempfile.TemporaryDirectory() as v2_dir:
+            v2_db = os.path.join(v2_dir, "v2_backup.db")
+            conn = sqlite3.connect(v2_db)
+            conn.executescript("""
+                CREATE TABLE sources (
+                    id INTEGER PRIMARY KEY,
+                    url TEXT, name TEXT, type TEXT, score REAL
+                );
+                INSERT INTO sources (url, name, type, score) VALUES
+                    ('https://feed1.com', 'Feed 1', 'rss', 0.8),
+                    ('https://feed2.com', 'Feed 2', 'rss', 0.5);
+            """)
+            conn.commit()
+            conn.close()
+
+            old_v2 = os.environ.get("V2_BACKUP_PATH")
+            old_en = os.environ.get("V2_IMPORT_ENABLED")
+            os.environ["V2_BACKUP_PATH"] = v2_dir
+            os.environ["V2_IMPORT_ENABLED"] = "true"
+            try:
+                from app import create_app
+                app = create_app(config_dir=config_dir, db_path=db_path)
+                runner = PlaybookRunner(db_path)
+                run_id = runner.start_run("sources-engine", "1.0", "test")
+                client = app.test_client()
+                resp = client.post(f"/api/run/{run_id}/v2-bulk-import", json={})
+                data = resp.get_json()
+                assert resp.status_code == 200
+                assert data["status"] == "ok"
+                assert "truncated" not in data
+                assert data["imported"] == 2
+            finally:
+                if old_v2 is not None:
+                    os.environ["V2_BACKUP_PATH"] = old_v2
+                else:
+                    os.environ.pop("V2_BACKUP_PATH", None)
+                if old_en is not None:
+                    os.environ["V2_IMPORT_ENABLED"] = old_en
+                else:
+                    os.environ.pop("V2_IMPORT_ENABLED", None)
+
+    def test_selects_newest_backup(self, tmp_dirs):
+        """When multiple backup DBs exist, the newest by mtime is used."""
+        config_dir, modules_dir, db_path = tmp_dirs
+
+        with tempfile.TemporaryDirectory() as v2_dir:
+            # Create old backup
+            old_db = os.path.join(v2_dir, "old_backup.db")
+            conn_old = sqlite3.connect(old_db)
+            conn_old.executescript("""
+                CREATE TABLE sources (
+                    id INTEGER PRIMARY KEY,
+                    url TEXT, name TEXT, type TEXT, score REAL
+                );
+                INSERT INTO sources (url, name, type, score) VALUES
+                    ('https://old.com', 'Old', 'rss', 0.1);
+            """)
+            conn_old.commit()
+            conn_old.close()
+            # Make old_db have an older mtime
+            import time
+            old_time = time.time() - 3600
+            os.utime(old_db, (old_time, old_time))
+
+            # Create new backup
+            new_db = os.path.join(v2_dir, "new_backup.db")
+            conn_new = sqlite3.connect(new_db)
+            conn_new.executescript("""
+                CREATE TABLE sources (
+                    id INTEGER PRIMARY KEY,
+                    url TEXT, name TEXT, type TEXT, score REAL
+                );
+                INSERT INTO sources (url, name, type, score) VALUES
+                    ('https://new.com', 'New', 'rss', 0.9),
+                    ('https://new2.com', 'New 2', 'rss', 0.8);
+            """)
+            conn_new.commit()
+            conn_new.close()
+
+            old_v2 = os.environ.get("V2_BACKUP_PATH")
+            old_en = os.environ.get("V2_IMPORT_ENABLED")
+            os.environ["V2_BACKUP_PATH"] = v2_dir
+            os.environ["V2_IMPORT_ENABLED"] = "true"
+            try:
+                from app import create_app
+                app = create_app(config_dir=config_dir, db_path=db_path)
+                runner = PlaybookRunner(db_path)
+                run_id = runner.start_run("sources-engine", "1.0", "test")
+                client = app.test_client()
+                resp = client.post(f"/api/run/{run_id}/v2-bulk-import", json={})
+                data = resp.get_json()
+                assert resp.status_code == 200
+                assert data["status"] == "ok"
+                # Newest DB has 2 sources; old has 1. Should import 2.
+                assert data["imported"] == 2
+            finally:
+                if old_v2 is not None:
+                    os.environ["V2_BACKUP_PATH"] = old_v2
+                else:
+                    os.environ.pop("V2_BACKUP_PATH", None)
+                if old_en is not None:
+                    os.environ["V2_IMPORT_ENABLED"] = old_en
+                else:
+                    os.environ.pop("V2_IMPORT_ENABLED", None)

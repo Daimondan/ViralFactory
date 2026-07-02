@@ -96,3 +96,20 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ### 2026-07-02 STRATEGIC — Audio transcription + voice cloning (DIVERGENCE-003)
 **Rationale:** Daimon directed: implement audio transcription in M2 (resolving R6), AND add open-source voice cloning so content audio (reel voiceovers, X audio posts) is produced in the person's own voice. DIVERGENCE-003 filed with full rationale. Transcription: faster-whisper (CTranslate2, int8, CPU — our VPS has no GPU), model in config. Voice cloning: Apache 2.0 models only (commercially safe for paying customers). Qwen3-TTS primary candidate (3-second zero-shot cloning, 1.7B params). XTTS-v2/Coqui explicitly ruled out (CPML non-commercial license, Coqui org shut down). No cloud TTS APIs — self-hosted only, same data-sovereignty principle. Three new M2 tasks added: T2.6 (transcription), T2.7 (voice cloning adapter), T2.8 (voice sample management). R7–R9 also added as T2.9–T2.11.
+
+### 2026-07-02 OPS — Repo visibility decision (R10)
+**Rationale:** Architect flagged that the GitHub repo is public while PROGRESS.md said "(private)." Daimon confirmed PUBLIC is deliberate — the architect (Claude) needs to read the repo without auth. PROGRESS.md corrected. Console auth: the Flask console has no authentication in M0–M2; deployment posture documented in CONTEXT.md (bind to localhost/VPN or add auth before operator end-to-end test).
+
+### 2026-07-02 FIX — Review-M2-midpoint corrections R10–R16 applied
+**Rationale:** Architect interim review of T2.1–T2.2 identified blocking and non-blocking defects. All applied:
+- **R10:** Repo visibility decision recorded (public, deliberate); console auth posture documented in CONTEXT.md.
+- **R11:** v2 bulk-import enable switch moved from client-controlled request param to server-side env var `V2_IMPORT_ENABLED`; glob fix (select newest backup by mtime); truncation reporting (COUNT + paginated fetch, `truncated: true` + `total_available`). 3 new tests.
+- **R12:** Tenant strings genericized in `src/templates/business_profile.html` (placeholders), `src/templates/sources_engine.html` ("a previous pipeline backup"), `prompts/sources_engine/analyze_v1.md` (parameterized `{business_region}`), `prompts/voice_profile/analyze_v1.md` ("e.g. regional dialects"). Zero-tenant-strings test extended to templates + prompts. 3 new tests.
+- **R13:** BUILD_PLAN M2 reordered — T2.9 (gate-token enforcement) pulled forward before T2.3, scope expanded to cover ModuleStore.store() + both config-yaml write paths + all playbook store endpoints.
+- **R14:** Config yaml writes now archive before overwrite (`config/archive/{name}-{timestamp}.yaml`). 3 new tests.
+- **R15:** Queued (derive gate step from parsed playbook, land during M2).
+- **R16:** Binding constraint on T2.6–T2.8: VPS audio resource plan (never hold both models in memory, synthesis as background job, smoke-test Qwen3-TTS on VPS first, T2.7 AC amended with batch-window requirement).
+- 142 tests passing (133 + 9 new).
+
+### 2026-07-02 STRUCTURE — Inbox batch B filed + AMENDMENT-004 PROPOSED (awaiting operator)
+**Rationale:** Second inbox batch filed per Inbox Protocol. REVIEW-M2-MIDPOINT → `docs/reviews/`; AMENDMENT-004 (treatment block on idea cards) → `docs/decisions/` with status PROPOSED — filed but NOT applied. GitHub issue opened for operator approval. Existing reviews moved into `docs/reviews/`. Manifest → `docs/inbox/processed/`.
