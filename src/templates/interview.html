@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interview — ViralFactory</title>
+    <style>
+        :root {
+            --bg: #0d1117; --surface: #161b22; --border: #30363d;
+            --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7;
+            --green: #3fb950;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg); color: var(--text); line-height: 1.6;
+            padding: 2rem; max-width: 900px; margin: 0 auto;
+        }
+        h1 { color: var(--accent); margin-bottom: 0.5rem; }
+        h2 { margin: 1rem 0 0.5rem; }
+        a { color: var(--accent); text-decoration: none; }
+        .nav { display: flex; gap: 1.5rem; margin-bottom: 2rem; }
+        .nav a { color: var(--muted); }
+        .nav a.active { color: var(--text); font-weight: 600; }
+        .card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 8px; padding: 1.2rem; margin-bottom: 1rem;
+        }
+        .question-card {
+            border-left: 3px solid var(--accent);
+        }
+        .answer-card {
+            border-left: 3px solid var(--green);
+        }
+        .muted { color: var(--muted); font-size: 0.85rem; }
+        label { display: block; margin-bottom: 0.3rem; }
+        textarea {
+            width: 100%; min-height: 120px; background: var(--bg);
+            border: 1px solid var(--border); border-radius: 6px;
+            padding: 0.8rem; color: var(--text); font-family: inherit;
+            font-size: 0.95rem; resize: vertical;
+        }
+        .btn {
+            display: inline-block; padding: 0.5rem 1.2rem; border: none;
+            border-radius: 6px; cursor: pointer; font-size: 0.9rem;
+            color: white; margin-right: 0.5rem;
+        }
+        .btn-primary { background: var(--accent); }
+        .btn-approve { background: var(--green); }
+        .btn-secondary { background: var(--surface); border: 1px solid var(--border); }
+        .progress {
+            display: inline-block; padding: 0.2rem 0.8rem; border-radius: 12px;
+            font-size: 0.8rem; font-weight: 600;
+            background: rgba(47,129,247,0.2); color: var(--accent);
+        }
+        .word-bar {
+            height: 6px; background: var(--border); border-radius: 3px;
+            margin: 0.5rem 0; overflow: hidden;
+        }
+        .word-bar-fill {
+            height: 100%; background: var(--green); border-radius: 3px;
+            transition: width 0.3s;
+        }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">Home</a>
+        <a href="/onboard" class="active">Onboard</a>
+        <a href="/library">Library</a>
+    </div>
+
+    <h1>Voice Interview</h1>
+    <p class="muted">No materials? No problem. Answer a few questions in your own words.</p>
+
+    <div class="card">
+        <p><span class="progress" id="q-progress">Question 1</span></p>
+        <p class="muted">Goal: ~2,000 words total. Speak naturally — don't write for an audience.</p>
+        <div class="word-bar"><div class="word-bar-fill" id="word-bar" style="width: 0%"></div></div>
+        <p class="muted">Words so far: <span id="word-count">0</span> / 2,000</p>
+    </div>
+
+    <div id="question-section" class="card question-card">
+        <h2 id="question-text">Loading first question...</h2>
+        <p class="muted" id="question-hint"></p>
+    </div>
+
+    <div class="card">
+        <label>Your answer (type or paste — speak naturally):</label>
+        <textarea id="answer-text" placeholder="Just talk. Don't edit yourself. Messy is good."></textarea>
+        <button class="btn btn-primary" onclick="submitAnswer({{ run_id }})">Submit Answer</button>
+        <button class="btn btn-approve" id="finish-btn" onclick="finishInterview({{ run_id }})" class="hidden">I have enough — Analyze My Voice</button>
+    </div>
+
+    <div id="answers-section">
+        <h2>Your Answers</h2>
+        <div id="answers-list"></div>
+    </div>
+
+    <script>
+    let questionNum = 0;
+    let totalWords = 0;
+    const runId = {{ run_id }};
+
+    async function loadNextQuestion() {
+        const resp = await fetch(`/api/run/${runId}/interview-question`, { method: 'POST' });
+        const data = await resp.json();
+        if (data.error) { alert(data.error); return; }
+
+        questionNum = data.question_number;
+        document.getElementById('q-progress').textContent = `Question ${questionNum}`;
+        document.getElementById('question-text').textContent = data.question;
+        document.getElementById('question-hint').textContent = data.prompt_hint || '';
+    }
+
+    async function submitAnswer(runId) {
+        const answer = document.getElementById('answer-text').value.trim();
+        if (!answer) { alert('Write something first'); return; }
+
+        // Store the answer as a material
+        const resp = await fetch(`/api/run/${runId}/paste`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                content: answer,
+                channel: 'interview',
+                material_type: 'interview_answer',
+                audience: 'system',
+            }),
+        });
+        const data = await resp.json();
+        if (data.error) { alert(data.error); return; }
+
+        // Add to the answers list
+        const list = document.getElementById('answers-list');
+        const card = document.createElement('div');
+        card.className = 'card answer-card';
+        const qLabel = document.createElement('strong');
+        qLabel.textContent = `Q${questionNum}: `;
+        const answerText = document.createElement('span');
+        answerText.textContent = answer.substring(0, 200) + (answer.length > 200 ? '...' : '');
+        card.appendChild(qLabel);
+        card.appendChild(answerText);
+        list.appendChild(card);
+
+        // Update word count
+        const words = answer.split(/\s+/).length;
+        totalWords += words;
+        document.getElementById('word-count').textContent = totalWords;
+        const pct = Math.min(100, (totalWords / 2000) * 100);
+        document.getElementById('word-bar').style.width = pct + '%';
+
+        // Show finish button if we have enough
+        if (totalWords >= 500) {
+            document.getElementById('finish-btn').classList.remove('hidden');
+        }
+
+        // Clear textarea and load next question
+        document.getElementById('answer-text').value = '';
+        loadNextQuestion();
+    }
+
+    async function finishInterview(runId) {
+        if (totalWords < 50) {
+            alert('Need at least a few answers. Write a bit more.');
+            return;
+        }
+        // Redirect to the voice analysis
+        const resp = await fetch(`/api/run/${runId}/analyze-voice`, { method: 'POST' });
+        const data = await resp.json();
+        if (data.error) { alert(data.error); return; }
+
+        // Show the profile (safe DOM construction — no innerHTML with untrusted data)
+        const section = document.getElementById('question-section');
+        section.innerHTML = ''; // clear
+        const heading = document.createElement('h2');
+        heading.style.color = 'var(--green)';
+        heading.textContent = 'Voice Profile Generated ✅';
+        section.appendChild(heading);
+        const summary = document.createElement('p');
+        summary.className = 'muted';
+        summary.textContent = `${totalWords} words analyzed. ${data.profile.positive_patterns?.length || 0} patterns found.`;
+        section.appendChild(summary);
+        const pre = document.createElement('pre');
+        pre.style.cssText = 'background: var(--bg); padding: 1rem; border-radius: 6px; margin-top: 1rem; white-space: pre-wrap; max-height: 400px; overflow-y: auto;';
+        pre.textContent = data.markdown || JSON.stringify(data.profile, null, 2);
+        section.appendChild(pre);
+        const link = document.createElement('a');
+        link.href = `/onboard/voice-profile-builder/${runId}/calibrate`;
+        link.className = 'btn btn-approve';
+        link.textContent = 'Calibrate My Voice →';
+        section.appendChild(link);
+        document.querySelector('.card textarea').parentElement.classList.add('hidden');
+        document.getElementById('finish-btn').classList.add('hidden');
+    }
+
+    // Load first question on page load
+    loadNextQuestion();
+    </script>
+</body>
+</html>

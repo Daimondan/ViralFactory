@@ -453,6 +453,63 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             "path": path,
         })
 
+    @app.route("/onboard/<playbook_name>/<int:run_id>/interview")
+    def interview_page(playbook_name, run_id):
+        """Interview fallback UI for users with no materials."""
+        return render_template("interview.html", run_id=run_id)
+
+    @app.route("/api/run/<int:run_id>/interview-question", methods=["POST"])
+    def interview_question(run_id):
+        """Generate the next interview question."""
+        from llm_adapter import LLMAdapter, LLMAdapterError
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+            business = config["business"]
+        except ConfigError as e:
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        # Count existing interview answers
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        q_count = sum(1 for k in collected.keys() if k.startswith("interview_q"))
+
+        adapter = LLMAdapter(
+            models_config,
+            db_path=app.config["DB_PATH"],
+            prompts_dir="prompts",
+        )
+
+        try:
+            result = adapter.complete(
+                prompt_file="voice_profile/interview_v1.md",
+                variables={
+                    "business_name": business["business"]["name"],
+                    "audience_description": business.get("audience_description", ""),
+                    "subjects": ", ".join(business.get("subjects", [])),
+                },
+                schema={
+                    "type": "object",
+                    "required": ["question_number", "question"],
+                    "properties": {
+                        "question_number": {"type": "integer", "minimum": 1},
+                        "question": {"type": "string"},
+                        "prompt_hint": {"type": "string"},
+                    },
+                },
+                backend="default",
+                context=f"Interview question {q_count + 1} for run {run_id}",
+            )
+        except (LLMAdapterError, Exception) as e:
+            return jsonify({"error": str(e)}), 500
+
+        return jsonify(result)
+
     @app.route("/health")
     def health():
         """Health check endpoint."""
