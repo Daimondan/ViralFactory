@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Publish — {{ business_name }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f1117; color: #e0e0e0; }
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { font-size: 1.5rem; margin-bottom: 6px; }
+        h2 { font-size: 1.1rem; margin: 20px 0 10px; }
+        .subtle { color: #888; font-size: 0.85rem; margin-bottom: 20px; }
+        a { color: #5b9fd6; text-decoration: none; }
+        .nav { display: flex; gap: 15px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #2a2d36; }
+        .asset-card { background: #1a1d27; border-radius: 10px; padding: 16px; border: 1px solid #2a2d36; margin-bottom: 12px; }
+        .asset-platform { font-weight: 600; color: #6ab0ff; margin-bottom: 6px; }
+        .asset-content { font-size: 0.88rem; white-space: pre-wrap; line-height: 1.6; margin-bottom: 10px; }
+        .schedule-row { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+        .schedule-row input { padding: 6px; border-radius: 4px; border: 1px solid #333; background: #12131a; color: #e0e0e0; font-size: 0.85rem; }
+        .btn { padding: 6px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 500; }
+        .btn-go { background: #1a4a2a; color: #4acc6a; }
+        .btn-hold { background: #2a2d36; color: #aaa; }
+        .btn:hover { opacity: 0.85; }
+        .empty { color: #666; font-style: italic; padding: 20px; text-align: center; }
+        .warning { color: #ff9a4a; font-size: 0.8rem; padding: 10px; background: #2a1a0a; border-radius: 6px; margin-bottom: 16px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="nav">
+        <a href="/create">← Create</a>
+        <a href="/">Dashboard</a>
+    </div>
+
+    <h1>Publish — Gate 4</h1>
+    <p class="subtle">Go / hold + timing. Every piece passes human approval before posting. No auto-publish, ever.</p>
+
+    <div class="warning">⚠ Per-piece approval is a hard business rule. No code path may post without explicit human approval on that piece.</div>
+
+    {% if approved_assets %}
+    <h2>Approved assets ready to publish</h2>
+    {% for asset in approved_assets %}
+    <div class="asset-card">
+        <div class="asset-platform">{{ asset.platform }} — {{ asset.variant_type }}</div>
+        <div class="asset-content">{{ asset.content[:500] }}{% if asset.content|length > 500 %}...{% endif %}</div>
+        <div class="schedule-row">
+            <label>Schedule for: </label>
+            <input type="datetime-local" id="schedule-{{ asset.id }}">
+            <button class="btn btn-go" onclick="schedule({{ asset.id }})">Go (schedule)</button>
+            <button class="btn btn-hold" onclick="hold({{ asset.id }})">Hold</button>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="empty">No approved assets ready to publish. Approve assets at Gate 3 first.</p>
+    {% endif %}
+</div>
+
+<script>
+function schedule(id) {
+    const dt = document.getElementById('schedule-' + id).value;
+    if (!dt) return alert('Select a date/time first.');
+    fetch('/api/assets/' + id + '/schedule', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({scheduled_at: dt}),
+    }).then(r => r.json()).then(data => {
+        if (data.status === 'ok') { alert('Scheduled for ' + dt); window.location.reload(); }
+        else alert('Error: ' + (data.error || 'unknown'));
+    });
+}
+
+function hold(id) {
+    fetch('/api/assets/' + id + '/schedule', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({scheduled_at: ''}),
+    }).then(r => r.json()).then(data => { alert('Held — not scheduled'); });
+}
+</script>
+</body>
+</html>

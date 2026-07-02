@@ -2423,6 +2423,471 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         return jsonify({"status": "ok", "material_id": material_id})
 
+    # ── T3.5: Drafter ──
+
+    @app.route("/create/draft/<int:card_id>")
+    def draft_page(card_id):
+        """Drafter UI — generate or view a draft for an approved idea card."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return "Business not configured", 500
+
+        store = _get_pipeline_store()
+        card = store.get_idea_card(card_id)
+        if not card:
+            return "Card not found", 404
+
+        treatment = json.loads(card.get("treatment") or "{}")
+        hook_options = json.loads(card.get("hook_options") or "[]")
+
+        # Check if a draft already exists for this card
+        all_drafts = store.list_drafts(business_slug)
+        existing_draft = None
+        for d in all_drafts:
+            if d["idea_card_id"] == card_id:
+                existing_draft = d
+                break
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            business_name = config["business"]["business"]["name"]
+        except ConfigError:
+            business_name = "Not configured"
+
+        return render_template("draft.html",
+            business_name=business_name, card=card,
+            treatment=treatment, hook_options=hook_options,
+            draft=_parse_draft_for_display(existing_draft))
+
+    def _parse_draft_for_display(draft):
+        """Parse JSON fields on a draft for template display. Merges parsed fields into the draft dict."""
+        if not draft:
+            return None
+        d = dict(draft)
+        try:
+            d["self_audit_flags_parsed"] = json.loads(draft.get("self_audit_flags") or "[]")
+        except (json.JSONDecodeError, TypeError):
+            d["self_audit_flags_parsed"] = []
+        try:
+            d["visual_direction_parsed"] = json.loads(draft.get("visual_direction") or "{}")
+        except (json.JSONDecodeError, TypeError):
+            d["visual_direction_parsed"] = {}
+        return d
+
+    @app.route("/api/draft/<int:card_id>/generate", methods=["POST"])
+    def draft_generate(card_id):
+        """Generate a draft from an approved idea card + all modules (T3.5)."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        store = _get_pipeline_store()
+        card = store.get_idea_card(card_id)
+        if not card:
+            return jsonify({"error": "Card not found"}), 404
+
+        # Card must be approved or capture_fulfilled
+        if card["card_state"] not in ("approved", "capture_fulfilled", "drafting", "drafted"):
+            return jsonify({"error": f"Card state is '{card['card_state']}' — must be approved or capture_fulfilled to draft"}), 400
+
+        treatment = json.loads(card.get("treatment") or "{}")
+        hook_options = json.loads(card.get("hook_options") or "[]")
+        format_name = treatment.get("format", {}).get("format_name", "")
+        scope = treatment.get("scope", {}).get("type", "")
+
+        # Load ALL modules
+        modules = _load_all_modules(business_slug)
+
+        # Load capture material if any
+        capture_text = ""
+        uploads = json.loads(card.get("capture_uploads") or "[]")
+        if uploads:
+            from materials import MaterialsIntake
+            intake = MaterialsIntake(app.config["DB_PATH"])
+            for mid in uploads:
+                mat = intake.get_material(mid)
+                if mat and mat.get("normalized_content"):
+                    capture_text += mat["normalized_content"] + "\n\n"
+                elif mat and mat.get("raw_content"):
+                    capture_text += mat["raw_content"] + "\n\n"
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+            business = config["business"]
+        except ConfigError as e:
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        from llm_adapter import LLMAdapter, LLMAdapterError
+        from pipeline import DRAFT_SCHEMA
+
+        adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
+
+        try:
+            result = adapter.complete(
+                prompt_file="draft/generate_v1.md",
+                variables={
+                    "business_name": business["business"]["name"],
+                    "audience_description": business.get("audience_description", ""),
+                    "origin": card["origin"],
+                    "format_name": format_name,
+                    "scope": scope,
+                    "idea": card["idea"],
+                    "hook_options": "\n".join(f"- {h}" for h in hook_options),
+                    "voice_profile": modules.get("voice-profile", "(not built)")[:3000],
+                    "tells_checklist": _extract_tells_checklist(modules.get("voice-profile", "")),
+                    "story_frameworks": modules.get("story-frameworks", "(not built)")[:2000],
+                    "audience_insights": modules.get("audience-insights", "(not built)")[:2000],
+                    "viral_patterns": modules.get("viral-patterns", "(not built)")[:2000],
+                    "visual_style": modules.get("visual-style", "(not built)")[:2000],
+                    "format_guide": modules.get("format-guide", "(not built)")[:2000],
+                    "capture_material": capture_text[:2000] if capture_text else "(none)",
+                },
+                schema=DRAFT_SCHEMA,
+                backend="drafter",
+                context=f"Draft generation for card {card_id} ({card['origin']}, {format_name})",
+                business_slug=business_slug,
+            )
+        except (LLMAdapterError, Exception) as e:
+            return jsonify({"error": str(e)}), 500
+
+        # Create or update draft record
+        existing = None
+        for d in store.list_drafts(business_slug):
+            if d["idea_card_id"] == card_id:
+                existing = d
+                break
+
+        if existing:
+            store.save_draft_content(
+                existing["id"],
+                result["draft_text"],
+                result["visual_direction"],
+                result["self_audit_flags"],
+            )
+            draft_id = existing["id"]
+        else:
+            draft_id = store.create_draft(
+                business_slug=business_slug,
+                idea_card_id=card_id,
+                origin=card["origin"],
+                format_name=format_name,
+                scope=scope,
+            )
+            store.save_draft_content(
+                draft_id,
+                result["draft_text"],
+                result["visual_direction"],
+                result["self_audit_flags"],
+            )
+
+        # Update card state to 'drafted'
+        store.update_card_state(card_id, "drafted")
+
+        return jsonify({
+            "status": "ok",
+            "draft_id": draft_id,
+            "draft_text": result["draft_text"],
+            "visual_direction": result["visual_direction"],
+            "self_audit_flags": result["self_audit_flags"],
+        })
+
+    def _extract_tells_checklist(voice_profile_md: str) -> str:
+        """Extract the Tells Checklist section from the Voice Profile module."""
+        if not voice_profile_md or voice_profile_md.startswith("("):
+            return "(Voice Profile not built — no Tells Checklist available)"
+        # Look for the Tells Checklist section
+        import re
+        match = re.search(r'##\s*Tells\s*Checklist\s*\n(.+?)(?=\n##\s|$)', voice_profile_md, re.DOTALL | re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+        return "(Tells Checklist section not found in Voice Profile)"
+
+    # ── T3.6: Human pass UI (Gate 2) ──
+
+    @app.route("/api/draft/<int:draft_id>/feedback", methods=["POST"])
+    def draft_feedback(draft_id):
+        """Add feedback to a draft (chip, text, or direct edit)."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        store = _get_pipeline_store()
+        draft = store.get_draft(draft_id)
+        if not draft:
+            return jsonify({"error": "Draft not found"}), 404
+
+        feedback_type = request.json.get("feedback_type", "")
+        feedback_text = request.json.get("feedback_text", "")
+        line_reference = request.json.get("line_reference", "")
+
+        if feedback_type not in ("chip", "text", "direct_edit"):
+            return jsonify({"error": "Invalid feedback type"}), 400
+        if not feedback_text:
+            return jsonify({"error": "No feedback text provided"}), 400
+
+        entry_id = store.add_feedback(
+            business_slug=business_slug,
+            feedback_type=feedback_type,
+            feedback_text=feedback_text,
+            draft_id=draft_id,
+            line_reference=line_reference,
+        )
+
+        # If direct edit, save the edit
+        if feedback_type == "direct_edit":
+            edits = json.loads(draft.get("human_edits") or "{}")
+            edits[line_reference or f"edit_{entry_id}"] = feedback_text
+            store.save_human_edits(draft_id, edits)
+
+        return jsonify({"status": "ok", "feedback_id": entry_id})
+
+    @app.route("/api/draft/<int:draft_id>/gate", methods=["POST"])
+    def draft_gate(draft_id):
+        """Gate 2 decision: ship-forward or kill the draft."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        store = _get_pipeline_store()
+        draft = store.get_draft(draft_id)
+        if not draft:
+            return jsonify({"error": "Draft not found"}), 404
+
+        action = request.json.get("action", "")
+        if action not in ("ship", "kill", "revise"):
+            return jsonify({"error": "Invalid action. Use ship, kill, or revise."}), 400
+
+        if action == "ship":
+            store.update_draft_state(draft_id, "shipped")
+            # Update card state
+            store.update_card_state(draft["idea_card_id"], "drafted")
+            return jsonify({"status": "ok", "new_state": "shipped"})
+        elif action == "kill":
+            store.update_draft_state(draft_id, "killed")
+            reason = request.json.get("kill_reason", "")
+            if reason:
+                store.add_feedback(
+                    business_slug=business_slug,
+                    feedback_type="kill_reason",
+                    feedback_text=reason,
+                    draft_id=draft_id,
+                )
+            return jsonify({"status": "ok", "new_state": "killed"})
+        elif action == "revise":
+            # Increment version, set state to revised
+            new_version = store.increment_draft_version(draft_id)
+            return jsonify({"status": "ok", "new_state": "revised", "new_version": new_version})
+
+    # ── T3.7: Assets stage ──
+
+    @app.route("/create/assets/<int:draft_id>")
+    def assets_page(draft_id):
+        """Assets gate UI — per-platform variants for a shipped draft (T3.7/T3.8)."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return "Business not configured", 500
+
+        store = _get_pipeline_store()
+        draft = store.get_draft(draft_id)
+        if not draft:
+            return "Draft not found", 404
+
+        assets = store.list_assets(draft_id)
+        visual_direction = json.loads(draft.get("visual_direction") or "{}")
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            business_name = config["business"]["business"]["name"]
+            platforms = config["business"].get("platforms", [])
+        except ConfigError:
+            business_name = "Not configured"
+            platforms = []
+
+        return render_template("assets.html",
+            business_name=business_name, draft=draft,
+            assets=assets, visual_direction=visual_direction,
+            platforms=platforms)
+
+    @app.route("/api/assets/<int:draft_id>/fan-out", methods=["POST"])
+    def assets_fan_out(draft_id):
+        """T3.7: Generate per-platform variants from a shipped draft."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        store = _get_pipeline_store()
+        draft = store.get_draft(draft_id)
+        if not draft:
+            return jsonify({"error": "Draft not found"}), 404
+        if draft["draft_state"] != "shipped":
+            return jsonify({"error": f"Draft state is '{draft['draft_state']}' — must be 'shipped' to fan out"}), 400
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+            business = config["business"]
+        except ConfigError as e:
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        platforms = business.get("platforms", [])
+        visual_direction = json.loads(draft.get("visual_direction") or "{}")
+
+        # For each platform, generate a variant via LLM
+        from llm_adapter import LLMAdapter, LLMAdapterError
+
+        adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
+
+        assets_created = []
+        for platform in platforms:
+            platform_name = platform["name"]
+            variant_schema = {
+                "type": "object",
+                "required": ["content", "variant_type"],
+                "properties": {
+                    "content": {"type": "string"},
+                    "variant_type": {"type": "string"},
+                    "image_prompts": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+            }
+
+            try:
+                result = adapter.complete(
+                    prompt_file="assets/fan_out_v1.md",
+                    variables={
+                        "business_name": business["business"]["name"],
+                        "platform_name": platform_name,
+                        "platform_handle": platform.get("handle", ""),
+                        "draft_text": draft["draft_text"][:4000],
+                        "visual_direction": json.dumps(visual_direction)[:1000],
+                        "format": draft.get("format", ""),
+                    },
+                    schema=variant_schema,
+                    backend="default",
+                    context=f"Asset fan-out for draft {draft_id} → {platform_name}",
+                    business_slug=business_slug,
+                )
+            except (LLMAdapterError, Exception) as e:
+                # Continue with other platforms even if one fails
+                continue
+
+            asset_id = store.create_asset(
+                business_slug=business_slug,
+                draft_id=draft_id,
+                platform=platform_name,
+                variant_type=result.get("variant_type", "post"),
+                content=result["content"],
+                image_prompts=result.get("image_prompts", []),
+            )
+            assets_created.append({"id": asset_id, "platform": platform_name})
+
+        return jsonify({"status": "ok", "assets": assets_created, "count": len(assets_created)})
+
+    @app.route("/api/assets/<int:asset_id>/gate", methods=["POST"])
+    def assets_gate(asset_id):
+        """T3.8: Gate 3 — approve/fix/kill per platform variant."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        store = _get_pipeline_store()
+        asset = store.get_asset(asset_id)
+        if not asset:
+            return jsonify({"error": "Asset not found"}), 404
+
+        action = request.json.get("action", "")
+        if action not in ("approve", "fix", "kill"):
+            return jsonify({"error": "Invalid action. Use approve, fix, or kill."}), 400
+
+        state_map = {"approve": "approved", "fix": "fix", "kill": "killed"}
+        store.update_asset_state(asset_id, state_map[action])
+        return jsonify({"status": "ok", "new_state": state_map[action]})
+
+    # ── T3.12: Publish handoff ──
+
+    @app.route("/create/publish/<int:draft_id>")
+    def publish_page(draft_id):
+        """Gate 4 — go/hold + timing for approved assets (T3.12)."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return "Business not configured", 500
+
+        store = _get_pipeline_store()
+        draft = store.get_draft(draft_id)
+        if not draft:
+            return "Draft not found", 404
+
+        assets = store.list_assets(draft_id)
+        approved_assets = [a for a in assets if a["asset_state"] == "approved"]
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            business_name = config["business"]["business"]["name"]
+        except ConfigError:
+            business_name = "Not configured"
+
+        return render_template("publish.html",
+            business_name=business_name, draft=draft,
+            approved_assets=approved_assets)
+
+    @app.route("/api/assets/<int:asset_id>/schedule", methods=["POST"])
+    def schedule_publish(asset_id):
+        """T3.12: Schedule an approved asset for publish (go + timing)."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        store = _get_pipeline_store()
+        asset = store.get_asset(asset_id)
+        if not asset:
+            return jsonify({"error": "Asset not found"}), 404
+        if asset["asset_state"] != "approved":
+            return jsonify({"error": "Asset must be approved first"}), 400
+
+        scheduled_at = request.json.get("scheduled_at", "")
+        if scheduled_at:
+            store.set_asset_schedule(asset_id, scheduled_at)
+            store.update_asset_state(asset_id, "published")
+            return jsonify({"status": "ok", "scheduled_at": scheduled_at})
+        else:
+            # Hold — no schedule yet
+            return jsonify({"status": "ok", "message": "Held — not scheduled"})
+
+    # ── Create surface (dashboard for the co-production loop) ──
+
+    @app.route("/create")
+    def create_surface():
+        """Create surface — overview of drafts and assets in the pipeline."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return "Business not configured", 500
+
+        store = _get_pipeline_store()
+
+        # Get all drafts and their states
+        drafts = store.list_drafts(business_slug)
+        idea_cards = store.list_idea_cards(business_slug)
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            business_name = config["business"]["business"]["name"]
+        except ConfigError:
+            business_name = "Not configured"
+
+        # Categorize drafts
+        shipped = [d for d in drafts if d["draft_state"] == "shipped"]
+        ready = [d for d in drafts if d["draft_state"] == "draft_ready"]
+        drafting = [d for d in drafts if d["draft_state"] == "drafting"]
+
+        return render_template("create.html",
+            business_name=business_name,
+            idea_cards=idea_cards,
+            drafts=drafts,
+            shipped=shipped, ready=ready, drafting=drafting)
+
     @app.route("/health")
     def health():
         """Health check endpoint."""

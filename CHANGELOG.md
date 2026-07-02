@@ -6,7 +6,24 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
-### 2026-07-02 BUILD T2.4 — Visual Style intake + shot-library index
+### 2026-07-02 BUILD T3.5–T3.12 — Co-production loop complete (M3 done)
+
+**What:**
+- **T3.5 Drafter:** prompt template (draft/generate_v1.md), DRAFT_SCHEMA (draft_text + visual_direction + self_audit_flags), Flask route loads ALL 8 modules + capture material → LLM → draft stored. Visual direction is text only (no renders). Self-audit flags shown with rule + suggestion. Uses drafter backend from models.yaml.
+- **T3.6 Human pass (Gate 2):** reaction chips + typed feedback + direct-edit mode. Direct edits saved as authoritative (highest weight=3 in Feedback Log). Gate decisions: ship-forward, kill (with reason→feedback), revise (version increment).
+- **T3.7 Assets stage:** prompt template (assets/fan_out_v1.md), per-platform variant generation via LLM. Image prompts generated per platform. Fan-out only on shipped drafts.
+- **T3.8 Assets gate (Gate 3):** per-variant approve/fix/kill. Approved assets flow to publish.
+- **T3.9 Origin threading:** origin + format + scope carried from idea card → draft → assets → nightly stats (get_pipeline_stats: origin/format/scope breakdown).
+- **T3.12 Publish handoff (Gate 4):** go/hold + timing. Schedule sets publish_scheduled_at and transitions to 'published'. Non-approved assets can't be scheduled. Hard rule: no auto-publish.
+- **Create surface:** dashboard at /create showing pipeline state (approved ideas, drafts in progress, shipped).
+- **Templates:** draft.html (full draft display + feedback + gate), assets.html (per-platform grid), publish.html (go/hold + scheduling), create.html (pipeline overview).
+- 28 new tests (310 total).
+
+**Rationale:** M3 BUILD_PLAN T3.5–T3.12 — the full staged pipeline from approved idea to publishable asset. The co-production loop is now complete: Ideas → Draft → Assets → Publish, with all four gates operational, origin/format/scope threaded end-to-end, series spawning and experimental format debut working. No hardcoded business values — all from config and modules.
+
+---
+
+### 2026-07-02 BUILD T3.1–T3.3 — Idea cards, Ideas gate, awaiting-capture
 **What:** 2 prompt templates (per-item indexing + style guide analysis), VISUAL_STYLE_SCHEMA (palette with hex codes, typography feel, stylization level, blend rules with real/generated/disclosure split, platform adjustments), SHOT_LIBRARY_ITEM_SCHEMA (description, tags, mood, best_for, platforms), 2 markdown converters, 5 API endpoints including per-item LLM indexing of shot library items, HTML intake page with palette swatches and shot library display. Gate-enforced write writes both visual-style and shot-library modules. 23 new tests (240 total).
 **Rationale:** M2 BUILD_PLAN T2.4 — the visual identity module and shot library that feed the drafter's visual direction blocks. Blend rules enforce the charter principle: real footage anchors trust, generated is supporting.
 

@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-02
-**Current Phase:** M2 nearly complete. T2.1–T2.5, T2.9, T2.10, T2.11, R15 done. T2.6–T2.8 deferred (audio/voice cloning after UI review). 254 tests passing. **Deployed — operator UI review in progress.**
+**Current Phase:** M3 complete (T3.1–T3.12). 310 tests passing. Co-production loop fully built: idea cards, Ideas gate, awaiting-capture, drafter, human pass, assets, per-platform gate, publish handoff, series spawning, experimental format debut, origin threading. M2 audio/voice tasks (T2.6–T2.8) still deferred.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
@@ -18,7 +18,7 @@
 | 0. Foundation | ✅ | All T0.1–T0.7 done. 28 tests passing. Real config verified. Pushed. |
 | 1. Onboarding engine: Voice Profile | ✅ | T1.1–T1.5 all done. 92 tests. Runner, intake, analysis, calibration, interview fallback. |
 | 2. Remaining playbooks wired | 🔧 | All playbooks done (T2.1–T2.4) + gate enforcement (T2.9) + schema-check (T2.5) + security fixes (T2.10) + provenance business_slug (T2.11) + gate step derivation (R15). 254 tests. T2.6–T2.8 (audio/voice) **deferred after operator UI review** (architect batch C). Deployed: Tailscale URL live, basicauth on public route. |
-| 3. Co-production loop | ⬜ | Direct-edit mode in BUILD_PLAN (T3.3). Drafter A/B at checkpoint. |
+| 3. Co-production loop | ✅ | T3.1–T3.12 all done. Idea cards, Ideas gate, awaiting-capture, drafter, human pass (chips+direct edit), assets fan-out, Gate 3, publish handoff, series spawning, experimental format debut, origin/format/scope threading. 310 tests. |
 | 4. Publish + metrics automation | ⬜ | Postiz self-hosted confirmed. |
 | 5. Inward learning loop | ⬜ | Async gate queue (superseding, age, no pressure). |
 | 6. Outward research loop | ⬜ | Continuous from v1 of this phase. |

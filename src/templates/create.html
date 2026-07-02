@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create — {{ business_name }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f1117; color: #e0e0e0; }
+        .container { max-width: 1280px; margin: 0 auto; padding: 20px; }
+        h1 { font-size: 1.8rem; margin-bottom: 8px; }
+        h2 { font-size: 1.2rem; margin: 20px 0 10px; }
+        .subtle { color: #888; font-size: 0.9rem; margin-bottom: 20px; }
+        a { color: #5b9fd6; text-decoration: none; }
+        .nav { display: flex; gap: 15px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #2a2d36; }
+        .nav a.active { color: #5b9fd6; }
+        .pipeline-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 16px; }
+        .stage-card { background: #1a1d27; border-radius: 10px; padding: 16px; border: 1px solid #2a2d36; }
+        .stage-card h3 { font-size: 0.9rem; color: #aaa; margin-bottom: 10px; }
+        .item { padding: 8px 10px; background: #12131a; border-radius: 6px; margin-bottom: 6px; font-size: 0.85rem; }
+        .item a { color: #5b9fd6; }
+        .state-badge { font-size: 0.68rem; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+        .state-new { background: #2a2d36; color: #aaa; }
+        .state-approved { background: #1a3a2a; color: #4acc6a; }
+        .state-shipped { background: #1a3a2a; color: #4acc6a; }
+        .state-drafting { background: #1a2a3a; color: #4a8acc; }
+        .empty { color: #666; font-style: italic; padding: 10px; text-align: center; }
+        .btn { padding: 6px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 500; background: #1a3a5a; color: #6ab0ff; }
+        .btn:hover { opacity: 0.85; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Create — {{ business_name }}</h1>
+    <p class="subtle">The co-production loop: Ideas → Draft → Assets → Publish</p>
+    <div class="nav">
+        <a href="/">Dashboard</a>
+        <a href="/onboard">Onboard</a>
+        <a href="/library">Library</a>
+        <a href="/ideas">Ideas</a>
+        <a href="/create" class="active">Create</a>
+    </div>
+
+    <div class="pipeline-grid">
+        <div class="stage-card">
+            <h3>Approved ideas (ready to draft)</h3>
+            {% set approved_cards = idea_cards | selectattr('card_state', 'equalto', 'approved') | list %}
+            {% set fulfilled_cards = idea_cards | selectattr('card_state', 'equalto', 'capture_fulfilled') | list %}
+            {% if approved_cards or fulfilled_cards %}
+                {% for card in approved_cards + fulfilled_cards %}
+                <div class="item">
+                    <a href="/create/draft/{{ card.id }}">{{ card.idea[:60] }}...</a>
+                    <span class="state-badge state-approved">{{ card.card_state }}</span>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="empty">No approved ideas. <a href="/ideas">Approve some →</a></p>
+            {% endif %}
+        </div>
+
+        <div class="stage-card">
+            <h3>Drafts in progress</h3>
+            {% if drafting %}
+                {% for d in drafting %}
+                <div class="item"><a href="/create/draft/{{ d.idea_card_id }}">Draft #{{ d.id }} — drafting</a></div>
+                {% endfor %}
+            {% else %}
+                <p class="empty">No drafts in progress.</p>
+            {% endif %}
+        </div>
+
+        <div class="stage-card">
+            <h3>Shipped (ready for assets)</h3>
+            {% if shipped %}
+                {% for d in shipped %}
+                <div class="item"><a href="/create/assets/{{ d.id }}">Draft #{{ d.id }} — shipped → assets</a></div>
+                {% endfor %}
+            {% else %}
+                <p class="empty">No shipped drafts.</p>
+            {% endif %}
+        </div>
+
+        <div class="stage-card">
+            <h3>Quick stats</h3>
+            <div class="item">Total idea cards: {{ idea_cards|length }}</div>
+            <div class="item">Total drafts: {{ drafts|length }}</div>
+            <div class="item">Shipped: {{ shipped|length }}</div>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px;">
+        <button class="btn" onclick="window.location.href='/ideas'">Go to Ideas →</button>
+    </div>
+</div>
+</body>
+</html>
