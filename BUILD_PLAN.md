@@ -1,6 +1,6 @@
 # BUILD_PLAN.md — ViralFactory
 
-*Instructions to the builder agent (Hermes). Read `docs/CHARTER-v3.1.md` and all of `playbooks/` before writing any code. This file is the single source of truth for what to build and in what order. v1.1 — 2026-07-02 — updated per `docs/reviews/review-divergence-001.md` (fresh start; async gate; direct edit; laptop-first; v2 backup).*
+*Instructions to the builder agent (Hermes). Read `docs/CHARTER-v3.2.md` and all of `playbooks/` before writing any code. This file is the single source of truth for what to build and in what order. v1.2 — 2026-07-02 — updated per AMENDMENT-003 (staged content pipeline: four content gates, ideas stage, assets stage, provenance `origin` field).*
 
 ## How to work (non-negotiable)
 
@@ -55,12 +55,17 @@
 - [ ] T2.4 Visual Style intake + shot-library index — AC: module stored; index updatable
 - [ ] T2.5 Module store: versioning, schema-check on load, gate-only writes — AC: silent edit impossible via API; version history visible
 
-### M3 — Co-production loop (est. weeks 5–6)
-- [ ] T3.1 Seed intake: typed + audio with transcription — AC: a 30-second voice note becomes a stored seed
-- [ ] T3.2 Drafter: seed + ALL modules → draft → self-audit vs Tells Checklist → flagged lines — AC: flags visible with the rule that fired; prompts in `prompts/draft/`
-- [ ] T3.3 Human pass UI: per-line reaction chips + typed feedback **+ direct-edit mode** (editable draft; human text authoritative, overrides AI; logged to Feedback Log at highest weight with the draft version) — AC: reaction path and edit path both produce Feedback Log entries; revise honors both; ship/kill works
-- [ ] T3.4 Manual publish handoff — AC: shipped pieces exportable per platform format from the Format Guide
-- [ ] **Checkpoint:** 10-piece co-production sprint. **Drafter A/B:** same seeds through two configured backends; operator reacts blind; winner set in `models.yaml`. Tag `review-w6`.
+### M3 — Co-production loop (staged pipeline per AMENDMENT-003; est. weeks 5–6)
+- [ ] T3.1 Idea card generation: AI-originated ideas from Source Bank × modules (Viral/Audience/Story/Format); human-seeded and human-seeded-ai-developed paths. Each card: idea, hook/title options, format, `origin` tag, evidence links — AC: cards from all 3 origins producible; origin tag present on every card
+- [ ] T3.2 Ideas gate UI (Gate 1 — rigorous): card queue with origin badge, hook options, evidence links; approve / kill / park per card; kill reasons → Feedback Log — AC: kill reason logged; approved cards flow to Draft; parked cards retrievable
+- [ ] T3.3 Seed intake: typed + audio with transcription — AC: a 30-second voice note becomes a stored seed and generates a human-seeded idea card
+- [ ] T3.4 Drafter: approved idea card + ALL modules → draft (full text in voice + light visual direction block: image prompts, reference notes, shot/format choices) → self-audit vs Tells Checklist → flagged lines — AC: flags visible with the rule that fired; visual direction block present in draft schema; NO rendered images; prompts in `prompts/draft/`
+- [ ] T3.5 Human pass UI (Gate 2): per-line reaction chips + typed feedback **+ direct-edit mode** (editable draft; human text authoritative, overrides AI; logged to Feedback Log at highest weight with the draft version) — AC: reaction path and edit path both produce Feedback Log entries; revise honors both; ship-forward/kill works
+- [ ] T3.6 Assets stage: for ship-forward drafts — real images generated per visual direction + Visual Style Guide; captions rendered; per-platform fan-out (X thread, IG carousel/reel, …) — AC: images generated from visual direction block; per-platform variants produced from Format Guide
+- [ ] T3.7 Assets gate UI (Gate 3 — quick, per platform): per-platform variants shown side by side; approve / fix / kill per variant — AC: per-variant approve/fix/kill works; approved variants flow to Publish
+- [ ] T3.8 `origin` field threaded through pipeline: idea card → draft → assets → results tables; nightly performance note records origin — AC: origin tag travels end-to-end; nightly note includes origin breakdown
+- [ ] T3.9 Manual publish handoff (Gate 4 — go/hold + timing) — AC: shipped pieces exportable per platform format from the Format Guide
+- [ ] **Checkpoint:** 10-piece co-production sprint through the full staged pipeline. **Drafter A/B:** same seeds through two configured backends; operator reacts blind; winner set in `models.yaml`. Tag `review-w6`.
 
 ### M4 — Publish + metrics (est. week 7)
 - [ ] T4.1 Postiz self-hosted install + API wiring — AC: piece scheduled and posted from console **only after explicit per-piece approval**; failures alert; no data loss

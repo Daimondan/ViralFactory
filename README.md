@@ -13,7 +13,7 @@ A content co-creation system for entrepreneurs who have ideas and domain experie
 | You are | Read, in order |
 |---|---|
 | **Builder agent (Hermes)** | 1. `docs/CONTEXT.md` (the domain + decisions) → 2. `BUILD_PLAN.md` (your tasks, guardrails) → 3. `playbooks/` (the procedures you implement). Then work `BUILD_PLAN.md` top-down, one task at a time. |
-| **Architect / reviewer (Claude)** | `docs/CONTEXT.md` → `docs/decisions/DIVERGENCE-001-charter-amendments.md` → `docs/PROGRESS.md` → latest `review-wN` tag diff → write `docs/reviews/review-wN.md`. Incorporate divergences into Charter v3.1. |
+| **Architect / reviewer (Claude)** | `docs/CONTEXT.md` → `docs/decisions/DIVERGENCE-001-charter-amendments.md` → `docs/PROGRESS.md` → latest `review-wN` tag diff → write `docs/reviews/review-wN.md`. Incorporate divergences into Charter v3.2. |
 | **Operator (human)** | `docs/CONTEXT.md` (what we're building and why) → `docs/INTAKE-USER1.md` (what materials you need to provide). You direct in plain language, react to drafts, and approve at gates. You never write code. |
 | **New contributor / other AI** | `docs/CONTEXT.md`, then this README's repo map. |
 
@@ -30,8 +30,11 @@ docs/
   UI-DIRECTION.md               ← console UI direction (laptop-first, mobile-friendly)
   decisions/
     DIVERGENCE-001-charter-amendments.md  ← 5 amendments to Charter v3 from the grill session
+    DIVERGENCE-002-viralfactory-fully-standalone.md ← no OB1 dependency
+    AMENDMENT-003-staged-content-pipeline.md ← four content gates (Ideas → Draft → Assets → Publish)
+  inbox/                         ← architect→builder filing protocol (README + processed/)
   reviews/                      ← Claude's weekly review notes (review-wN.md)
-  diagrams/                     ← system diagrams (Mermaid + vertical-flow text)
+  diagrams/                     ← system diagrams (Mermaid + vertical-flow text + SVG)
 playbooks/                       ← written procedures the system's AI runs (text, not code)
   business-profile-intake.md        ← runs FIRST; builds business.yaml + brand context
   voice-profile-builder.md          ← builds the Voice Profile module (the first and last compromise)
@@ -66,13 +69,13 @@ Builder works `BUILD_PLAN.md` top-down → commit per task (task ID in message) 
 
 ## Status
 
-Pre-M0. Foundation docs written. Charter v3 grilled and amended (5 divergences documented). Awaiting Claude architect review of `docs/decisions/DIVERGENCE-001-charter-amendments.md` before updating Charter to v3.1 and beginning M0 code.
+Pre-M0. Foundation docs written. Charter v3 grilled and amended (5 divergences documented). Charter now at v3.2 (AMENDMENT-003 — staged content pipeline). M0+M1 code complete, review-w1 corrections R1–R5 applied.
 
 ## Original architect docs (preserved for reference)
 
 The following files were written by Claude (architect) before the grill session. They contain the original Charter v3 design. The grill session identified 5 divergences (see `docs/decisions/DIVERGENCE-001-charter-amendments.md`), which are incorporated into `docs/CONTEXT.md` and `BUILD_PLAN.md`. The originals are preserved for audit trail:
 
-- `StackPenni-Build-Charter-v3_2.md` — original charter (to be updated to v3.1 by Claude)
+- `StackPenni-Build-Charter-v3_2.md` — original charter (superseded by v3.2)
 - `playbook-voice-profile-builder.md` — Voice Profile playbook (to be moved to `playbooks/`)
 - `playbooks-remaining-seven.md` — remaining 7 playbooks (to be split into `playbooks/`)
 - `UI-DIRECTION.md` — UI direction (laptop-first amendment in DIVERGENCE-001)

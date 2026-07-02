@@ -1,6 +1,6 @@
 # BUILD_PLAN.md — ViralFactory
 
-*Instructions to the builder agent (Hermes). Read `docs/CHARTER-v3.1.md` and all of `playbooks/` before writing any code. This file is the single source of truth for what to build and in what order. v1.1 — 2026-07-02 — updated per `docs/reviews/review-divergence-001.md` (fresh start; async gate; direct edit; laptop-first; v2 backup).*
+*Instructions to the builder agent (Hermes). Read `docs/CHARTER-v3.2.md` and all of `playbooks/` before writing any code. This file is the single source of truth for what to build and in what order. v1.2 — 2026-07-02 — updated per AMENDMENT-003 (staged content pipeline: four content gates, ideas stage, assets stage, provenance `origin` field).*
 
 ## How to work (non-negotiable)
 

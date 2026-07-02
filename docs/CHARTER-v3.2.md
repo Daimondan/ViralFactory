@@ -1,7 +1,7 @@
-# ViralFactory Charter — v3.1
+# ViralFactory Charter — v3.2
 
 *The constitution of the system. Any AI or collaborator reads this before working on it.*
-*v3.1 — 2026-07-02 — supersedes v3. Incorporates the five amendments of `docs/decisions/DIVERGENCE-001-charter-amendments.md` (all approved, see `docs/reviews/review-divergence-001.md`) plus decisions absorbed from the changelog. Repo location: `docs/CHARTER-v3.1.md`.*
+*v3.2 — 2026-07-02 — supersedes v3.1. Incorporates AMENDMENT-003 (`docs/decisions/AMENDMENT-003-staged-content-pipeline.md`) — the staged content pipeline with four content gates. All prior amendments (DIVERGENCE-001, DIVERGENCE-002) remain in force. Repo location: `docs/CHARTER-v3.2.md`.*
 
 ## What this is
 
@@ -56,13 +56,26 @@ Eight versioned markdown documents per business in `modules/{business}/` — the
 
 ## The core loop
 
-1. **Gather** — automated
-2. **Pick + seed** — person
-3. **Draft** — AI, all modules loaded, self-audited against the Tells Checklist
-4. **Human pass** — react and/or directly edit; AI revises; **ship or kill**
-5. **Publish** — **every piece passes human approval before posting. No auto-publish, ever, at any trust level. Hard rule.** Approved pieces flow to Postiz (self-hosted) for scheduling, posting, and metrics.
+1. **Gather** — automated, **configured by onboarding**: the person's onboarding inputs (seed sources, anti-examples) produce the Source Criteria and `sources.yaml`, which dictate what the AI scouts from then on. The Sources Engine ingests and scores every item against those criteria; the continuous loop proposes new sources and criteria amendments through the gate.
+2. **Ideas** — generation is **grounded in the living modules**, not just raw source material: AI-originated ideas are produced by crossing Source Bank items with the Viral Patterns, Audience Insights, Story Frameworks, and Format Guide modules. Cards come from three origins, each tagged with provenance:
+   - **ai-originated:** AI proposes from the Source Bank × modules
+   - **human-seeded:** the person's raw seed (spoken or typed; messy is fine)
+   - **human-seeded, ai-developed:** the person's seed sharpened by AI — angle variants proposed, supporting Source Bank material attached. This is the primary path; the person supplies sparks, never finished ideas.
+   Each card carries: the idea, its hook/title options, suggested format, origin, and evidence links.
+   **GATE (rigorous):** approve / kill / park per card. The funnel kills most here — by design. Kill reasons logged to the Feedback Log.
+3. **Draft** — AI, all modules loaded, self-audited against the Tells Checklist. A draft is: **full text in voice + light visual direction** (image prompts, reference notes, shot/format choices per the Visual Style Guide). **No rendered images at this stage** — visual direction is text; render cost is only spent on survivors. *(Amendable: if co-production evidence shows drafts can't be judged without pixels, a single rough reference render per draft may be added via a future amendment — evidence first.)*
+   **GATE (the human pass, unchanged from v3.1):** react via chips + text and/or direct edits (authoritative, highest Feedback Log weight); AI revises; **ship-forward or kill.**
+4. **Assets** — for surviving drafts only: real images generated per the visual direction, captions rendered, the piece fanned out into per-platform variants (X thread, IG carousel/reel, …).
+   **GATE (quick, per platform):** approve / fix / kill per variant, side by side.
+5. **Publish** — **every piece passes human approval before posting. No auto-publish, ever, at any trust level. Hard rule.** Go/hold + timing only; everything upstream is already approved. Approved pieces flow to Postiz for scheduling, posting, and metrics.
 6. **Learn** — two loops (below)
 7. **Improve** — gate-approved proposals update modules; every future draft inherits them
+
+Gate intensity tapers: Ideas is rigorous, Draft is the deep human pass, Assets is quick, Publish is go/hold. All four feed the same async gate queue (DIVERGENCE-001 rules apply: age visible, superseding, no pressure mechanics).
+
+## Provenance requirement
+
+`origin` (ai-originated | human-seeded | human-seeded-ai-developed) travels with a piece from idea card to Results. The nightly performance note records it, so the inward loop can answer: do the operator's seeds outperform AI-originated ideas? This is a measurable claim of the whole product thesis — it must be instrumented from the first piece.
 
 ## The learning system (two loops, one asynchronous gate)
 
