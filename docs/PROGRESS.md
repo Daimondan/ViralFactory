@@ -71,6 +71,7 @@
 
 - [x] Review-w1 corrections (R1–R5): gate bypass fix, provenance append-only,
   failed-attempt logging, Ollama auth + base_url, WhatsApp 24h/iOS format support (9 new tests, 101 total)
+- [x] R4 live smoke test: real Ollama Cloud round-trip, model=gpt-oss:120b, latency=27.9s, provenance row #1, verdict=valid
 
 ## What's Next
 - [ ] Tag review-w1 for Claude architect review
