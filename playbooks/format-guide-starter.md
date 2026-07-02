@@ -2,6 +2,9 @@
 
 *Repo location: `playbooks/format-guide-starter.md` · Executed by the system's AI during onboarding, through the console. v1.0*
 
+<!-- run_order: 7 -->
+<!-- display_label: Format Guide -->
+
 ## Purpose
 
 Which output format fits which message on which platform (thread / single post / reel script / carousel / caption).

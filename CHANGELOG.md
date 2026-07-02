@@ -6,6 +6,24 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-02 INBOX — Batch D filed (UI-REVIEW-001 + APPLY section executed)
+
+**What filed:**
+- `UI-REVIEW-001-intake-console.md` → `docs/reviews/UI-REVIEW-001-intake-console.md` (ADD)
+- `MANIFEST-2026-07-02-D.md` → `docs/inbox/processed/` (after filing)
+
+**APPLY executed:**
+1. UI-REVIEW-001 marked as **blocking for the operator end-to-end test**. The 7 acceptance checks must all pass before the end-to-end test re-runs.
+2. UI-DIRECTION.md bumped to v1.3: added Principle 9 (console renders sessions, not documentation — F3) and Principle 10 (operator-facing copy rule — F4). Surface 1 (Onboard) rewritten to describe the session interaction model: chat transcript pane, input box, file upload, readback→gate, progress rail.
+3. CONTEXT.md: added "The console renders sessions, not documentation" principle verbatim from the review.
+4. Playbook step schema extended: `run_order` (integer) and `display_label` (operator-facing label) added as HTML comment metadata in all 8 playbooks. PlaybookParser reads both. Onboard route sorts playbooks by `run_order` and passes `display_label` to template. Business Profile Intake = run_order 1 (first), Visual Style = 8 (last).
+5. Voice input deferred per existing T2.6–T2.8 record — session component to be built text+files only, mic slots in later.
+6. PROGRESS.md updated: operator UI review received, findings accepted, end-to-end blocked on UI-REVIEW-001 acceptance checks.
+
+**Rationale:** Architect batch D. The operator (Daimon) walked the live console and found the intake page renders playbook markdown as static text — no input, no upload, no session. F3 is structural: the console must be a conversational AI session, not a document viewer. This blocks the M2 end-to-end test until the session component is built and all 7 acceptance checks pass.
+
+---
+
 ### 2026-07-02 BUILD T3.5–T3.12 — Co-production loop complete (M3 done)
 
 **What:**

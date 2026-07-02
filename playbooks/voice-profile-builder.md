@@ -2,6 +2,9 @@
 
 *Repo location: `playbooks/voice-profile-builder.md` · Executed by the system's AI during onboarding, through the console. v1.0*
 
+<!-- run_order: 2 -->
+<!-- display_label: Voice Profile -->
+
 ## Purpose
 
 Produce a versioned **Voice Profile** module for a user, from whatever materials they have, such that a drafter loading it produces text the user recognizes as "sounds like me." This playbook replaces any ad-hoc AI voice analysis. It ends with a calibration gate — the profile is not stored until the user confirms it.

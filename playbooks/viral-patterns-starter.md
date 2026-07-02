@@ -2,6 +2,9 @@
 
 *Repo location: `playbooks/viral-patterns-starter.md` · Executed by the system's AI during onboarding, through the console. v1.0*
 
+<!-- run_order: 4 -->
+<!-- display_label: Viral Patterns -->
+
 ## Purpose
 
 Seed the Viral Patterns Playbook module at onboarding so the outward loop starts from a v1, not from empty.

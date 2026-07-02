@@ -93,7 +93,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     @app.route("/onboard")
     def onboard():
-        """Onboarding surface — list available playbooks."""
+        """Onboarding surface — list available playbooks sorted by run_order."""
         playbooks = []
         pb_dir = app.config["PLAYBOOKS_DIR"]
         if os.path.isdir(pb_dir):
@@ -102,11 +102,15 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     playbook = PlaybookParser.parse(os.path.join(pb_dir, f))
                     playbooks.append({
                         "name": playbook.name,
+                        "display_label": playbook.display_label or playbook.name,
                         "purpose": playbook.purpose[:200],
                         "version": playbook.file_version,
                         "num_steps": len(playbook.steps),
                         "has_gate": any(s.is_gate for s in playbook.steps),
+                        "run_order": playbook.run_order,
                     })
+        # Sort by run_order (UI-REVIEW-001 F1)
+        playbooks.sort(key=lambda p: p["run_order"])
         return render_template("onboard.html", playbooks=playbooks)
 
     @app.route("/onboard/<playbook_name>")

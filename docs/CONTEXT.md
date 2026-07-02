@@ -244,6 +244,7 @@ Scheduled research of what works in the wild: monitors top accounts/hashtags/cha
 - **Console auth (R10):** the Flask console has no authentication in M0–M2 code. Deployment posture: bind to localhost/VPN only on the VPS, or add auth before the operator end-to-end test. Endpoints trigger paid LLM calls and overwrite config files — not safe to expose publicly.
 - **Claude = architect** | **Hermes = builder** | **Daimon = operator**
 - **LLM backend swappable in config** — Ollama local/cloud, external APIs
+- **The console renders sessions, not documentation.** Playbook markdown is the machine's script. The operator's surface is always: AI asks → operator gives anything (text, paste, files) → AI clarifies → AI drafts → plain-language readback → gate. The AI is present at every stage; the operator is never handed a form or a procedure to execute manually.
 
 ## System Diagram
 

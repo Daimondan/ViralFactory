@@ -1,6 +1,6 @@
 # UI Direction — The Console
 
-*Repo location: `docs/UI-DIRECTION.md`. Direction for Hermes when building console screens. v1.2 — 2026-07-02 — patched per AMENDMENT-003 (Surface 2 gains Ideas queue view + Assets per-platform review view; draft = text + visual direction, no renders).*
+*Repo location: `docs/UI-DIRECTION.md`. Direction for Hermes when building console screens. v1.3 — 2026-07-02 — patched per UI-REVIEW-001 (F3 session interaction model, F4 copy rule, Onboard surface redesigned as conversational sessions not procedure documents).*
 
 ## Principles
 
@@ -12,11 +12,22 @@
 6. **Status always visible.** The person can always see: what the system is doing now, what's waiting on them, what shipped, what's scheduled. No mystery states.
 7. **Evidence beside every AI claim.** A proposed pattern shows the reactions/results that support it; a proposed source shows the sample item and matched criteria; a flagged draft line shows which Tells Checklist rule flagged it.
 8. **Boring web tech.** Server-rendered Flask + minimal JS. No SPA framework. Fast on island bandwidth.
+9. **The console renders sessions, not documentation.** Playbook markdown is the machine's script. The operator's surface is always: AI asks → operator gives anything (text, paste, files) → AI clarifies → AI drafts → plain-language readback → gate. The AI is present at every stage; the operator is never handed a form or a procedure to execute manually. (UI-REVIEW-001 F3)
+10. **Every string the operator reads is written for a business owner.** File paths, module targets, and playbook internals are never visible in the default operator view — they live in a collapsible "technical details" element and the provenance log. Where a playbook step needs an operator-facing label, use `display_label`. (UI-REVIEW-001 F4)
 
 ## The five surfaces
 
 ### 1. Onboard (runs once per business; M1–M2)
-Wizard driven by the playbook runner: intake checklist (upload/paste/record per material type, progress shown against `docs/INTAKE-USER1.md`) → playbook chain runs → calibration screens (e.g., Voice: 3 samples side-by-side, tap closest, chip/speak what's off) → per-playbook confirmation gates. Exit state: all 8 modules at v1, `business.yaml` + `sources.yaml` written.
+**Conversational sessions, not procedure documents (UI-REVIEW-001 F3).** Each playbook runs as an AI-driven chat session through one reusable, config-driven session component:
+
+1. **Chat transcript pane.** The AI opens by asking the first question from the playbook's Q&A. One question at a time — grill-session format. The AI ingests whatever it's given, asks clarifying follow-ups when an answer is thin or ambiguous, and moves on when it has enough.
+2. **Input box.** Multiline text entry. The operator can answer the question asked, or paste anything — a brand doc, a rant, a half-formed thought.
+3. **Add files button.** Uploads (docs, exports, images) attach into the session and are ingested as intake material.
+4. **Voice input** — deferred per T2.6–T2.8. Mic button hidden or stubbed, not broken-looking.
+5. **Readback → gate.** When the AI has enough, it presents the draft in the chat, in plain language: "Here's what I understood — correct anything." The operator can reply conversationally OR edit the draft text directly (direct editing is authoritative). Approve / Reject / Park appear attached to the readback, not floating at the bottom of a procedure list.
+6. **Progress rail.** The playbook's steps survive only as a slim progress indicator ("Step 2 of 4 — drafting"). Steps are status, not content.
+
+Playbook cards on the Onboard landing page are numbered and sorted by `run_order` from config. A playbook whose prerequisites haven't been approved yet renders as locked/pending. Exit state: all 8 modules at v1, `business.yaml` + `sources.yaml` written.
 
 ### 2. Create (the co-production loop; M3)
 - **Ideas queue view:** cards from three origins (ai-originated, human-seeded, human-seeded-ai-developed), each tagged with an origin badge. Each card shows: the idea, hook/title options, suggested format, and evidence links. Per-card actions: approve / kill / park (Gate 1 — rigorous). Kill reasons logged to Feedback Log. This is the top of the funnel — most cards die here by design.

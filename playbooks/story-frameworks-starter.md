@@ -2,6 +2,9 @@
 
 *Repo location: `playbooks/story-frameworks-starter.md` · Executed by the system's AI during onboarding, through the console. v1.0*
 
+<!-- run_order: 6 -->
+<!-- display_label: Story Frameworks -->
+
 ## Purpose
 
 How to tell a story per subject type for this business (e.g., money lesson, tech explainer, cultural observation).

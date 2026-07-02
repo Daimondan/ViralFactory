@@ -2,6 +2,9 @@
 
 *Repo location: `playbooks/audience-insights-builder.md` · Executed by the system's AI during onboarding, through the console. v1.0*
 
+<!-- run_order: 5 -->
+<!-- display_label: Audience Insights -->
+
 ## Purpose
 
 A plain-language picture of who the content is for and what they respond to.

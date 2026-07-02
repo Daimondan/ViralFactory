@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-02
-**Current Phase:** M3 complete (T3.1–T3.12). 310 tests passing. Co-production loop fully built: idea cards, Ideas gate, awaiting-capture, drafter, human pass, assets, per-platform gate, publish handoff, series spawning, experimental format debut, origin threading. M2 audio/voice tasks (T2.6–T2.8) still deferred.
+**Current Phase:** M3 complete (T3.1–T3.12). 310 tests passing. Co-production loop fully built. **Operator UI review (UI-REVIEW-001) received and filed — findings F1–F4 accepted. End-to-end test blocked on UI-REVIEW-001 acceptance checks (session component build).** M2 audio/voice tasks (T2.6–T2.8) still deferred.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 

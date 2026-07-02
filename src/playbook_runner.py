@@ -49,6 +49,8 @@ class Playbook:
     guardrails: list[str]
     file_path: str
     file_version: str
+    run_order: int = 99             # UI-REVIEW-001 F1: explicit ordering, config-driven
+    display_label: str = ""         # UI-REVIEW-001 F4: operator-facing label
 
 
 class PlaybookParser:
@@ -67,6 +69,14 @@ class PlaybookParser:
         # Extract version from comment (same pattern as LLM adapter)
         version_match = re.search(r'<!--\s*version:\s*([\d.]+)\s*-->', content)
         version = version_match.group(1) if version_match else "1.0"
+
+        # Extract run_order from comment (UI-REVIEW-001 F1)
+        run_order_match = re.search(r'<!--\s*run_order:\s*(\d+)\s*-->', content)
+        run_order = int(run_order_match.group(1)) if run_order_match else 99
+
+        # Extract display_label from comment (UI-REVIEW-001 F4)
+        display_label_match = re.search(r'<!--\s*display_label:\s*(.+?)\s*-->', content)
+        display_label = display_label_match.group(1) if display_label_match else name
 
         # Extract sections by markdown headers
         purpose = PlaybookParser._extract_section(content, "Purpose")
@@ -103,6 +113,8 @@ class PlaybookParser:
             guardrails=[g.strip() for g in guardrails_raw.split("\n") if g.strip().startswith("-")],
             file_path=str(file_path),
             file_version=version,
+            run_order=run_order,
+            display_label=display_label,
         )
 
     @staticmethod

@@ -2,6 +2,9 @@
 
 *Repo location: `playbooks/sources-engine.md` · Executed by the system's AI during onboarding (Part A) and continuously (Part B). v1.0*
 
+<!-- run_order: 3 -->
+<!-- display_label: Sources Engine -->
+
 *The most important playbook after Voice. Two parts: onboarding discovery (runs once) and the continuous learning loop (runs forever). This is an engine, not a one-time setup.*
 
 ## Purpose

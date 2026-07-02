@@ -2,6 +2,9 @@
 
 *Repo location: `playbooks/business-profile-intake.md` · Executed by the system's AI during onboarding, through the console. v1.0*
 
+<!-- run_order: 1 -->
+<!-- display_label: Business Profile -->
+
 ## Purpose
 
 Build `config/business.yaml` and the brand context the drafter loads. This runs FIRST — every other playbook reads its output.
