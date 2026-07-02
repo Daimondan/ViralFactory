@@ -66,23 +66,27 @@ def tmp_config_dir():
         with open(os.path.join(tmpdir, "business.yaml"), "w") as f:
             yaml.dump(business, f)
 
-        # models.yaml
+        # models.yaml — active-block format with named backends
         models = {
-            "default": {
+            "active": {
+                "default": "ollama_default",
+                "drafter": "ollama_drafter",
+                "drafter_ab_candidate": None,
+            },
+            "ollama_default": {
                 "provider": "ollama_cloud",
                 "model": "qwen2.5:32b",
                 "temperature": 0,
                 "max_tokens": 4096,
                 "base_url": "https://example.com",
             },
-            "drafter": {
+            "ollama_drafter": {
                 "provider": "ollama_cloud",
                 "model": "qwen2.5:32b",
                 "temperature": 0.7,
                 "max_tokens": 8192,
                 "base_url": "https://example.com",
             },
-            "drafter_ab_candidate": {},
         }
         with open(os.path.join(tmpdir, "models.yaml"), "w") as f:
             yaml.dump(models, f)
@@ -114,8 +118,9 @@ class TestConfigLoader:
     def test_load_models_valid(self, tmp_config_dir):
         """Valid models.yaml loads correctly."""
         models = load_models(tmp_config_dir)
-        assert models["default"]["model"] == "qwen2.5:32b"
-        assert models["drafter"]["temperature"] == 0.7
+        assert models["active"]["default"] == "ollama_default"
+        assert models["ollama_default"]["model"] == "qwen2.5:32b"
+        assert models["ollama_drafter"]["temperature"] == 0.7
 
     def test_load_sources_valid(self, tmp_config_dir):
         """Valid sources.yaml loads correctly."""

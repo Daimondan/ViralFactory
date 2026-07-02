@@ -50,30 +50,19 @@ BUSINESS_SCHEMA = {
 }
 
 MODELS_SCHEMA = {
-    "required": ["default", "drafter"],
+    "required": ["active"],
     "fields": {
-        "default": {
-            "required": ["provider", "model", "temperature", "max_tokens"],
+        "active": {
+            "required": ["default", "drafter"],
             "types": {
-                "provider": str,
-                "model": str,
-                "temperature": (int, float),
-                "max_tokens": int,
+                "default": (str, type(None)),
+                "drafter": (str, type(None)),
             },
-            "optional": {"base_url": str},
+            "optional": {"drafter_ab_candidate": (str, type(None))},
         },
-        "drafter": {
-            "required": ["provider", "model", "temperature", "max_tokens"],
-            "types": {
-                "provider": str,
-                "model": str,
-                "temperature": (int, float),
-                "max_tokens": int,
-            },
-            "optional": {"base_url": str},
-        },
-        "drafter_ab_candidate": {"required": [], "optional": True},
     },
+    # Named backends are arbitrary keys at the top level, each with this shape.
+    # The config loader validates "active" above, then we validate backends separately.
 }
 
 SOURCES_SCHEMA = {
@@ -194,6 +183,30 @@ def load_models(config_dir: str = "config") -> dict:
     filepath = os.path.join(config_dir, "models.yaml")
     data = load_yaml(filepath)
     validate_section(data, MODELS_SCHEMA, "models.yaml", filepath)
+
+    # Validate that the named backends referenced by "active" exist and have required fields
+    active = data.get("active", {})
+    for role, backend_name in active.items():
+        if backend_name is None:
+            continue  # null is OK (e.g. drafter_ab_candidate not set yet)
+        if not isinstance(backend_name, str):
+            raise ConfigError(
+                f"active.{role} in models.yaml ({filepath}) must be a string or null, "
+                f"got {type(backend_name).__name__}"
+            )
+        backend = data.get(backend_name)
+        if not backend:
+            raise ConfigError(
+                f"active.{role} references backend '{backend_name}' which is not defined "
+                f"in models.yaml ({filepath})"
+            )
+        for req in ("provider", "model", "temperature", "max_tokens"):
+            if req not in backend:
+                raise ConfigError(
+                    f"Backend '{backend_name}' in models.yaml ({filepath}) "
+                    f"is missing required field '{req}'"
+                )
+
     return data
 
 

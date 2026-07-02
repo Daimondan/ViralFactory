@@ -209,7 +209,24 @@ class LLMAdapter:
             ValidationError if the output can't be validated after retry
         """
         # Get backend config
-        backend_config = self.models_config.get(backend)
+        # The config may use an "active" block that maps role names ("default", "drafter")
+        # to named backend definitions, OR it may have backends as top-level keys (legacy).
+        # "backend" can be: "default" / "drafter" (resolved via active block),
+        # or a named backend key directly (e.g. "ollama_glm52").
+        models_config = self.models_config
+        backend_config = None
+
+        # Try active-block resolution: backend="default" → active.default → named backend
+        active = models_config.get("active")
+        if active and backend in active:
+            backend_name = active[backend]
+            if backend_name:
+                backend_config = models_config.get(backend_name)
+
+        # If not resolved via active block, try direct lookup (legacy or named backend)
+        if not backend_config:
+            backend_config = models_config.get(backend)
+
         if not backend_config:
             raise LLMAdapterError(f"Backend '{backend}' not found in models config")
 

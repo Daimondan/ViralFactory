@@ -1,27 +1,51 @@
 # ViralFactory models config
 # LLM backend configuration. Swap = config edit, zero code change.
+#
+# Users can define as many named backends as they want below.
+# Each backend has: provider, model, temperature, max_tokens, base_url.
+# Reference any backend by name in playbooks or code: adapter.complete(..., backend="glm_5_2")
+#
+# The active processing/drafting backends are set in the "active" block.
 # The drafter backend is chosen by blind A/B at the M3 checkpoint.
 
-# Default backend for processing steps (temperature 0, deterministic)
-default:
-  provider: "ollama_cloud"         # ollama_local | ollama_cloud | openai | anthropic
+# ── Active backend selection ──────────────────────────────────────────
+# Change these to switch which named backend is used for processing vs drafting.
+active:
+  default: "ollama_glm52"       # processing steps (temperature 0)
+  drafter: "ollama_glm52"       # content drafting (uses backend's temperature)
+  drafter_ab_candidate: null    # set to a backend name for M3 A/B test
+
+# ── Named backends ────────────────────────────────────────────────────
+# Add as many as you need. provider drives the API format:
+#   ollama_cloud / ollama_local → Ollama API (/api/chat)
+#   openai                      → OpenAI-compatible (/v1/chat/completions)
+# Set the matching env var for auth: OLLAMA_API_KEY, OPENAI_API_KEY, etc.
+
+ollama_glm52:
+  provider: "ollama_cloud"
+  model: "glm-5.2"
+  temperature: 0
+  max_tokens: 8192              # GLM-5.2 is a reasoning model — needs headroom
+  base_url: "https://ollama.com"
+
+ollama_gpt_oss_120b:
+  provider: "ollama_cloud"
   model: "gpt-oss:120b"
   temperature: 0
   max_tokens: 4096
-  base_url: "https://ollama.com"   # Ollama Cloud API — set OLLAMA_API_KEY env var
+  base_url: "https://ollama.com"
 
-# Drafter backend (for content drafting — may differ from processing)
-drafter:
+ollama_kimi_k26:
   provider: "ollama_cloud"
-  model: "gpt-oss:120b"
-  temperature: 0.7                 # some creativity for drafting
+  model: "kimi-k2.6"
+  temperature: 0
   max_tokens: 8192
   base_url: "https://ollama.com"
 
-# A/B candidate for M3 checkpoint (leave null until checkpoint)
-drafter_ab_candidate:
-  provider: null                   # e.g. "openai"
-  model: null                      # e.g. "gpt-4o"
-  temperature: null
-  max_tokens: null
-  base_url: null
+# Example: OpenAI-compatible backend (uncomment + set OPENAI_API_KEY env)
+# openai_gpt4o:
+#   provider: "openai"
+#   model: "gpt-4o"
+#   temperature: 0
+#   max_tokens: 4096
+#   base_url: "https://api.openai.com"
