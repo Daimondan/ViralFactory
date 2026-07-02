@@ -33,6 +33,14 @@ docs/
   reviews/                      ← Claude's weekly review notes (review-wN.md)
   diagrams/                     ← system diagrams (Mermaid + vertical-flow text)
 playbooks/                       ← written procedures the system's AI runs (text, not code)
+  business-profile-intake.md        ← runs FIRST; builds business.yaml + brand context
+  voice-profile-builder.md          ← builds the Voice Profile module (the first and last compromise)
+  sources-engine.md                  ← onboarding discovery + continuous loop (engine, not one-time)
+  viral-patterns-starter.md          ← seeds Viral Patterns module from admired + anti-examples
+  audience-insights-builder.md      ← who the content is for, what they respond to
+  story-frameworks-starter.md        ← how to tell a story per subject type
+  format-guide-starter.md            ← which format fits which message on which platform
+  visual-style-intake.md             ← brand look + shot library + real-vs-generated blend rules
 prompts/                         ← every LLM prompt template, versioned (no prompts in code)
 config/                          ← ALL business-specific values: business.yaml, models.yaml, sources.yaml
 modules/{business}/             ← the 8 living modules per business (versioned markdown, gate-only writes)

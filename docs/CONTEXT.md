@@ -1,9 +1,9 @@
 # Context: ViralFactory
 
-> **This is a living document.** It is the source of truth for what we're
-> building and why. If you change the pipeline, update this doc in the same
-> session. If you changed the pipeline but did not update this doc, that is
-> a bug.
+> **This is an operational mirror of `docs/CHARTER-v3.1.md`.** It captures
+> current shared language, workflows, and implementation state. It conforms
+> to the charter and BUILD_PLAN; where it conflicts, that conflict is a bug
+> or a new divergence to file — never a silent override.
 >
 > **Change triggers:** stage added/removed/renamed, rules changed, new
 > automation, paths changed, interface changed, workflow changed,
@@ -13,7 +13,7 @@
 > `docs/decisions/` if the change is non-obvious.
 
 **Updated:** 2026-07-02
-**Supersedes:** StackPenni-Build-Charter-v3_2.md (amended — see `docs/decisions/DIVERGENCE-001-charter-amendments.md`)
+**Conforms to:** `docs/CHARTER-v3.1.md` (v3.1 — incorporates all amendments from `docs/decisions/DIVERGENCE-001-charter-amendments.md`, approved in `docs/reviews/review-divergence-001.md`)
 
 ---
 
@@ -64,8 +64,8 @@ One of 8 living knowledge documents (see below). Markdown files, versioned, gate
 
 ### Gate
 A human approval checkpoint. Two types:
-- **Per-piece gate:** Daimon approves every piece before it ships to publish. Not batched — every piece, every time.
-- **Async proposal queue:** Module updates, source proposals, experiments accumulate in a persistent queue. Daimon clears them when ready — not on a schedule. The counter shows "N pending."
+- **Per-piece gate:** Daimon approves every piece before it ships to publish. Not batched — every piece, every time. Hard rule — no auto-publish at any trust level.
+- **Async proposal queue:** Module updates, source proposals, experiments accumulate in a persistent queue. Daimon clears them when ready — not on a schedule. Every card shows age ("submitted N days ago"). Newer proposals on the same module section supersede older ones (marked, not deleted). No deadline or pressure mechanics. If the queue grows faster than it clears, the proposals are too weak or too many — fix the proposal prompt, never pressure the person.
 
 ### Ship
 A piece Daimon approves goes to the publish queue (Postiz). Does NOT mean immediately posted — Postiz schedules per the Format Guide's timing rules.
@@ -203,11 +203,11 @@ Scheduled research of what works in the wild: monitors top accounts/hashtags/cha
 
 ## Open Questions
 
-1. **Module storage:** Repo markdown as source of truth (recommended), OB1 as optional mirror for user #1? Or OB1 primary? — *Decision needed before M2.*
-2. **Postiz deployment:** Self-host on VPS from start (needs PostgreSQL + Temporal), or Postiz Cloud ($29/mo) initially, self-host when customer #2 arrives? — *Decision needed before M4.*
-3. **LLM backend:** Ollama Cloud as default? Or a different provider for drafting quality? — *Config decision, swappable later.*
-4. **8 modules in context window:** Load all 8 every draft (may exceed smaller model limits), or load essential 4 (Voice, Viral, Story, Format) always and pull others on demand? — *Architecture decision for Claude.*
-5. **Video generation scope:** xAI Grok for generated video, or text/image only for v1? — *Decision needed before M3.*
+1. ~~**Module storage:**~~ **RESOLVED** (Claude review): Repo markdown (`modules/{business}/`) is the system of record — versioned, diffable, gate-enforced. OB1 is a read-only mirror for Daimon's browsing (sync job, later, optional).
+2. ~~**Postiz deployment:**~~ **RESOLVED** (Claude review): Self-host on the VPS (ownership, AGPL, no per-seat cost, API identical to cloud). Revisit only if maintenance burden bites.
+3. ~~**LLM backend:**~~ **RESOLVED** (Claude review): Default Ollama Cloud for processing at temperature 0. For the drafter specifically, run an A/B at the M3 checkpoint — same seeds through two configured backends, Daimon reacts blind. Voice quality is the product; the config swap makes this a measurement, not a debate.
+4. **8 modules in context window:** Load all 8 every draft (may exceed smaller model limits), or load essential 4 (Voice, Viral, Story, Format) always and pull others on demand? — *Genuinely deferrable; resolve at M3 when drafter is built.*
+5. **Video generation scope:** xAI Grok for generated video, or text/image only for v1? — *Genuinely deferrable; bounded by the charter's hybrid rules (real anchors for lived claims, generated is supporting layer).*
 
 ## Architecture
 

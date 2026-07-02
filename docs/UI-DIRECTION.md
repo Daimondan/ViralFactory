@@ -1,14 +1,14 @@
 # UI Direction — The Console
 
-*Repo location: `docs/UI-DIRECTION.md`. Direction for Hermes when building console screens. Evolves the existing Flask review app. v1.0*
+*Repo location: `docs/UI-DIRECTION.md`. Direction for Hermes when building console screens. v1.1 — 2026-07-02 — patched per `docs/reviews/review-divergence-001.md` (laptop-first, voice available not assumed, direct-edit mode).*
 
 ## Principles
 
-1. **Mobile-first.** The operator runs this from a phone. Every screen works one-handed on a phone; desktop is the bonus, not the target.
-2. **The person's verbs are: speak, tap, react, approve.** No screen ever asks the person to compose or edit text. If a flow needs typed prose from the person, the flow is wrong — redesign it as a reaction or a voice note.
-3. **Reactions are first-class input.** Reacting to a draft line = tap the line → quick chips (**not me · too polished · flat · too long · keep · love it**) + optional voice note for anything nuanced. Every reaction writes to the Feedback Log with the draft version it applied to.
-4. **Gates are card stacks.** One proposal per card: the proposed change, the evidence, the exact diff. Swipe/tap: approve · reject (with quick reason chips) · park. A weekly gate session must be finishable in one sitting on a phone.
-5. **Voice in, everywhere.** Anywhere the person provides input (seeds, reactions, interview answers, corrections), a record button sits next to it. Spoken input is preferred by design, not a fallback.
+1. **Laptop-first (1280px+), responsive to mobile.** Mobile-friendly is a hard requirement for future customers, not an afterthought — but it does not constrain the primary design. Multi-column layouts allowed on laptop.
+2. **The person's verbs are: speak, type, tap, react, edit, approve.** The system defaults to AI production but supports and encourages direct editing when the person chooses to write or rewrite draft text.
+3. **Reactions are first-class input.** Reacting to a draft line = tap the line → quick chips (**not me · too polished · flat · too long · keep · love it**) + typed text for anything nuanced. Every reaction writes to the Feedback Log with the draft version it applied to.
+4. **Gates are a persistent async queue.** One proposal per card: the proposed change, the evidence, the exact diff. Tap/click: approve · reject (with quick reason chips) · park. No deadline or pressure mechanics — the person clears when ready. Every card shows age ("submitted N days ago"); newer proposals on the same module section supersede older ones (marked, not deleted).
+5. **Voice in, everywhere — available at every input, assumed at none.** Typed text and chips are equal citizens. A record button sits next to every input point, but the person is never required to use it.
 6. **Status always visible.** The person can always see: what the system is doing now, what's waiting on them, what shipped, what's scheduled. No mystery states.
 7. **Evidence beside every AI claim.** A proposed pattern shows the reactions/results that support it; a proposed source shows the sample item and matched criteria; a flagged draft line shows which Tells Checklist rule flagged it.
 8. **Boring web tech.** Server-rendered Flask + minimal JS. No SPA framework. Fast on island bandwidth.
@@ -19,15 +19,18 @@
 Wizard driven by the playbook runner: intake checklist (upload/paste/record per material type, progress shown against `docs/INTAKE-USER1.md`) → playbook chain runs → calibration screens (e.g., Voice: 3 samples side-by-side, tap closest, chip/speak what's off) → per-playbook confirmation gates. Exit state: all 8 modules at v1, `business.yaml` + `sources.yaml` written.
 
 ### 2. Create (the co-production loop; M3)
-- **Seed capture:** big record button + paste field. A seed = 30 seconds of talking. Seeds land in a seed list with AI-suggested pairings from the Source Bank and approved experiments from the Experiments Queue.
-- **Draft view:** the draft with self-audit flags inline (flagged lines subtly marked; tap to see which tell fired). Per-line reaction chips + voice note. One button: **revise with my reactions**. Then **ship** (→ Publish queue) or **kill** (chip for why).
+- **Seed capture:** paste field + record button. A seed = 30 seconds of talking or a typed idea. Seeds land in a seed list with AI-suggested pairings from the Source Bank and approved experiments from the Experiments Queue.
+- **Draft view:** the draft with self-audit flags inline (flagged lines subtly marked; click to see which tell fired). Two input modes side by side:
+  - **Reaction mode:** per-line reaction chips + typed text. One button: **revise with my reactions**.
+  - **Direct-edit mode:** the draft text is editable. Human text is authoritative — it overrides the AI draft. Edits are logged to the Feedback Log at the highest weight with the draft version. The system encourages this mode; it's the strongest voice signal.
+- Then **ship** (→ Publish queue, after per-piece approval) or **kill** (chip for why).
 - Target: 15–20 minutes of the person's time per piece, tracked and shown.
 
 ### 3. Review (the existing source queue, evolved; M2/M6)
 The current approve/reject/park queue for ingested items, plus: criteria-match score per item, bulk actions by group, and a "proposed new sources" tab fed by the Sources Engine loop (each with evidence + sample item).
 
-### 4. Gate (the weekly sitting; M5)
-Card stack of all pending proposals across the system: module updates, new/pruned sources, criteria amendments, experiments. Grouped by module, evidence on every card, exact diff shown. Approve = version bump with provenance, automatically. A counter shows "N cards left"; the design goal is zero cards in under 20 minutes.
+### 4. Gate (the async queue; M5)
+Card stack of all pending proposals across the system: module updates, new/pruned sources, criteria amendments, experiments. Grouped by module, evidence on every card, exact diff shown. Approve = version bump with provenance, automatically. A counter shows "N pending"; every card shows age ("submitted N days ago"); newer proposals on the same module section supersede older ones (marked, not deleted). No deadline or pressure mechanics — the person clears when ready.
 
 ### 5. Library (transparency; M2+)
 Read-only browse of: the 8 modules with version history and provenance per entry · Source Bank with scores · shot library index · Feedback Log · provenance log per published piece ("which prompt, which model, which module versions made this"). This is where trust in the system lives — the person can always read what the machine believes and why.

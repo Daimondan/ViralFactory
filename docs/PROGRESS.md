@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-02
-**Current Phase:** Pre-M0 — Foundation docs written, awaiting Claude architect review of divergences
+**Current Phase:** Pre-M0 — Claude architect review complete, all actions applied. Ready for M0 code.
 
 ---
 
@@ -13,34 +13,29 @@
 
 | Stage | Status | Notes |
 |---|---|---|
-| 0. Foundation | 🔄 | Repo layout created. CONTEXT.md, CHANGELOG.md, divergence note written. BUILD_PLAN needs update. Awaiting Claude review of DIVERGENCE-001. |
-| 1. Onboarding engine: Voice Profile | ⬜ | Playbook exists (voice-profile-builder.md). Needs repo move + prompt templates + runner. |
-| 2. Remaining playbooks wired | ⬜ | 7 playbooks written (playbooks-remaining-seven.md). Need split into individual files + prompts. |
-| 3. Co-production loop | ⬜ | Core loop. Direct-edit mode added (divergence from charter). |
-| 4. Publish + metrics automation | ⬜ | Postiz integration. Self-host vs cloud TBD. |
-| 5. Inward learning loop | ⬜ | Async gate queue (not weekly sitting). |
-| 6. Outward research loop | ⬜ | Continuous from v1. |
-| 7. Generalization proof | ⬜ | Real near-term plan but not blocking v1. |
+| 0. Foundation | 🔄 | All architect actions applied. Charter v3.1 in place. BUILD_PLAN v1.1 in place. UI-DIRECTION patched. CONTEXT.md patched. 8 playbooks split into individual files. v2 backup task (T0.7) added. Ready to begin M0 code. |
+| 1. Onboarding engine: Voice Profile | ⬜ | 8 playbooks ready in playbooks/. Awaits M0 foundations + runner. |
+| 2. Remaining playbooks wired | ⬜ | Playbooks split. Awaits M0 + M1. |
+| 3. Co-production loop | ⬜ | Direct-edit mode in BUILD_PLAN (T3.3). Drafter A/B at checkpoint. |
+| 4. Publish + metrics automation | ⬜ | Postiz self-hosted confirmed. |
+| 5. Inward learning loop | ⬜ | Async gate queue (superseding, age, no pressure). |
+| 6. Outward research loop | ⬜ | Continuous from v1 of this phase. |
+| 7. Generalization proof | ⬜ | Real near-term but not blocking v1. |
 
 ## What's Done
 - [x] Repo created: https://github.com/Daimondan/ViralFactory (private)
-- [x] Charter v3 reviewed and grilled (2026-07-02)
-- [x] 5 divergences from charter identified and documented (DIVERGENCE-001)
-- [x] CONTEXT.md written with locked-down terms, workflows, rules, edge cases
-- [x] CHANGELOG.md created with all decisions logged
+- [x] Charter v3 grilled and amended (5 divergences documented in DIVERGENCE-001)
+- [x] Claude architect reviewed all 5 divergences — all APPROVED (some with refinements)
+- [x] Charter v3.1 in place (supersedes v3; v3 in git history)
+- [x] BUILD_PLAN v1.1 in place (fresh start, async gate, direct edit, v2 backup task T0.7, drafter A/B at M3)
+- [x] CONTEXT.md patched (hierarchy ruling: conforms to charter, not "source of truth"; 3 open questions resolved)
+- [x] UI-DIRECTION.md patched (laptop-first, voice available not assumed, direct-edit mode in draft view, async gate)
+- [x] Operating loop reviewed and patched (weekly = architect review, not product gate)
+- [x] 8 playbooks split into individual files in playbooks/
+- [x] CHANGELOG.md with all decisions logged
 - [x] Directory structure created (config/, prompts/, playbooks/, modules/, src/, tests/, docs/)
-- [x] Operating loop doc reviewed (docs/OPERATING-LOOP.md) — complies with charter + grill amendments; patched to reference CONTEXT.md and clarify weekly cycle is architect review, not product gate
 
 ## What's Next
-- [ ] Claude (architect) reviews DIVERGENCE-001 and updates Charter to v3.1
-- [ ] BUILD_PLAN.md updated: remove "extend existing app", reflect fresh start + laptop-first + async gate + direct edit
-- [ ] Move existing playbooks into `playbooks/` directory (split playbooks-remaining-seven.md into individual files)
-- [ ] Move existing docs into `docs/` (Charter → docs/, INTAKE → docs/, UI-DIRECTION → docs/)
-- [ ] Write config schema files (business.yaml, models.yaml, sources.yaml)
-- [ ] Resolve open question: module storage (repo markdown vs OB1)
-- [ ] Resolve open question: Postiz self-host vs cloud
-- [ ] Begin M0: Foundations (config loader, LLM adapter, validator, provenance, cache)
-
-## Blockers
-- Awaiting Claude architect review of DIVERGENCE-001 before updating Charter to v3.1
-- 5 open questions in CONTEXT.md (module storage, Postiz deployment, LLM backend, context window strategy, video scope) — none block M0, but #1-3 should be resolved before M2
+- [ ] T0.7: Scripted, verified backup of v2 SQLite database
+- [ ] Begin M0: T0.1 (repo layout verified) → T0.2 (config loader) → T0.3 (LLM adapter) → ...
+- [ ] Tag review-w1 when M0 completes
