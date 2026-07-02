@@ -20,7 +20,7 @@ http:
         - websecure
       service: viralfactory
       middlewares:
-        - vf-auth
+        - vf-auth@file
       tls:
         certResolver: letsencrypt
 
