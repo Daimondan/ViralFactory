@@ -14,7 +14,7 @@
 | Stage | Status | Notes |
 |---|---|---|
 | 0. Foundation | ✅ | All T0.1–T0.7 done. 28 tests passing. Real config verified. Pushed. |
-| 1. Onboarding engine: Voice Profile | 🔄 | T1.1 done. T1.2 done. T1.3 done (schema+store+prompts). T1.4–T1.5 next. |
+| 1. Onboarding engine: Voice Profile | ✅ | T1.1–T1.5 all done. 92 tests. Runner, intake, analysis, calibration, interview fallback. |
 | 2. Remaining playbooks wired | ⬜ | Playbooks split. Awaits M1. |
 | 3. Co-production loop | ⬜ | Direct-edit mode in BUILD_PLAN (T3.3). Drafter A/B at checkpoint. |
 | 4. Publish + metrics automation | ⬜ | Postiz self-hosted confirmed. |
@@ -61,5 +61,6 @@
   - Flask API: POST /api/run/<id>/analyze-voice
 
 ## What's Next
-- [ ] T1.4: Calibration gate UI — 3 samples, pick + react, revise loop
-- [ ] T1.5: Interview fallback — guided Q&A produces corpus from nothing
+- [ ] Tag review-w1 for Claude architect review
+- [ ] M2: Remaining playbooks wired (T2.1-T2.5)
+- [ ] M2: Business Profile intake, Sources Engine, Viral Patterns, Audience, Story, Format, Visual
