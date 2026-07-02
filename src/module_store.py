@@ -165,6 +165,41 @@ class ModuleStore:
             return None
         return path.read_text()
 
+    def load_validated(self, business_slug: str, module_name: str) -> Optional[str]:
+        """Load a module and validate its schema marker.
+
+        T2.5: Checks that the module file has a valid schema marker
+        (e.g. 'Schema: voice_profile_v1'). Invalid modules can't be loaded
+        by the drafter. Returns the content if valid, raises ValueError if
+        the schema marker is missing or unknown.
+        """
+        content = self.load(business_slug, module_name)
+        if not content:
+            return None
+
+        # Extract schema marker
+        import re
+        schema_match = re.search(r'Schema:\s*(\w+)', content)
+        if not schema_match:
+            raise ValueError(
+                f"Module '{module_name}' for '{business_slug}' has no schema marker. "
+                f"Cannot be loaded by the drafter."
+            )
+        schema_name = schema_match.group(1)
+
+        # Known valid schema names
+        VALID_SCHEMAS = {
+            "voice_profile_v1", "brand_context_v1", "source_criteria_v1",
+            "viral_patterns_v1", "audience_insights_v1", "story_frameworks_v1",
+            "format_guide_v1", "visual_style_v1", "shot_library_v1",
+        }
+        if schema_name not in VALID_SCHEMAS:
+            raise ValueError(
+                f"Module '{module_name}' has unknown schema '{schema_name}'. "
+                f"Valid schemas: {sorted(VALID_SCHEMAS)}"
+            )
+        return content
+
     def load_json(self, business_slug: str, module_name: str) -> Optional[dict]:
         """Load a module and parse its JSON metadata block (if present)."""
         content = self.load(business_slug, module_name)

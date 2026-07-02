@@ -31,14 +31,19 @@ CREATE TABLE IF NOT EXISTS provenance (
     context TEXT,                      -- human-readable context for the call
     temperature REAL,                  -- temperature used
     latency_ms INTEGER,                -- response time in milliseconds
-    cached INTEGER DEFAULT 0           -- 1 if this was served from cache
+    cached INTEGER DEFAULT 0,          -- 1 if this was served from cache
+    business_slug TEXT                 -- T2.11: tenant attribution for every LLM call
 );
+
+-- T2.11: migration for existing databases that lack the business_slug column
+-- SQLite doesn't have IF NOT EXISTS for ADD COLUMN, so we check pragma first
 """
 
 INDEX_SQL = """
 CREATE INDEX IF NOT EXISTS idx_provenance_input_hash ON provenance(input_hash);
 CREATE INDEX IF NOT EXISTS idx_provenance_prompt_file ON provenance(prompt_file);
 CREATE INDEX IF NOT EXISTS idx_provenance_verdict ON provenance(validator_verdict);
+CREATE INDEX IF NOT EXISTS idx_provenance_business_slug ON provenance(business_slug);
 """
 
 
@@ -54,6 +59,14 @@ class ProvenanceLog:
 
     def _init_db(self):
         self.conn.executescript(SCHEMA)
+        self.conn.commit()
+        # T2.11: migrate existing databases by adding business_slug column if missing
+        # Must run BEFORE creating indexes that reference business_slug
+        cols = [row[1] for row in self.conn.execute("PRAGMA table_info(provenance)").fetchall()]
+        if "business_slug" not in cols:
+            self.conn.execute("ALTER TABLE provenance ADD COLUMN business_slug TEXT")
+            self.conn.commit()
+        # Now create indexes (safe — business_slug column exists either way)
         self.conn.executescript(INDEX_SQL)
         self.conn.commit()
 
@@ -72,6 +85,7 @@ class ProvenanceLog:
         temperature: float = 0.0,
         latency_ms: Optional[int] = None,
         cached: bool = False,
+        business_slug: Optional[str] = None,
     ):
         """Write a provenance row for an LLM call."""
         ts = datetime.now(timezone.utc).isoformat()
@@ -81,11 +95,11 @@ class ProvenanceLog:
             """INSERT INTO provenance
                (timestamp, input_hash, prompt_file, prompt_version, model, provider,
                 raw_output, validated_output, validator_verdict, validator_errors,
-                context, temperature, latency_ms, cached)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                context, temperature, latency_ms, cached, business_slug)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (ts, input_hash, prompt_file, prompt_version, model, provider,
              raw_output, validated_json, validator_verdict, validator_errors,
-             context, temperature, latency_ms, 1 if cached else 0),
+             context, temperature, latency_ms, 1 if cached else 0, business_slug),
         )
         self.conn.commit()
 

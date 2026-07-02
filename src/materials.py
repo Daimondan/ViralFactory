@@ -301,7 +301,22 @@ class MaterialsIntake:
         return material_id
 
     def _update_field(self, material_id: int, field: str, value: str):
-        """Update a single field on a material."""
+        """Update a single field on a material.
+
+        R8/T2.10: field name is validated against an allowlist to prevent
+        SQL injection via column name interpolation.
+        """
+        ALLOWED_FIELDS = {
+            "normalized_content",
+            "raw_content",
+            "word_count",
+            "material_type",
+            "channel",
+            "date_approx",
+            "audience",
+        }
+        if field not in ALLOWED_FIELDS:
+            raise ValueError(f"Invalid field name: {field!r}. Allowed: {sorted(ALLOWED_FIELDS)}")
         conn = sqlite3.connect(self.db_path)
         conn.execute(
             f"UPDATE materials SET {field} = ? WHERE id = ?",

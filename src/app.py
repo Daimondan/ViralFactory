@@ -199,8 +199,51 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     @app.route("/library")
     def library():
-        """Library surface — read-only browse of modules."""
-        return render_template("library.html")
+        """Library surface — read-only browse of modules + version history."""
+        try:
+            config = load_all(config_dir)
+            business_slug = config["business"]["business"]["slug"]
+        except ConfigError:
+            business_slug = None
+
+        modules = []
+        if business_slug:
+            from module_store import ModuleStore
+            store = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
+            for name in store.list_modules(business_slug):
+                content = store.load(business_slug, name)
+                versions = store.list_versions(business_slug, name)
+                # Extract schema marker
+                schema_name = None
+                if content:
+                    import re as _re
+                    m = _re.search(r'Schema:\s*(\w+)', content)
+                    schema_name = m.group(1) if m else None
+                modules.append({
+                    "name": name,
+                    "schema": schema_name,
+                    "version_count": len(versions) + 1,  # +1 for current
+                    "versions": [{"version": v["version"], "timestamp": v["timestamp"]} for v in versions],
+                    "preview": content[:500] if content else "",
+                })
+
+        return render_template("library.html", business_slug=business_slug, modules=modules)
+
+    @app.route("/api/library/<business_slug>/<module_name>")
+    def api_library_module(business_slug, module_name):
+        """API: get a specific module's content + version history."""
+        from module_store import ModuleStore
+        store = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
+        content = store.load(business_slug, module_name)
+        if not content:
+            return jsonify({"error": "Module not found"}), 404
+        versions = store.list_versions(business_slug, module_name)
+        return jsonify({
+            "module": module_name,
+            "business_slug": business_slug,
+            "content": content,
+            "versions": [{"version": v["version"], "timestamp": v["timestamp"], "filename": v["filename"]} for v in versions],
+        })
 
     @app.route("/onboard/<playbook_name>/<int:run_id>/intake", methods=["GET"])
     def intake_page(playbook_name, run_id):

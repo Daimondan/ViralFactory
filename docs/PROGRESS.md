@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-02
-**Current Phase:** M2 in progress. T2.1–T2.4, T2.9, R15 done. Charter v3.3. 240 tests passing.
+**Current Phase:** M2 nearly complete. T2.1–T2.5, T2.9, T2.10, T2.11, R15 done. T2.6–T2.8 deferred (audio/voice cloning after UI review). 254 tests passing. Deploying to VPS for operator review.
 
 ---
 
@@ -15,7 +15,7 @@
 |---|---|---|
 | 0. Foundation | ✅ | All T0.1–T0.7 done. 28 tests passing. Real config verified. Pushed. |
 | 1. Onboarding engine: Voice Profile | ✅ | T1.1–T1.5 all done. 92 tests. Runner, intake, analysis, calibration, interview fallback. |
-| 2. Remaining playbooks wired | 🔧 | T2.1 (Business Profile) + T2.2 (Sources Engine Part A) + T2.9 (gate-token enforcement) + T2.3 (Viral Patterns + Audience Insights + Story Frameworks + Format Guide with AMENDMENT-004 enrichment) done. 201 tests. T2.4–T2.11 next. |
+| 2. Remaining playbooks wired | 🔧 | All playbooks done (T2.1–T2.4) + gate enforcement (T2.9) + schema-check (T2.5) + security fixes (T2.10) + provenance business_slug (T2.11) + gate step derivation (R15). 254 tests. T2.6–T2.8 (audio/voice) deferred. Deploying for operator review. |
 | 3. Co-production loop | ⬜ | Direct-edit mode in BUILD_PLAN (T3.3). Drafter A/B at checkpoint. |
 | 4. Publish + metrics automation | ⬜ | Postiz self-hosted confirmed. |
 | 5. Inward learning loop | ⬜ | Async gate queue (superseding, age, no pressure). |

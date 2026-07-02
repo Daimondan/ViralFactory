@@ -88,11 +88,19 @@ class LLMAdapter:
         return content, version
 
     def _render_prompt(self, template: str, variables: dict) -> str:
-        """Render a prompt template with variables using simple {variable} substitution."""
-        rendered = template
-        for key, value in variables.items():
-            rendered = rendered.replace(f"{{{key}}}", str(value))
-        return rendered
+        """Render a prompt template with variables using single-pass substitution.
+
+        R8/T2.10: Uses regex single-pass replacement to prevent double-substitution.
+        If a variable's value contains '{another_var}', that brace is NOT re-interpreted.
+        """
+        def replacer(match):
+            key = match.group(1)
+            if key in variables:
+                return str(variables[key])
+            return match.group(0)  # leave unknown placeholders as-is
+
+        # Single pass: replace all {key} occurrences in one regex sweep
+        return re.sub(r'\{(\w+)\}', replacer, template)
 
     def _call_ollama(
         self,
@@ -189,6 +197,7 @@ class LLMAdapter:
         backend: str = "default",
         allowlists: Optional[dict[str, list[str]]] = None,
         context: str = "",
+        business_slug: Optional[str] = None,
     ) -> dict:
         """
         The main entry point. Load prompt, render, call LLM, validate, cache, log.
@@ -258,6 +267,7 @@ class LLMAdapter:
                 context=f"{context} (cached)",
                 temperature=temperature,
                 cached=True,
+                business_slug=business_slug,
             )
             return cached
 
@@ -282,6 +292,7 @@ class LLMAdapter:
                 validator_errors="API call failed",
                 context=context,
                 temperature=temperature,
+                business_slug=business_slug,
             )
             raise
 
@@ -305,7 +316,8 @@ class LLMAdapter:
                     context=context,
                     temperature=temperature,
                     latency_ms=latency_ms,
-                )
+                    business_slug=business_slug,
+                    )
                 return validated
             except ValidationError as e:
                 if attempt == 0:
@@ -323,7 +335,8 @@ class LLMAdapter:
                         context=f"{context} (attempt 1, failed validation)",
                         temperature=temperature,
                         latency_ms=latency_ms,
-                    )
+                        business_slug=business_slug,
+                        )
                     # Retry once — append "Please respond with valid JSON only" and re-call
                     retry_prompt = rendered + "\n\n---\nIMPORTANT: Your previous response was not valid JSON. Please respond with ONLY valid JSON, no markdown, no explanation."
                     raw_output, latency_ms = call_fn(
@@ -344,7 +357,8 @@ class LLMAdapter:
                         context=f"{context} (attempt 2, failed validation)",
                         temperature=temperature,
                         latency_ms=latency_ms,
-                    )
+                        business_slug=business_slug,
+                        )
                     raise LLMAdapterError(
                         f"LLM output failed validation after retry: {e}. "
                         f"Flagged for manual review. Context: {context}"
