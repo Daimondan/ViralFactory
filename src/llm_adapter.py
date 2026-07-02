@@ -48,7 +48,7 @@ class LLMAdapter:
         adapter = LLMAdapter(models_config, db_path="data/viralfactory.db")
         result = adapter.complete(
             prompt_file="prompts/draft/v1.md",
-            variables={"seed": "Caribbean wealth is about community not just cash"},
+            variables={"seed": "Wealth is about community not just cash"},
             schema={"type": "object", "required": ["title", "body"], "properties": {...}},
             backend="drafter",  # or "default"
         )

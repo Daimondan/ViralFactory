@@ -49,7 +49,7 @@
 - [ ] **Checkpoint:** operator onboards their own voice. Tag `review-w3`.
 
 ### M2 — Remaining playbooks wired (est. week 4)
-- [ ] T2.1 Business Profile intake → `business.yaml` + brand-context module — AC: tenant values re-entered via console; zero tenant strings in code
+- [x] T2.1 Business Profile intake → `business.yaml` + brand-context module — AC: tenant values re-entered via console; zero tenant strings in code
 - [ ] T2.2 Sources Engine Part A: seed sources → Source Criteria (human-readable, evidenced) → `sources.yaml` — AC: criteria editable at gate; nothing hardcoded. Include the **optional deferred v2 bulk-import path** (reads the T0.7 backup; ships disabled)
 - [ ] T2.3 Viral Patterns starter + Audience Insights + Story Frameworks + Format Guide playbooks — AC: each produces a schema-valid v1 via runner + gate
 - [ ] T2.4 Visual Style intake + shot-library index — AC: module stored; index updatable

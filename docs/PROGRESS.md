@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-02
-**Current Phase:** M1 complete (92 tests passing). Review-w1 corrections applied (R1–R5). Ready for M2.
+**Current Phase:** M2 in progress. T2.1 done (Business Profile intake). 116 tests passing.
 
 ---
 
@@ -15,7 +15,7 @@
 |---|---|---|
 | 0. Foundation | ✅ | All T0.1–T0.7 done. 28 tests passing. Real config verified. Pushed. |
 | 1. Onboarding engine: Voice Profile | ✅ | T1.1–T1.5 all done. 92 tests. Runner, intake, analysis, calibration, interview fallback. |
-| 2. Remaining playbooks wired | ⬜ | Playbooks split. Awaits M1. |
+| 2. Remaining playbooks wired | 🔧 | T2.1 done (Business Profile intake: Q&A→AI→gate→business.yaml+brand-context). 116 tests. T2.2–T2.11 next. |
 | 3. Co-production loop | ⬜ | Direct-edit mode in BUILD_PLAN (T3.3). Drafter A/B at checkpoint. |
 | 4. Publish + metrics automation | ⬜ | Postiz self-hosted confirmed. |
 | 5. Inward learning loop | ⬜ | Async gate queue (superseding, age, no pressure). |
@@ -75,5 +75,5 @@
 
 ## What's Next
 - [ ] Tag review-w1 for Claude architect review
-- [ ] M2: Remaining playbooks wired (T2.1-T2.5)
-- [ ] M2: Business Profile intake, Sources Engine, Viral Patterns, Audience, Story, Format, Visual
+- [x] T2.1: Business Profile intake — Q&A UI, AI analysis prompt, schema, gate enforcement, business.yaml + brand-context module (15 new tests, 116 total)
+- [ ] M2 continues: T2.2 Sources Engine, T2.3–T2.4 remaining playbooks, T2.5 module store, T2.6–T2.11 (transcription, voice cloning, R7–R9)

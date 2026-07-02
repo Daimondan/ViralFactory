@@ -216,3 +216,105 @@ def voice_profile_to_markdown(profile: dict, business_name: str, version: str = 
     lines.append(f"- Schema: voice_profile_v1")
 
     return "\n".join(lines)
+
+
+# Business Profile output schema (for the validator)
+BUSINESS_PROFILE_SCHEMA = {
+    "type": "object",
+    "required": ["business", "brands", "subjects", "platforms",
+                 "goals", "red_lines", "audience_description"],
+    "properties": {
+        "business": {
+            "type": "object",
+            "required": ["name", "slug", "description"],
+            "properties": {
+                "name": {"type": "string"},
+                "slug": {"type": "string"},
+                "description": {"type": "string"},
+            },
+        },
+        "brands": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["name", "purpose"],
+                "properties": {
+                    "name": {"type": "string"},
+                    "purpose": {"type": "string"},
+                },
+            },
+        },
+        "subjects": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "platforms": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["name", "handle", "priority"],
+                "properties": {
+                    "name": {"type": "string"},
+                    "handle": {"type": "string"},
+                    "priority": {"type": "integer"},
+                },
+            },
+        },
+        "goals": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "red_lines": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "audience_description": {"type": "string"},
+    },
+}
+
+
+def business_profile_to_yaml(profile: dict) -> str:
+    """Convert a validated business profile JSON into YAML for config/business.yaml."""
+    import yaml as _yaml
+    return _yaml.dump(profile, default_flow_style=False, sort_keys=False, allow_unicode=True)
+
+
+def brand_context_to_markdown(profile: dict, version: str = "1.0") -> str:
+    """
+    Convert a validated business profile JSON into the brand-context module
+    markdown that the drafter loads.
+    """
+    biz = profile["business"]
+    lines = [f"# Brand Context — {biz['name']} — v{version}"]
+
+    lines.append(f"\n## Business\n- **Name:** {biz['name']}")
+    lines.append(f"- **Slug:** {biz['slug']}")
+    lines.append(f"- **Description:** {biz['description']}")
+
+    lines.append("\n## Brands")
+    for b in profile.get("brands", []):
+        lines.append(f"- **{b['name']}** — {b['purpose']}")
+
+    lines.append("\n## Subjects (tag taxonomy)")
+    for s in profile.get("subjects", []):
+        lines.append(f"- {s}")
+
+    lines.append("\n## Platforms")
+    for p in profile.get("platforms", []):
+        lines.append(f"- **{p['name']}** ({p['handle']}) — priority {p['priority']}")
+
+    lines.append("\n## Goals")
+    for g in profile.get("goals", []):
+        lines.append(f"- {g}")
+
+    lines.append("\n## Red lines (never do)")
+    for r in profile.get("red_lines", []):
+        lines.append(f"- {r}")
+
+    lines.append(f"\n## Audience\n{profile.get('audience_description', '')}")
+
+    lines.append(f"\n## Provenance\n- Version: {version}")
+    lines.append(f"- Generated: {datetime.now(timezone.utc).isoformat()}")
+    lines.append(f"- Schema: brand_context_v1")
+
+    return "\n".join(lines)

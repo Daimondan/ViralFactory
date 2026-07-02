@@ -464,6 +464,166 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         """Interview fallback UI for users with no materials."""
         return render_template("interview.html", run_id=run_id)
 
+    # --- Business Profile Intake (T2.1) ---
+
+    @app.route("/onboard/<playbook_name>/<int:run_id>/business-profile")
+    def business_profile_page(playbook_name, run_id):
+        """Business Profile Q&A UI."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return "Run not found", 404
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        qa_pairs = collected.get("business_qa", [])
+
+        # Check if analysis already done
+        llm_outputs = json.loads(run.get("llm_outputs") or "{}")
+        profile = llm_outputs.get("analysis")
+
+        return render_template("business_profile.html",
+            playbook_name=playbook_name, run_id=run_id,
+            qa_pairs=qa_pairs, profile=profile)
+
+    @app.route("/api/run/<int:run_id>/business-qa", methods=["POST"])
+    def business_qa(run_id):
+        """Add a Q&A pair for the business profile intake."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        question = request.json.get("question", "").strip()
+        answer = request.json.get("answer", "").strip()
+        if not answer:
+            return jsonify({"error": "No answer provided"}), 400
+
+        # Store as a Q&A pair
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        if "business_qa" not in collected:
+            collected["business_qa"] = []
+        collected["business_qa"].append({"q": question, "a": answer})
+        runner.update_run(run_id, collected_inputs=json.dumps(collected))
+
+        return jsonify({"status": "ok", "count": len(collected["business_qa"])})
+
+    @app.route("/api/run/<int:run_id>/analyze-business", methods=["POST"])
+    def analyze_business(run_id):
+        """Run the Business Profile analysis LLM call."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        qa_pairs = collected.get("business_qa", [])
+        if not qa_pairs:
+            return jsonify({"error": "No Q&A collected yet. Add answers first."}), 400
+
+        # Build transcript
+        transcript = ""
+        for i, pair in enumerate(qa_pairs, 1):
+            transcript += f"Q{i}: {pair.get('q', '(free-form)')}\nA{i}: {pair['a']}\n\n"
+
+        # Get config
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+            business = config["business"]
+        except ConfigError as e:
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        from module_store import BUSINESS_PROFILE_SCHEMA
+        from llm_adapter import LLMAdapter, LLMAdapterError
+
+        adapter = LLMAdapter(
+            models_config,
+            db_path=app.config["DB_PATH"],
+            prompts_dir="prompts",
+        )
+
+        try:
+            result = adapter.complete(
+                prompt_file="business_profile/analyze_v1.md",
+                variables={
+                    "business_name": business["business"]["name"],
+                    "existing_info": business["business"].get("description", ""),
+                    "qa_transcript": transcript[:8000],
+                },
+                schema=BUSINESS_PROFILE_SCHEMA,
+                backend="default",
+                context=f"Business Profile analysis for run {run_id}",
+            )
+        except LLMAdapterError as e:
+            return jsonify({"error": str(e)}), 500
+        except Exception as e:
+            return jsonify({"error": f"LLM call failed: {e}"}), 500
+
+        # Store the LLM output
+        runner.add_llm_output(run_id, "analysis", result)
+
+        return jsonify({"status": "ok", "profile": result})
+
+    @app.route("/api/run/<int:run_id>/store-business", methods=["POST"])
+    def store_business(run_id):
+        """Store the business profile: write business.yaml + brand-context module."""
+        from module_store import (
+            ModuleStore, business_profile_to_yaml, brand_context_to_markdown,
+        )
+
+        approved = request.json.get("approved", False)
+        version = request.json.get("version", "1.0")
+        note = request.json.get("note", "")
+
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        llm_outputs = json.loads(run.get("llm_outputs") or "{}")
+        profile = llm_outputs.get("analysis")
+        if not profile:
+            return jsonify({"error": "No business profile found. Run analysis first."}), 400
+
+        paths = {}
+        if approved:
+            # Write business.yaml
+            yaml_content = business_profile_to_yaml(profile)
+            biz_yaml_path = os.path.join(app.config["CONFIG_DIR"], "business.yaml")
+            with open(biz_yaml_path, "w") as f:
+                f.write("# ViralFactory business config\n")
+                f.write("# Generated by Business Profile Intake playbook.\n")
+                f.write("# Every value here is business-specific — nothing in src/ should hardcode any of these.\n\n")
+                f.write(yaml_content)
+            paths["business_yaml"] = biz_yaml_path
+
+            # Write brand-context module
+            md = brand_context_to_markdown(profile, version)
+            store = ModuleStore(modules_dir="modules")
+            module_path = store.store(
+                profile["business"]["slug"],
+                "brand-context",
+                md,
+                version=version,
+                provenance={
+                    "version": version,
+                    "approved": approved,
+                    "note": note,
+                    "run_id": run_id,
+                    "playbook": "business-profile-intake",
+                },
+            )
+            paths["brand_context"] = module_path
+
+        # Record gate result
+        runner.set_gate_result(run_id, "4", "approve" if approved else "park", note)
+        runner.update_run(run_id, status="completed" if approved else "awaiting_gate")
+
+        result = {"status": "ok", "version": version, "approved": approved}
+        if paths:
+            result["paths"] = paths
+        return jsonify(result)
+
     @app.route("/api/run/<int:run_id>/interview-question", methods=["POST"])
     def interview_question(run_id):
         """Generate the next interview question."""
