@@ -16,7 +16,11 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from module_store import ModuleStore, VOICE_PROFILE_SCHEMA, voice_profile_to_markdown
+from module_store import (
+    ModuleStore, VOICE_PROFILE_SCHEMA, voice_profile_to_markdown,
+    generate_gate_token,
+)
+from playbook_runner import PlaybookRunner
 from validator import validate_json_schema, validate_llm_output, ValidationError
 
 
@@ -166,27 +170,52 @@ class TestVoiceProfileMarkdown:
 class TestModuleStore:
 
     @pytest.fixture
-    def store(self, tmp_path):
-        return ModuleStore(modules_dir=str(tmp_path / "modules"))
+    def tmp_setup(self, tmp_path):
+        """Create a ModuleStore and DB path with a helper to make approved runs."""
+        db_path = str(tmp_path / "test.db")
+        modules_dir = str(tmp_path / "modules")
+        store = ModuleStore(modules_dir=modules_dir, db_path=db_path)
 
-    def test_store_module(self, store):
+        def make_approved_run():
+            runner = PlaybookRunner(db_path)
+            run_id = runner.start_run("test", "1.0", "stackpenni")
+            runner.set_gate_result(run_id, "1", "approve", "test")
+            token = generate_gate_token(run_id)
+            return run_id, token
+
+        return store, make_approved_run
+
+    def test_store_module(self, tmp_setup):
         """A module can be stored and loaded."""
-        path = store.store("stackpenni", "voice-profile", "# Voice Profile\n\nTest content", "1.0")
+        store, make_approved_run = tmp_setup
+        run_id, token = make_approved_run()
+        path = store.store("stackpenni", "voice-profile", "# Voice Profile\n\nTest content", "1.0",
+                           gate_token=token, run_id=run_id)
         assert os.path.exists(path)
         loaded = store.load("stackpenni", "voice-profile")
         assert "Voice Profile" in loaded
         assert "Test content" in loaded
 
-    def test_module_exists(self, store):
+    def test_module_exists(self, tmp_setup):
         """exists() correctly reports module presence."""
+        store, make_approved_run = tmp_setup
         assert not store.exists("stackpenni", "voice-profile")
-        store.store("stackpenni", "voice-profile", "content", "1.0")
+        run_id, token = make_approved_run()
+        store.store("stackpenni", "voice-profile", "content", "1.0",
+                    gate_token=token, run_id=run_id)
         assert store.exists("stackpenni", "voice-profile")
 
-    def test_version_archived_on_overwrite(self, store):
+    def test_version_archived_on_overwrite(self, tmp_setup):
         """When a module is overwritten, the previous version is archived."""
-        store.store("stackpenni", "voice-profile", "# Voice Profile — StackPenni — v1.0\n\nv1 content", "1.0")
-        store.store("stackpenni", "voice-profile", "# Voice Profile — StackPenni — v2.0\n\nv2 content", "2.0")
+        store, make_approved_run = tmp_setup
+
+        run_id, token = make_approved_run()
+        store.store("stackpenni", "voice-profile", "# Voice Profile — StackPenni — v1.0\n\nv1 content", "1.0",
+                    gate_token=token, run_id=run_id)
+
+        run_id2, token2 = make_approved_run()
+        store.store("stackpenni", "voice-profile", "# Voice Profile — StackPenni — v2.0\n\nv2 content", "2.0",
+                    gate_token=token2, run_id=run_id2)
 
         # Current version is v2
         current = store.load("stackpenni", "voice-profile")
@@ -197,18 +226,30 @@ class TestModuleStore:
         assert len(versions) >= 1
         assert versions[0]["version"] == "1.0"
 
-    def test_list_modules(self, store):
+    def test_list_modules(self, tmp_setup):
         """list_modules returns all modules for a business."""
-        store.store("stackpenni", "voice-profile", "content", "1.0")
-        store.store("stackpenni", "viral-patterns", "content", "1.0")
+        store, make_approved_run = tmp_setup
+
+        run_id, token = make_approved_run()
+        store.store("stackpenni", "voice-profile", "content", "1.0",
+                    gate_token=token, run_id=run_id)
+
+        run_id2, token2 = make_approved_run()
+        store.store("stackpenni", "viral-patterns", "content", "1.0",
+                    gate_token=token2, run_id=run_id2)
+
         modules = store.list_modules("stackpenni")
         assert "voice-profile" in modules
         assert "viral-patterns" in modules
 
-    def test_provenance_stored(self, store):
+    def test_provenance_stored(self, tmp_setup):
         """Provenance is stored alongside the module."""
+        store, make_approved_run = tmp_setup
+
+        run_id, token = make_approved_run()
         prov = {"sources": ["whatsapp export"], "calibration": "approved on round 1"}
-        store.store("stackpenni", "voice-profile", "content", "1.0", provenance=prov)
+        store.store("stackpenni", "voice-profile", "content", "1.0",
+                    provenance=prov, gate_token=token, run_id=run_id)
         # Provenance file exists
         prov_path = os.path.join(os.path.dirname(store._module_path("stackpenni", "voice-profile")),
                                  "voice-profile_provenance.json")

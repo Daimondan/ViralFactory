@@ -26,6 +26,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from module_store import (
     ModuleStore, SOURCE_CRITERIA_SCHEMA,
     source_criteria_to_markdown, monitoring_plan_to_yaml,
+    generate_gate_token,
 )
 from validator import validate_llm_output, ValidationError
 from config_loader import load_sources, ConfigError
@@ -223,10 +224,17 @@ class TestSourcesGateEnforcement:
 
     def test_approved_writes_module(self, valid_criteria, tmp_dirs):
         config_dir, modules_dir, db_path = tmp_dirs
-        store = ModuleStore(modules_dir=modules_dir)
+        store = ModuleStore(modules_dir=modules_dir, db_path=db_path)
         md = source_criteria_to_markdown(valid_criteria, "1.0")
+
+        runner = PlaybookRunner(db_path)
+        run_id = runner.start_run("sources-engine", "1.0", "test")
+        runner.set_gate_result(run_id, "4", "approve", "test")
+        token = generate_gate_token(run_id)
+
         path = store.store("test", "source-criteria", md, version="1.0",
-                           provenance={"version": "1.0", "approved": True})
+                           provenance={"version": "1.0", "approved": True},
+                           gate_token=token, run_id=run_id)
         assert os.path.exists(path)
         loaded = store.load("test", "source-criteria")
         assert "Source Criteria" in loaded

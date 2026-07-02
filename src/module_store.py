@@ -10,16 +10,100 @@ Version history is visible in the console.
 import os
 import json
 import re
+import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 
+class GateTokenError(Exception):
+    """Raised when a gate token is missing, invalid, or does not match an approval record."""
+    pass
+
+
+def verify_gate_token(db_path: str, run_id: int, gate_token: str) -> dict:
+    """
+    Verify a gate token against the playbook_runs database.
+
+    A gate token is valid when:
+    1. The run exists in playbook_runs
+    2. The gate_results for this run contain an 'approve' decision
+    3. The token matches "run_{run_id}_approved"
+
+    Returns the gate result dict if valid.
+    Raises GateTokenError if invalid.
+    """
+    if not gate_token:
+        raise GateTokenError("No gate token provided. Gate approval is required for writes.")
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        # Ensure table exists (PlaybookRunner creates it, but be defensive)
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS playbook_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                playbook_name TEXT NOT NULL,
+                playbook_version TEXT NOT NULL,
+                business_slug TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                current_step TEXT,
+                collected_inputs TEXT,
+                llm_outputs TEXT,
+                gate_results TEXT,
+                started_at TEXT,
+                completed_at TEXT,
+                created_at TEXT NOT NULL
+            );
+        """)
+        conn.commit()
+
+        row = conn.execute(
+            "SELECT * FROM playbook_runs WHERE id = ?", (run_id,)
+        ).fetchone()
+        if not row:
+            raise GateTokenError(f"Run {run_id} not found.")
+
+        # Convert Row to dict for safe .get() access
+        row_dict = dict(row)
+        gate_results = json.loads(row_dict.get("gate_results") or "{}")
+
+        # Find any 'approve' decision in the gate results
+        approved_step = None
+        for step, result in gate_results.items():
+            if isinstance(result, dict) and result.get("decision") == "approve":
+                approved_step = step
+                break
+
+        if not approved_step:
+            raise GateTokenError(
+                f"Run {run_id} has no approved gate decision. "
+                f"Gate approval is required before writing modules or config."
+            )
+
+        # Verify the token
+        expected_token = f"run_{run_id}_approved"
+        if gate_token != expected_token:
+            raise GateTokenError(
+                f"Invalid gate token. Expected '{expected_token}', got '{gate_token}'."
+            )
+
+        return gate_results[approved_step]
+    finally:
+        conn.close()
+
+
+def generate_gate_token(run_id: int) -> str:
+    """Generate a gate token for a run that has an approved gate decision."""
+    return f"run_{run_id}_approved"
+
+
 class ModuleStore:
     """Versioned markdown module storage with gate enforcement."""
 
-    def __init__(self, modules_dir: str = "modules"):
+    def __init__(self, modules_dir: str = "modules", db_path: str = "data/viralfactory.db"):
         self.modules_dir = modules_dir
+        self.db_path = db_path
 
     def _module_path(self, business_slug: str, module_name: str) -> Path:
         """Get the path to a module file."""
@@ -30,14 +114,33 @@ class ModuleStore:
         return Path(self.modules_dir) / business_slug / "versions" / module_name
 
     def store(self, business_slug: str, module_name: str, content: str,
-              version: str = "1.0", provenance: dict = None) -> str:
+              version: str = "1.0", provenance: dict = None,
+              gate_token: str = None, run_id: int = None) -> str:
         """
         Store a module as versioned markdown.
         Returns the path to the stored module.
 
-        Gate enforcement: this method should only be called AFTER gate approval.
-        The caller (playbook runner / gate UI) is responsible for checking.
+        Gate enforcement: a valid gate_token (verified against the runs DB)
+        is required before writing. The caller must have recorded an 'approve'
+        gate decision on the run BEFORE calling this method.
+
+        Raises GateTokenError if the gate token is missing or invalid.
         """
+        if not business_slug or business_slug == "unknown":
+            raise GateTokenError(
+                f"Cannot write module with business_slug='{business_slug}'. "
+                f"A valid business slug is required — orphans are not permitted."
+            )
+
+        if not gate_token or run_id is None:
+            raise GateTokenError(
+                "Gate token and run_id are required for module writes. "
+                "Record a gate approval on the run first, then pass the token."
+            )
+
+        # Verify the gate token against the DB
+        verify_gate_token(self.db_path, run_id, gate_token)
+
         path = self._module_path(business_slug, module_name)
         path.parent.mkdir(parents=True, exist_ok=True)
 

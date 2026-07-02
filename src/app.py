@@ -41,6 +41,19 @@ def _archive_config_file(filepath):
     return archive_path
 
 
+def _verify_config_write(db_path: str, run_id: int, gate_token: str):
+    """
+    Verify a gate token before writing config files (business.yaml, sources.yaml).
+
+    Same verification as module writes: the run must have an 'approve' gate
+    decision, and the token must match.
+
+    Raises GateTokenError if invalid.
+    """
+    from module_store import verify_gate_token, GateTokenError
+    verify_gate_token(db_path, run_id, gate_token)
+
+
 def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db", playbooks_dir: str = "playbooks"):
     """Create and configure the Flask app."""
     app = Flask(__name__, template_folder="templates", static_folder="static")
@@ -422,7 +435,10 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
     @app.route("/api/run/<int:run_id>/store-voice", methods=["POST"])
     def store_voice(run_id):
         """Store the voice profile as a versioned module (gate approval)."""
-        from module_store import ModuleStore, voice_profile_to_markdown
+        from module_store import (
+            ModuleStore, voice_profile_to_markdown,
+            GateTokenError, generate_gate_token,
+        )
 
         version = request.json.get("version", "1.0")
         approved = request.json.get("approved", False)
@@ -444,32 +460,39 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         if not profile:
             return jsonify({"error": "No voice profile found"}), 400
 
+        # Record gate decision FIRST (before any write attempt)
+        runner.set_gate_result(run_id, "5", "approve" if approved else "park", note)
+
         # Convert to markdown
         md = voice_profile_to_markdown(profile, business["business"]["name"], version)
 
-        # Gate enforcement: modules are written ONLY on approval.
-        # On park/reject, the profile stays in run state (llm_outputs) only.
+        # Gate enforcement: modules are written ONLY on approval, with verified gate token.
         path = None
         if approved:
-            store = ModuleStore(modules_dir="modules")
-            path = store.store(
-                business["business"]["slug"],
-                "voice-profile",
-                md,
-                version=version,
-                provenance={
-                    "version": version,
-                    "approved": approved,
-                    "note": note,
-                    "run_id": run_id,
-                    "sources": [s["type"] for s in json.loads(run.get("collected_inputs") or "{}").values()
-                               if isinstance(s, list)] if run.get("collected_inputs") else [],
-                },
-            )
-
-        # Record gate result
-        runner.set_gate_result(run_id, "5", "approve" if approved else "park", note)
-        runner.update_run(run_id, status="completed" if approved else "awaiting_gate")
+            gate_token = generate_gate_token(run_id)
+            runner.update_run(run_id, status="completed")
+            try:
+                store = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
+                path = store.store(
+                    business["business"]["slug"],
+                    "voice-profile",
+                    md,
+                    version=version,
+                    provenance={
+                        "version": version,
+                        "approved": approved,
+                        "note": note,
+                        "run_id": run_id,
+                        "sources": [s["type"] for s in json.loads(run.get("collected_inputs") or "{}").values()
+                                   if isinstance(s, list)] if run.get("collected_inputs") else [],
+                    },
+                    gate_token=gate_token,
+                    run_id=run_id,
+                )
+            except GateTokenError as e:
+                return jsonify({"error": str(e)}), 403
+        else:
+            runner.update_run(run_id, status="awaiting_gate")
 
         result = {
             "status": "ok",
@@ -590,6 +613,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         """Store the business profile: write business.yaml + brand-context module."""
         from module_store import (
             ModuleStore, business_profile_to_yaml, brand_context_to_markdown,
+            GateTokenError, generate_gate_token,
         )
 
         approved = request.json.get("approved", False)
@@ -606,40 +630,51 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         if not profile:
             return jsonify({"error": "No business profile found. Run analysis first."}), 400
 
+        # Record gate decision FIRST
+        runner.set_gate_result(run_id, "4", "approve" if approved else "park", note)
+
         paths = {}
         if approved:
-            # Write business.yaml (archive existing first)
-            yaml_content = business_profile_to_yaml(profile)
-            biz_yaml_path = os.path.join(app.config["CONFIG_DIR"], "business.yaml")
-            _archive_config_file(biz_yaml_path)
-            with open(biz_yaml_path, "w") as f:
-                f.write("# ViralFactory business config\n")
-                f.write("# Generated by Business Profile Intake playbook.\n")
-                f.write("# Every value here is business-specific — nothing in src/ should hardcode any of these.\n\n")
-                f.write(yaml_content)
-            paths["business_yaml"] = biz_yaml_path
+            gate_token = generate_gate_token(run_id)
+            runner.update_run(run_id, status="completed")
+            try:
+                # Verify gate token before config write
+                _verify_config_write(app.config["DB_PATH"], run_id, gate_token)
 
-            # Write brand-context module
-            md = brand_context_to_markdown(profile, version)
-            store = ModuleStore(modules_dir="modules")
-            module_path = store.store(
-                profile["business"]["slug"],
-                "brand-context",
-                md,
-                version=version,
-                provenance={
-                    "version": version,
-                    "approved": approved,
-                    "note": note,
-                    "run_id": run_id,
-                    "playbook": "business-profile-intake",
-                },
-            )
-            paths["brand_context"] = module_path
+                # Write business.yaml (archive existing first)
+                yaml_content = business_profile_to_yaml(profile)
+                biz_yaml_path = os.path.join(app.config["CONFIG_DIR"], "business.yaml")
+                _archive_config_file(biz_yaml_path)
+                with open(biz_yaml_path, "w") as f:
+                    f.write("# ViralFactory business config\n")
+                    f.write("# Generated by Business Profile Intake playbook.\n")
+                    f.write("# Every value here is business-specific — nothing in src/ should hardcode any of these.\n\n")
+                    f.write(yaml_content)
+                paths["business_yaml"] = biz_yaml_path
 
-        # Record gate result
-        runner.set_gate_result(run_id, "4", "approve" if approved else "park", note)
-        runner.update_run(run_id, status="completed" if approved else "awaiting_gate")
+                # Write brand-context module
+                md = brand_context_to_markdown(profile, version)
+                store = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
+                module_path = store.store(
+                    profile["business"]["slug"],
+                    "brand-context",
+                    md,
+                    version=version,
+                    provenance={
+                        "version": version,
+                        "approved": approved,
+                        "note": note,
+                        "run_id": run_id,
+                        "playbook": "business-profile-intake",
+                    },
+                    gate_token=gate_token,
+                    run_id=run_id,
+                )
+                paths["brand_context"] = module_path
+            except GateTokenError as e:
+                return jsonify({"error": str(e)}), 403
+        else:
+            runner.update_run(run_id, status="awaiting_gate")
 
         result = {"status": "ok", "version": version, "approved": approved}
         if paths:
@@ -781,6 +816,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         """Store source criteria: write sources.yaml + source-criteria module."""
         from module_store import (
             ModuleStore, source_criteria_to_markdown, monitoring_plan_to_yaml,
+            GateTokenError, generate_gate_token,
         )
 
         approved = request.json.get("approved", False)
@@ -797,41 +833,57 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         if not criteria:
             return jsonify({"error": "No source criteria found. Run analysis first."}), 400
 
+        # Record gate decision FIRST
+        runner.set_gate_result(run_id, "5", "approve" if approved else "park", note)
+
         paths = {}
         if approved:
-            # Write sources.yaml (archive existing first)
-            yaml_content = monitoring_plan_to_yaml(criteria)
-            sources_yaml_path = os.path.join(app.config["CONFIG_DIR"], "sources.yaml")
-            _archive_config_file(sources_yaml_path)
-            with open(sources_yaml_path, "w") as f:
-                f.write("# ViralFactory sources config\n")
-                f.write("# Generated by the Sources Engine playbook (Part A).\n")
-                f.write("# All monitoring targets — feeds, channels, search queries.\n\n")
-                f.write(yaml_content)
-            paths["sources_yaml"] = sources_yaml_path
-
-            # Write source-criteria module
+            gate_token = generate_gate_token(run_id)
+            runner.update_run(run_id, status="completed")
             try:
-                config = load_all(app.config["CONFIG_DIR"])
-                business_slug = config["business"]["business"]["slug"]
-            except ConfigError:
-                business_slug = criteria.get("business_slug", "unknown")
-            md = source_criteria_to_markdown(criteria, version)
-            store = ModuleStore(modules_dir="modules")
-            module_path = store.store(
-                business_slug, "source-criteria", md,
-                version=version,
-                provenance={
-                    "version": version, "approved": approved,
-                    "note": note, "run_id": run_id,
-                    "playbook": "sources-engine",
-                },
-            )
-            paths["source_criteria"] = module_path
+                # Get business slug — return 500 if config is missing (no orphans)
+                try:
+                    config = load_all(app.config["CONFIG_DIR"])
+                    business_slug = config["business"]["business"]["slug"]
+                except ConfigError as e:
+                    return jsonify({"error": f"Cannot write source-criteria module: config error: {e}"}), 500
 
-        runner.set_gate_result(run_id, "5", "approve" if approved else "park", note)
-        runner.update_run(run_id, status="completed" if approved else "awaiting_gate")
+                if not business_slug or business_slug == "unknown":
+                    return jsonify({"error": "Cannot write module: business slug is missing or 'unknown'."}), 500
 
+                # Verify gate token before config write
+                _verify_config_write(app.config["DB_PATH"], run_id, gate_token)
+
+                # Write sources.yaml (archive existing first)
+                yaml_content = monitoring_plan_to_yaml(criteria)
+                sources_yaml_path = os.path.join(app.config["CONFIG_DIR"], "sources.yaml")
+                _archive_config_file(sources_yaml_path)
+                with open(sources_yaml_path, "w") as f:
+                    f.write("# ViralFactory sources config\n")
+                    f.write("# Generated by the Sources Engine playbook (Part A).\n")
+                    f.write("# All monitoring targets — feeds, channels, search queries.\n\n")
+                    f.write(yaml_content)
+                paths["sources_yaml"] = sources_yaml_path
+
+                # Write source-criteria module
+                md = source_criteria_to_markdown(criteria, version)
+                store = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
+                module_path = store.store(
+                    business_slug, "source-criteria", md,
+                    version=version,
+                    provenance={
+                        "version": version, "approved": approved,
+                        "note": note, "run_id": run_id,
+                        "playbook": "sources-engine",
+                    },
+                    gate_token=gate_token,
+                    run_id=run_id,
+                )
+                paths["source_criteria"] = module_path
+            except GateTokenError as e:
+                return jsonify({"error": str(e)}), 403
+        else:
+            runner.update_run(run_id, status="awaiting_gate")
         result = {"status": "ok", "version": version, "approved": approved}
         if paths:
             result["paths"] = paths

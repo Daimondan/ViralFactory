@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-02
-**Current Phase:** M2 in progress. T2.1–T2.2 done. R10–R16 corrections applied. 142 tests passing.
+**Current Phase:** M2 in progress. T2.1–T2.2, T2.9 done. Charter v3.3. 154 tests passing.
 
 ---
 

@@ -26,6 +26,7 @@ from config_loader import load_all, ConfigError
 from module_store import (
     ModuleStore, BUSINESS_PROFILE_SCHEMA,
     business_profile_to_yaml, brand_context_to_markdown,
+    generate_gate_token,
 )
 from validator import validate_llm_output, ValidationError
 from playbook_runner import PlaybookRunner
@@ -256,10 +257,17 @@ class TestBusinessProfileGateEnforcement:
         """Approved profile writes brand-context module."""
         config_dir, modules_dir, db_path = tmp_dirs
 
-        store = ModuleStore(modules_dir=modules_dir)
+        store = ModuleStore(modules_dir=modules_dir, db_path=db_path)
         md = brand_context_to_markdown(valid_profile, "1.0")
+
+        runner = PlaybookRunner(db_path)
+        run_id = runner.start_run("business-profile-intake", "1.0", "stackpenni")
+        runner.set_gate_result(run_id, "4", "approve", "test")
+        token = generate_gate_token(run_id)
+
         path = store.store("stackpenni", "brand-context", md, version="1.0",
-                           provenance={"version": "1.0", "approved": True})
+                           provenance={"version": "1.0", "approved": True},
+                           gate_token=token, run_id=run_id)
 
         assert os.path.exists(path)
         loaded = store.load("stackpenni", "brand-context")

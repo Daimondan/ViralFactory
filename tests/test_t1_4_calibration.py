@@ -17,7 +17,10 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from validator import validate_json_schema, validate_llm_output, ValidationError
-from module_store import ModuleStore, voice_profile_to_markdown
+from module_store import (
+    ModuleStore, voice_profile_to_markdown, generate_gate_token,
+)
+from playbook_runner import PlaybookRunner
 
 
 CALIBRATION_SCHEMA = {
@@ -93,11 +96,24 @@ class TestCalibrationSchema:
 class TestStoreVoiceProfile:
 
     @pytest.fixture
-    def store(self, tmp_path):
-        return ModuleStore(modules_dir=str(tmp_path / "modules"))
+    def tmp_setup(self, tmp_path):
+        """Create a ModuleStore with DB and a helper to make approved runs."""
+        db_path = str(tmp_path / "test.db")
+        modules_dir = str(tmp_path / "modules")
+        store = ModuleStore(modules_dir=modules_dir, db_path=db_path)
 
-    def test_store_v1_on_approve(self, store):
+        def make_approved_run(business_slug="testbrand"):
+            runner = PlaybookRunner(db_path)
+            run_id = runner.start_run("test", "1.0", business_slug)
+            runner.set_gate_result(run_id, "1", "approve", "test")
+            token = generate_gate_token(run_id)
+            return run_id, token
+
+        return store, make_approved_run
+
+    def test_store_v1_on_approve(self, tmp_setup):
         """v1.0 is stored when the user approves."""
+        store, make_approved_run = tmp_setup
         profile = {
             "identity_line": "Test identity",
             "audience": "Test audience",
@@ -107,15 +123,18 @@ class TestStoreVoiceProfile:
             "tells_checklist": [{"tell": "uniform length", "check": "check it"}],
         }
         md = voice_profile_to_markdown(profile, "TestBrand", "1.0")
+        run_id, token = make_approved_run()
         path = store.store("testbrand", "voice-profile", md, "1.0",
-                           provenance={"approved": True, "version": "1.0"})
+                           provenance={"approved": True, "version": "1.0"},
+                           gate_token=token, run_id=run_id)
         assert os.path.exists(path)
         loaded = store.load("testbrand", "voice-profile")
         assert "v1.0" in loaded
         assert "Test identity" in loaded
 
-    def test_store_v09_on_fallback(self, store):
+    def test_store_v09_on_fallback(self, tmp_setup):
         """v0.9 is stored when 3 rounds don't converge."""
+        store, make_approved_run = tmp_setup
         profile = {
             "identity_line": "Test identity",
             "audience": "Test audience",
@@ -125,15 +144,18 @@ class TestStoreVoiceProfile:
             "tells_checklist": [{"tell": "uniform length", "check": "check it"}],
         }
         md = voice_profile_to_markdown(profile, "TestBrand", "0.9")
+        run_id, token = make_approved_run()
         path = store.store("testbrand", "voice-profile", md, "0.9",
                            provenance={"approved": False, "version": "0.9",
-                                      "note": "3 rounds did not converge — refine via Feedback Log"})
+                                      "note": "3 rounds did not converge — refine via Feedback Log"},
+                           gate_token=token, run_id=run_id)
         assert os.path.exists(path)
         loaded = store.load("testbrand", "voice-profile")
         assert "v0.9" in loaded
 
-    def test_v09_then_v10_version_history(self, store):
+    def test_v09_then_v10_version_history(self, tmp_setup):
         """v0.9 stored first, then v1.0 — both visible in version history."""
+        store, make_approved_run = tmp_setup
         profile = {
             "identity_line": "Test", "audience": "Test",
             "positive_patterns": [], "dialect_features": [],
@@ -142,11 +164,15 @@ class TestStoreVoiceProfile:
 
         # First store v0.9
         md09 = voice_profile_to_markdown(profile, "Brand", "0.9")
-        store.store("brand", "voice-profile", md09, "0.9")
+        run_id, token = make_approved_run("brand")
+        store.store("brand", "voice-profile", md09, "0.9",
+                    gate_token=token, run_id=run_id)
 
         # Then store v1.0 (after refinement)
         md10 = voice_profile_to_markdown(profile, "Brand", "1.0")
-        store.store("brand", "voice-profile", md10, "1.0")
+        run_id2, token2 = make_approved_run("brand")
+        store.store("brand", "voice-profile", md10, "1.0",
+                    gate_token=token2, run_id=run_id2)
 
         # Current is v1.0
         current = store.load("brand", "voice-profile")
