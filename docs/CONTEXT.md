@@ -247,4 +247,4 @@ Scheduled research of what works in the wild: monitors top accounts/hashtags/cha
 
 ## System Diagram
 
-See `docs/diagrams/README.md` for the authoritative system overview (vertical-flow text + Mermaid + SVG), current as of Charter v3.2. The diagram reflects the staged pipeline: Gather → Ideas (Gate 1) → Draft (Gate 2) → Assets (Gate 3) → Publish (Gate 4) → Learn → Improve.
+See `docs/diagrams/README.md` for the authoritative system overview (vertical-flow text + Mermaid + SVG), current as of Charter v3.3. The diagram reflects the staged pipeline: Gather → Ideas+Treatment (Gate 1, debut) → Awaiting-Capture → Draft (Gate 2) → Assets (Gate 3) → Publish (Gate 4) → Learn.

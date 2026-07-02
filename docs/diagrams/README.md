@@ -1,183 +1,97 @@
-# Diagrams — ViralFactory
+# System Diagrams — ViralFactory
 
-> **Living document.** Update when the system architecture changes.
-> Current as of Charter v3.2 (AMENDMENT-003 — staged content pipeline).
-> `stackpenni_v3_system_with_onboarding.png` is SUPERSEDED by this file + `system-overview-v3.2.svg` (it predates DIVERGENCE-002 — it still shows OB1 — and predates the staged pipeline).
+*Destination: `docs/diagrams/README.md` (replaces prior version) · Authoritative overview, current as of **Charter v3.3** (AMENDMENT-004). SVG: `system-overview-v3.3.svg`. The v3.2 SVG is superseded — leave in place for history.*
 
-## System Overview (vertical flow)
+## Vertical flow (text)
 
 ```
-THE PERSON
-seeds · reactions · direct edits · lived material
-        │
-        ▼
-ONBOARDING ENGINE
-generic playbook runner executes markdown procedures
-        │
-        ▼
-8 LIVING MODULES (versioned, gate-only writes, own DB — no OB1)
-Voice · Viral · Story · Format · Audience · Feedback · Visual · Sources
-        │
-        ▼
-GATHER (automated) — CONFIGURED BY ONBOARDING
-Sources Engine scouts what the person's onboarding inputs dictate:
-seed sources + anti-examples → Source Criteria + sources.yaml
-ingests + scores every item against those criteria
-        │
-        ▼
-IDEAS  ◄── living modules ground idea generation
-cards from 3 origins: ai-originated · human-seeded · human-seeded-ai-developed
-ai-originated ideas = Source Bank material × Viral/Audience/Story/Format modules
-each card: idea + hook options + format + origin tag + evidence links
-        │
-        ▼
-■ GATE 1 — RIGOROUS: approve / kill / park per card
-  the funnel kills most here, by design — kill reasons → Feedback Log
-        │
-        ▼
-DRAFT
-AI, all modules loaded, self-audits against Tells Checklist
-= full text in voice + LIGHT VISUAL DIRECTION (prompts, refs, format)
-  NO rendered images at this stage
-        │
-        ▼
-■ GATE 2 — HUMAN PASS: chips + typed text + DIRECT EDITS (authoritative)
-  AI revises → ship-forward or kill · edits → Feedback Log (highest weight)
-        │
-        ▼
-ASSETS (survivors only)
-real images generated per Visual Style Guide · captions rendered
-fan-out to per-platform variants (X thread · IG carousel/reel · …)
-        │
-        ▼
-■ GATE 3 — QUICK, PER PLATFORM: approve / fix / kill, side by side
-        │
-        ▼
-■ GATE 4 — PUBLISH: go / hold + timing only
-  NO AUTO-PUBLISH, EVER, AT ANY TRUST LEVEL — HARD RULE
-        │
-        ▼
-SHIP → Postiz (self-hosted) publish queue → posted → metrics
-        │
-        ▼
-LEARN
-inward loop (weekly proposals) + outward loop (continuous research)
-origin tag travels idea → nightly note: do human seeds outperform?
-        │
-        ▼
-ASYNC GATE QUEUE
-person clears when ready → approved = module version bump
-        │
-        ▼
-NEXT DRAFT inherits updated modules
-```
-
-## Onboarding Flow (vertical) — unchanged
-
-```
-BUSINESS PROFILE Q&A
-what the business is, brands, subjects, platforms, goals, red-lines
-        │
-        ▼
-VOICE PROFILE
-from materials (chat, voice notes, emails) or interview fallback
-        │
-        ▼
-CALIBRATION GATE
-3 samples → pick closest → react → revise (max 3)
-        │
-        ▼
-SOURCES ENGINE
-seed sources → criteria → monitoring plan → sources.yaml
-        │
-        ▼
-VIRAL PATTERNS STARTER
-admired examples + anti-examples → named patterns (hypotheses)
-        │
-        ▼
-AUDIENCE INSIGHTS
-who they are, what they respond to
-        │
-        ▼
-STORY FRAMEWORKS
-one framework per subject type, grounded in real examples
-        │
-        ▼
-FORMAT GUIDE
-message type × platform → format + skeleton
-        │
-        ▼
-VISUAL STYLE
-brand look + shot library + real-vs-generated blend rules
-        │
-        ▼
-ALL 8 MODULES AT v1 — ONBOARDING COMPLETE
-```
-
-## Learning Loops (vertical) — unchanged
-
-```
-PUBLISHED PIECES + FEEDBACK LOG (incl. kill reasons from Gates 1–3)
-        │
-        ▼
-INWARD LOOP (weekly)
-AI analyzes results + reactions → proposes module updates with evidence
-origin-tagged results: human-seeded vs ai-originated performance compared
-        │
-        ▼
-ASYNC GATE QUEUE ←──── OUTWARD LOOP (continuous)
-                     monitors top performers in domain
-                     analyzes hook/structure/format/emotion/pacing
-                     findings → Source Bank + proposals + Experiments Queue
-        │
-        ▼
-USER CLEARS QUEUE WHEN READY
-approve → module version bump with provenance
-reject → logged with reason
-        │
-        ▼
-NEXT DRAFT inherits all approved updates
+THE PERSON ──────────────► ONBOARDING ENGINE (8 playbooks, console-only)
+   │ materials · seeds ·            │
+   │ reactions · edits ·            ▼
+   │ capture                 8 LIVING MODULES ◄──────────────────────────┐
+   │                         (versioned · gate-token writes · own DB)    │
+   ▼                                │                                    │
+GATHER — Sources Engine  ◄── Source Criteria + sources.yaml              │
+   ▼                                                                     │
+IDEAS — cards, 3 origins  ◄── modules ground ideas + treatments          │
+   card = idea + hooks + TREATMENT + origin + evidence                   │
+   treatment = scope (one-off | series-of-N | pillar) · format · capture │
+   ▼                                                                     │
+■ GATE 1 — RIGOROUS: idea + treatment approved TOGETHER                  │
+   · approve / kill / park — most die here, by design                    │
+   · experimental formats may DEBUT in a treatment — approval            │
+     writes the format to the Format Guide (status: experimental) ───────┤
+   ▼                                                                     │
+AWAITING-CAPTURE (only if treatment requires it)                         │
+   person films/records → materials intake → audio transcribed           │
+   capture_required = none → passes straight through                     │
+   ▼                                                                     │
+DRAFT — ONE master script  ◄── all modules loaded into every draft       │
+   full text in voice, in the treatment's format + light visual          │
+   direction (NO renders) · self-audit vs Tells Checklist                │
+   ▼                                                                     │
+■ GATE 2 — HUMAN PASS: deep, once, on the master                         │
+   chips + text + DIRECT EDITS (authoritative) → ship / kill             │
+   ▼                                                                     │
+ASSETS — survivors only  ◄── Visual Style + Format Guide + Voice         │
+   real images per Visual Style Guide + shot library · captions          │
+   in voice · per-platform fan-out per Format Guide                      │
+   ▼                                                                     │
+■ GATE 3 — QUICK, PER PLATFORM: approve / fix / kill                     │
+   ▼                                                                     │
+■ GATE 4 — PUBLISH: go / hold · NO AUTO-PUBLISH, EVER (HARD RULE)        │
+   ▼                                                                     │
+SHIP → POSTIZ (self-hosted) — schedule (series cadence dates) · post     │
+   ▼                                                                     │
+INWARD LOOP (weekly)                 OUTWARD LOOP (always on)            │
+   nightly note: origin · format ·      decomposes format mechanics      │
+   scope per piece · Feedback Log       in domain: what works, how,      │
+   (direct edits highest) · formats     for what messaging & audience    │
+   graduate proven / retire                 │                            │
+        └──────────► ASYNC GATE QUEUE ◄─────┘                            │
+                     approve = module version bump ──────────────────────┘
+                     NEXT DRAFT inherits updated modules
+   kill reasons (gates 1–3) → Feedback Log → inward loop
+   approved experiments & debut-format proposals enter as idea cards
 ```
 
 ## Mermaid (renders on GitHub)
 
 ```mermaid
-flowchart TB
-    HU[The person — seeds, reactions, direct edits, lived material]
-    OE[Onboarding engine — playbooks]
-    HU --> OE
-    OE --> MODS
-
-    subgraph MODS[8 living modules — versioned, gated, own DB]
-        M[Voice / Viral / Story / Format / Audience / Feedback / Visual / Sources]
+flowchart TD
+    P[THE PERSON<br/>materials · seeds · reactions · edits · capture] --> OB[Onboarding Engine<br/>8 playbooks, console-only]
+    OB --> MODS
+    subgraph MODS[8 living modules — versioned, gate-token writes, own DB]
+        V[Voice] & VP[Viral] & SF[Story] & FG[Format] & AI2[Audience] & FL[Feedback] & VS[Visual] & SRC[Sources]
     end
-
-    MODS -->|Source Criteria + sources.yaml<br/>dictate what AI scouts| G
-    G[Gather — auto, Sources Engine] --> IDEAS
-    MODS -->|ground idea generation| IDEAS
-    HU -->|raw seed| IDEAS
-    HU -->|seed developed by AI| IDEAS
-    IDEAS[Idea cards — hook options, format, origin tag, evidence]
-    IDEAS --> GATE1{GATE 1 — RIGOROUS<br/>approve / kill / park}
-    GATE1 -->|kill/park| FB[Feedback Log — reasons]
-    GATE1 -->|approve| D[Draft — full text in voice<br/>+ light visual direction, NO renders<br/>all modules loaded + self-audit]
-    MODS -->|loaded every draft| D
-    D --> GATE2{GATE 2 — HUMAN PASS<br/>chips + text + direct edits}
-    GATE2 -->|kill| FB
-    GATE2 -->|ship-forward| A[Assets — real images,<br/>per-platform fan-out]
-    A --> GATE3{GATE 3 — PER PLATFORM<br/>approve / fix / kill}
-    GATE3 -->|kill| FB
-    GATE3 --> GATE4{GATE 4 — PUBLISH<br/>go / hold — NO AUTO-PUBLISH}
-    GATE4 -->|go| PU[Postiz publish queue]
-    PU --> METRICS[Metrics — origin tag attached]
-    METRICS --> IL[Inward loop — weekly proposals]
-    FB --> IL
-    OL[Outward loop — continuous viral research]
-    OL --> SB[Source bank grows]
-    OL --> XQ[Experiments queue]
-    IL --> QUEUE{ASYNC GATE QUEUE}
-    OL --> QUEUE
-    XQ --> QUEUE
-    QUEUE -->|approved| MODS
-    XQ -.->|approved experiment| IDEAS
+    MODS -.Source Criteria.-> G[Gather — Sources Engine]
+    P -.raw + AI-developed seeds.-> I
+    G --> I[IDEAS — cards, 3 origins<br/>card = idea + hooks + TREATMENT + origin + evidence<br/>treatment: scope · format · capture]
+    MODS -.ground ideas + treatments.-> I
+    I --> GATE1{{GATE 1 · RIGOROUS<br/>idea + treatment together<br/>approve / kill / park}}
+    GATE1 -.experimental format debut → Format Guide.-> FG
+    GATE1 -->|capture required| AC[AWAITING-CAPTURE<br/>person films/records → intake → transcription]
+    GATE1 -->|no capture| D
+    AC --> D[DRAFT — ONE master script<br/>in voice, in treatment's format<br/>+ light visual direction, NO renders]
+    P <-.capture loop.-> AC
+    MODS -.loaded into every draft.-> D
+    D --> GATE2{{GATE 2 · HUMAN PASS<br/>deep, once, on the master<br/>direct edits authoritative}}
+    GATE2 --> A[ASSETS — survivors only<br/>images per Visual Style + shot library<br/>fan-out per platform per Format Guide]
+    MODS -.Visual · Format · Voice shape renders & fan-out.-> A
+    A --> GATE3{{GATE 3 · QUICK, PER PLATFORM}}
+    GATE3 --> GATE4{{GATE 4 · PUBLISH — go / hold<br/>NO AUTO-PUBLISH, EVER}}
+    GATE4 --> POST[Postiz — schedule series cadence · post · metrics]
+    POST --> IN[INWARD LOOP — weekly<br/>nightly note: origin · format · scope<br/>formats graduate proven / retire]
+    OUT[OUTWARD LOOP — always on<br/>decomposes format mechanics in domain] --> Q
+    IN --> Q[ASYNC GATE QUEUE<br/>approve = module version bump]
+    Q -.approved proposals bump modules.-> MODS
+    OUT -.experiments & debut formats enter as cards.-> I
 ```
+
+## What changed v3.2 → v3.3
+
+1. Idea cards carry a **treatment** (scope · format · capture · reuse · rationale), approved with the idea at Gate 1.
+2. **Awaiting-capture** state between Gate 1 and Draft, with the person's capture loop through materials intake + transcription.
+3. **Experimental format debut**: Gate-1 approval of a debut treatment writes the format to the Format Guide (experimental → proven/retired via inward loop).
+4. **Modules → Assets arrow added** (operator-spotted omission): Visual Style Guide + shot library, Format Guide fan-out mechanics, and Voice Profile captions all shape asset creation. The arrow documents existing behavior, not new behavior.
+5. Nightly note carries `format` and `scope` alongside `origin`; series cadence dates land at the Postiz scheduling step, still behind Gate 4.

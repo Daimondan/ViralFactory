@@ -1,0 +1,40 @@
+# ViralFactory — Traefik Dynamic Config
+#
+# This file is the versioned deployment posture for ViralFactory's public route.
+# The LIVE copy lives at /docker/traefik/dynamic/viralfactory.yml on the VPS.
+# Copy this file there (sudo cp), then create the users file separately (secrets — not committed).
+#
+# REQUIREMENTS (per architect R10 / batch C manifest):
+# - Basicauth middleware is MANDATORY before public DNS is created.
+# - The console has no app-level auth; router auth is the only gate.
+# - Tailscale-only access (http://100.96.184.48:9121) is the approved posture
+#   until both (a) this middleware is live AND (b) the DNS A record is created.
+#
+# DNS: vf.glenbeu.com → 2.24.127.70 (operator must create this A record)
+
+http:
+  routers:
+    viralfactory:
+      rule: "Host(`vf.glenbeu.com`)"
+      entryPoints:
+        - websecure
+      service: viralfactory
+      middlewares:
+        - vf-auth
+      tls:
+        certResolver: letsencrypt
+
+  middlewares:
+    vf-auth:
+      basicAuth:
+        # Uses usersFile to avoid $$ escaping issues in YAML inline users.
+        # The users file lives at /docker/traefik/dynamic/vf-users.txt on the VPS.
+        # Create it with: htpasswd -nbB <user> <password> > /docker/traefik/dynamic/vf-users.txt
+        # Format: user:bcrypt_hash (one per line)
+        usersFile: "/dynamic/vf-users.txt"
+
+  services:
+    viralfactory:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:9121"

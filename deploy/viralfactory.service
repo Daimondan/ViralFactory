@@ -1,0 +1,23 @@
+# ViralFactory — systemd service definition
+#
+# The LIVE copy lives at /etc/systemd/system/viralfactory.service on the VPS.
+# Install: sudo cp deploy/viralfactory.service /etc/systemd/system/viralfactory.service
+# Then: sudo systemctl daemon-reload && sudo systemctl enable viralfactory && sudo systemctl start viralfactory
+#
+# Environment file: /etc/viralfactory/env (create manually — holds OLLAMA_API_KEY)
+# Create with: sudo mkdir -p /etc/viralfactory && sudo tee /etc/viralfactory/env <<< 'OLLAMA_API_KEY=your_key_here'
+
+[Unit]
+Description=ViralFactory Flask app (gunicorn)
+After=network.target
+
+[Service]
+Type=notify
+WorkingDirectory=/home/daimon/ViralFactory
+EnvironmentFile=/etc/viralfactory/env
+ExecStart=/home/daimon/ViralFactory/.venv/bin/gunicorn --workers 2 --timeout 120 --bind 127.0.0.1:9121 --bind 100.96.184.48:9121 "src.app:create_app()"
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

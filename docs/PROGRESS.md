@@ -5,7 +5,9 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-02
-**Current Phase:** M2 nearly complete. T2.1–T2.5, T2.9, T2.10, T2.11, R15 done. T2.6–T2.8 deferred (audio/voice cloning after UI review). 254 tests passing. Deploying to VPS for operator review.
+**Current Phase:** M2 nearly complete. T2.1–T2.5, T2.9, T2.10, T2.11, R15 done. T2.6–T2.8 deferred (audio/voice cloning after UI review). 254 tests passing. **Deployed — operator UI review in progress.**
+**Operator review URL (Tailscale):** http://100.96.184.48:9121
+**Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
 ---
 
@@ -15,7 +17,7 @@
 |---|---|---|
 | 0. Foundation | ✅ | All T0.1–T0.7 done. 28 tests passing. Real config verified. Pushed. |
 | 1. Onboarding engine: Voice Profile | ✅ | T1.1–T1.5 all done. 92 tests. Runner, intake, analysis, calibration, interview fallback. |
-| 2. Remaining playbooks wired | 🔧 | All playbooks done (T2.1–T2.4) + gate enforcement (T2.9) + schema-check (T2.5) + security fixes (T2.10) + provenance business_slug (T2.11) + gate step derivation (R15). 254 tests. T2.6–T2.8 (audio/voice) deferred. Deploying for operator review. |
+| 2. Remaining playbooks wired | 🔧 | All playbooks done (T2.1–T2.4) + gate enforcement (T2.9) + schema-check (T2.5) + security fixes (T2.10) + provenance business_slug (T2.11) + gate step derivation (R15). 254 tests. T2.6–T2.8 (audio/voice) **deferred after operator UI review** (architect batch C). Deployed: Tailscale URL live, basicauth on public route. |
 | 3. Co-production loop | ⬜ | Direct-edit mode in BUILD_PLAN (T3.3). Drafter A/B at checkpoint. |
 | 4. Publish + metrics automation | ⬜ | Postiz self-hosted confirmed. |
 | 5. Inward learning loop | ⬜ | Async gate queue (superseding, age, no pressure). |
@@ -82,4 +84,10 @@
 - [x] T2.3: Viral Patterns + Audience Insights + Story Frameworks + Format Guide playbooks — 4 prompt templates, 4 schemas, 4 markdown converters, 4 sets of API endpoints (input + analyze + store), 4 HTML intake pages, Format Guide with AMENDMENT-004 enrichment (requires_human_capture, effort_level, best_for, platforms, reuse_pathways, status, provenance), 47 new tests, 201 total
 - [x] R15: Gate step numbers derived from parsed playbook — parser now handles numbered-list format (N. Description) in addition to ### Step N format; get_gate_step_number() replaces all hardcoded gate step strings in 7 store endpoints; create_app() defaults to absolute playbooks path (16 new tests, 217 total)
 - [x] T2.4: Visual Style intake + shot-library index — 2 prompt templates (item indexing + style guide analysis), VISUAL_STYLE_SCHEMA + SHOT_LIBRARY_ITEM_SCHEMA, 2 markdown converters, 5 API endpoints (shot-library item, visual-style input, index-shot-library, analyze-visual-style, store-visual-style), HTML intake page with palette swatches + shot library display, gate-enforced writes both visual-style + shot-library modules (23 new tests, 240 total)
-- [ ] M2 remaining: T2.5 (module store schema-check) → T2.6 (audio transcription) → T2.8 (voice samples) → T2.7 (voice cloning smoke test) → T2.10 (security fixes) → T2.11 (provenance business_slug) → operator end-to-end test → tag review-w2
+- [x] T2.5: Module store schema-check on load + version history visible in console (14 new tests, 254 total)
+- [x] T2.10: Security fixes — materials._update_field() column allowlist + llm_adapter._render_prompt() single-pass substitution
+- [x] T2.11: Provenance gains business_slug — column added, threaded through LLMAdapter.complete() and ProvenanceLog.log()
+- [x] R15: Gate step numbers derived from parsed playbook
+- [x] Deployment: Gunicorn + systemd + Traefik with basicauth middleware. Tailscale URL live for operator review.
+- [ ] T2.6–T2.8 (audio/voice): **DEFERRED — resequenced after operator UI review per architect batch C directive.** review-w2 must NOT be tagged until these land. Operator end-to-end test may run without speak-a-sample path; full test re-runs when audio lands.
+- [ ] After UI review: T2.6 (faster-whisper transcription) → T2.8 (voice samples) → T2.7 (voice cloning smoke test) → operator end-to-end test → tag review-w2
