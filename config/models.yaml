@@ -49,3 +49,22 @@ ollama_kimi_k26:
 #   temperature: 0
 #   max_tokens: 4096
 #   base_url: "https://api.openai.com"
+
+# ── Transcription (R6 fix per DIVERGENCE-003) ───────────────────────
+# faster-whisper for speech-to-text. Runs on CPU (int8 quantization).
+# Audio files uploaded during intake are transcribed automatically.
+transcription:
+  engine: "faster_whisper"
+  model: "small"          # tiny | base | small | medium | large-v3 (RAM scales)
+  compute_type: "int8"   # CPU-only VPS; float16 if GPU available
+  language: "en"         # "auto" for auto-detect
+
+# ── Voice cloning (DIVERGENCE-003) ──────────────────────────────────
+# Open-source TTS with zero-shot voice cloning. Apache 2.0 licensed
+# (commercially safe for paying customers). NOT XTTS-v2 (CPML = non-commercial).
+# Reference audio stored per-business in modules/{business}/voice-samples/.
+voice_cloning:
+  engine: "qwen3_tts"                      # qwen3_tts | moss_tts | voxflash_tts
+  model: "Qwen3-TTS-12Hz-1.7B-VoiceDesign"  # Apache 2.0, 3-second cloning
+  reference_audio_dir: "modules/{business}/voice-samples/"
+  sample_rate: 24000

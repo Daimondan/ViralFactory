@@ -54,6 +54,12 @@
 - [ ] T2.3 Viral Patterns starter + Audience Insights + Story Frameworks + Format Guide playbooks — AC: each produces a schema-valid v1 via runner + gate
 - [ ] T2.4 Visual Style intake + shot-library index — AC: module stored; index updatable
 - [ ] T2.5 Module store: versioning, schema-check on load, gate-only writes — AC: silent edit impossible via API; version history visible
+- [ ] T2.6 Audio transcription (R6 fix per DIVERGENCE-003): wire faster-whisper into MaterialsIntake; audio files transcribed on upload; model + compute_type from `config/models.yaml` `transcription` block — AC: a 30-second voice note uploaded through the console produces transcribed text in the materials store; no "transcription pending" stubs remain
+- [ ] T2.7 Voice cloning adapter (DIVERGENCE-003): `synthesize(text, reference_audio) -> audio_file`; model from config `voice_cloning` block; reference audio from `modules/{business}/voice-samples/`; Apache 2.0 licensed model (Qwen3-TTS primary) — AC: given reference audio clips, adapter produces an audio file of the text spoken in that voice; no cloud APIs
+- [ ] T2.8 Voice sample management: store reference audio clips during onboarding (from uploaded materials + interview answers); clips stored per-business in `modules/{business}/voice-samples/` — AC: at least 3 reference clips stored after onboarding; clips usable by the voice cloning adapter
+- [ ] T2.9 R7 — Module store gate enforcement: `store()` requires a verified `gate_token`/approval record ID before writing (no honor system) — AC: call to `store()` without valid approval record raises; silent edit impossible via API
+- [ ] T2.10 R8 — Minor security fixes: (a) `materials._update_field()` column name allowlist; (b) `llm_adapter._render_prompt()` single-pass regex substitution to prevent double-substitution — AC: both fixed with tests
+- [ ] T2.11 R9 — Provenance gains `business_slug`: add column, thread through `LLMAdapter.complete()` and `ProvenanceLog.log()` — AC: every provenance row attributable to a tenant; guardrail note in BUILD_PLAN that no route/playbook/job references a model name directly
 
 ### M3 — Co-production loop (staged pipeline per AMENDMENT-003; est. weeks 5–6)
 - [ ] T3.1 Idea card generation: AI-originated ideas from Source Bank × modules (Viral/Audience/Story/Format); human-seeded and human-seeded-ai-developed paths. Each card: idea, hook/title options, format, `origin` tag, evidence links — AC: cards from all 3 origins producible; origin tag present on every card
