@@ -14,7 +14,7 @@
 | Stage | Status | Notes |
 |---|---|---|
 | 0. Foundation | ✅ | All T0.1–T0.7 done. 28 tests passing. Real config verified. Pushed. |
-| 1. Onboarding engine: Voice Profile | 🔄 | T1.1 done (playbook runner + Flask console, 15 tests). T1.2–T1.5 next. |
+| 1. Onboarding engine: Voice Profile | 🔄 | T1.1 done (runner+console). T1.2 done (materials intake). T1.3–T1.5 next. |
 | 2. Remaining playbooks wired | ⬜ | Playbooks split. Awaits M1. |
 | 3. Co-production loop | ⬜ | Direct-edit mode in BUILD_PLAN (T3.3). Drafter A/B at checkpoint. |
 | 4. Publish + metrics automation | ⬜ | Postiz self-hosted confirmed. |
@@ -45,8 +45,14 @@
   - Real voice-profile-builder.md parses correctly (7 steps, intake + gate identified)
   - 6 web integration tests (Flask test client + real config)
 
+- [x] T1.2: Materials intake — WhatsApp export, plain text, audio, paste with normalization (14 tests)
+  - WhatsApp: strips other parties' messages, preserves user's multi-line messages
+  - Text: strips email sigs, forwarded headers, >quotes; preserves dialect (tested Bajan)
+  - Audio: stores metadata, marks for transcription
+  - Corpus: word count, sample listing, run-scoped retrieval
+  - Flask API + intake UI with live corpus display
+
 ## What's Next
-- [ ] T1.2: Materials intake UI — file upload, paste, audio recording
 - [ ] T1.3: Voice Profile playbook end-to-end — prompt templates + LLM call
 - [ ] T1.4: Calibration gate UI — 3 samples, pick + react, revise loop
 - [ ] T1.5: Interview fallback — guided Q&A produces corpus from nothing
