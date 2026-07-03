@@ -1,8 +1,20 @@
 # CHANGELOG — ViralFactory
 
-> **If you made a decision and it's not in the changelog, that is a bug.**
+> **If you made a decision and it's not in the changelog, it is a bug.**
 
 All decisions — tech, logic, structure, strategy, ops — logged here with type tag + rationale.
+
+---
+
+### 2026-07-03 STRUCTURE — Inbox batch 2026-07-03-e + format-selection filed: AMENDMENT-005 (processes are module compositions) + CORRECTION-format-selection-living-v1.0
+
+**What:**
+- Filed `docs/decisions/AMENDMENT-005-processes-are-module-compositions.md` — architecture doctrine: processes (ideation, drafting, treatment) are compositions of modules, not hardcoded route handlers. Process Registry (`config/processes.yaml`) is the 9th module — versioned, gate-only writes, AI-improvable through the gate. One compose-and-run engine replaces per-process module wiring. BUILD_PLAN updated to v1.4: T2.12 added (registry extraction), T3.2 reworded, M5/M6 targets widened to include mapping proposals.
+- Filed `docs/corrections/CORRECTION-format-selection-living-v1.0.md` — P0 bug: module truncation (`[:2000]`, `[:1500]`) in idea generation routes means the LLM never sees most of the Format Guide (17KB, only first 2KB injected). Fix: remove all blind truncation; stage-appropriate injection (selection sees compact digest, production sees full entry). Architecture: format selection by affordances + evidence + distribution feedback, not decision table. Format Guide schema gains `affordances`, `performance_evidence`, `variant_type`, `aspect_ratio`; loses `decision_table`. Governing principle added to CONTEXT.md: "Prompts carry procedures; modules carry knowledge."
+
+**Rationale:** Architect direction via inbox protocol (MANIFEST-2026-07-03-e, MANIFEST-2026-07-03-format-selection). AMENDMENT-005 stops process-first drift before M3 pipeline work accretes more hardcoded route handlers. The format-selection correction addresses the proximate cause of video under-suggestion: not decision-table weighting, but blind truncation hiding most formats from the LLM.
+
+**Manifests:** `docs/inbox/processed/MANIFEST-2026-07-03-e.md`, `docs/inbox/processed/MANIFEST-2026-07-03-format-selection.md`
 
 ---
 

@@ -1,6 +1,6 @@
 # BUILD_PLAN.md — ViralFactory
 
-*Instructions to the builder agent (Hermes). Read `docs/CHARTER-v3.3.md` and all of `playbooks/` before writing any code. This file is the single source of truth for what to build and in what order. v1.3 — 2026-07-02 — updated per AMENDMENT-004 (treatment block on idea cards: scope, format, capture_required, reuse, rationale; format experimentation mechanism; awaiting-capture state).*
+*Instructions to the builder agent (Hermes). Read `docs/CHARTER-v3.3.md` and all of `playbooks/` before writing any code. This file is the single source of truth for what to build and in what order. v1.4 — 2026-07-03 — updated per AMENDMENT-005 (processes are module compositions; process registry as 9th module; compose-and-run engine; T2.10 added; T3.2 reworded; M5/M6 targets widened).*
 
 ## How to work (non-negotiable)
 
@@ -63,11 +63,12 @@
 - [ ] T2.6 Audio transcription — wire faster-whisper into MaterialsIntake; audio files transcribed on upload; model from config — AC: a 30-second voice note uploaded through the console produces transcribed text in the materials store — **DEFERRED: resequenced after operator UI review per architect batch C directive**
 - [ ] T2.8 Voice sample management — store reference audio clips during onboarding; clips stored per-business in `modules/{business}/voice-samples/` — AC: at least 3 reference clips stored after onboarding; clips usable by the voice cloning adapter — **DEFERRED: resequenced after operator UI review per architect batch C directive**
 - [ ] T2.7 Voice cloning adapter — `synthesize(text, reference_audio) -> audio_file`; model from config; reference audio from voice-samples directory — AC: given reference audio clips, the adapter produces an audio file of the text spoken in that voice on the production VPS within an acceptable batch window (operator defines acceptable; record measured time in PROGRESS.md) — **DEFERRED: resequenced after operator UI review per architect batch C directive**
+- [ ] T2.12 **AMENDMENT-005** — Extract hardcoded module→prompt mappings into `config/processes.yaml` + compose-and-run engine — AC: ideas and draft routes contain zero inline module wiring; magic truncation slices (`[:2000]`, `[:1500]`) gone; every provenance row records registry version; process registry is versioned data with gate-only writes (the 9th module)
 - [ ] **Checkpoint:** operator end-to-end test (review-w1_1.md checklist, with R10 deployment posture in place). Tag `review-w2`. **NOTE: review-w2 must NOT be tagged until T2.6–T2.8 land (or a divergence re-scopes M2).** The operator end-to-end test may run without the speak-a-sample path in the interim; the full test re-runs when audio lands.
 
 ### M3 — Co-production loop (staged pipeline per AMENDMENT-003 + treatment block per AMENDMENT-004; est. weeks 5–6)
 - [x] T3.1 Idea card generation (with treatment block per AMENDMENT-004): AI-originated ideas from Source Bank × modules; human-seeded and human-seeded-ai-developed paths. Each card: idea, hook/title options, **treatment** (scope: one_off | series_of_n | pillar_with_derivatives; format from Format Guide; capture_required tasks; reuse links; rationale), `origin` tag, evidence links — AC: cards from all 3 origins producible; origin + treatment present on every card
-- [x] T3.2 Ideas gate UI (Gate 1 — rigorous): card queue with origin badge, hook options, evidence links, compact treatment line (scope · format · capture flag), expandable full treatment (all editable per D1 direct-edit authority); approve / kill / park per card; kill reasons → Feedback Log — AC: kill reason logged; approved cards flow to Draft (or awaiting-capture if capture_required ≠ none); parked cards retrievable
+- [x] T3.2 Ideas gate UI (Gate 1 — rigorous): card queue with origin badge, hook options, evidence links, compact treatment line (scope · format · capture flag), expandable full treatment (all editable per D1 direct-edit authority); approve / kill / park per card; kill reasons → Feedback Log — AC: kill reason logged; approved cards flow to Draft (or awaiting-capture if capture_required ≠ none); parked cards retrievable. **Per AMENDMENT-005:** seed + modules **per the draft process spec** → draft; implementation goes through the compose-and-run engine.
 - [x] T3.3 Awaiting-capture state: cards approved with capture_required ≠ none enter awaiting-capture; capture task list shown; uploads flow through existing materials intake; audio transcribed via T2.6; transcript becomes draft input — AC: awaiting-capture card with outstanding tasks shown separately; fulfilled capture triggers flow to Draft
 - [x] T3.4 Seed intake: typed + audio with transcription — AC: a 30-second voice note becomes a stored seed and generates a human-seeded idea card with treatment
 - [x] T3.5 Drafter: approved idea card + ALL modules → draft (full text in voice + light visual direction block: image prompts, reference notes, shot/format choices) → self-audit vs Tells Checklist → flagged lines — AC: flags visible with the rule that fired; visual direction block present in draft schema; NO rendered images; prompts in `prompts/draft/`
@@ -85,15 +86,15 @@
 - [ ] T4.2 Metrics collection (cron) — AC: nightly pull runs unattended 7 days
 
 ### M5 — Inward learning loop + async gate (est. week 8)
-- [ ] T5.1 Proposal job (scheduled weekly): results + Feedback Log (direct edits weighted highest) → proposals with evidence + target module + exact diff — AC: specific and actionable, never vibes
-- [ ] T5.2 **Gate as persistent async queue** — AC: proposals accumulate with visible age ("submitted N days ago"); pending counter across all types; approve = version bump with provenance; reject = quick-reason chips; **superseding**: newer proposal on the same module section marks the older superseded (visible, not deleted); no deadline/pressure mechanics anywhere
+- [ ] T5.1 Proposal job (scheduled weekly): results + Feedback Log (direct edits weighted highest) → proposals with evidence + target module + exact diff — AC: specific and actionable, never vibes. **Per AMENDMENT-005:** proposal targets widen to include the process registry alongside the eight modules.
+- [ ] T5.2 **Gate as persistent async queue** — AC: proposals accumulate with visible age ("submitted N days ago"); pending counter across all types; approve = version bump with provenance; reject = quick-reason chips; **superseding**: newer proposal on the same module section marks the older superseded (visible, not deleted); no deadline/pressure mechanics anywhere. **Per AMENDMENT-005:** gate queue handles mapping proposals identically (evidence + exact diff).
 - [ ] T5.3 Voice Profile update path from Feedback Log per playbook — AC: an approved pattern lands as a versioned entry
 
 ### M6 — Outward research loop (est. weeks 9–10; charter: continuous from v1 of this phase)
 - [ ] T6.1 Research job v1: YouTube Data API against `sources.yaml` — AC: scheduled pulls; nothing hardcoded
 - [ ] T6.2 Analysis per winner (hook/structure/format/emotion/pacing; hypothesis-framed field required) → Source Bank — AC: validator enforces the hypothesis field
 - [ ] T6.3 Proposals + Experiments Queue → gate; approved experiments appear as seed suggestions — AC: an approved experiment flows into Pick + seed
-- [ ] T6.4 Sources Engine Part B: discovery + scoring + proposed additions/prunes + criteria-amendment proposals — AC: all through the gate; scraper service config-keyed and swappable
+- [ ] T6.4 Sources Engine Part B: discovery + scoring + proposed additions/prunes + criteria-amendment proposals — AC: all through the gate; scraper service config-keyed and swappable. **Per AMENDMENT-005:** outward-loop proposals may also target mappings (e.g. "load visual-style into ideation for this domain").
 
 ### M7 — Generalization proof (when a real business #2 exists)
 - [ ] T7.1 Onboard business #2 entirely through the console — AC: **zero code changes**

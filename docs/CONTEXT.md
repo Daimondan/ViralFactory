@@ -212,6 +212,7 @@ Scheduled research of what works in the wild: monitors top accounts/hashtags/cha
 9. **Every LLM call is logged** to provenance: input hash, prompt file + version, model, raw output, validated output, validator verdict.
 10. **Deterministic where possible.** Temperature 0 for processing steps; cache by content hash — unchanged input is never re-judged.
 11. **Never invent module content.** Modules are built by playbooks from user materials and updated only via the gate.
+12. **Prompts carry procedures; modules carry knowledge.** Any domain taxonomy embedded in a prompt file (message types, format structures, platform mappings) is a defect: baked-in taxonomy cannot learn. Prompts describe how to reason; living modules supply what is currently believed, and the loops update the modules. (Per AMENDMENT-005 + CORRECTION-format-selection-living-v1.0)
 
 ## Edge Cases
 
