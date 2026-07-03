@@ -3618,6 +3618,56 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             return "reel"
         return "single_post"
 
+    # ── S1b/S2: Novelty context helpers ──
+
+    def _build_existing_ideas(business_slug: str, limit: int = 40) -> str:
+        """S1b: Build the existing_ideas prompt variable — recent idea cards, one line each."""
+        store = _get_pipeline_store()
+        cards = store.list_idea_cards(business_slug)
+        lines = []
+        for card in cards[:limit]:
+            state = card.get("card_state", "?")
+            idea = card.get("idea", "")[:120]
+            treatment = json.loads(card.get("treatment") or "{}")
+            fmt = treatment.get("format", {}).get("format_name", "?") if isinstance(treatment.get("format"), dict) else "?"
+            lines.append(f"[{state}] {idea} ({fmt})")
+        return "\n".join(lines) if lines else "(no existing ideas)"
+
+    def _build_kill_lessons(business_slug: str, limit: int = 20) -> str:
+        """S1b: Build the kill_lessons prompt variable — kill-reason feedback for idea cards."""
+        store = _get_pipeline_store()
+        # Get kill_reason feedback entries for idea cards
+        conn = __import__("sqlite3").connect(app.config["DB_PATH"])
+        conn.row_factory = __import__("sqlite3").Row
+        rows = conn.execute(
+            """SELECT * FROM feedback_log
+               WHERE business_slug = ? AND feedback_type = 'kill_reason'
+               AND idea_card_id IS NOT NULL
+               ORDER BY id ASC LIMIT ?""",
+            (business_slug, limit),
+        ).fetchall()
+        conn.close()
+        lines = []
+        for row in rows:
+            text = dict(row).get("feedback_text", "")[:200]
+            lines.append(f"- {text}")
+        return "\n".join(lines) if lines else "(no kill lessons yet)"
+
+    def _build_format_usage(business_slug: str) -> str:
+        """S2: Build the format_usage prompt variable — format counts from idea cards."""
+        store = _get_pipeline_store()
+        cards = store.list_idea_cards(business_slug)
+        from collections import Counter
+        format_counts = Counter()
+        for card in cards:
+            treatment = json.loads(card.get("treatment") or "{}")
+            fmt = treatment.get("format", {}).get("format_name", "?") if isinstance(treatment.get("format"), dict) else "?"
+            format_counts[fmt] += 1
+        if not format_counts:
+            return "(no format usage data yet)"
+        lines = [f"{fmt}: {count}" for fmt, count in format_counts.most_common()]
+        return " · ".join(lines)
+
     # ── T3.1 + T3.2: Idea cards + Ideas gate ──
 
     @app.route("/ideas")
@@ -3818,6 +3868,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     "audience_description": business.get("audience_description", ""),
                     "origin_type": origin,
                     "source_material": f"Operator seed: {seed}",
+                    "existing_ideas": _build_existing_ideas(business_slug),
+                    "kill_lessons": _build_kill_lessons(business_slug),
+                    "format_usage": _build_format_usage(business_slug),
                     **module_vars,
                     "num_cards": "1",
                 },
@@ -3909,6 +3962,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     "audience_description": business.get("audience_description", ""),
                     "origin_type": "ai_originated",
                     "source_material": source_material[:4000],
+                    "existing_ideas": _build_existing_ideas(business_slug),
+                    "kill_lessons": _build_kill_lessons(business_slug),
+                    "format_usage": _build_format_usage(business_slug),
                     **module_vars,
                     "num_cards": str(num_cards),
                 },

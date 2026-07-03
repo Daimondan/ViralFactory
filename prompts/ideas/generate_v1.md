@@ -1,4 +1,4 @@
-<!-- version: 1.0 -->
+<!-- version: 1.2 -->
 # Idea Card Generation
 
 You are generating idea cards for a content co-creation system. Each card is the first artifact in the staged pipeline — it carries the idea, hook options, and a full treatment block.
@@ -27,6 +27,24 @@ You are generating idea cards for a content co-creation system. Each card is the
 ### Format Guide
 {format_guide}
 
+## Existing ideas (avoid repetition)
+
+The following idea cards already exist. Every card you generate MUST be materially distinct from every listed idea — different angle, not synonym-swapped. If the source material cannot support {num_cards} distinct ideas, return fewer and say so in the rationale rather than padding with near-duplicates.
+
+{existing_ideas}
+
+## Kill lessons (anti-patterns to avoid)
+
+The following idea cards were killed by the operator. Treat these as anti-patterns — do not generate ideas that repeat the same mistakes.
+
+{kill_lessons}
+
+## Format usage (recent history)
+
+The following shows how often each format has been used recently. Use this to spread across formats — default to proven formats, but choosing a heavily-used format requires the rationale to say why this idea demands it. Experimental formats remain allowed.
+
+{format_usage}
+
 ## Your task
 
 Generate {num_cards} idea card(s) as JSON. Each card MUST include:
@@ -44,7 +62,7 @@ Generate {num_cards} idea card(s) as JSON. Each card MUST include:
    - **capture_required**: list of human capture tasks (e.g. "Record 15s of street footage in Bridgetown"). Empty list if none.
    - **reuse.derived_from**: (optional) parent card ID if this is a derivative
    - **reuse.reuse_notes**: (optional) how this piece can be reused
-   - **rationale**: why this scope + format for this idea and audience, citing the modules consulted
+   - **rationale**: why this scope + format for this idea and audience, citing the modules consulted. If choosing a heavily-used format, the rationale must say why this idea demands it specifically.
 
 4. **origin** — must be "{origin_type}"
 
@@ -55,6 +73,8 @@ Generate {num_cards} idea card(s) as JSON. Each card MUST include:
 ## Rules
 
 - Ideas must be grounded in the source material and modules — never generic
+- Every idea MUST be materially distinct from the existing ideas listed above — different angle, not synonym-swapped
+- Do not repeat patterns that led to killed cards (see kill lessons above)
 - The treatment's format MUST come from the Format Guide (existing entry) OR be a new experimental format (experimental=true with full spec)
 - capture_required tasks must be specific and actionable — not vague
 - The rationale must cite which modules were consulted and why this format/scope fits
@@ -63,6 +83,7 @@ Generate {num_cards} idea card(s) as JSON. Each card MUST include:
 - For human_seeded_ai_developed: sharpen the seed — propose angle variants, attach supporting Source Bank material. The seed_text is the original; the idea is the sharpened version.
 - Do not invent evidence links — use the URLs from the source material
 - Each hook option must be different in approach (not just reworded)
+- If the source material cannot support {num_cards} distinct ideas, return fewer cards rather than padding with near-duplicates
 
 ## Output format
 

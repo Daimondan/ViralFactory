@@ -644,6 +644,100 @@ creative:
         models = load_models(config_dir)
         assert "ideator" in models["active"]
 
+    def test_ideas_generate_passes_existing_ideas_variable(self, app_with_ideator):
+        """S1b: ideas_generate passes existing_ideas variable in the prompt."""
+        from unittest.mock import patch
+        from llm_adapter import LLMAdapter
+
+        # Create some existing cards first
+        from pipeline import PipelineStore
+        store = PipelineStore(db_path=app_with_ideator.config["DB_PATH"])
+        store.create_idea_card(
+            business_slug="testbiz", idea="Existing idea one",
+            hook_options=["h"], treatment={"scope": {"type": "one_off"}, "format": {"format_name": "X Thread", "experimental": False}, "capture_required": [], "reuse": {}, "rationale": "r"},
+            origin="ai_originated",
+        )
+
+        captured_vars = {}
+        def mock_complete(self, prompt_file, variables, schema, **kwargs):
+            captured_vars.update(variables)
+            return {"cards": [
+                {"idea": "New distinct idea", "hook_options": ["h"], "treatment": {"scope": "one_off", "format": "X Thread", "capture_required": [], "rationale": "r"}, "origin": "ai_originated", "evidence_links": []}
+            ]}
+
+        with patch.object(LLMAdapter, "complete", mock_complete):
+            client = app_with_ideator.test_client()
+            resp = client.post("/api/ideas/generate", json={"count": 1})
+
+        assert resp.status_code == 200
+        assert "existing_ideas" in captured_vars
+        assert "Existing idea one" in captured_vars["existing_ideas"]
+        assert "kill_lessons" in captured_vars
+        assert "format_usage" in captured_vars
+        assert "X Thread" in captured_vars["format_usage"]
+
+    def test_ideas_generate_passes_kill_lessons_variable(self, app_with_ideator):
+        """S1b: ideas_generate passes kill_lessons variable in the prompt."""
+        from unittest.mock import patch
+        from llm_adapter import LLMAdapter
+        from pipeline import PipelineStore
+
+        store = PipelineStore(db_path=app_with_ideator.config["DB_PATH"])
+        card_id = store.create_idea_card(
+            business_slug="testbiz", idea="Bad idea",
+            hook_options=["h"], treatment={"scope": {"type": "one_off"}, "format": {"format_name": "X Thread", "experimental": False}, "capture_required": [], "reuse": {}, "rationale": "r"},
+            origin="ai_originated",
+        )
+        store.update_card_state(card_id, "killed", kill_reason="Too generic")
+        store.add_feedback("testbiz", "kill_reason", "Too generic", idea_card_id=card_id)
+
+        captured_vars = {}
+        def mock_complete(self, prompt_file, variables, schema, **kwargs):
+            captured_vars.update(variables)
+            return {"cards": []}
+
+        with patch.object(LLMAdapter, "complete", mock_complete):
+            client = app_with_ideator.test_client()
+            resp = client.post("/api/ideas/generate", json={"count": 1})
+
+        assert resp.status_code == 200
+        assert "kill_lessons" in captured_vars
+        assert "Too generic" in captured_vars["kill_lessons"]
+
+    def test_format_usage_shows_counts(self, app_with_ideator):
+        """S2: format_usage variable contains real counts from idea cards."""
+        from unittest.mock import patch
+        from llm_adapter import LLMAdapter
+        from pipeline import PipelineStore
+
+        store = PipelineStore(db_path=app_with_ideator.config["DB_PATH"])
+        for _ in range(3):
+            store.create_idea_card(
+                business_slug="testbiz", idea="idea",
+                hook_options=["h"], treatment={"scope": {"type": "one_off"}, "format": {"format_name": "X Thread", "experimental": False}, "capture_required": [], "reuse": {}, "rationale": "r"},
+                origin="ai_originated",
+            )
+        store.create_idea_card(
+            business_slug="testbiz", idea="idea2",
+            hook_options=["h"], treatment={"scope": {"type": "one_off"}, "format": {"format_name": "Instagram Carousel", "experimental": False}, "capture_required": [], "reuse": {}, "rationale": "r"},
+            origin="ai_originated",
+        )
+
+        captured_vars = {}
+        def mock_complete(self, prompt_file, variables, schema, **kwargs):
+            captured_vars.update(variables)
+            return {"cards": []}
+
+        with patch.object(LLMAdapter, "complete", mock_complete):
+            client = app_with_ideator.test_client()
+            resp = client.post("/api/ideas/generate", json={"count": 1})
+
+        assert resp.status_code == 200
+        assert "format_usage" in captured_vars
+        # Should show X Thread: 3 and Instagram Carousel: 1
+        assert "X Thread: 3" in captured_vars["format_usage"]
+        assert "Instagram Carousel: 1" in captured_vars["format_usage"]
+
     def test_ideas_page_loads(self, app):
         """The ideas queue page loads."""
         client = app.test_client()
