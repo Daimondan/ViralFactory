@@ -222,12 +222,20 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         except (ConfigError, KeyError):
             business_name = "Your Business"
 
+        # Determine the opening question (do this before building conversation history)
+        opening_question = _get_opening_question(playbook)
+
         # Build conversation so far for the opening question
         collected = json.loads(run.get("collected_inputs") or "{}")
-        conversation_so_far = _build_conversation_history(collected)
 
-        # Determine the opening question
-        opening_question = _get_opening_question(playbook)
+        # If this is a fresh conversation, store the opening question as the first AI reply
+        if not collected.get("ai_replies") and not collected.get("session_messages"):
+            if "ai_replies" not in collected:
+                collected["ai_replies"] = []
+            collected["ai_replies"].append(opening_question)
+            runner.update_run(run_id, collected_inputs=json.dumps(collected))
+
+        conversation_so_far = _build_conversation_history(collected)
 
         return render_template("session.html",
             display_label=playbook.display_label or playbook.name,
@@ -249,22 +257,39 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         return desc[:200]
 
     def _build_conversation_history(collected):
-        """Build a text summary of the conversation so far from collected inputs."""
+        """Build a full conversation transcript for the LLM.
+        Includes every operator message and AI reply so the LLM can reason
+        about the entire conversation, not just the latest message."""
         lines = []
-        # Business Q&A pairs
-        qa_pairs = collected.get("business_qa", [])
-        for pair in qa_pairs:
-            q = pair.get("q", "")
-            a = pair.get("a", "")
-            lines.append(f"Q: {q}")
-            lines.append(f"A: {a}")
-            lines.append("")
-        # Free-form messages
+        # Session messages are the operator's raw inputs
         messages = collected.get("session_messages", [])
-        for msg in messages:
-            lines.append(f"Operator: {msg}")
-            lines.append("")
-        return "\n".join(lines) if lines else "(no conversation yet)"
+        # AI replies are stored alongside
+        ai_replies = collected.get("ai_replies", [])
+
+        # Interleave operator messages and AI replies
+        max_len = max(len(messages), len(ai_replies))
+        for i in range(max_len):
+            if i < len(ai_replies):
+                lines.append(f"AI: {ai_replies[i]}")
+                lines.append("")
+            if i < len(messages):
+                lines.append(f"Operator: {messages[i]}")
+                lines.append("")
+
+        # Also include legacy Q&A pairs if they exist
+        qa_pairs = collected.get("business_qa", [])
+        legacy_count = len(qa_pairs) - len(messages)  # Q&A pairs from old UI
+        if legacy_count > 0:
+            lines.append("(Earlier Q&A from form-based intake:)")
+            for pair in qa_pairs[:legacy_count]:
+                q = pair.get("q", "")
+                a = pair.get("a", "")
+                if q != "(session message)":
+                    lines.append(f"Q: {q}")
+                    lines.append(f"A: {a}")
+                    lines.append("")
+
+        return "\n".join(lines) if lines else "(This is the first turn — no conversation yet)"
 
     def _build_readback(playbook_name, profile):
         """Build a plain-language readback for the operator based on playbook type."""
@@ -408,8 +433,22 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         if result.get("ready_to_draft"):
             # AI says it has enough — trigger analysis
+            # But first, save the AI's reply to the conversation history
+            collected = json.loads(run.get("collected_inputs") or "{}")
+            if "ai_replies" not in collected:
+                collected["ai_replies"] = []
+            collected["ai_replies"].append(result["reply"])
+            runner.update_run(run_id, collected_inputs=json.dumps(collected))
+
             return _session_trigger_analysis(run_id, runner, run, playbook, business, models_config)
         else:
+            # Save the AI's reply to the conversation history so it's available next turn
+            collected = json.loads(run.get("collected_inputs") or "{}")
+            if "ai_replies" not in collected:
+                collected["ai_replies"] = []
+            collected["ai_replies"].append(result["reply"])
+            runner.update_run(run_id, collected_inputs=json.dumps(collected))
+
             return jsonify({"status": "ok", "reply": result["reply"], "show_readback": False})
 
     def _session_trigger_analysis(run_id, runner, run, playbook, business, models_config):
