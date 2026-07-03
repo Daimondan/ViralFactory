@@ -6,7 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
-### 2026-07-03 FIX — P0: duplicate `const playbookName` kills all session JS + JS parse smoke test
+### 2026-07-03 OPS — Inbox batch 2026-07-03 filed: orchestrator correction, definition-of-done process, whisper transcription decision
+
+**What:**
+- Filed `docs/reviews/CORRECTION-orchestrator-drafting-and-ux-v1.0.md` — correction from architect review of commit `372f81e` following operator's first end-to-end onboarding run. Covers P0-1 (drafting input starvation — root cause of all thin/empty documents), P0-2 (validation crash on `next_focus: null`), P1-1 (gate relocation to Library — draft-status modules), P1-2 (conversation continuity/resume), P1-3 (readback rendering), P1-4 (upload feedback), P2-1 (conversational latency — `converse` backend role), P2-2 (orchestrator prompt v2 — agency-intake posture).
+- Filed `docs/PROCESS-definition-of-done-v1.0.md` — operator ruling: Hermes does not report work as done until automated suite + human UI test + end-to-end pass + done report. Binding on all work from 2026-07-03. Reference added to `docs/CONTEXT.md` under new "Working Agreements" section.
+- Filed `docs/decisions/DECISION-transcription-whisper-v1.0.md` — operator approved self-hosted Whisper via `faster-whisper` (CTranslate2, int8, medium model, CPU). Background worker in-process. Closes the transcription hosting blocker from CORRECTION-session-memory-and-materials-v1.1. Unblocks Voice Profile end-to-end.
+
+**Rationale:** Architect direction via inbox protocol (MANIFEST-2026-07-03 + MANIFEST-2026-07-03-b). Implementation order specified: P0-1 → P0-2 → P1-1 → P1-2 → P1-3/P1-4 → P2, with transcription worker buildable in parallel but wired after P0-1. Session-storage refactor from CORRECTION-session-memory-and-materials-v1.1 is required by P1-2 and is folded into this batch.
+
+**Manifests:** `docs/inbox/processed/MANIFEST-2026-07-03.md`, `docs/inbox/processed/MANIFEST-2026-07-03-b.md`
+
+---
 
 **What:**
 - **P0 bug fix:** Removed duplicate `const playbookName` declaration in `src/templates/session.html` (line 467). The second declaration, introduced when the gate-actions routing block was appended, caused a `SyntaxError: Identifier 'playbookName' has already been declared` — which prevents the browser from executing the entire `<script>` block. All interactive JS (attach button, send button, gate approve/park/reject buttons) was dead.

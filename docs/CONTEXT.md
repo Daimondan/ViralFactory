@@ -12,7 +12,7 @@
 > **On change:** bump `updated_at` date, add/update a decision note in
 > `docs/decisions/` if the change is non-obvious.
 
-**Updated:** 2026-07-02
+**Updated:** 2026-07-03
 **Conforms to:** `docs/CHARTER-v3.3.md` (v3.3 — incorporates DIVERGENCE-001, DIVERGENCE-002, AMENDMENT-003 staged content pipeline, and AMENDMENT-004 treatment block on idea cards)
 
 ---
@@ -223,6 +223,10 @@ Scheduled research of what works in the wild: monitors top accounts/hashtags/cha
 - **Module is empty at draft time:** The drafter says so explicitly ("Voice Profile not yet built — draft will be generic"). Never fills empty modules with invented content.
 - **Proposal queue gets large (>50 pending):** Group by module, show oldest first, allow bulk approve/reject for low-risk proposals (source additions, criteria amendments).
 - **Generalization (customer #2):** Same playbooks run with different config. No code changes. The playbook engine handles it.
+
+## Working Agreements
+
+- **Definition of Done** (`docs/PROCESS-definition-of-done-v1.0.md`): Hermes does not report work as done until (1) the automated suite passes, (2) a hands-on human-style UI test in the browser exercises the changed surface as the operator would, (3) an end-to-end pass runs for flow changes, and (4) the done report states what was tested and how. "Tests pass" alone is not a done report.
 
 ## Open Questions
 
