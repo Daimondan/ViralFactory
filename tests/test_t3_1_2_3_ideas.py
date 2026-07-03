@@ -587,8 +587,14 @@ queries: []
         assert resp.status_code == 400
 
     def test_series_spawning_on_approve(self, app, sample_treatment_series):
-        """Approving a series_of_n card spawns child cards (T3.10)."""
+        """F3: Approving a series_of_n card spawns child cards via LLM breakdown.
+
+        Children enter state 'new' — operator must gate each part.
+        """
         from pipeline import PipelineStore
+        from unittest.mock import patch
+        from llm_adapter import LLMAdapter
+
         store = PipelineStore(db_path=app.config["DB_PATH"])
         card_id = store.create_idea_card(
             business_slug="testbiz",
@@ -598,14 +604,28 @@ queries: []
             origin="ai_originated",
         )
 
-        client = app.test_client()
-        resp = client.post(f"/api/ideas/{card_id}/gate",
-                           json={"action": "approve"})
+        def mock_complete(self, prompt_file, variables, schema, **kwargs):
+            if "series_breakdown" in prompt_file:
+                return {
+                    "parts": [
+                        {"part_number": 2, "idea": "Part 2", "hook_options": ["h2"], "capture_required": []},
+                        {"part_number": 3, "idea": "Part 3", "hook_options": ["h3"], "capture_required": []},
+                    ]
+                }
+            return {"cards": []}
+
+        with patch.object(LLMAdapter, "complete", mock_complete):
+            client = app.test_client()
+            resp = client.post(f"/api/ideas/{card_id}/gate",
+                               json={"action": "approve"})
         assert resp.status_code == 200
 
         # Check children were spawned
         children = store.list_series_children(card_id)
         assert len(children) == 2  # n=3, parent is 1, children = 2
+        # F3: children enter state 'new', not 'approved'
+        for child in children:
+            assert child["card_state"] == "new"
 
     def test_capture_page_loads(self, app, sample_treatment_with_capture):
         """The capture page loads for an awaiting-capture card."""

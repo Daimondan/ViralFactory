@@ -103,6 +103,8 @@ Every business has 8 versioned knowledge documents, stored as markdown in `modul
 
 Every module has: a fixed schema, a version number, a provenance note, and an update path through the gate.
 
+> **Modules carry rules; the Source Bank carries material.** Rules are task-typed — they apply to every piece of a given kind regardless of topic — so prompt context from modules is selected *structurally* (declared sections/entries per prompt, `prompts/views.yaml`), never by call-time summarization or similarity retrieval. Call-time compression of a module would create an ungated derivative of a human-approved document; the curation loop (learning proposals → operator gate) is the only compressor. Material is topic-typed, so similarity retrieval is a legitimate future selector for the Source Bank specifically. Character ceilings on assembled module context exist only as logged tripwires, never as the selection mechanism.
+
 ## Core Workflows
 
 ### The Core Loop (staged pipeline — four content gates)

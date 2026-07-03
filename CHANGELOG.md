@@ -6,6 +6,20 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-03 STRUCTURE + LOGIC — CORRECTION-module-context-assembly + CORRECTION-feedback-plumbing-and-pipeline-fixes
+
+**Module Context Assembly (STRUCTURE):** New subsystem — section-addressable module reads (`get_section`, `get_entry`, `get_index` on ModuleStore) + per-prompt view map (`prompts/views.yaml`) + assembler (`src/context_assembly.py`). All inline `[:2000]`-style module slices removed from `src/app.py` pipeline routes. `_extract_tells_checklist()` deleted — replaced by the `tells_checklist` view entry. Prompt bumps: `draft/generate_v2.md` → v2.2 (revision block + Format Guide wording), `assets/fan_out_v2.md` → v2.1 (adds `{visual_style}`). CONTEXT.md updated with "rules vs material" paragraph. Rationale: positional truncation degrades silently as modules grow; different prompts need different projections of the same module.
+
+**F1 Direct edits → draft_text authoritative (LOGIC):** New `/api/draft/<id>/edit-text` endpoint writes `draft_text` directly via `save_edited_text()` (bumps version, logs weight-3 diff as feedback, invalidates stale audit flags). Old `direct_edit` via `/feedback` returns 400. UI: "Edit draft" toggle replaces freeform "Submit as direct edit" button. Rationale: direct edits were stored in `human_edits` column but nothing ever read it — downstream reads `draft_text`.
+
+**F2 Revision feeds previous draft + feedback (LOGIC):** `draft_generate` route now assembles `previous_draft` (current draft_text, cap 6000 chars) and `revision_feedback` (weight-tagged feedback log entries, cap 3000 chars, highest-weight kept when trimming) into the prompt variables. First-time generation carries `(first draft — no previous version)` marker. Rationale: revise was a blind re-roll with identical inputs.
+
+**F3 Series breakdown (LOGIC):** Series children now spawn via LLM breakdown call (`prompts/ideas/series_breakdown_v1.md`) with per-part ideas/hooks. Children enter state `new` (not `approved`) — operator gates each part. New `/api/ideas/<parent_id>/bulk-approve-children` endpoint. Fallback to clones in state `new` on LLM failure with surfaced warning. Rationale: n-1 pieces of AI content were advancing past Gate 1 without operator seeing per-part content.
+
+**F4 owner_type column (STRUCTURE):** `asset_media` table gains `owner_type` column (default `'asset'`). Draft visuals use `owner_type='draft'` with the real `draft_id` — replaces the synthetic `draft_id + 100000` scheme. Legacy rows migrated idempotently in `_init_tables`. `generate_image`, `_record_media`, `list_asset_media` all accept `owner_type` parameter. Rationale: magic number breaks silently when real asset IDs cross 100000.
+
+**F5 ffprobe real durations (LOGIC):** `probe_duration()` module-level function in `assembly.py` called in the edit-plan inventory loop for generated videos and uploaded video/audio. Images keep 3.0s (plan intent, not file property). On probe failure, falls back to default with `(duration unverified)` marker. Rationale: LLM planned trims against fictional durations.
+
 ### 2026-07-03 STRUCTURE — Inbox batch 2026-07-03-e + format-selection filed: AMENDMENT-005 (processes are module compositions) + CORRECTION-format-selection-living-v1.0
 
 **What:**

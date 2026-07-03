@@ -561,12 +561,33 @@ class PipelineStore:
         return self.get_draft(draft_id)
 
     def save_human_edits(self, draft_id: int, edits: dict) -> dict:
-        """Save direct human edits (authoritative, highest weight)."""
+        """Save direct human edits (authoritative, highest weight).
+
+        DEPRECATED by F1: direct edits now go through save_edited_text which
+        writes draft_text directly. This method is kept for historical rows.
+        """
         conn = sqlite3.connect(self.db_path)
         ts = self._now()
         conn.execute(
             "UPDATE drafts SET human_edits = ?, updated_at = ? WHERE id = ?",
             (json.dumps(edits), ts, draft_id),
+        )
+        conn.commit()
+        conn.close()
+        return self.get_draft(draft_id)
+
+    def save_edited_text(self, draft_id: int, text: str) -> dict:
+        """F1 (CORRECTION-feedback-plumbing): Save an operator's direct edit
+        of the draft body. Writes draft_text + updated_at only — does NOT
+        route through save_draft_content (which resets state and clobbers
+        visual_direction/flags). Bumps draft_version.
+        """
+        conn = sqlite3.connect(self.db_path)
+        ts = self._now()
+        conn.execute(
+            "UPDATE drafts SET draft_text = ?, "
+            "draft_version = draft_version + 1, updated_at = ? WHERE id = ?",
+            (text, ts, draft_id),
         )
         conn.commit()
         conn.close()

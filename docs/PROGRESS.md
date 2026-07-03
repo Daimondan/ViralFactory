@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-03
-**Current Phase:** M5 complete (T5.1–T5.3). M4 complete (T4.1–T4.2). 492 tests passing. Postiz adapter + metrics + proposal gate queue all built. M6 (outward research) next.
+**Current Phase:** M5 complete. Inbox batch 2026-07-03 (module-context-assembly + feedback-plumbing) implemented: 539 tests passing. New subsystem: section-addressable module reads + views.yaml + context_assembly.py. F1-F5 fixes: direct edits→draft_text, revision feeds feedback, series breakdown, owner_type migration, ffprobe durations. M6 (outward research) next.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 

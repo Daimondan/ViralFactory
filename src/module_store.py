@@ -306,6 +306,168 @@ class ModuleStore:
             return []
         return [f.stem for f in biz_dir.glob("*.md")]
 
+    # ── Section-addressable reads (CORRECTION-module-context-assembly) ──
+    # Heading contract: ## = section, ### = entry inside a parent section.
+    # Renaming or removing a ## heading in a *_to_markdown generator is a
+    # breaking change — update prompts/views.yaml in the same commit.
+
+    _section_cache: {} = {}  # class-level: {(path, mtime): [(heading_line, body)]}
+
+    @staticmethod
+    def _normalize_heading(heading: str) -> str:
+        """Normalize for case-insensitive, whitespace-tolerant matching."""
+        # Strip leading ## / ### and surrounding whitespace, collapse spaces
+        cleaned = heading.lstrip('#').strip().lower()
+        return ' '.join(cleaned.split())
+
+    def _parse_sections(self, business_slug: str, module_name: str) -> list[tuple[str, str]]:
+        """Parse a module into (heading_line, body) pairs for each ## section.
+
+        Skips ## lines inside fenced code blocks.
+        Cached in-process keyed on file mtime.
+        Returns [] if the module file doesn't exist.
+        """
+        path = self._module_path(business_slug, module_name)
+        if not path.exists():
+            return []
+        mtime = path.stat().st_mtime
+        cache_key = (str(path), mtime)
+        cached = ModuleStore._section_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        content = path.read_text()
+        lines = content.split('\n')
+        sections: list[tuple[str, str]] = []
+        in_fence = False
+        current_heading: str | None = None
+        current_body: list[str] = []
+
+        for line in lines:
+            stripped = line.strip()
+            # Toggle fence state on ``` lines
+            if stripped.startswith('```'):
+                in_fence = not in_fence
+                if current_heading is not None:
+                    current_body.append(line)
+                continue
+            # ## heading outside fences (### excluded by the space after ##)
+            if not in_fence and line.startswith('## ') and not line.startswith('###'):
+                if current_heading is not None:
+                    sections.append((current_heading, '\n'.join(current_body)))
+                current_heading = line
+                current_body = []
+            elif current_heading is not None:
+                current_body.append(line)
+            # Lines before the first ## heading (the # title line etc.) are skipped
+
+        if current_heading is not None:
+            sections.append((current_heading, '\n'.join(current_body)))
+
+        ModuleStore._section_cache[cache_key] = sections
+        return sections
+
+    def _find_section(self, sections: list[tuple[str, str]], heading: str) -> tuple[str, str] | None:
+        """Find a section by normalized heading match. Returns (heading_line, body) or None."""
+        target = self._normalize_heading(heading)
+        for h, body in sections:
+            if self._normalize_heading(h) == target:
+                return (h, body)
+        return None
+
+    def get_section(self, business_slug: str, module_name: str,
+                    heading: str) -> str | None:
+        """Return the text of one ## section (heading line included,
+        subsections included). None if module or section missing.
+        Deterministic parse; cached in-process keyed on file mtime."""
+        sections = self._parse_sections(business_slug, module_name)
+        if not sections:
+            return None
+        found = self._find_section(sections, heading)
+        if not found:
+            return None
+        return found[0] + '\n' + found[1]
+
+    def get_entry(self, business_slug: str, module_name: str,
+                  parent_section: str, entry_name: str) -> str | None:
+        """Return one ### entry inside a parent ## section.
+        Exact-match on normalized entry_name. None if absent."""
+        sections = self._parse_sections(business_slug, module_name)
+        if not sections:
+            return None
+        found = self._find_section(sections, parent_section)
+        if not found:
+            return None
+        body = found[1]
+        # Split entries on ### headings (outside fences)
+        entries = self._parse_entries(body)
+        target = self._normalize_heading(entry_name)
+        for entry_heading, entry_body in entries:
+            if self._normalize_heading(entry_heading) == target:
+                return entry_heading + '\n' + entry_body
+        return None
+
+    @staticmethod
+    def _parse_entries(section_body: str) -> list[tuple[str, str]]:
+        """Split a section body into (### heading_line, body) pairs.
+        Skips ### lines inside fenced code blocks."""
+        lines = section_body.split('\n')
+        entries: list[tuple[str, str]] = []
+        in_fence = False
+        current_heading: str | None = None
+        current_body: list[str] = []
+
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith('```'):
+                in_fence = not in_fence
+                if current_heading is not None:
+                    current_body.append(line)
+                continue
+            if not in_fence and line.startswith('### '):
+                if current_heading is not None:
+                    entries.append((current_heading, '\n'.join(current_body)))
+                current_heading = line
+                current_body = []
+            elif current_heading is not None:
+                current_body.append(line)
+            # Lines before the first ### entry are skipped
+
+        if current_heading is not None:
+            entries.append((current_heading, '\n'.join(current_body)))
+        return entries
+
+    def get_index(self, business_slug: str, module_name: str,
+                  parent_section: str) -> str | None:
+        """Return a generated index of a container section: one line per
+        ### entry — the entry name plus its first list line or sentence.
+        Deterministic. None if module or section missing."""
+        sections = self._parse_sections(business_slug, module_name)
+        if not sections:
+            return None
+        found = self._find_section(sections, parent_section)
+        if not found:
+            return None
+        entries = self._parse_entries(found[1])
+        if not entries:
+            # Section exists but has no ### entries
+            return found[0] + '\n(no entries)'
+        lines = [found[0]]
+        for heading_line, body in entries:
+            name = heading_line.lstrip('#').strip()
+            # Extract first meaningful content line (skip blanks)
+            first_content = ''
+            for bl in body.split('\n'):
+                bl_stripped = bl.strip()
+                if bl_stripped and not bl_stripped.startswith('```'):
+                    first_content = bl_stripped
+                    break
+            if first_content:
+                lines.append(f'- {name} — {first_content}')
+            else:
+                lines.append(f'- {name}')
+        return '\n'.join(lines)
+
 
 # Voice Profile output schema (for the validator)
 VOICE_PROFILE_SCHEMA = {

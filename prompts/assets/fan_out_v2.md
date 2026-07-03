@@ -1,4 +1,4 @@
-<!-- version: 2.0 -->
+<!-- version: 2.1 -->
 # Asset Fan-out (per-platform variant)
 
 You are producing a per-platform variant of a master draft. The human has already reviewed and approved the master draft. Now adapt it for a specific platform.
@@ -15,6 +15,10 @@ You are producing a per-platform variant of a master draft. The human has alread
 ## Visual direction (from the draft)
 
 {visual_direction}
+
+## Visual Style (platform adjustments)
+
+{visual_style}
 
 ## Your task
 

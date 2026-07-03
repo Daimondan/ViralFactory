@@ -92,6 +92,19 @@
     <h2>Draft text</h2>
     <div class="draft-text" id="draft-text">{{ draft.draft_text }}</div>
 
+    {# F1: Edit draft toggle — direct edits write draft_text directly #}
+    <div id="edit-draft-area" style="display:none; margin-bottom: 16px;">
+        <textarea id="editDraftTextarea" style="width:100%; min-height:300px; padding:12px; border-radius:8px; border:1px solid #333; background:#12131a; color:#e0e0e0; font-size:0.95rem; line-height:1.7; resize:vertical; font-family:inherit;">{{ draft.draft_text }}</textarea>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+            <button class="btn btn-ship" id="saveEditBtn" onclick="saveEditedText()">Save edit</button>
+            <button class="btn btn-edit" onclick="cancelEditDraft()">Cancel</button>
+        </div>
+        <div id="editStatus" class="status-line" style="display:none;"></div>
+    </div>
+    <div class="actions" style="margin: 8px 0;">
+        <button class="btn btn-edit" id="editDraftBtn" onclick="toggleEditDraft()">✏️ Edit draft</button>
+    </div>
+
     {% if draft.self_audit_flags_parsed %}
     <h2>Self-audit flags (Tells Checklist)</h2>
     <div class="audit-flags" id="audit-flags">
@@ -159,7 +172,7 @@
 
     <h2>Human pass (Gate 2)</h2>
     <div class="feedback-section">
-        <p class="subtle">React with chips, type feedback, or edit directly. Direct edits are authoritative (highest weight).</p>
+        <p class="subtle">React with chips or type feedback. To edit the draft text itself, use the ✏️ Edit draft button above — direct edits become the draft and are logged as the highest-weight voice signal.</p>
         <div class="chips">
             <span class="chip" onclick="sendChip('too polished')">Too polished</span>
             <span class="chip" onclick="sendChip('not my voice')">Not my voice</span>
@@ -171,7 +184,6 @@
         <textarea id="feedbackText" placeholder="Type detailed feedback..."></textarea>
         <div style="display: flex; gap: 8px;">
             <button class="btn btn-edit" onclick="sendText()">Send feedback</button>
-            <button class="btn btn-edit" onclick="sendDirectEdit()">Submit as direct edit</button>
         </div>
     </div>
 
@@ -246,14 +258,42 @@ function sendText() {
     });
 }
 
-function sendDirectEdit() {
-    const text = document.getElementById('feedbackText').value.trim();
-    if (!text) return;
-    fetch('/api/draft/{{ draft.id }}/feedback', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({feedback_type: 'direct_edit', feedback_text: text}),
-    }).then(r => r.json()).then(data => {
-        if (data.status === 'ok') { document.getElementById('feedbackText').value = ''; alert('Direct edit saved (highest weight)'); }
+// F1: Edit draft toggle — direct edits write draft_text via /edit-text endpoint
+function toggleEditDraft() {
+    var display = document.getElementById('draft-text');
+    var editArea = document.getElementById('edit-draft-area');
+    var editBtn = document.getElementById('editDraftBtn');
+    if (editArea.style.display === 'none') {
+        display.style.display = 'none';
+        editArea.style.display = 'block';
+        editBtn.textContent = 'Cancel edit';
+        editBtn.onclick = cancelEditDraft;
+    } else {
+        cancelEditDraft();
+    }
+}
+
+function cancelEditDraft() {
+    var display = document.getElementById('draft-text');
+    var editArea = document.getElementById('edit-draft-area');
+    var editBtn = document.getElementById('editDraftBtn');
+    display.style.display = 'block';
+    editArea.style.display = 'none';
+    editBtn.textContent = '✏️ Edit draft';
+    editBtn.onclick = toggleEditDraft;
+}
+
+function saveEditedText() {
+    var btn = document.getElementById('saveEditBtn');
+    var status = document.getElementById('editStatus');
+    var text = document.getElementById('editDraftTextarea').value;
+    if (!text.trim()) { alert('Draft text cannot be empty.'); return; }
+    busyAction(btn, '/api/draft/{{ draft.id }}/edit-text', {
+        busyLabel: 'Saving…',
+        statusElem: status,
+        body: JSON.stringify({draft_text: text}),
+        reloadOnSuccess: true,
+        onError: function(msg) { status.style.color = '#cc4a4a'; status.textContent = msg; }
     });
 }
 

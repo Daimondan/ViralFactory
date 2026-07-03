@@ -48,6 +48,13 @@ CREATE INDEX IF NOT EXISTS idx_asset_media_asset ON asset_media(asset_id);
 CREATE INDEX IF NOT EXISTS idx_asset_media_kind ON asset_media(kind);
 """
 
+# F4 (CORRECTION-feedback-plumbing): owner_type column replaces the
+# synthetic draft_id + 100000 scheme for draft-stage visual previews.
+OWNER_TYPE_MIGRATION = """
+-- Migration: add owner_type column if not present
+-- Runs idempotently in _init_tables via PRAGMA table_info check
+"""
+
 # ─── Schema for image cache ───────────────────────────────────────────────────
 
 IMAGE_CACHE_SCHEMA = """
@@ -97,6 +104,28 @@ class MediaAdapter:
         conn = sqlite3.connect(self.db_path)
         conn.executescript(ASSET_MEDIA_SCHEMA)
         conn.executescript(IMAGE_CACHE_SCHEMA)
+
+        # F4 (CORRECTION-feedback-plumbing): add owner_type column if missing
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(asset_media)").fetchall()]
+        if "owner_type" not in cols:
+            conn.execute("ALTER TABLE asset_media ADD COLUMN owner_type TEXT NOT NULL DEFAULT 'asset'")
+            conn.commit()
+
+            # Migrate legacy rows: asset_id >= 100000 were draft visuals
+            # (synthetic ID = draft_id + 100000). Convert them to owner_type='draft'
+            # and set asset_id = asset_id - 100000.
+            legacy_rows = conn.execute(
+                "SELECT id, asset_id FROM asset_media WHERE asset_id >= 100000"
+            ).fetchall()
+            for row_id, old_asset_id in legacy_rows:
+                new_asset_id = old_asset_id - 100000
+                conn.execute(
+                    "UPDATE asset_media SET owner_type = 'draft', asset_id = ? WHERE id = ?",
+                    (new_asset_id, row_id),
+                )
+            if legacy_rows:
+                conn.commit()
+
         conn.commit()
         conn.close()
 
@@ -124,18 +153,28 @@ class MediaAdapter:
         )
 
     def _record_media(self, asset_id: int, kind: str, path: str, model: str,
-                      prompt: str, cost_usd: float = None):
+                      prompt: str, cost_usd: float = None, owner_type: str = "asset"):
         """Record generated media in the asset_media table."""
         import sqlite3
         from datetime import datetime, timezone
         ts = datetime.now(timezone.utc).isoformat()
         conn = sqlite3.connect(self.db_path)
-        conn.execute(
-            """INSERT INTO asset_media
-               (asset_id, kind, path, model, prompt, cost_usd, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (asset_id, kind, path, model, prompt[:2000], cost_usd, ts),
-        )
+        # Check if owner_type column exists (defensive for old DBs)
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(asset_media)").fetchall()]
+        if "owner_type" in cols:
+            conn.execute(
+                """INSERT INTO asset_media
+                   (asset_id, kind, path, model, prompt, cost_usd, created_at, owner_type)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (asset_id, kind, path, model, prompt[:2000], cost_usd, ts, owner_type),
+            )
+        else:
+            conn.execute(
+                """INSERT INTO asset_media
+                   (asset_id, kind, path, model, prompt, cost_usd, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (asset_id, kind, path, model, prompt[:2000], cost_usd, ts),
+            )
         conn.commit()
         conn.close()
 
@@ -180,6 +219,7 @@ class MediaAdapter:
         aspect_ratio: str = "9:16",
         context: str = "Image generation",
         business_slug: str = None,
+        owner_type: str = "asset",
     ) -> dict:
         """
         Generate an image via OpenRouter Image API.
@@ -269,7 +309,7 @@ class MediaAdapter:
 
         # Cache and record
         self._cache_image(prompt, model, file_path, cost_usd)
-        self._record_media(asset_id, "image", file_path, model, prompt, cost_usd)
+        self._record_media(asset_id, "image", file_path, model, prompt, cost_usd, owner_type=owner_type)
         self._log_provenance(model, prompt, cost_usd=cost_usd,
                             context=context, business_slug=business_slug)
 
@@ -413,20 +453,34 @@ class MediaAdapter:
 
     # ── Querying stored media ──
 
-    def list_asset_media(self, asset_id: int, kind: str = None) -> list[dict]:
-        """List all media for an asset, optionally filtered by kind."""
+    def list_asset_media(self, asset_id: int, kind: str = None,
+                         owner_type: str = None) -> list[dict]:
+        """List all media for an asset, optionally filtered by kind and/or owner_type.
+
+        F4: owner_type filter separates draft visuals (owner_type='draft')
+        from asset media (owner_type='asset'). If owner_type is None, returns
+        all rows for the asset_id (backward compatible).
+        """
         import sqlite3
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(asset_media)").fetchall()]
+        has_owner_type = "owner_type" in cols
+
+        conditions = ["asset_id = ?"]
+        params = [asset_id]
+
         if kind:
-            rows = conn.execute(
-                "SELECT * FROM asset_media WHERE asset_id = ? AND kind = ? ORDER BY id ASC",
-                (asset_id, kind),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM asset_media WHERE asset_id = ? ORDER BY id ASC",
-                (asset_id,),
-            ).fetchall()
+            conditions.append("kind = ?")
+            params.append(kind)
+        if owner_type and has_owner_type:
+            conditions.append("owner_type = ?")
+            params.append(owner_type)
+
+        where = " AND ".join(conditions)
+        rows = conn.execute(
+            f"SELECT * FROM asset_media WHERE {where} ORDER BY id ASC",
+            params,
+        ).fetchall()
         conn.close()
         return [dict(r) for r in rows]

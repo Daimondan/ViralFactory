@@ -3711,12 +3711,16 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         except ConfigError as e:
             return {"status": "error", "error": f"Config error: {e}"}
 
-        modules = _load_all_modules(business_slug)
-
         from llm_adapter import LLMAdapter, LLMAdapterError
         from pipeline import IDEA_CARD_SCHEMA
+        from context_assembly import assemble_module_context
 
         adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
+
+        module_vars, module_prov = assemble_module_context(
+            "ideas/generate_v1.md", business_slug,
+            db_path=app.config["DB_PATH"], modules_dir="modules",
+        )
 
         try:
             result = adapter.complete(
@@ -3727,15 +3731,12 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     "audience_description": business.get("audience_description", ""),
                     "origin_type": origin,
                     "source_material": f"Operator seed: {seed}",
-                    "viral_patterns": modules.get("viral-patterns", "(not built)")[:2000],
-                    "audience_insights": modules.get("audience-insights", "(not built)")[:2000],
-                    "story_frameworks": modules.get("story-frameworks", "(not built)")[:2000],
-                    "format_guide": modules.get("format-guide", "(not built)")[:2000],
+                    **module_vars,
                     "num_cards": "1",
                 },
                 schema=IDEA_CARD_SCHEMA,
                 backend="default",
-                context=f"Idea card generation from seed ({origin})",
+                context=f"Idea card generation from seed ({origin}) | module_ctx: {module_prov}",
                 business_slug=business_slug,
             )
         except (LLMAdapterError, Exception) as e:
@@ -3786,10 +3787,21 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         except ConfigError as e:
             return jsonify({"error": f"Config error: {e}"}), 500
 
-        modules = _load_all_modules(business_slug)
+        from llm_adapter import LLMAdapter, LLMAdapterError
+        from pipeline import IDEA_CARD_SCHEMA
+        from context_assembly import assemble_module_context
+
+        adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
+
+        module_vars, module_prov = assemble_module_context(
+            "ideas/generate_v1.md", business_slug,
+            db_path=app.config["DB_PATH"], modules_dir="modules",
+        )
 
         # Build source material from source-criteria module + sources config
-        source_material = modules.get("source-criteria", "(not built)")
+        from module_store import ModuleStore
+        ms = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
+        source_material = ms.load(business_slug, "source-criteria") or "(not built)"
         try:
             sources_config = config.get("sources", {})
             if sources_config:
@@ -3801,11 +3813,6 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         except Exception:
             pass
 
-        from llm_adapter import LLMAdapter, LLMAdapterError
-        from pipeline import IDEA_CARD_SCHEMA
-
-        adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
-
         try:
             result = adapter.complete(
                 prompt_file="ideas/generate_v1.md",
@@ -3815,15 +3822,12 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     "audience_description": business.get("audience_description", ""),
                     "origin_type": "ai_originated",
                     "source_material": source_material[:4000],
-                    "viral_patterns": modules.get("viral-patterns", "(not built)")[:2000],
-                    "audience_insights": modules.get("audience-insights", "(not built)")[:2000],
-                    "story_frameworks": modules.get("story-frameworks", "(not built)")[:2000],
-                    "format_guide": modules.get("format-guide", "(not built)")[:2000],
+                    **module_vars,
                     "num_cards": str(num_cards),
                 },
                 schema=IDEA_CARD_SCHEMA,
                 backend="default",
-                context=f"AI idea card generation ({num_cards} cards)",
+                context=f"AI idea card generation ({num_cards} cards) | module_ctx: {module_prov}",
                 business_slug=business_slug,
             )
         except (LLMAdapterError, Exception) as e:
@@ -3878,23 +3882,38 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             else:
                 new_state = "approved"
 
-            # T3.10: Series spawning — if scope is series_of_n, spawn child cards
+            # F3 (CORRECTION-feedback-plumbing): Series spawning via LLM breakdown
+            # Children enter state 'new' (not 'approved') — "AI proposes, humans gate everything"
+            spawn_warning = None
             scope = treatment.get("scope", {})
             if scope.get("type") == "series_of_n" and not card.get("parent_id"):
                 n = scope.get("n", 1)
                 cadence = scope.get("cadence", "")
-                for i in range(1, n):
-                    child_id = store.create_idea_card(
-                        business_slug=business_slug,
-                        idea=f"{card['idea']} (Part {i+1}/{n})",
-                        hook_options=json.loads(card.get("hook_options") or "[]"),
-                        treatment=treatment,
-                        origin=card["origin"],
-                        evidence_links=json.loads(card.get("evidence_links") or "[]"),
-                        parent_id=card_id,
+                try:
+                    children = _spawn_series_children(
+                        business_slug, card_id, card, treatment, n, cadence
                     )
-                    # Children start as 'approved' (parent was approved)
-                    store.update_card_state(child_id, "approved")
+                except Exception as e:
+                    # Fallback: clone behavior in state 'new' with a warning
+                    children = []
+                    spawn_warning = f"Series breakdown failed ({str(e)[:200]}); children created as clones in state 'new'."
+                    for i in range(1, n):
+                        child_id = store.create_idea_card(
+                            business_slug=business_slug,
+                            idea=f"{card['idea']} (Part {i+1}/{n})",
+                            hook_options=json.loads(card.get("hook_options") or "[]"),
+                            treatment=treatment,
+                            origin=card["origin"],
+                            evidence_links=json.loads(card.get("evidence_links") or "[]"),
+                            parent_id=card_id,
+                        )
+                        store.update_card_state(child_id, "new")
+                        children.append(child_id)
+
+                response_data = {"status": "ok", "new_state": new_state}
+                if spawn_warning:
+                    response_data["warning"] = spawn_warning
+                # Include children count for the UI
 
             # T3.11: Experimental format debut — auto-write Format Guide entry
             fmt = treatment.get("format", {})
@@ -3902,7 +3921,10 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 _debut_experimental_format(business_slug, card_id, fmt, treatment)
 
             store.update_card_state(card_id, new_state)
-            return jsonify({"status": "ok", "new_state": new_state})
+            response = {"status": "ok", "new_state": new_state}
+            if spawn_warning:
+                response["warning"] = spawn_warning
+            return jsonify(response)
 
         elif action == "kill":
             store.update_card_state(card_id, "killed", kill_reason=kill_reason)
@@ -3918,6 +3940,121 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         elif action == "park":
             store.update_card_state(card_id, "parked")
             return jsonify({"status": "ok", "new_state": "parked"})
+
+    @app.route("/api/ideas/<int:parent_id>/bulk-approve-children", methods=["POST"])
+    def ideas_bulk_approve_children(parent_id):
+        """F3: Bulk approve all 'new' children of a parent card.
+
+        Transitions all children with parent_id and state 'new' to 'approved'.
+        """
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        store = _get_pipeline_store()
+        all_cards = store.list_idea_cards(business_slug)
+        approved = []
+        for card in all_cards:
+            if card.get("parent_id") == parent_id and card["card_state"] == "new":
+                store.update_card_state(card["id"], "approved")
+                approved.append(card["id"])
+
+        return jsonify({"status": "ok", "approved": approved, "count": len(approved)})
+
+    def _spawn_series_children(business_slug: str, parent_card_id: int,
+                                parent_card, treatment: dict, n: int,
+                                cadence: str) -> list[int]:
+        """F3: Spawn series children via LLM breakdown call.
+
+        Children enter state 'new' — the operator must gate each part.
+        Returns list of child card IDs.
+        Raises on LLM failure (caller falls back to clones).
+        """
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+            business = config["business"]
+        except ConfigError as e:
+            raise Exception(f"Config error: {e}")
+
+        from context_assembly import assemble_module_context
+        from llm_adapter import LLMAdapter, LLMAdapterError
+
+        module_vars, module_prov = assemble_module_context(
+            "ideas/series_breakdown_v1.md", business_slug,
+            db_path=app.config["DB_PATH"], modules_dir="modules",
+        )
+
+        adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
+
+        hook_options = json.loads(parent_card.get("hook_options") or "[]")
+        series_schema = {
+            "type": "object",
+            "required": ["parts"],
+            "properties": {
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["part_number", "idea", "hook_options"],
+                        "properties": {
+                            "part_number": {"type": "integer"},
+                            "idea": {"type": "string"},
+                            "hook_options": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "capture_required": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                        },
+                    },
+                },
+            },
+        }
+
+        result = adapter.complete(
+            prompt_file="ideas/series_breakdown_v1.md",
+            variables={
+                "business_name": business["business"]["name"],
+                "subjects": ", ".join(business.get("subjects", [])),
+                "audience_description": business.get("audience_description", ""),
+                "cadence": cadence,
+                "parent_idea": parent_card["idea"],
+                "parent_hooks": "\n".join(f"- {h}" for h in hook_options),
+                "parent_treatment": json.dumps(treatment, indent=2)[:2000],
+                "n": str(n),
+                **module_vars,
+            },
+            schema=series_schema,
+            backend="default",
+            context=f"Series breakdown for card {parent_card_id} ({n} parts) | module_ctx: {module_prov}",
+            business_slug=business_slug,
+        )
+
+        store = _get_pipeline_store()
+        child_ids = []
+        for part in result.get("parts", []):
+            # Override capture_required in treatment if the breakdown supplies it
+            child_treatment = dict(treatment)
+            if part.get("capture_required"):
+                child_treatment["capture_required"] = part["capture_required"]
+
+            child_id = store.create_idea_card(
+                business_slug=business_slug,
+                idea=part["idea"],
+                hook_options=part.get("hook_options", []),
+                treatment=child_treatment,
+                origin=parent_card["origin"],
+                evidence_links=json.loads(parent_card.get("evidence_links") or "[]"),
+                parent_id=parent_card_id,
+            )
+            # F3: children enter state 'new' — operator must gate each part
+            store.update_card_state(child_id, "new")
+            child_ids.append(child_id)
+
+        return child_ids
 
     def _debut_experimental_format(business_slug: str, card_id: int, fmt: dict, treatment: dict):
         """T3.11: Auto-write an experimental format entry to the Format Guide module."""
@@ -4072,8 +4209,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             try:
                 mc = load_all(app.config["CONFIG_DIR"])
                 ma = MediaAdapter(mc.get("models", {}), db_path=app.config["DB_PATH"])
-                synthetic_id = existing_draft["id"] + 100000
-                draft_visuals = ma.list_asset_media(synthetic_id, kind="image")
+                # F4: use owner_type='draft' with the real draft_id
+                draft_visuals = ma.list_asset_media(existing_draft["id"], kind="image", owner_type="draft")
             except Exception:
                 pass
 
@@ -4131,8 +4268,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         format_name = treatment.get("format", {}).get("format_name", "")
         scope = treatment.get("scope", {}).get("type", "")
 
-        # Load ALL modules
-        modules = _load_all_modules(business_slug)
+        # Load modules via context assembly (CORRECTION-module-context-assembly)
+        from context_assembly import assemble_module_context
 
         # Load capture material if any
         capture_text = ""
@@ -4154,6 +4291,64 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         except ConfigError as e:
             return jsonify({"error": f"Config error: {e}"}), 500
 
+        module_vars, module_prov = assemble_module_context(
+            "draft/generate_v2.md", business_slug,
+            dynamic={"treatment.format_name": format_name},
+            db_path=app.config["DB_PATH"], modules_dir="modules",
+        )
+
+        # F2 (CORRECTION-feedback-plumbing): revision context — previous draft + feedback
+        existing = None
+        for d in store.list_drafts(business_slug):
+            if d["idea_card_id"] == card_id:
+                existing = d
+                break
+
+        if existing:
+            previous_draft = existing["draft_text"] or ""
+            # Truncate at paragraph boundary near 6000 chars
+            if len(previous_draft) > 6000:
+                cut = previous_draft.rfind('\n\n', 0, 6000)
+                if cut > 3000:
+                    previous_draft = previous_draft[:cut] + "\n\n[...truncated]"
+                else:
+                    previous_draft = previous_draft[:6000] + "\n\n[...truncated]"
+
+            # Gather weight-tagged feedback, newest-last
+            feedback_entries = store.list_feedback(business_slug, draft_id=existing["id"])
+            feedback_lines = []
+            for entry in feedback_entries:
+                w = entry.get("weight", 1)
+                wtype = entry.get("feedback_type", "")
+                ftext = entry.get("feedback_text", "")
+                feedback_lines.append(f"[{wtype} w{w}] {ftext}")
+            revision_feedback = "\n".join(feedback_lines)
+            # Cap 3000 chars, keep highest-weight entries when trimming
+            if len(revision_feedback) > 3000:
+                # Sort by weight desc, keep top entries until budget
+                sorted_entries = sorted(feedback_entries, key=lambda e: e.get("weight", 1), reverse=True)
+                kept = []
+                total = 0
+                for entry in sorted_entries:
+                    w = entry.get("weight", 1)
+                    wtype = entry.get("feedback_type", "")
+                    ftext = entry.get("feedback_text", "")
+                    line = f"[{wtype} w{w}] {ftext}"
+                    if total + len(line) > 3000:
+                        continue
+                    kept.append(line)
+                    total += len(line)
+                # Re-sort by original order (id ascending)
+                kept_ids = {l: True for l in kept}
+                revision_feedback = "\n".join(
+                    f"[{e.get('feedback_type','')} w{e.get('weight',1)}] {e.get('feedback_text','')}"
+                    for e in sorted(feedback_entries, key=lambda e: e.get("id", 0))
+                    if f"[{e.get('feedback_type','')} w{e.get('weight',1)}] {e.get('feedback_text','')}" in kept_ids
+                )
+        else:
+            previous_draft = "(first draft — no previous version)"
+            revision_feedback = "(first draft — no previous version)"
+
         from llm_adapter import LLMAdapter, LLMAdapterError
         from pipeline import DRAFT_SCHEMA
 
@@ -4170,29 +4365,21 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     "scope": scope,
                     "idea": card["idea"],
                     "hook_options": "\n".join(f"- {h}" for h in hook_options),
-                    "voice_profile": modules.get("voice-profile", "(not built)")[:3000],
-                    "tells_checklist": _extract_tells_checklist(modules.get("voice-profile", "")),
-                    "story_frameworks": modules.get("story-frameworks", "(not built)")[:2000],
-                    "audience_insights": modules.get("audience-insights", "(not built)")[:2000],
-                    "viral_patterns": modules.get("viral-patterns", "(not built)")[:2000],
-                    "visual_style": modules.get("visual-style", "(not built)")[:2000],
-                    "format_guide": modules.get("format-guide", "(not built)")[:2000],
                     "capture_material": capture_text[:2000] if capture_text else "(none)",
+                    "previous_draft": previous_draft,
+                    "revision_feedback": revision_feedback,
+                    **module_vars,
                 },
                 schema=DRAFT_SCHEMA,
                 backend="drafter",
-                context=f"Draft generation for card {card_id} ({card['origin']}, {format_name})",
+                context=f"Draft generation for card {card_id} ({card['origin']}, {format_name}) | module_ctx: {module_prov}",
                 business_slug=business_slug,
             )
         except (LLMAdapterError, Exception) as e:
             _get_jobs_store().fail_job(job_id, str(e)[:200])
             return jsonify({"error": str(e)}), 500
-        existing = None
-        for d in store.list_drafts(business_slug):
-            if d["idea_card_id"] == card_id:
-                existing = d
-                break
 
+        # existing was found above for F2 revision context; reuse it for save
         if existing:
             store.save_draft_content(
                 existing["id"],
@@ -4230,22 +4417,16 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             "self_audit_flags": result["self_audit_flags"],
         })
 
-    def _extract_tells_checklist(voice_profile_md: str) -> str:
-        """Extract the Tells Checklist section from the Voice Profile module."""
-        if not voice_profile_md or voice_profile_md.startswith("("):
-            return "(Voice Profile not built — no Tells Checklist available)"
-        # Look for the Tells Checklist section
-        import re
-        match = re.search(r'##\s*Tells\s*Checklist\s*\n(.+?)(?=\n##\s|$)', voice_profile_md, re.DOTALL | re.IGNORECASE)
-        if match:
-            return match.group(1).strip()
-        return "(Tells Checklist section not found in Voice Profile)"
-
     # ── T3.6: Human pass UI (Gate 2) ──
 
     @app.route("/api/draft/<int:draft_id>/feedback", methods=["POST"])
     def draft_feedback(draft_id):
-        """Add feedback to a draft (chip, text, or direct edit)."""
+        """Add feedback to a draft (chip or text only).
+
+        F1 (CORRECTION-feedback-plumbing): direct_edit via this endpoint is
+        deprecated — returns 400 pointing to /edit-text. Direct edits now
+        write draft_text directly via the /edit-text endpoint.
+        """
         business_slug = _get_business_slug()
         if not business_slug:
             return jsonify({"error": "Business not configured"}), 500
@@ -4259,8 +4440,15 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         feedback_text = request.json.get("feedback_text", "")
         line_reference = request.json.get("line_reference", "")
 
-        if feedback_type not in ("chip", "text", "direct_edit"):
-            return jsonify({"error": "Invalid feedback type"}), 400
+        # F1: direct_edit is deprecated on this endpoint
+        if feedback_type == "direct_edit":
+            return jsonify({
+                "error": "Direct edits are now done via the Edit draft button. "
+                         "Use POST /api/draft/<id>/edit-text with {draft_text} instead."
+            }), 400
+
+        if feedback_type not in ("chip", "text", "kill_reason"):
+            return jsonify({"error": "Invalid feedback type. Use chip, text, or kill_reason."}), 400
         if not feedback_text:
             return jsonify({"error": "No feedback text provided"}), 400
 
@@ -4272,13 +4460,87 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             line_reference=line_reference,
         )
 
-        # If direct edit, save the edit
-        if feedback_type == "direct_edit":
-            edits = json.loads(draft.get("human_edits") or "{}")
-            edits[line_reference or f"edit_{entry_id}"] = feedback_text
-            store.save_human_edits(draft_id, edits)
-
         return jsonify({"status": "ok", "feedback_id": entry_id})
+
+    @app.route("/api/draft/<int:draft_id>/edit-text", methods=["POST"])
+    def draft_edit_text(draft_id):
+        """F1 (CORRECTION-feedback-plumbing): Edit the draft body directly.
+
+        The edited text becomes draft_text (the authoritative artifact).
+        Downstream (fan-out, assets, assembly) reads draft_text automatically.
+        Bumps draft_version, logs a weight-3 direct_edit diff as feedback,
+        invalidates stale self-audit flags whose line no longer appears.
+        Does NOT change draft_state — ship/kill/revise remain the only
+        state transitions.
+        """
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        store = _get_pipeline_store()
+        draft = store.get_draft(draft_id)
+        if not draft:
+            return jsonify({"error": "Draft not found"}), 404
+
+        new_text = request.json.get("draft_text", "")
+        if not new_text or not new_text.strip():
+            return jsonify({"error": "draft_text is required and must not be empty"}), 400
+
+        old_text = draft.get("draft_text") or ""
+        if new_text == old_text:
+            return jsonify({"error": "Text is identical to current draft — no change"}), 400
+
+        # Generate a compact unified diff (cap 4000 chars)
+        import difflib
+        diff_lines = list(difflib.unified_diff(
+            old_text.splitlines(keepends=True),
+            new_text.splitlines(keepends=True),
+            fromfile="old",
+            tofile="new",
+            n=1,
+        ))
+        diff_text = "".join(diff_lines)
+        if len(diff_text) > 4000:
+            diff_text = diff_text[:4000] + "\n[...diff truncated]"
+
+        # Save the edited text (bumps version, writes draft_text only)
+        updated = store.save_edited_text(draft_id, new_text)
+
+        # Log the diff as a weight-3 direct_edit feedback entry
+        store.add_feedback(
+            business_slug=business_slug,
+            feedback_type="direct_edit",
+            feedback_text=diff_text,
+            draft_id=draft_id,
+        )
+
+        # Invalidate stale self-audit flags whose line no longer appears
+        flags = json.loads(updated.get("self_audit_flags") or "[]")
+        changed = False
+        for flag in flags:
+            if flag.get("status") in (None, "active", "applied", "dismissed"):
+                line = flag.get("line", "")
+                if line and line not in new_text:
+                    flag["status"] = "stale"
+                    changed = True
+        if changed:
+            # Save updated flags
+            import sqlite3 as _sqlite3
+            conn = _sqlite3.connect(app.config["DB_PATH"])
+            conn.execute(
+                "UPDATE drafts SET self_audit_flags = ? WHERE id = ?",
+                (json.dumps(flags), draft_id),
+            )
+            conn.commit()
+            conn.close()
+
+        display = _parse_draft_for_display(updated)
+        return jsonify({
+            "status": "ok",
+            "draft_id": draft_id,
+            "draft_version": updated["draft_version"],
+            "draft_text": updated["draft_text"],
+        })
 
     @app.route("/api/draft/<int:draft_id>/gate", methods=["POST"])
     def draft_gate(draft_id):
@@ -4402,11 +4664,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         from media_adapter import MediaAdapter, MediaAdapterError
         adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
 
-        # Use the draft_id as the asset_id for media storage (keeps draft visuals separate)
-        # The media_adapter creates data/media/<asset_id>/ dirs
-        # We use a negative ID scheme: draft visuals stored under draft_id * -1 to avoid collision
-        # Simpler: just use a synthetic asset_id = draft_id + 100000 (won't collide with real asset IDs)
-        synthetic_asset_id = draft_id + 100000
+        # F4 (CORRECTION-feedback-plumbing): use owner_type='draft' with the
+        # real draft_id instead of the synthetic draft_id + 100000 scheme.
 
         # Determine aspect ratio from format
         format_name = (draft.get("format") or "").lower()
@@ -4423,10 +4682,11 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             try:
                 result = adapter.generate_image(
                     prompt=prompt,
-                    asset_id=synthetic_asset_id,
+                    asset_id=draft_id,
                     aspect_ratio=aspect_ratio,
                     context=f"Draft visual preview {i+1}/{len(image_prompts)} for draft {draft_id}",
                     business_slug=business_slug,
+                    owner_type="draft",
                 )
                 results.append(result)
             except (MediaAdapterError, Exception) as e:
@@ -4461,9 +4721,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         except ConfigError:
             models_config = {}
         adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
-        # Draft visuals stored under synthetic asset_id = draft_id + 100000
-        synthetic_asset_id = draft_id + 100000
-        media = adapter.list_asset_media(synthetic_asset_id, kind="image")
+        # F4: draft visuals stored with owner_type='draft' and the real draft_id
+        media = adapter.list_asset_media(draft_id, kind="image", owner_type="draft")
         return jsonify({"status": "ok", "visuals": media})
 
     # ── T3.7: Assets stage ──
@@ -4555,8 +4814,14 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         platforms = business.get("platforms", [])
         visual_direction = json.loads(draft.get("visual_direction") or "{}")
 
-        # For each platform, generate a variant via LLM
+        # Load visual style module via context assembly (CORRECTION-module-context-assembly)
+        from context_assembly import assemble_module_context
         from llm_adapter import LLMAdapter, LLMAdapterError
+
+        module_vars, module_prov = assemble_module_context(
+            "assets/fan_out_v2.md", business_slug,
+            db_path=app.config["DB_PATH"], modules_dir="modules",
+        )
 
         adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
 
@@ -4590,10 +4855,11 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                         "draft_text": draft["draft_text"][:4000],
                         "visual_direction": json.dumps(visual_direction)[:1000],
                         "format": draft.get("format", ""),
+                        **module_vars,
                     },
                     schema=variant_schema,
                     backend="default",
-                    context=f"Asset fan-out for draft {draft_id} → {platform_name}",
+                    context=f"Asset fan-out for draft {draft_id} → {platform_name} | module_ctx: {module_prov}",
                     business_slug=business_slug,
                 )
             except (LLMAdapterError, Exception) as e:
@@ -4884,16 +5150,31 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         media_adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
 
         ingredients = []
+        # F5 (CORRECTION-feedback-plumbing): probe real durations for videos/uploads
+        from assembly import probe_duration
+
         # Generated media
         for m in media_adapter.list_asset_media(asset_id):
             kind = m.get("kind", "")
             if kind in ("image", "video"):
-                dur = 3.0 if kind == "image" else 5.0  # default; real duration via ffprobe
+                if kind == "image":
+                    dur = 3.0  # images: 3.0s is plan intent, not a file property
+                    desc = (m.get("prompt") or "")[:100]
+                else:
+                    # F5: probe real duration for generated videos
+                    media_path = os.path.join("data", "media", str(asset_id), os.path.basename(m.get("path", "")))
+                    probed = probe_duration(media_path)
+                    if probed is not None:
+                        dur = probed
+                        desc = (m.get("prompt") or "")[:100]
+                    else:
+                        dur = 5.0  # fallback default
+                        desc = (m.get("prompt") or "")[:100] + " (duration unverified)"
                 ingredients.append({
                     "id": f"generated:{m['id']}",
                     "kind": kind,
                     "duration": dur,
-                    "description": (m.get("prompt") or "")[:100],
+                    "description": desc,
                 })
 
         # Uploaded materials (video/audio)
@@ -4902,11 +5183,22 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         all_materials = intake.list_materials(business_slug)
         for mat in all_materials:
             if mat.get("material_type") in ("video", "audio"):
+                # F5: probe real duration for uploaded video/audio
+                mat_path = mat.get("file_path") or ""
+                if mat_path and not os.path.isabs(mat_path):
+                    mat_path = os.path.join("data", "materials", mat_path)
+                probed = probe_duration(mat_path) if mat_path else None
+                if probed is not None:
+                    dur = probed
+                    desc = (mat.get("filename") or mat.get("normalized_content", ""))[:100]
+                else:
+                    dur = 10.0  # fallback default
+                    desc = (mat.get("filename") or mat.get("normalized_content", ""))[:100] + " (duration unverified)"
                 ingredients.append({
                     "id": f"upload:{mat['id']}",
                     "kind": mat["material_type"],
-                    "duration": 10.0,  # default
-                    "description": (mat.get("filename") or mat.get("normalized_content", ""))[:100],
+                    "duration": dur,
+                    "description": desc,
                 })
 
         # Stock items
@@ -4935,8 +5227,15 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         else:
             aspect, resolution, max_seg = "16:9", "1920x1080", 4
 
-        # Load modules
-        modules = _load_all_modules(business_slug)
+        # Load modules via context assembly (CORRECTION-module-context-assembly)
+        from context_assembly import assemble_module_context
+
+        format_name_for_lookup = draft.get("format") or ""
+        module_vars, module_prov = assemble_module_context(
+            "assembly/edit_plan_v1.md", business_slug,
+            dynamic={"format_name": format_name_for_lookup},
+            db_path=app.config["DB_PATH"], modules_dir="modules",
+        )
 
         # Feedback (if regenerating with feedback)
         feedback = request.json.get("feedback", "")
@@ -4952,14 +5251,12 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     "asset_content": asset["content"][:2000],
                     "vo_info": "(no VO take yet)",
                     "ingredient_inventory": inventory_text,
-                    "viral_patterns": modules.get("viral-patterns", "(not built)")[:1500],
-                    "format_guide": modules.get("format-guide", "(not built)")[:1500],
-                    "visual_style": modules.get("visual-style", "(not built)")[:1500],
                     "max_segment_seconds": str(max_seg),
+                    **module_vars,
                 },
                 schema=EDIT_PLAN_SCHEMA,
                 backend="default",
-                context=f"Edit plan for asset {asset_id} ({platform_name})",
+                context=f"Edit plan for asset {asset_id} ({platform_name}) | module_ctx: {module_prov}",
                 business_slug=business_slug,
             )
         except (LLMAdapterError, Exception) as e:

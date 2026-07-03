@@ -387,8 +387,8 @@ class TestFlaskDraftEndpoints:
         assert entries[0]["feedback_type"] == "chip"
         assert entries[0]["weight"] == 1
 
-    def test_feedback_direct_edit(self, app, sample_treatment):
-        """Direct edit feedback is saved with highest weight."""
+    def test_feedback_direct_edit_deprecated(self, app, sample_treatment):
+        """F1: direct_edit via /feedback is deprecated — returns 400 pointing to /edit-text."""
         from pipeline import PipelineStore
         store = PipelineStore(db_path=app.config["DB_PATH"])
         card_id = store.create_idea_card(
@@ -400,16 +400,38 @@ class TestFlaskDraftEndpoints:
         client = app.test_client()
         resp = client.post(f"/api/draft/{draft_id}/feedback",
                            json={"feedback_type": "direct_edit", "feedback_text": "Rewritten line", "line_reference": "line_5"})
+        assert resp.status_code == 400
+        data = resp.get_json()
+        assert "edit-text" in data["error"].lower()
+
+    def test_edit_text_endpoint(self, app, sample_treatment):
+        """F1: /edit-text endpoint saves draft_text directly and logs weight-3 diff."""
+        from pipeline import PipelineStore
+        store = PipelineStore(db_path=app.config["DB_PATH"])
+        card_id = store.create_idea_card(
+            business_slug="testbiz", idea="Test",
+            hook_options=["h"], treatment=sample_treatment, origin="ai_originated",
+        )
+        draft_id = store.create_draft("testbiz", card_id, "ai_originated")
+        store.save_draft_content(draft_id, "Original draft text.",
+            {"image_prompts": [], "reference_notes": [], "shot_format_choices": []}, [])
+
+        client = app.test_client()
+        resp = client.post(f"/api/draft/{draft_id}/edit-text",
+                           json={"draft_text": "EDITED_SENTINEL text."})
         assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["draft_version"] == 2  # bumped
 
-        entries = store.list_feedback("testbiz")
-        assert entries[0]["weight"] == 3
-
-        # Check edits were saved
+        # draft_text was updated
         draft = store.get_draft(draft_id)
-        edits = json.loads(draft["human_edits"])
-        assert "line_5" in edits
-        assert edits["line_5"] == "Rewritten line"
+        assert "EDITED_SENTINEL" in draft["draft_text"]
+
+        # Weight-3 direct_edit feedback logged
+        entries = store.list_feedback("testbiz", draft_id=draft_id)
+        de_entries = [e for e in entries if e["feedback_type"] == "direct_edit"]
+        assert len(de_entries) >= 1
+        assert de_entries[0]["weight"] == 3
 
     def test_draft_gate_ship(self, app, sample_treatment):
         """Shipping a draft works."""

@@ -1,4 +1,4 @@
-<!-- version: 2.0 -->
+<!-- version: 2.2 -->
 # Draft Generation v2
 
 You are drafting a piece of content in the voice of a specific person. This is the core creative step of the co-production loop.
@@ -42,13 +42,23 @@ You are drafting a piece of content in the voice of a specific person. This is t
 
 {visual_style}
 
-## Format Guide (the skeleton for this format — includes platform adjustments)
+## Format Guide (the full entry for the chosen format — structure, platform adjustments, skeleton)
 
 {format_guide}
 
 ## Capture material (if any — real material the operator captured for this piece)
 
 {capture_material}
+
+## Previous draft (if revising)
+
+{previous_draft}
+
+## Operator feedback on the previous draft (weight 3 = authoritative edits; treat as law)
+
+{revision_feedback}
+
+If a previous draft exists: this is a REVISION. Preserve everything the feedback did not criticize — same hook unless criticized, same structure unless criticized. Apply weight-3 edits exactly. Do not re-imagine the piece.
 
 ## Your task
 

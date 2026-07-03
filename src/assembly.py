@@ -388,3 +388,25 @@ class AssemblyRenderer:
     def format_cut_list_for_display(self, plan: dict) -> str:
         """Public method to get a readable cut list without rendering."""
         return self._build_cut_list(plan)
+
+
+# F5 (CORRECTION-feedback-plumbing): module-level probe_duration for use
+# outside the AssemblyRenderer class (e.g. in the edit-plan inventory loop).
+def probe_duration(path: str) -> float | None:
+    """Probe a media file's duration in seconds via ffprobe.
+
+    Returns None on failure (file missing, ffprobe not installed, parse error).
+    """
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-print_format", "json",
+             "-show_format", path],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode != 0:
+            return None
+        data = json.loads(result.stdout)
+        dur = float(data.get("format", {}).get("duration", 0))
+        return dur if dur > 0 else None
+    except Exception:
+        return None
