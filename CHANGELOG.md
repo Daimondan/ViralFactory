@@ -6,6 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-03 STRUCTURE — CORRECTION-source-grounding-and-auto-production-v1.0 filed
+
+**What:** Filed architect correction introducing three architectural changes: (1) Source Bank as addressable store (`sources` table, idea cards carry `source_refs` by ID, kill remaining blind truncation); (2) Approval is the production trigger — Gate 1 approval auto-produces through to asset review, new card states `producing`/`asset_ready`/`production_failed`, no manual Generate clicks between approval and asset review; (3) AI Profiles (Researcher/Drafter/Analyst) as named compositions in `config/profiles.yaml`, provenance gains `profile` column. No-auto-publish remains absolute.
+
+**Priority split:** Section 1.3 (kill `source_material[:4000]` + `SNAPSHOT_CHAR_CAP`) and Section 4 (dead-code sweep, CONTEXT.md lines) are P0/quick — land immediately. Sections 1 (Source Bank + source_refs), 2 (auto-production chain), and 3.1 (profiles.yaml + provenance profile column) are P1 architecture — sequence after T3.13 S1+S3 (confirmed landed at M3 checkpoint). Section 3.2 (Analyst scraping) is M6 scope (already has landing zone via `sources` table).
+
+**Why:** Operator feedback: (a) every idea must be grounded in listed sources, one idea may compose multiple sources; (b) approval is the production trigger — no manual Generate clicks between approval and asset review; (c) introduce AI profiles (Researcher/Drafter/Analyst). Architect confirmed via live repo walk-through: sources die at Gate 1 (draft prompt has no source variable), evidence_links are decorative (freeform, not addressable), blind truncation survives in ideation, post-approval dead air (3+ manual generation clicks).
+
+**Sequencing:** Source plumbing (T8.3-T8.5) lands first or together so first auto-produced drafts are source-grounded. Auto-chain (T8.6) does NOT enable until T8.3-T8.5 land. Profiles (T8.7) may land in parallel. BUILD_PLAN tasks T8.1-T8.7 added under new M8 milestone.
+
+**Rationale:** Ideas grounded in real source material produce better content. Auto-production eliminates operator friction at the most mechanical part of the pipeline. Profiles make model/temperature/prompt composition explicit and configurable rather than implicit in code.
+
 ### 2026-07-03 FIX — UI-REVIEW-002: 15 findings from deep operator walk-through
 
 **What:** Deep UI inspection after CORRECTION-module-context-assembly + CORRECTION-feedback-plumbing. Operator explicitly asked for "slight confusion or grievances" — not just obvious issues.
