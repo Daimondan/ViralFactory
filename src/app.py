@@ -4407,12 +4407,15 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         shipped = [d for d in drafts if d["draft_state"] == "shipped"]
         ready = [d for d in drafts if d["draft_state"] == "draft_ready"]
         drafting = [d for d in drafts if d["draft_state"] == "drafting"]
+        # Show all drafts that have content (drafting, draft_ready, shipped)
+        all_active_drafts = [d for d in drafts if d["draft_state"] in ("drafting", "draft_ready", "shipped")]
 
         return render_template("create.html",
             business_name=business_name,
             idea_cards=idea_cards,
             drafts=drafts,
-            shipped=shipped, ready=ready, drafting=drafting)
+            shipped=shipped, ready=ready, drafting=drafting,
+            all_active_drafts=all_active_drafts)
 
     @app.route("/health")
     def health():

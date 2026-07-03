@@ -37,6 +37,7 @@
         <a href="/">Dashboard</a>
         <a href="/onboard">Onboard</a>
         <a href="/library">Library</a>
+        <a href="/materials">Materials</a>
         <a href="/ideas">Ideas</a>
         <a href="/create" class="active">Create</a>
     </div>
@@ -59,13 +60,20 @@
         </div>
 
         <div class="stage-card">
-            <h3>Drafts in progress</h3>
-            {% if drafting %}
-                {% for d in drafting %}
-                <div class="item"><a href="/create/draft/{{ d.idea_card_id }}">Draft #{{ d.id }} — drafting</a></div>
+            <h3>Drafts</h3>
+            {% if all_active_drafts %}
+                {% for d in all_active_drafts %}
+                <div class="item">
+                    <a href="/create/draft/{{ d.idea_card_id }}">Draft #{{ d.id }} — {{ d.draft_state }}</a>
+                    {% if d.draft_state == 'shipped' %}
+                    <span class="state-badge state-shipped">shipped</span>
+                    {% elif d.draft_state == 'drafting' %}
+                    <span class="state-badge state-drafting">drafting</span>
+                    {% endif %}
+                </div>
                 {% endfor %}
             {% else %}
-                <p class="empty">No drafts in progress.</p>
+                <p class="empty">No drafts yet. <a href="/ideas">Approve ideas →</a></p>
             {% endif %}
         </div>
 
