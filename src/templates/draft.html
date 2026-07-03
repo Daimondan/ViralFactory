@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Draft — {{ business_name }}</title>
+    <script src="/static/busy.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f1117; color: #e0e0e0; }
@@ -24,11 +25,17 @@
         .draft-text { background: #1a1d27; border-radius: 10px; padding: 20px; border: 1px solid #2a2d36; font-size: 0.95rem; line-height: 1.7; white-space: pre-wrap; margin-bottom: 16px; }
         .audit-flags { background: #1a1d27; border-radius: 10px; padding: 16px; border: 1px solid #2a2d36; margin-bottom: 16px; }
         .audit-flag { padding: 10px; background: #12131a; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #ccaa4a; }
+        .audit-flag.applied { border-left-color: #4acc6a; opacity: 0.6; }
+        .audit-flag.dismissed { border-left-color: #666; opacity: 0.5; }
+        .audit-flag.line_changed { border-left-color: #ff9a4a; }
         .audit-flag .line { font-style: italic; color: #ccc; }
         .audit-flag .rule { font-size: 0.78rem; color: #ff9a4a; }
         .audit-flag .suggestion { font-size: 0.8rem; color: #888; }
+        .audit-flag .flag-actions { display: flex; gap: 6px; margin-top: 6px; }
+        .audit-flag .flag-status { font-size: 0.75rem; color: #888; margin-top: 4px; }
         .visual-dir { background: #1a1d27; border-radius: 10px; padding: 16px; border: 1px solid #2a2d36; margin-bottom: 16px; font-size: 0.85rem; }
         .visual-dir li { margin-left: 18px; margin-bottom: 4px; color: #aaa; }
+        .visual-dir .empty-vd { color: #888; font-style: italic; }
         .actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 20px 0; }
         .btn { padding: 8px 20px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.9rem; font-weight: 500; }
         .btn-gen { background: #1a3a5a; color: #6ab0ff; }
@@ -36,7 +43,10 @@
         .btn-kill { background: #4a1a1a; color: #cc4a4a; }
         .btn-revise { background: #3a3a1a; color: #ccaa4a; }
         .btn-edit { background: #2a2d36; color: #aaa; }
+        .btn-apply { background: #1a4a2a; color: #4acc6a; font-size: 0.78rem; padding: 3px 10px; }
+        .btn-dismiss { background: #2a2d36; color: #888; font-size: 0.78rem; padding: 3px 10px; }
         .btn:hover { opacity: 0.85; }
+        .btn:disabled { opacity: 0.4; cursor: default; }
         .loading { color: #5b9fd6; font-style: italic; }
         .empty { color: #666; font-style: italic; padding: 20px; text-align: center; }
         .feedback-section { background: #1a1d27; border-radius: 10px; padding: 16px; border: 1px solid #2a2d36; margin-bottom: 16px; }
@@ -45,10 +55,11 @@
         .chip { padding: 4px 12px; background: #2a2d36; border-radius: 16px; font-size: 0.78rem; cursor: pointer; color: #aaa; border: 1px solid #333; }
         .chip:hover { background: #333; }
         .draft-version { font-size: 0.75rem; color: #666; }
+        .status-line { font-size: 0.82rem; margin-top: 6px; color: #5b9fd6; }
     </style>
 </head>
 <body>
-<div class="container">
+<div class="container" id="draft-container">
     <div class="nav">
         <a href="/ideas">← Ideas</a>
         <a href="/create">Create</a>
@@ -74,24 +85,34 @@
 
     {% if draft and draft.draft_text %}
     <h2>Draft text</h2>
-    <div class="draft-text">{{ draft.draft_text }}</div>
+    <div class="draft-text" id="draft-text">{{ draft.draft_text }}</div>
 
-    {% if draft.self_audit_flags and draft.self_audit_flags != '[]' %}
+    {% if draft.self_audit_flags_parsed %}
     <h2>Self-audit flags (Tells Checklist)</h2>
-    <div class="audit-flags">
+    <div class="audit-flags" id="audit-flags">
+        <button class="btn btn-apply" onclick="applyAllRemaining()">Apply all remaining</button>
         {% for flag in draft.self_audit_flags_parsed %}
-        <div class="audit-flag">
+        <div class="audit-flag {{ flag.status or 'active' }}" id="flag-{{ loop.index0 }}">
             <div class="line">"{{ flag.line }}"</div>
             <div class="rule">Rule: {{ flag.rule }}</div>
             <div class="suggestion">Suggestion: {{ flag.suggestion }}</div>
+            {% if not flag.status or flag.status == 'active' %}
+            <div class="flag-actions">
+                <button class="btn btn-apply" onclick="auditFlag({{ loop.index0 }}, 'apply')">Apply</button>
+                <button class="btn btn-dismiss" onclick="auditFlag({{ loop.index0 }}, 'dismiss')">Dismiss</button>
+            </div>
+            {% else %}
+            <div class="flag-status">Status: {{ flag.status }}</div>
+            {% endif %}
         </div>
         {% endfor %}
     </div>
     {% endif %}
 
-    {% if draft.visual_direction and draft.visual_direction != '{}' %}
+    {# F3: Visual direction always renders, even if empty #}
     <h2>Visual direction</h2>
     <div class="visual-dir">
+        {% if draft.visual_direction_parsed and (draft.visual_direction_parsed.image_prompts or draft.visual_direction_parsed.reference_notes or draft.visual_direction_parsed.shot_format_choices) %}
         {% if draft.visual_direction_parsed.image_prompts %}
         <h3>Image prompts</h3>
         <ul>{% for p in draft.visual_direction_parsed.image_prompts %}<li>{{ p }}</li>{% endfor %}</ul>
@@ -104,8 +125,10 @@
         <h3>Shot/format choices</h3>
         <ul>{% for s in draft.visual_direction_parsed.shot_format_choices %}<li>{{ s }}</li>{% endfor %}</ul>
         {% endif %}
+        {% else %}
+        <p class="empty-vd">No visual direction on this draft — regenerate to produce one.</p>
+        {% endif %}
     </div>
-    {% endif %}
 
     <h2>Human pass (Gate 2)</h2>
     <div class="feedback-section">
@@ -142,18 +165,22 @@
 
     <p class="empty">No draft yet. Click generate to create one.</p>
     <div class="actions">
-        <button class="btn btn-gen" onclick="generateDraft()">Generate draft</button>
+        <button class="btn btn-gen" id="genBtn" onclick="generateDraft()">Generate draft</button>
     </div>
+    <div id="genStatus" class="status-line" style="display: none;"></div>
     {% endif %}
 </div>
 
 <script>
 function generateDraft() {
-    fetch('/api/draft/{{ card.id }}/generate', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'})
-        .then(r => r.json()).then(data => {
-            if (data.status === 'ok') window.location.reload();
-            else alert('Error: ' + (data.error || 'unknown'));
-        });
+    var btn = document.getElementById('genBtn');
+    var status = document.getElementById('genStatus');
+    busyAction(btn, '/api/draft/{{ card.id }}/generate', {
+        busyLabel: 'Generating…',
+        statusElem: status,
+        reloadOnSuccess: true,
+        onError: function(msg) { status.style.display = 'block'; status.style.color = '#cc4a4a'; status.textContent = msg; }
+    });
 }
 
 function regenerate() {
@@ -204,6 +231,41 @@ function draftGate(action) {
             body: JSON.stringify({action: action}),
         }).then(r => r.json()).then(data => { if (data.status === 'ok') window.location.reload(); });
     }
+}
+
+// F2: Audit flag apply/dismiss
+function auditFlag(index, action) {
+    var flagEl = document.getElementById('flag-' + index);
+    var btn = event.target;
+    busyAction(btn, '/api/draft/{{ draft.id }}/audit-flag', {
+        busyLabel: action === 'apply' ? 'Applying…' : 'Dismissing…',
+        body: JSON.stringify({index: index, action: action}),
+        reloadOnSuccess: true,
+    });
+}
+
+function applyAllRemaining() {
+    // Find all flags without a status and apply them in sequence
+    var flags = document.querySelectorAll('.audit-flag');
+    var pending = [];
+    flags.forEach(function(f, i) {
+        if (!f.classList.contains('applied') && !f.classList.contains('dismissed') && !f.classList.contains('line_changed')) {
+            pending.push(i);
+        }
+    });
+    if (pending.length === 0) { alert('No pending flags to apply.'); return; }
+    var idx = 0;
+    function applyNext() {
+        if (idx >= pending.length) { window.location.reload(); return; }
+        fetch('/api/draft/{{ draft.id }}/audit-flag', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({index: pending[idx], action: 'apply'}),
+        }).then(r => r.json()).then(function(data) {
+            idx++;
+            applyNext();
+        });
+    }
+    applyNext();
 }
 </script>
 </body>

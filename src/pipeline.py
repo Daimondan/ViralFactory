@@ -205,6 +205,7 @@ DRAFT_SCHEMA = {
                 "image_prompts": {
                     "type": "array",
                     "items": {"type": "string"},
+                    "minItems": 1,
                 },
                 "reference_notes": {
                     "type": "array",
@@ -213,6 +214,7 @@ DRAFT_SCHEMA = {
                 "shot_format_choices": {
                     "type": "array",
                     "items": {"type": "string"},
+                    "minItems": 1,
                 },
             },
         },
@@ -225,7 +227,85 @@ DRAFT_SCHEMA = {
                     "line": {"type": "string"},
                     "rule": {"type": "string"},
                     "suggestion": {"type": "string"},
+                    "status": {"type": "string"},  # applied | dismissed | active (for F2 persistence)
                 },
+            },
+        },
+    },
+}
+
+
+# ─── Edit Plan Schema (Final Assembly) ─────────────────────────────────────
+
+EDIT_PLAN_SCHEMA = {
+    "type": "object",
+    "required": ["segments", "canvas"],
+    "properties": {
+        "segments": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": ["source", "in", "out"],
+                "properties": {
+                    "source": {"type": "string"},   # generated:<media_id> | upload:<material_id> | stock:<stock_id>
+                    "in": {"type": "number"},        # trim start (seconds)
+                    "out": {"type": "number"},       # trim end (seconds)
+                    "speed": {"type": "number"},      # optional playback speed
+                    "transition_in": {"type": "string"},  # cut | crossfade | slide | whip
+                    "overlays": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": ["type"],
+                            "properties": {
+                                "type": {"type": "string"},  # caption | text_card | sticker | highlight
+                                "text": {"type": "string"},
+                                "start": {"type": "number"},
+                                "end": {"type": "number"},
+                                "style_ref": {"type": "string"},  # ref to Visual Style caption sheet
+                                "position": {"type": "string"},   # top | center | bottom
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        "audio": {
+            "type": "object",
+            "properties": {
+                "vo": {
+                    "type": "object",
+                    "properties": {
+                        "take_id": {"type": "string"},  # asset_media VO take id
+                        "ducking": {"type": "boolean"},
+                    },
+                },
+                "music": {
+                    "type": "object",
+                    "properties": {
+                        "stock_ref": {"type": "string"},  # stock:<stock_id>
+                        "volume": {"type": "number"},
+                    },
+                },
+                "original_audio": {"type": "boolean"},  # keep original clip audio
+            },
+        },
+        "captions": {
+            "type": "object",
+            "properties": {
+                "burned_in": {"type": "boolean"},  # default true for short-form
+                "source": {"type": "string"},        # vo_script | transcript
+                "style_ref": {"type": "string"},     # Visual Style caption sheet ref
+            },
+        },
+        "canvas": {
+            "type": "object",
+            "required": ["aspect_ratio", "resolution"],
+            "properties": {
+                "aspect_ratio": {"type": "string"},   # 9:16 | 1:1 | 16:9
+                "resolution": {"type": "string"},     # 1080x1920 | 1080x1080 | 1920x1080
+                "duration_target": {"type": "number"}, # target duration in seconds
             },
         },
     },
@@ -491,6 +571,79 @@ class PipelineStore:
         conn.close()
         return self.get_draft(draft_id)
 
+    def update_audit_flag(self, draft_id: int, flag_index: int, action: str) -> dict:
+        """F2: Apply or dismiss a self-audit flag by index.
+
+        action = 'apply' | 'dismiss'
+        - apply: replaces the flagged line in draft_text with the suggestion,
+                 records as direct_edit feedback, bumps version, marks flag status='applied'
+        - dismiss: marks flag status='dismissed', records dismissal as feedback
+        Returns updated draft dict.
+        """
+        draft = self.get_draft(draft_id)
+        if not draft:
+            return None
+
+        flags = json.loads(draft.get("self_audit_flags") or "[]")
+        if flag_index < 0 or flag_index >= len(flags):
+            return None
+
+        flag = flags[flag_index]
+
+        if action == "apply":
+            # Replace the flagged line in draft_text with the suggestion
+            draft_text = draft["draft_text"]
+            flagged_line = flag.get("line", "")
+            suggestion = flag.get("suggestion", "")
+            if flagged_line and flagged_line in draft_text:
+                draft_text = draft_text.replace(flagged_line, suggestion, 1)
+                flag["status"] = "applied"
+                # Record as direct edit (highest weight)
+                self.add_feedback(
+                    business_slug=draft["business_slug"],
+                    feedback_type="direct_edit",
+                    feedback_text=f"Applied audit suggestion: '{flagged_line}' → '{suggestion}'",
+                    draft_id=draft_id,
+                    line_reference=flagged_line,
+                )
+            else:
+                # Line no longer exists — mark for manual review
+                flag["status"] = "line_changed"
+                self.add_feedback(
+                    business_slug=draft["business_slug"],
+                    feedback_type="text",
+                    feedback_text=f"Audit flag line changed — review manually: '{flagged_line}'",
+                    draft_id=draft_id,
+                )
+            # Bump version
+            conn = sqlite3.connect(self.db_path)
+            ts = self._now()
+            conn.execute(
+                "UPDATE drafts SET draft_text = ?, self_audit_flags = ?, "
+                "draft_version = draft_version + 1, updated_at = ? WHERE id = ?",
+                (draft_text, json.dumps(flags), ts, draft_id),
+            )
+            conn.commit()
+            conn.close()
+        elif action == "dismiss":
+            flag["status"] = "dismissed"
+            self.add_feedback(
+                business_slug=draft["business_slug"],
+                feedback_type="chip",
+                feedback_text=f"Dismissed audit flag: rule='{flag.get('rule', '')}' line='{flag.get('line', '')[:100]}'",
+                draft_id=draft_id,
+            )
+            conn = sqlite3.connect(self.db_path)
+            ts = self._now()
+            conn.execute(
+                "UPDATE drafts SET self_audit_flags = ?, updated_at = ? WHERE id = ?",
+                (json.dumps(flags), ts, draft_id),
+            )
+            conn.commit()
+            conn.close()
+
+        return self.get_draft(draft_id)
+
     def increment_draft_version(self, draft_id: int) -> int:
         """Increment the draft version (after a revise cycle). Returns new version."""
         conn = sqlite3.connect(self.db_path)
@@ -710,3 +863,74 @@ class PipelineStore:
             "scope_breakdown": scope_breakdown,
             "card_origin_breakdown": card_origin_breakdown,
         }
+
+    # ── Edit Plans (Final Assembly) ──
+
+    def save_edit_plan(self, draft_id: int, asset_id: int, plan: dict) -> int:
+        """Save an edit plan for an asset. Returns edit_plan row ID."""
+        conn = sqlite3.connect(self.db_path)
+        ts = self._now()
+        # Create edit_plans table if not exists
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS edit_plans (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                draft_id INTEGER NOT NULL,
+                asset_id INTEGER NOT NULL,
+                plan_json TEXT NOT NULL,
+                feedback TEXT,
+                status TEXT NOT NULL DEFAULT 'proposed',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (draft_id) REFERENCES drafts(id),
+                FOREIGN KEY (asset_id) REFERENCES assets(id)
+            );
+        """)
+        cursor = conn.execute(
+            """INSERT INTO edit_plans
+               (draft_id, asset_id, plan_json, status, created_at, updated_at)
+               VALUES (?, ?, ?, 'proposed', ?, ?)""",
+            (draft_id, asset_id, json.dumps(plan), ts, ts),
+        )
+        plan_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        return plan_id
+
+    def get_edit_plan(self, plan_id: int) -> dict:
+        """Get an edit plan by ID."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT * FROM edit_plans WHERE id = ?", (plan_id,)
+        ).fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    def list_edit_plans(self, asset_id: int) -> list[dict]:
+        """List all edit plans for an asset."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT * FROM edit_plans WHERE asset_id = ? ORDER BY id DESC",
+            (asset_id,),
+        ).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+    def update_edit_plan_status(self, plan_id: int, status: str, feedback: str = None) -> dict:
+        """Update edit plan status (proposed → approved → rendering → rendered → failed)."""
+        conn = sqlite3.connect(self.db_path)
+        ts = self._now()
+        if feedback:
+            conn.execute(
+                "UPDATE edit_plans SET status = ?, feedback = ?, updated_at = ? WHERE id = ?",
+                (status, feedback, ts, plan_id),
+            )
+        else:
+            conn.execute(
+                "UPDATE edit_plans SET status = ?, updated_at = ? WHERE id = ?",
+                (status, ts, plan_id),
+            )
+        conn.commit()
+        conn.close()
+        return self.get_edit_plan(plan_id)

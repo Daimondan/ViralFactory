@@ -104,6 +104,14 @@ def validate_json_schema(output: dict, schema: dict, context: str = "") -> dict:
                     f"Field '{field}' must be >= {field_schema['minimum']}, got {value} {context}"
                 )
 
+        # minItems check (array)
+        if expected_type == "array" and "minItems" in field_schema:
+            if not isinstance(value, list) or len(value) < field_schema["minItems"]:
+                raise ValidationError(
+                    f"Field '{field}' must have at least {field_schema['minItems']} items, "
+                    f"got {len(value) if isinstance(value, list) else 'non-array'} {context}"
+                )
+
         # Array item validation
         if expected_type == "array" and "items" in field_schema:
             item_schema = field_schema["items"]

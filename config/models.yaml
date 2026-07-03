@@ -70,3 +70,21 @@ voice_cloning:
   model: "Qwen3-TTS-12Hz-1.7B-VoiceDesign"  # Apache 2.0, 3-second cloning
   reference_audio_dir: "modules/{business}/voice-samples/"
   sample_rate: 24000
+
+# ── Media generation (F4: CORRECTION-pipeline-ux-and-media-generation-v1.0) ──
+# OpenRouter Image + Video APIs. Swap = config edit, zero code change.
+# Auth: OPENROUTER_API_KEY env var (single bearer token for both image + video).
+media:
+  image_default: "google/gemini-3.1-flash-image"
+  video_default: "google/veo-3.1-lite"
+  base_url: "https://openrouter.ai/api/v1"
+
+# ── Stock library (Final Assembly Part 1) ──
+# Pexels (primary) + Pixabay (secondary). Both free, commercial-safe.
+# Auth: PEXELS_API_KEY + PIXABAY_API_KEY env vars.
+stock:
+  providers:
+    - "pexels"
+    - "pixabay"
+  music_source: "pixabay"      # Pixabay's audio catalog for background tracks
+  cache_dir: "data/media/stock"

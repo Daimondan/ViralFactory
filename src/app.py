@@ -66,6 +66,23 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
     app.config["DB_PATH"] = db_path
     app.config["PLAYBOOKS_DIR"] = playbooks_dir
 
+    # F5: Register from_json Jinja filter for parsing JSON strings in templates
+    import json as _json
+    @app.template_filter("from_json")
+    def from_json_filter(s):
+        if isinstance(s, (list, dict)):
+            return s
+        try:
+            return _json.loads(s) if s else []
+        except (ValueError, TypeError):
+            return []
+
+    # F1: Initialize the jobs table (shared idempotency + async job substrate)
+    from jobs import JobsStore
+    app.config["JOBS_DB_PATH"] = db_path  # jobs table lives in the same DB
+    # Ensure the jobs table exists
+    _jobs_init = JobsStore(db_path)
+
     # Allow large file uploads (videos, zips of brand assets, etc.)
     # Default Flask has no limit; set explicit high limit so it fails clearly
     # rather than timing out silently. 2GB max upload.
@@ -3472,6 +3489,20 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         from pipeline import PipelineStore
         return PipelineStore(db_path=app.config["DB_PATH"])
 
+    def _get_jobs_store():
+        """F1: Get a JobsStore instance for idempotency + async job tracking."""
+        from jobs import JobsStore
+        return JobsStore(app.config["DB_PATH"])
+
+    def _check_job_running(job_type, entity_id=None, input_hash=None):
+        """F1: Check if a job is already running. Returns (is_running, job_info dict).
+        If a job is running, caller should return 409."""
+        store = _get_jobs_store()
+        result = store.start_job(job_type, entity_id, input_hash)
+        if result["status"] == "running":
+            return True, result
+        return False, result
+
     def _load_all_modules(business_slug: str) -> dict:
         """Load all available modules for a business as markdown text.
         Returns dict of {module_name: markdown_content or '(not yet built)'}.
@@ -3697,6 +3728,16 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         if num_cards < 1 or num_cards > 10:
             return jsonify({"error": "Count must be 1-10"}), 400
 
+        # F1: Idempotency guard
+        is_running, job_info = _check_job_running("ideas_generate", entity_id=0,
+                                                   input_hash=f"count_{num_cards}")
+        if is_running:
+            return jsonify({
+                "status": "running",
+                "message": "Already generating ideas.",
+            }), 409
+        ideas_job_id = job_info.get("job_id")
+
         try:
             config = load_all(app.config["CONFIG_DIR"])
             models_config = config["models"]
@@ -3760,6 +3801,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 evidence_links=card_data.get("evidence_links", []),
             )
             cards_created.append(card_id)
+
+        # F1: Mark job as done
+        _get_jobs_store().complete_job(ideas_job_id, f"ideas:{len(cards_created)}")
 
         return jsonify({"status": "ok", "card_ids": cards_created, "count": len(cards_created)})
 
@@ -4007,13 +4051,25 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         if not business_slug:
             return jsonify({"error": "Business not configured"}), 500
 
+        # F1: Idempotency — don't fire a second LLM call if one is already running
+        is_running, job_info = _check_job_running("draft_generate", entity_id=card_id)
+        if is_running:
+            return jsonify({
+                "status": "running",
+                "message": "Already generating this draft.",
+                "job_id": job_info.get("job_id"),
+            }), 409
+        job_id = job_info.get("job_id")
+
         store = _get_pipeline_store()
         card = store.get_idea_card(card_id)
         if not card:
+            _get_jobs_store().fail_job(job_id, "Card not found")
             return jsonify({"error": "Card not found"}), 404
 
         # Card must be approved or capture_fulfilled
         if card["card_state"] not in ("approved", "capture_fulfilled", "drafting", "drafted"):
+            _get_jobs_store().fail_job(job_id, f"Card state is '{card['card_state']}'")
             return jsonify({"error": f"Card state is '{card['card_state']}' — must be approved or capture_fulfilled to draft"}), 400
 
         treatment = json.loads(card.get("treatment") or "{}")
@@ -4051,7 +4107,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         try:
             result = adapter.complete(
-                prompt_file="draft/generate_v1.md",
+                prompt_file="draft/generate_v2.md",
                 variables={
                     "business_name": business["business"]["name"],
                     "audience_description": business.get("audience_description", ""),
@@ -4075,9 +4131,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 business_slug=business_slug,
             )
         except (LLMAdapterError, Exception) as e:
+            _get_jobs_store().fail_job(job_id, str(e)[:200])
             return jsonify({"error": str(e)}), 500
-
-        # Create or update draft record
         existing = None
         for d in store.list_drafts(business_slug):
             if d["idea_card_id"] == card_id:
@@ -4109,6 +4164,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         # Update card state to 'drafted'
         store.update_card_state(card_id, "drafted")
+
+        # F1: Mark job as done
+        _get_jobs_store().complete_job(job_id, f"draft:{draft_id}")
 
         return jsonify({
             "status": "ok",
@@ -4205,6 +4263,50 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             new_version = store.increment_draft_version(draft_id)
             return jsonify({"status": "ok", "new_state": "revised", "new_version": new_version})
 
+    @app.route("/api/draft/<int:draft_id>/audit-flag", methods=["POST"])
+    def draft_audit_flag(draft_id):
+        """F2: Apply or dismiss a self-audit flag by index."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        store = _get_pipeline_store()
+        draft = store.get_draft(draft_id)
+        if not draft:
+            return jsonify({"error": "Draft not found"}), 404
+
+        flag_index = request.json.get("index")
+        action = request.json.get("action", "")
+        if action not in ("apply", "dismiss"):
+            return jsonify({"error": "Invalid action. Use apply or dismiss."}), 400
+        if flag_index is None or not isinstance(flag_index, int):
+            return jsonify({"error": "index must be an integer"}), 400
+
+        # F1: Idempotency guard
+        is_running, job_info = _check_job_running(
+            "audit_flag", entity_id=draft_id, input_hash=f"{flag_index}_{action}"
+        )
+        if is_running:
+            return jsonify({
+                "status": "running",
+                "message": "Already processing this flag.",
+            }), 409
+
+        updated = store.update_audit_flag(draft_id, flag_index, action)
+        if not updated:
+            return jsonify({"error": "Flag not found or line changed"}), 400
+
+        _get_jobs_store().complete_job(job_info.get("job_id"), f"flag:{flag_index}:{action}")
+
+        # Re-parse for display
+        display = _parse_draft_for_display(updated)
+        return jsonify({
+            "status": "ok",
+            "draft_text": updated["draft_text"],
+            "draft_version": updated["draft_version"],
+            "flag_status": json.loads(updated.get("self_audit_flags") or "[]")[flag_index].get("status", ""),
+        })
+
     # ── T3.7: Assets stage ──
 
     @app.route("/create/assets/<int:draft_id>")
@@ -4242,11 +4344,23 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         if not business_slug:
             return jsonify({"error": "Business not configured"}), 500
 
+        # F1: Idempotency guard
+        is_running, job_info = _check_job_running("fan_out", entity_id=draft_id)
+        if is_running:
+            return jsonify({
+                "status": "running",
+                "message": "Already generating platform variants.",
+                "job_id": job_info.get("job_id"),
+            }), 409
+        fan_job_id = job_info.get("job_id")
+
         store = _get_pipeline_store()
         draft = store.get_draft(draft_id)
         if not draft:
+            _get_jobs_store().fail_job(fan_job_id, "Draft not found")
             return jsonify({"error": "Draft not found"}), 404
         if draft["draft_state"] != "shipped":
+            _get_jobs_store().fail_job(fan_job_id, f"Draft state is '{draft['draft_state']}'")
             return jsonify({"error": f"Draft state is '{draft['draft_state']}' — must be 'shipped' to fan out"}), 400
 
         try:
@@ -4297,7 +4411,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     business_slug=business_slug,
                 )
             except (LLMAdapterError, Exception) as e:
-                # Continue with other platforms even if one fails
+                # F4: Surface failed platforms honestly, don't silently swallow
+                assets_created.append({"platform": platform_name, "error": str(e)[:200]})
                 continue
 
             asset_id = store.create_asset(
@@ -4309,6 +4424,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 image_prompts=result.get("image_prompts", []),
             )
             assets_created.append({"id": asset_id, "platform": platform_name})
+
+        # F1: Mark job as done
+        _get_jobs_store().complete_job(fan_job_id, f"assets:{len(assets_created)}")
 
         return jsonify({"status": "ok", "assets": assets_created, "count": len(assets_created)})
 
@@ -4331,6 +4449,437 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         state_map = {"approve": "approved", "fix": "fix", "kill": "killed"}
         store.update_asset_state(asset_id, state_map[action])
         return jsonify({"status": "ok", "new_state": state_map[action]})
+
+    # ── F4: Media generation (image + video) ──
+
+    @app.route("/api/assets/<int:asset_id>/generate-images", methods=["POST"])
+    def generate_visuals(asset_id):
+        """F4: Generate images for an asset from its image_prompts + visual direction.
+        Images run automatically as part of 'Generate visuals' — no per-image confirmation needed."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        # F1: Idempotency guard
+        is_running, job_info = _check_job_running("media_images", entity_id=asset_id)
+        if is_running:
+            return jsonify({
+                "status": "running",
+                "message": "Already generating visuals for this asset.",
+                "job_id": job_info.get("job_id"),
+            }), 409
+        media_job_id = job_info.get("job_id")
+
+        store = _get_pipeline_store()
+        asset = store.get_asset(asset_id)
+        if not asset:
+            _get_jobs_store().fail_job(media_job_id, "Asset not found")
+            return jsonify({"error": "Asset not found"}), 404
+
+        # Get image prompts from the asset (fan-out) + visual direction from the draft
+        image_prompts = json.loads(asset.get("image_prompts") or "[]")
+        draft = store.get_draft(asset["draft_id"])
+        visual_direction = json.loads(draft.get("visual_direction") or "{}") if draft else {}
+
+        # If asset has no image_prompts, fall back to the draft's visual direction
+        if not image_prompts and visual_direction:
+            image_prompts = visual_direction.get("image_prompts", [])
+
+        if not image_prompts:
+            _get_jobs_store().fail_job(media_job_id, "No image prompts found")
+            return jsonify({"error": "No image prompts found on this asset or its draft"}), 400
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+        except ConfigError as e:
+            _get_jobs_store().fail_job(media_job_id, str(e)[:200])
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        from media_adapter import MediaAdapter, MediaAdapterError
+        adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
+
+        # Determine aspect ratio from the platform
+        platform_name = asset.get("platform", "").lower()
+        if "instagram" in platform_name and "reel" in asset.get("variant_type", "").lower():
+            aspect_ratio = "9:16"
+        elif "instagram" in platform_name and "carousel" in asset.get("variant_type", "").lower():
+            aspect_ratio = "1:1"
+        elif "x" in platform_name or "twitter" in platform_name:
+            aspect_ratio = "16:9"
+        else:
+            aspect_ratio = "9:16"  # default vertical for short-form
+
+        results = []
+        errors = []
+        for i, prompt in enumerate(image_prompts):
+            try:
+                result = adapter.generate_image(
+                    prompt=prompt,
+                    asset_id=asset_id,
+                    aspect_ratio=aspect_ratio,
+                    context=f"Image {i+1}/{len(image_prompts)} for asset {asset_id} ({platform_name})",
+                    business_slug=business_slug,
+                )
+                results.append(result)
+            except (MediaAdapterError, Exception) as e:
+                errors.append({"prompt": prompt[:100], "error": str(e)[:200]})
+
+        # Store generated image paths on the asset
+        generated_paths = [r["path"] for r in results]
+        if generated_paths:
+            existing_images = json.loads(asset.get("generated_images") or "[]")
+            existing_images.extend(generated_paths)
+            conn = __import__("sqlite3").connect(app.config["DB_PATH"])
+            from datetime import datetime, timezone
+            conn.execute(
+                "UPDATE assets SET generated_images = ?, updated_at = ? WHERE id = ?",
+                (json.dumps(existing_images), datetime.now(timezone.utc).isoformat(), asset_id),
+            )
+            conn.commit()
+            conn.close()
+
+        _get_jobs_store().complete_job(media_job_id, f"images:{len(results)}")
+
+        return jsonify({
+            "status": "ok",
+            "images_generated": len(results),
+            "errors": errors,
+            "image_paths": generated_paths,
+        })
+
+    @app.route("/api/assets/<int:asset_id>/generate-video", methods=["POST"])
+    def generate_video(asset_id):
+        """F4: Submit a video generation job. Video always requires explicit confirmation
+        with model + estimated cost shown before the click — the no-surprise-spend rule."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        # F1: Idempotency guard
+        is_running, job_info = _check_job_running("media_video", entity_id=asset_id)
+        if is_running:
+            return jsonify({
+                "status": "running",
+                "message": "Video generation already in progress for this asset.",
+                "job_id": job_info.get("job_id"),
+            }), 409
+        video_job_id = job_info.get("job_id")
+
+        store = _get_pipeline_store()
+        asset = store.get_asset(asset_id)
+        if not asset:
+            _get_jobs_store().fail_job(video_job_id, "Asset not found")
+            return jsonify({"error": "Asset not found"}), 404
+
+        prompt = request.json.get("prompt", "")
+        duration = request.json.get("duration", 5)
+        aspect_ratio = request.json.get("aspect_ratio", "9:16")
+
+        if not prompt:
+            # Use the draft's visual direction to construct a prompt
+            draft = store.get_draft(asset["draft_id"])
+            vd = json.loads(draft.get("visual_direction") or "{}") if draft else {}
+            shot_choices = vd.get("shot_format_choices", [])
+            image_prompts = vd.get("image_prompts", [])
+            prompt = ". ".join(shot_choices[:2] + image_prompts[:1]) if (shot_choices or image_prompts) else asset["content"][:500]
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+        except ConfigError as e:
+            _get_jobs_store().fail_job(video_job_id, str(e)[:200])
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        from media_adapter import MediaAdapter, MediaAdapterError
+        adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
+
+        try:
+            result = adapter.submit_video(
+                prompt=prompt,
+                asset_id=asset_id,
+                aspect_ratio=aspect_ratio,
+                duration=duration,
+                context=f"Video generation for asset {asset_id}",
+                business_slug=business_slug,
+            )
+            _get_jobs_store().complete_job(video_job_id, f"video_submitted:{result.get('external_job_id', '')}")
+            return jsonify({
+                "status": "ok",
+                "external_job_id": result.get("external_job_id"),
+                "model": result.get("model"),
+                "estimated_cost": result.get("cost_usd", 0),
+            })
+        except MediaAdapterError as e:
+            _get_jobs_store().fail_job(video_job_id, str(e)[:200])
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/assets/<int:asset_id>/media", methods=["GET"])
+    def get_asset_media(asset_id):
+        """F4/F5: List all generated media for an asset (images, videos, final cuts)."""
+        from media_adapter import MediaAdapter
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+        except ConfigError:
+            models_config = {}
+        adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
+        media = adapter.list_asset_media(asset_id)
+        return jsonify({"status": "ok", "media": media})
+
+    @app.route("/media/<path:filepath>")
+    def serve_media(filepath):
+        """Serve generated media files from data/media/."""
+        return send_from_directory("data/media", filepath)
+
+    # ── Final Assembly: Edit Plan + Render (CORRECTION-final-assembly Part 1) ──
+
+    @app.route("/api/assets/<int:asset_id>/edit-plan", methods=["POST"])
+    def generate_edit_plan(asset_id):
+        """Final Assembly: Generate an Edit Plan via LLM for an asset."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        # F1: Idempotency guard
+        is_running, job_info = _check_job_running("edit_plan", entity_id=asset_id)
+        if is_running:
+            return jsonify({
+                "status": "running",
+                "message": "Already generating edit plan.",
+            }), 409
+        plan_job_id = job_info.get("job_id")
+
+        store = _get_pipeline_store()
+        asset = store.get_asset(asset_id)
+        if not asset:
+            _get_jobs_store().fail_job(plan_job_id, "Asset not found")
+            return jsonify({"error": "Asset not found"}), 404
+
+        draft = store.get_draft(asset["draft_id"])
+        if not draft:
+            _get_jobs_store().fail_job(plan_job_id, "Draft not found")
+            return jsonify({"error": "Draft not found"}), 404
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+            business = config["business"]
+        except ConfigError as e:
+            _get_jobs_store().fail_job(plan_job_id, str(e)[:200])
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        from llm_adapter import LLMAdapter, LLMAdapterError
+        from pipeline import EDIT_PLAN_SCHEMA
+        from media_adapter import MediaAdapter
+
+        # Build ingredient inventory
+        adapter_llm = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
+        media_adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
+
+        ingredients = []
+        # Generated media
+        for m in media_adapter.list_asset_media(asset_id):
+            kind = m.get("kind", "")
+            if kind in ("image", "video"):
+                dur = 3.0 if kind == "image" else 5.0  # default; real duration via ffprobe
+                ingredients.append({
+                    "id": f"generated:{m['id']}",
+                    "kind": kind,
+                    "duration": dur,
+                    "description": (m.get("prompt") or "")[:100],
+                })
+
+        # Uploaded materials (video/audio)
+        from materials import MaterialsIntake
+        intake = MaterialsIntake(app.config["DB_PATH"])
+        all_materials = intake.list_materials(business_slug)
+        for mat in all_materials:
+            if mat.get("material_type") in ("video", "audio"):
+                ingredients.append({
+                    "id": f"upload:{mat['id']}",
+                    "kind": mat["material_type"],
+                    "duration": 10.0,  # default
+                    "description": (mat.get("filename") or mat.get("normalized_content", ""))[:100],
+                })
+
+        # Stock items
+        from stock_adapter import StockAdapter
+        stock_adapter = StockAdapter(models_config, db_path=app.config["DB_PATH"])
+        for s in stock_adapter.list_cached(kind="video"):
+            ingredients.append({
+                "id": f"stock:{s['id']}",
+                "kind": "video",
+                "duration": s.get("duration") or 5.0,
+                "description": (s.get("title") or "")[:100],
+            })
+
+        inventory_text = "\n".join(
+            f"- {ing['id']} ({ing['kind']}, {ing['duration']:.1f}s): {ing['description']}"
+            for ing in ingredients
+        ) or "(no ingredients available)"
+
+        # Determine canvas from format/platform
+        platform_name = asset.get("platform", "")
+        variant_type = asset.get("variant_type", "").lower()
+        if "reel" in variant_type or "short" in variant_type:
+            aspect, resolution, max_seg = "9:16", "1080x1920", 3
+        elif "carousel" in variant_type:
+            aspect, resolution, max_seg = "1:1", "1080x1080", 3
+        else:
+            aspect, resolution, max_seg = "16:9", "1920x1080", 4
+
+        # Load modules
+        modules = _load_all_modules(business_slug)
+
+        # Feedback (if regenerating with feedback)
+        feedback = request.json.get("feedback", "")
+
+        try:
+            result = adapter_llm.complete(
+                prompt_file="assembly/edit_plan_v1.md",
+                variables={
+                    "business_name": business["business"]["name"],
+                    "platform_name": platform_name,
+                    "format_name": draft.get("format") or "",
+                    "scope": draft.get("scope") or "",
+                    "asset_content": asset["content"][:2000],
+                    "vo_info": "(no VO take yet)",
+                    "ingredient_inventory": inventory_text,
+                    "viral_patterns": modules.get("viral-patterns", "(not built)")[:1500],
+                    "format_guide": modules.get("format-guide", "(not built)")[:1500],
+                    "visual_style": modules.get("visual-style", "(not built)")[:1500],
+                    "max_segment_seconds": str(max_seg),
+                },
+                schema=EDIT_PLAN_SCHEMA,
+                backend="default",
+                context=f"Edit plan for asset {asset_id} ({platform_name})",
+                business_slug=business_slug,
+            )
+        except (LLMAdapterError, Exception) as e:
+            _get_jobs_store().fail_job(plan_job_id, str(e)[:200])
+            return jsonify({"error": str(e)}), 500
+
+        # Save the edit plan
+        plan_id = store.save_edit_plan(draft["id"], asset_id, result)
+
+        # Build readable cut list
+        from assembly import AssemblyRenderer
+        renderer = AssemblyRenderer(models_config, db_path=app.config["DB_PATH"])
+        cut_list = renderer.format_cut_list_for_display(result)
+
+        _get_jobs_store().complete_job(plan_job_id, f"plan:{plan_id}")
+
+        return jsonify({
+            "status": "ok",
+            "plan_id": plan_id,
+            "cut_list": cut_list,
+            "plan": result,
+        })
+
+    @app.route("/api/assets/<int:asset_id>/edit-plans", methods=["GET"])
+    def list_edit_plans(asset_id):
+        """List all edit plans for an asset."""
+        store = _get_pipeline_store()
+        plans = store.list_edit_plans(asset_id)
+        # Parse plan_json for display
+        for p in plans:
+            try:
+                p["plan_parsed"] = json.loads(p.get("plan_json") or "{}")
+            except (json.JSONDecodeError, TypeError):
+                p["plan_parsed"] = {}
+        return jsonify({"status": "ok", "plans": plans})
+
+    @app.route("/api/assets/<int:asset_id>/render", methods=["POST"])
+    def render_final_cut(asset_id):
+        """Final Assembly: Render the edit plan to a finished MP4."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        # F1: Idempotency guard (long stale timeout for rendering)
+        is_running, job_info = _check_job_running("assembly_render", entity_id=asset_id,
+                                                   stale_timeout_s=1200)
+        if is_running:
+            return jsonify({
+                "status": "running",
+                "message": "Render already in progress for this asset.",
+            }), 409
+        render_job_id = job_info.get("job_id")
+
+        store = _get_pipeline_store()
+        asset = store.get_asset(asset_id)
+        if not asset:
+            _get_jobs_store().fail_job(render_job_id, "Asset not found")
+            return jsonify({"error": "Asset not found"}), 404
+
+        plan_id = request.json.get("plan_id")
+        if not plan_id:
+            _get_jobs_store().fail_job(render_job_id, "No plan_id provided")
+            return jsonify({"error": "plan_id required"}), 400
+
+        edit_plan = store.get_edit_plan(plan_id)
+        if not edit_plan:
+            _get_jobs_store().fail_job(render_job_id, "Edit plan not found")
+            return jsonify({"error": "Edit plan not found"}), 404
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+        except ConfigError:
+            models_config = {}
+
+        from assembly import AssemblyRenderer, AssemblyError
+
+        plan = json.loads(edit_plan.get("plan_json") or "{}")
+        renderer = AssemblyRenderer(models_config, db_path=app.config["DB_PATH"])
+
+        # Update plan status to rendering
+        store.update_edit_plan_status(plan_id, "rendering")
+
+        try:
+            result = renderer.render(
+                plan=plan,
+                asset_id=asset_id,
+                draft_id=asset["draft_id"],
+                business_slug=business_slug,
+                plan_id=plan_id,
+            )
+            _get_jobs_store().complete_job(render_job_id, f"rendered:{result['path']}")
+            return jsonify({
+                "status": "ok",
+                "path": result["path"],
+                "duration": result["duration"],
+                "render_time_s": result["render_time_s"],
+                "version": result["version"],
+                "cut_list": result["cut_list"],
+            })
+        except AssemblyError as e:
+            _get_jobs_store().fail_job(render_job_id, str(e)[:200])
+            store.update_edit_plan_status(plan_id, "failed", str(e)[:500])
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/stock/search", methods=["POST"])
+    def search_stock():
+        """Final Assembly: Search stock library (Pexels + Pixabay)."""
+        query = request.json.get("query", "")
+        kind = request.json.get("kind", "photo")
+        per_page = request.json.get("per_page", 5)
+
+        if not query:
+            return jsonify({"error": "query required"}), 400
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+        except ConfigError:
+            models_config = {}
+
+        from stock_adapter import StockAdapter
+        adapter = StockAdapter(models_config, db_path=app.config["DB_PATH"])
+        results = adapter.search(query, kind=kind, per_page=per_page)
+
+        return jsonify({"status": "ok", "results": results, "count": len(results)})
 
     # ── T3.12: Publish handoff ──
 

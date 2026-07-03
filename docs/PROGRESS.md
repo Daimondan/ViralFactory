@@ -4,8 +4,8 @@
 > blocked, or changed. Any agent should be able to read this and know
 > exactly where we are.
 
-**Last Updated:** 2026-07-02
-**Current Phase:** M3 complete (T3.1–T3.12). 310 tests passing. Co-production loop fully built. **Operator UI review (UI-REVIEW-001) received and filed — findings F1–F4 accepted. End-to-end test blocked on UI-REVIEW-001 acceptance checks (session component build).** M2 audio/voice tasks (T2.6–T2.8) still deferred.
+**Last Updated:** 2026-07-03
+**Current Phase:** M3 complete (T3.1–T3.12). **Pipeline UX + Media Generation + Final Assembly built (F1–F5 + Edit Plan + Renderer + Stock). 440 tests passing. Service live.** M2 audio/voice tasks (T2.6–T2.8) still deferred. Awaiting operator API keys (OPENROUTER, PEXELS, PIXABAY) for full media generation end-to-end.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
@@ -125,7 +125,27 @@
 Materials Library — editable source materials. DB migrations: `excluded` column + `material_edits` table. Methods: `save_edit()`, `restore_to_raw()`, `toggle_exclude()`, `get_edit_history()`. `get_corpus` respects `excluded` flag. Flask routes: `/materials` (list + filters), `/materials/<id>` (detail), `/api/materials/<id>/edit|exclude|restore`. Templates: materials.html, material_detail.html, error.html. `raw_content` never modified — all edits write to `normalized_content` only. 19 new tests (394 total). Live server verified: edit/restore/exclude all work via curl against real data. Build order per manifest -c note 1: this is item 1 (independent, small).
 
 
-### 2026-07-03 — All CORRECTION-orchestrator-drafting-and-ux-v1.0 items implemented
+### 2026-07-03 — Pipeline UX + Media Generation + Final Assembly built (CORRECTION-pipeline-ux + CORRECTION-final-assembly)
+
+**Completed:**
+- F1: Jobs table (`src/jobs.py`) + shared `static/busy.js` — idempotency guard on all expensive endpoints (draft generate, fan-out, ideas generate, media generation, edit plan, render). Duplicate concurrent calls return 409, no second LLM/media call fires. Stale job detection + dead marking.
+- F2: Self-audit flags actionable — Apply replaces flagged line in draft_text with suggestion, records as direct_edit (highest weight), bumps version. Dismiss records for voice-profile signal. "Apply all remaining" button. `POST /api/draft/<id>/audit-flag` endpoint. State persists with draft.
+- F3: Visual direction elevated to required deliverable — `minItems: 1` on `image_prompts` + `shot_format_choices` in DRAFT_SCHEMA. Validator gains `minItems` support. Prompt v2 (`generate_v2.md`) with concrete, generation-ready image prompt requirements. Template always renders visual direction section (empty → "regenerate to produce one").
+- F4: Media adapter (`src/media_adapter.py`) — OpenRouter Image + Video API integration. Config-driven model selection (`models.yaml` media block). Content-hash caching for images. Provenance logging with USD cost. `asset_media` table. Image generation synchronous-ish, video async (submit → poll → download). "Generate visuals" per asset, video generation with explicit cost confirmation dialog. Media served via `/media/<path>`. Fan-out failure surfacing fixed (no more silent `continue`).
+- F5: Assets page rebuilt as publish preview — platform-specific preview cards with correct aspect-ratio media frames (9:16, 1:1, 16:9), generated images/video displayed in-frame, caption/copy below media, character count against platform limit, handle label. Gate 3 controls on the preview. Video cost confirmation dialog. `from_json` Jinja filter registered.
+- Final Assembly Part 1: `EDIT_PLAN_SCHEMA` in pipeline.py. `prompts/assembly/edit_plan_v1.md` prompt. `src/assembly.py` — deterministic FFmpeg-based renderer (trim, concat, transitions, burn-in captions infrastructure). Readable cut list for operator review. `edit_plans` table in DB. `src/stock_adapter.py` — Pexels + Pixabay search + download + cache. Routes: `POST /api/assets/<id>/edit-plan`, `GET /api/assets/<id>/edit-plans`, `POST /api/assets/<id>/render`, `POST /api/stock/search`.
+
+**New files:** `src/jobs.py`, `src/media_adapter.py`, `src/stock_adapter.py`, `src/assembly.py`, `src/static/busy.js`, `prompts/draft/generate_v2.md`, `prompts/assembly/edit_plan_v1.md`, `tests/test_pipeline_ux_and_assembly.py`
+**New config:** `media` + `stock` blocks in `config/models.yaml`
+**New deps needed:** `OPENROUTER_API_KEY`, `PEXELS_API_KEY`, `PIXABAY_API_KEY` env vars. ffmpeg already installed.
+**Tests:** 440 passing (46 new). 0 failures.
+**Service:** Restarted, health OK. All new routes verified live via curl.
+
+**Awaiting operator:**
+- Set `OPENROUTER_API_KEY` env var for media generation to work end-to-end
+- Set `PEXELS_API_KEY` + `PIXABAY_API_KEY` for stock library
+- Human UI test of publish preview at desktop + mobile widths
+- Cloned-voice listening test (voice decision, criterion 4) — deferred to voice reference set build
 
 **Completed (9 of 10 items):**
 - P0-1: Drafting input starvation root cause fix
