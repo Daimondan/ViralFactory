@@ -34,10 +34,14 @@ MAX_SNAPSHOT_ITEMS = 40  # count-bounded: most recent N active items across all 
 
 
 class SourceSnapshot:
-    """Mechanical RSS fetcher with content-hash cache and 6-hour TTL."""
+    """Mechanical RSS fetcher with content-hash cache and 6-hour TTL.
+    T8.3: Fetched items are also written to the `sources` table (Source Bank)
+    as source_type='rss_item', deduped on content_hash. The snapshot table
+    remains as a cache; `sources` is the system of record."""
 
-    def __init__(self, db_path: str = "data/viralfactory.db"):
+    def __init__(self, db_path: str = "data/viralfactory.db", business_slug: str = ""):
         self.db_path = db_path
+        self.business_slug = business_slug
         self._init_table()
 
     def _init_table(self):
@@ -99,9 +103,29 @@ class SourceSnapshot:
 
         return ""
 
+    def _extract_content(self, entry) -> str:
+        """Extract full text from a feed entry using trafilatura.
+        Falls back to the feed's summary/description if trafilatura unavailable."""
+        if HAS_TRAFILATURA and entry.get("content"):
+            for content_block in entry.get("content", []):
+                raw_html = content_block.get("value", "")
+                if raw_html:
+                    extracted = trafilatura.extract(raw_html)
+                    if extracted:
+                        return extracted
+        # Fall back to feed summary (stripped of HTML)
+        summary = entry.get("summary", "")
+        if summary:
+            if not HAS_TRAFILATURA:
+                import re
+                summary = re.sub(r"<[^>]+>", "", summary).strip()
+            return summary
+        return ""
+
     def fetch_feed(self, feed_url: str, feed_name: str = "") -> list[dict]:
         """Fetch a single feed and return parsed items. Does NOT use the cache —
-        the cache is checked by get_snapshot()."""
+        the cache is checked by get_snapshot().
+        T8.3: Also registers items into the `sources` table if business_slug is set."""
         try:
             parsed = feedparser.parse(feed_url)
             if not parsed.entries:
@@ -112,16 +136,70 @@ class SourceSnapshot:
                 title = entry.get("title", "").strip()
                 summary = self._extract_summary(entry)
                 url = entry.get("link", "")
+                content = self._extract_content(entry)
                 items.append({
                     "title": title,
                     "summary": summary,
+                    "content": content,
                     "url": url,
                     "source_name": feed_name,
                 })
 
+            # T8.3: Register items into the sources table (Source Bank)
+            if self.business_slug and items:
+                self._register_sources(items)
+
             return items
         except Exception:
             return []
+
+    def _register_sources(self, items: list[dict]):
+        """Write fetched items into the `sources` table as rss_item sources.
+        Dedupes on content_hash (URL-based hash)."""
+        conn = sqlite3.connect(self.db_path)
+        # Ensure sources table exists (created by PipelineStore, but SourceSnapshot
+        # may run before PipelineStore on a fresh DB)
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS sources (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                business_slug TEXT NOT NULL,
+                source_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                url TEXT,
+                summary TEXT,
+                content TEXT,
+                origin TEXT NOT NULL DEFAULT 'system',
+                first_seen TEXT NOT NULL,
+                content_hash TEXT,
+                status TEXT NOT NULL DEFAULT 'active'
+            );
+        """)
+        for item in items:
+            url = item.get("url", "")
+            title = item.get("title", "")
+            summary = item.get("summary", "")
+            content = item.get("content", "")
+            # Hash on URL for RSS items (URL is the unique identifier)
+            content_hash = hashlib.sha256(url.encode("utf-8")).hexdigest()[:16] if url else None
+            if not content_hash:
+                content_hash = hashlib.sha256(title.encode("utf-8")).hexdigest()[:16]
+            # Check for existing
+            existing = conn.execute(
+                "SELECT id FROM sources WHERE business_slug = ? AND content_hash = ? AND status = 'active'",
+                (self.business_slug, content_hash),
+            ).fetchone()
+            if existing:
+                continue
+            conn.execute(
+                """INSERT INTO sources
+                   (business_slug, source_type, title, url, summary, content,
+                    origin, first_seen, content_hash, status)
+                   VALUES (?, 'rss_item', ?, ?, ?, ?, 'system', ?, ?, 'active')""",
+                (self.business_slug, title, url, summary, content,
+                 self._now(), content_hash),
+            )
+        conn.commit()
+        conn.close()
 
     def get_snapshot(self, feed_url: str, feed_name: str = "") -> Optional[list[dict]]:
         """Get a cached snapshot for a feed URL, or fetch fresh if stale/missing.

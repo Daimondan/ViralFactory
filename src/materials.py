@@ -71,6 +71,22 @@ class MaterialsIntake:
                 FOREIGN KEY (material_id) REFERENCES materials(id)
             );
         """)
+        # T8.3: Ensure sources table exists for operator_material registration
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS sources (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                business_slug TEXT NOT NULL,
+                source_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                url TEXT,
+                summary TEXT,
+                content TEXT,
+                origin TEXT NOT NULL DEFAULT 'system',
+                first_seen TEXT NOT NULL,
+                content_hash TEXT,
+                status TEXT NOT NULL DEFAULT 'active'
+            );
+        """)
         conn.commit()
         conn.close()
 
@@ -466,7 +482,9 @@ class MaterialsIntake:
 
     def _store(self, run_id, business_slug, filename, material_type, channel,
                date_approx, audience, raw_content):
-        """Store a material in the database."""
+        """Store a material in the database.
+        T8.3: Also registers a `sources` row (source_type='operator_material')
+        so idea cards can cite operator materials by source ID."""
         # Auto-normalize based on type
         if material_type == "whatsapp_export":
             # For now, store raw. Normalization with user identifiers happens
@@ -492,6 +510,38 @@ class MaterialsIntake:
         material_id = cursor.lastrowid
         conn.commit()
         conn.close()
+
+        # T8.3: Register a sources row so ideas can cite this material by ID.
+        # Content is the normalized text (or raw if not yet normalized).
+        # We do NOT duplicate content — the sources row references the material.
+        if business_slug and material_type not in ("audio", "image"):
+            source_content = normalized or raw_content or ""
+            if source_content:
+                import hashlib as h
+                content_hash = h.sha256(source_content.encode("utf-8")).hexdigest()[:16]
+                title = filename or f"{material_type} material #{material_id}"
+                summary = source_content[:300] if source_content else ""
+                try:
+                    conn2 = sqlite3.connect(self.db_path)
+                    # Check for existing
+                    existing = conn2.execute(
+                        "SELECT id FROM sources WHERE business_slug = ? AND content_hash = ? AND status = 'active'",
+                        (business_slug, content_hash),
+                    ).fetchone()
+                    if not existing:
+                        conn2.execute(
+                            """INSERT INTO sources
+                               (business_slug, source_type, title, url, summary, content,
+                                origin, first_seen, content_hash, status)
+                               VALUES (?, 'operator_material', ?, NULL, ?, ?, 'operator', ?, ?, 'active')""",
+                            (business_slug, title, summary, source_content,
+                             ts, content_hash),
+                        )
+                        conn2.commit()
+                    conn2.close()
+                except Exception:
+                    pass  # sources table may not exist yet — non-fatal
+
         return material_id
 
     def _update_field(self, material_id: int, field: str, value: str):

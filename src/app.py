@@ -4030,8 +4030,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             feeds = sources_config.get("feeds", []) if sources_config else []
             if feeds:
                 # S1c: Mechanical RSS snapshot (feedparser + trafilatura, no LLM)
+                # T8.3: Also registers items into the `sources` table
                 from source_snapshot import SourceSnapshot
-                snapshot = SourceSnapshot(db_path=app.config["DB_PATH"])
+                snapshot = SourceSnapshot(db_path=app.config["DB_PATH"], business_slug=business_slug)
                 snapshot_text = snapshot.build_snapshot_text(feeds)
                 source_material += "\n\n## Recent source snapshots\n"
                 if snapshot_text and snapshot_text != "(snapshot unavailable)":

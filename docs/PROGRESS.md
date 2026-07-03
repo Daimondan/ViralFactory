@@ -179,3 +179,16 @@ Materials Library — editable source materials. DB migrations: `excluded` colum
 - CONTEXT.md "Updated" date bumped
 
 **Tests:** 584 passing (1 new). 0 failures.
+
+### 2026-07-03 — T8.3 Source Bank table done (P1)
+
+**T8.3 — Source Bank as addressable store:**
+- New `sources` table in `pipeline.py` schema: id, business_slug, source_type, title, url, summary, content, origin, first_seen, content_hash, status
+- `source_snapshot.py` now takes `business_slug` param, writes fetched items into `sources` as `source_type='rss_item'` (deduped on URL-hash), extracts full content via trafilatura
+- `materials.py` `_store()` registers `source_type='operator_material'` rows on text ingestion (deduped on content_hash), with `CREATE TABLE IF NOT EXISTS sources` in init
+- PipelineStore methods: `add_source`, `get_source`, `list_sources`, `resolve_source_refs`, `archive_source`
+- Schema migration: `source_refs` + `production_error` columns added to `idea_cards` (idempotent ALTER TABLE)
+- `update_card_state` gains `production_error` param for T8.6 failure handling
+- 20 new tests: schema, CRUD, dedupe, business_slug scoping, snapshot→sources, materials→sources
+
+**Tests:** 604 passing (20 new). 0 failures.

@@ -45,15 +45,32 @@ CREATE TABLE IF NOT EXISTS idea_cards (
     hook_options TEXT NOT NULL,          -- JSON array of hook/title strings
     treatment TEXT NOT NULL,             -- JSON: {scope, format, capture_required, reuse, rationale, experimental}
     origin TEXT NOT NULL,                -- ai_originated | human_seeded | human_seeded_ai_developed
-    evidence_links TEXT,                 -- JSON array of {url, note}
+    evidence_links TEXT,                 -- JSON array of {url, note} (derived display field)
+    source_refs TEXT,                     -- JSON array of source IDs from the sources table
     seed_text TEXT,                      -- original seed (for human-seeded origins)
     parent_id INTEGER,                   -- for series children: links to parent card
-    card_state TEXT NOT NULL DEFAULT 'new',  -- new | approved | awaiting_capture | capture_fulfilled | drafting | drafted | killed | parked
+    card_state TEXT NOT NULL DEFAULT 'new',  -- new | approved | awaiting_capture | capture_fulfilled | drafting | drafted | killed | parked | producing | asset_ready | production_failed
     kill_reason TEXT,
     capture_uploads TEXT,                -- JSON array of uploaded material IDs
+    production_error TEXT,                -- JSON: {step, error} when card_state=production_failed
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     FOREIGN KEY (parent_id) REFERENCES idea_cards(id)
+);
+
+-- T8.3: Source Bank as addressable store
+CREATE TABLE IF NOT EXISTS sources (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    business_slug TEXT NOT NULL,
+    source_type TEXT NOT NULL,           -- 'rss_item' | 'scraped_article' | 'operator_material' | 'archival' | 'manual'
+    title TEXT NOT NULL,
+    url TEXT,                             -- nullable (operator materials may have none)
+    summary TEXT,                         -- short extract for selection-stage injection
+    content TEXT,                         -- full extracted text for production-stage injection
+    origin TEXT NOT NULL DEFAULT 'system', -- 'system' (snapshot/scraper) | 'operator' | 'analyst'
+    first_seen TEXT NOT NULL,
+    content_hash TEXT,                    -- dedupe
+    status TEXT NOT NULL DEFAULT 'active' -- 'active' | 'archived'
 );
 
 CREATE TABLE IF NOT EXISTS drafts (
@@ -116,6 +133,9 @@ CREATE INDEX IF NOT EXISTS idx_assets_draft ON assets(draft_id);
 CREATE INDEX IF NOT EXISTS idx_assets_state ON assets(asset_state);
 CREATE INDEX IF NOT EXISTS idx_feedback_business ON feedback_log(business_slug);
 CREATE INDEX IF NOT EXISTS idx_feedback_draft ON feedback_log(draft_id);
+CREATE INDEX IF NOT EXISTS idx_sources_business ON sources(business_slug);
+CREATE INDEX IF NOT EXISTS idx_sources_status ON sources(status);
+CREATE INDEX IF NOT EXISTS idx_sources_hash ON sources(content_hash);
 """
 
 
@@ -329,6 +349,13 @@ class PipelineStore:
     def _init_db(self):
         conn = sqlite3.connect(self.db_path)
         conn.executescript(SCHEMA_SQL)
+        # Migrations for existing databases (idempotent)
+        # T8.3: add source_refs column to idea_cards if not present
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(idea_cards)").fetchall()]
+        if "source_refs" not in cols:
+            conn.execute("ALTER TABLE idea_cards ADD COLUMN source_refs TEXT")
+        if "production_error" not in cols:
+            conn.execute("ALTER TABLE idea_cards ADD COLUMN production_error TEXT")
         conn.commit()
         conn.close()
 
@@ -345,6 +372,7 @@ class PipelineStore:
         treatment: dict,
         origin: str,
         evidence_links: list[dict] = None,
+        source_refs: list[int] = None,
         seed_text: str = None,
         parent_id: int = None,
     ) -> int:
@@ -354,12 +382,13 @@ class PipelineStore:
         cursor = conn.execute(
             """INSERT INTO idea_cards
                (business_slug, idea, hook_options, treatment, origin,
-                evidence_links, seed_text, parent_id, card_state,
+                evidence_links, source_refs, seed_text, parent_id, card_state,
                 capture_uploads, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', '[]', ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', '[]', ?, ?)""",
             (business_slug, idea, json.dumps(hook_options),
              json.dumps(treatment), origin,
-             json.dumps(evidence_links or []), seed_text, parent_id, ts, ts),
+             json.dumps(evidence_links or []), json.dumps(source_refs or []),
+             seed_text, parent_id, ts, ts),
         )
         card_id = cursor.lastrowid
         conn.commit()
@@ -414,6 +443,7 @@ class PipelineStore:
     def update_card_state(
         self, card_id: int, state: str,
         kill_reason: str = None,
+        production_error: dict = None,
     ) -> dict:
         """Transition an idea card to a new state."""
         conn = sqlite3.connect(self.db_path)
@@ -422,6 +452,11 @@ class PipelineStore:
             conn.execute(
                 "UPDATE idea_cards SET card_state = ?, kill_reason = ?, updated_at = ? WHERE id = ?",
                 (state, kill_reason, ts, card_id),
+            )
+        elif production_error is not None:
+            conn.execute(
+                "UPDATE idea_cards SET card_state = ?, production_error = ?, updated_at = ? WHERE id = ?",
+                (state, json.dumps(production_error), ts, card_id),
             )
         else:
             conn.execute(
@@ -984,3 +1019,97 @@ class PipelineStore:
         conn.commit()
         conn.close()
         return self.get_edit_plan(plan_id)
+
+    # ── Source Bank (T8.3) ──
+
+    def add_source(
+        self,
+        business_slug: str,
+        source_type: str,
+        title: str,
+        url: str = None,
+        summary: str = None,
+        content: str = None,
+        origin: str = "system",
+        content_hash: str = None,
+    ) -> int:
+        """Add a source to the Source Bank. Dedupes on content_hash.
+        Returns the source ID (existing if deduped)."""
+        conn = sqlite3.connect(self.db_path)
+        ts = self._now()
+        # Check for existing source with same hash
+        if content_hash:
+            existing = conn.execute(
+                "SELECT id FROM sources WHERE business_slug = ? AND content_hash = ? AND status = 'active'",
+                (business_slug, content_hash),
+            ).fetchone()
+            if existing:
+                conn.close()
+                return existing[0]
+        cursor = conn.execute(
+            """INSERT INTO sources
+               (business_slug, source_type, title, url, summary, content,
+                origin, first_seen, content_hash, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')""",
+            (business_slug, source_type, title, url, summary, content,
+             origin, ts, content_hash),
+        )
+        source_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        return source_id
+
+    def get_source(self, source_id: int) -> dict:
+        """Get a single source by ID."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT * FROM sources WHERE id = ?", (source_id,)
+        ).fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    def list_sources(
+        self, business_slug: str, status: str = "active",
+        limit: int = 100,
+    ) -> list[dict]:
+        """List sources for a business, optionally filtered by status.
+        Ordered by most recently first_seen first."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """SELECT * FROM sources
+               WHERE business_slug = ? AND status = ?
+               ORDER BY first_seen DESC LIMIT ?""",
+            (business_slug, status, limit),
+        ).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+    def resolve_source_refs(self, business_slug: str, source_refs: list[int]) -> list[dict]:
+        """Resolve a list of source IDs to their full source records.
+        Returns only sources that exist and belong to the given business."""
+        if not source_refs:
+            return []
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        placeholders = ",".join("?" * len(source_refs))
+        rows = conn.execute(
+            f"""SELECT * FROM sources
+               WHERE id IN ({placeholders}) AND business_slug = ?
+               AND status = 'active'""",
+            (*source_refs, business_slug),
+        ).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+    def archive_source(self, source_id: int) -> dict:
+        """Archive a source (soft delete)."""
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            "UPDATE sources SET status = 'archived' WHERE id = ?",
+            (source_id,),
+        )
+        conn.commit()
+        conn.close()
+        return self.get_source(source_id)

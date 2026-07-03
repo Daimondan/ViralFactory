@@ -6,6 +6,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-03 STRUCTURE — T8.3: Source Bank as addressable store (P1)
+
+**What:** New `sources` table in `pipeline.py` (id, business_slug, source_type, title, url, summary, content, origin, first_seen, content_hash, status). `source_snapshot.py` writes fetched RSS items into this table as `source_type='rss_item'` (deduped on URL-hash content_hash), with full extracted content via trafilatura. `materials.py` registers `source_type='operator_material'` rows on text ingestion (deduped on content_hash). PipelineStore gains methods: `add_source`, `get_source`, `list_sources`, `resolve_source_refs`, `archive_source`. Schema migration adds `source_refs` + `production_error` columns to `idea_cards`. All sources scoped by `business_slug`.
+
+**Why:** Per CORRECTION-source-grounding-and-auto-production-v1.0 Section 1.1. The "Source Bank" was the source-criteria module + a 4KB-capped RSS snapshot — no addressable store of sources. Now sources are addressable by ID, with full content for production-stage injection and summary for selection-stage injection.
+
+**Rationale:** Ideas must be grounded in real source material. An addressable store with dedup is the substrate for `source_refs` on idea cards (T8.4) and grounding sources in drafts (T8.5).
+
 ### 2026-07-03 FIX — T8.1: Kill remaining source truncation (P0)
 
 **What:** Removed `source_material[:4000]` blind character slice in `ideas_generate` (app.py:4061). Replaced `SNAPSHOT_CHAR_CAP = 4000` in `source_snapshot.py` with `MAX_SNAPSHOT_ITEMS = 40` — count-bounded, not character-sliced. `build_snapshot_text` now takes the most recent N items across all feeds, each with its full summary (already bounded by `SUMMARY_CHAR_LIMIT` at extraction time).
