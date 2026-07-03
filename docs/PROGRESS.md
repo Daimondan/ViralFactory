@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-03
-**Current Phase:** T2.12 + T3.13 + M6 (T6.1-T6.4) complete. 583 tests passing. Buffer API live (verified). Process registry + compose-and-run engine built. YouTube RSS research loop operational (verified on running server at /research). Remaining: M3 checkpoint (10-piece sprint + Drafter A/B, requires operator involvement). Design reference: viralf.framer.website/dashboard — decision-desk aesthetic to apply.
+**Current Phase:** M3 checkpoint passed (10-piece sprint + T3.13 verified). M6 complete. All UI findings fixed. 583 tests passing. Buffer API live. Cream editorial design system applied. Remaining: Drafter A/B (needs operator to set ab_candidate), T2.6-T2.8 audio (deferred).
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
