@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-03
-**Current Phase:** M5 complete. Inbox batch 2026-07-03 (module-context-assembly + feedback-plumbing) implemented: 539 tests passing. New subsystem: section-addressable module reads + views.yaml + context_assembly.py. F1-F5 fixes: direct edits→draft_text, revision feeds feedback, series breakdown, owner_type migration, ffprobe durations. M6 (outward research) next.
+**Current Phase:** M5 complete. Inbox batch F (CORRECTION-generation-diversity-and-asset-continuity-v1.0) received — T3.13 added to BUILD_PLAN. Starting S1a → S3 → S1b/S1c → S4 → S2, then M3 checkpoint, then M6. 543 tests passing.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 

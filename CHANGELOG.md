@@ -29,6 +29,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 14. Dashboard: relative timestamps instead of raw ISO
 15. Create page: approved idea links no longer truncated mid-word
 
+### 2026-07-03 STRUCTURE — T3.13 added to BUILD_PLAN per CORRECTION-generation-diversity-and-asset-continuity-v1.0
+
+**What:** New task T3.13 covering four operator-reported failures: (S1) deterministic idea generation, (S2) format convergence, (S3) fan-out mutating approved text, (S4) orphaned draft previews. T3.7 AC annotated to note S3 makes the "per-platform variants from Format Guide" AC true as written (currently from business config loop).
+
+**Why:** Operator confirmed 17 cards converging on same few ideas; fan-out paraphrasing Gate-2-approved text; draft preview images orphaned. Correction approved by operator, ready for implementation. Sequencing: S1a → S3 → S1b/S1c → S4 → S2. M3 sprint checkpoint blocked until S1+S3 land.
+
+**Rationale:** Generative calls (ideas, drafts, fan-out) need real temperature, not the temp-0 guardrail which correctly covers judgment/extraction only. Per-piece approval semantics require native-platform packaging verbatim. Asset continuity prevents paying twice and orphaning judged previews.
+
 **Rationale:** Operator caught that the first UI inspection was superficial — only checked for obvious presence/absence of buttons. Deep walk-through found state-locked mode missing, stale assets, scattered series children, jargon labels, and more.
 
 ### 2026-07-03 STRUCTURE + LOGIC — CORRECTION-module-context-assembly + CORRECTION-feedback-plumbing-and-pipeline-fixes
