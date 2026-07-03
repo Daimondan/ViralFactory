@@ -18,6 +18,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-03 FIX — Validator strips markdown code fences from LLM JSON output
+
+**What:**
+- **Validator fix:** `validate_llm_output()` in `src/validator.py` now strips markdown code fences (```json ... ```, ``` ... ```, ```javascript ... ```) before `json.loads()`. GLM-5.2 wraps JSON output in ` ```json ` fences; `json.loads()` choked on the leading backticks — both initial attempt and retry failed identically with "Expecting value: line 1 column 1 (char 0)".
+- **9 new tests** (`tests/test_validator_code_fences.py`): fence stripping (json/plain/js variants), multiline JSON in fences, real provenance #5 output from run 24, and negative tests (garbage still rejected, invalid JSON in fence still rejected). 329 tests total.
+
+**Rationale:** Operator reported error when uploading a zip to voice-profile-builder session run 24. Provenance rows #4 and #5 showed both LLM attempts returned valid JSON wrapped in ` ```json ... ``` ` — the validator rejected them as non-JSON because it didn't strip the fence wrapper. This is a mechanical parsing issue, not an LLM quality issue — the model produced correct JSON, the validator just couldn't see past the markdown wrapper.
+
+**Root cause:** Many LLMs (GLM-5.2, Claude, GPT) wrap structured output in markdown code fences despite instructions to return raw JSON. The retry prompt ("respond with ONLY valid JSON") doesn't help because the model considers the fence to BE "only JSON." The fix is in the validator, not the prompt — stripping fences is mechanical, not judgment.
+
+---
+
 ### 2026-07-02 BUILD — Session component: LLM-driven conversation, all playbooks, run reuse
 
 **What:**

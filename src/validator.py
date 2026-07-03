@@ -8,12 +8,31 @@ The validator is the gate between "AI said something" and "the system trusts it.
 """
 
 import json
+import re
 from typing import Any, Optional
 
 
 class ValidationError(Exception):
     """Raised when an LLM output fails validation."""
     pass
+
+
+def _strip_code_fences(raw: str) -> str:
+    """
+    Strip markdown code fences that some LLMs wrap around JSON output.
+    Handles ```json ... ``` and plain ``` ... ``` fences.
+    """
+    stripped = raw.strip()
+    # Match opening fence (```json, ```JSON, ```javascript, or just ```)
+    # followed by content, followed by closing ```
+    match = re.match(
+        r'^```(?:json|JSON|javascript|js)?\s*\n?(.*?)\n?```\s*$',
+        stripped,
+        re.DOTALL,
+    )
+    if match:
+        return match.group(1).strip()
+    return stripped
 
 
 def validate_json_schema(output: dict, schema: dict, context: str = "") -> dict:
@@ -178,9 +197,9 @@ def validate_llm_output(
     Returns the validated dict.
     Raises ValidationError on any failure.
     """
-    # Parse JSON
+    # Parse JSON — strip markdown code fences first (some LLMs wrap output)
     try:
-        parsed = json.loads(raw_output)
+        parsed = json.loads(_strip_code_fences(raw_output))
     except json.JSONDecodeError as e:
         raise ValidationError(f"LLM output is not valid JSON: {e} {context}")
 
