@@ -46,9 +46,16 @@ class MaterialsIntake:
                 -- stripped of other parties, tagged
                 word_count INTEGER,
                 created_at TEXT NOT NULL,
+                transcription_status TEXT,
+                -- NULL for non-audio; pending/processing/done/failed for audio
                 FOREIGN KEY (run_id) REFERENCES playbook_runs(id)
             );
         """)
+        # Additive migration: add transcription_status column if it doesn't exist
+        try:
+            conn.execute("SELECT transcription_status FROM materials LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute("ALTER TABLE materials ADD COLUMN transcription_status TEXT")
         conn.commit()
         conn.close()
 
@@ -158,6 +165,7 @@ class MaterialsIntake:
             shutil.copy2(filepath, dest)
             self._update_field(material_id, "normalized_content",
                              f"[Audio file stored at: {dest} — transcription pending]")
+            self._update_field(material_id, "transcription_status", "pending")
 
         # If image, copy to upload dir for reference
         if material_type == "image":
@@ -355,6 +363,9 @@ class MaterialsIntake:
         """
         Get all normalized materials for a playbook run.
         Returns dict with 'samples' (list of dicts) and 'total_words'.
+
+        Audio materials with transcription_status='done' include the transcript
+        as corpus. Pending/failed audio is excluded.
         """
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
@@ -368,7 +379,18 @@ class MaterialsIntake:
         total_words = 0
         for row in rows:
             content = row["normalized_content"] or row["raw_content"]
-            wc = len(content.split()) if content and not content.startswith("[Audio") else 0
+            trans_status = row["transcription_status"] if "transcription_status" in row.keys() else None
+
+            # For audio: only count words if transcription is done
+            if row["material_type"] == "audio":
+                if trans_status == "done" and content and not content.startswith("[Audio"):
+                    wc = len(content.split())
+                else:
+                    wc = 0
+                    content = ""  # Don't include pending/failed audio in corpus
+            else:
+                wc = len(content.split()) if content and not content.startswith("[Audio") else 0
+
             samples.append({
                 "id": row["id"],
                 "type": row["material_type"],
@@ -377,6 +399,7 @@ class MaterialsIntake:
                 "audience": row["audience"],
                 "word_count": wc,
                 "content_preview": content[:200] if content else "",
+                "transcription_status": trans_status,
             })
             total_words += wc
 
@@ -465,6 +488,7 @@ class MaterialsIntake:
             "channel",
             "date_approx",
             "audience",
+            "transcription_status",
         }
         if field not in ALLOWED_FIELDS:
             raise ValueError(f"Invalid field name: {field!r}. Allowed: {sorted(ALLOWED_FIELDS)}")

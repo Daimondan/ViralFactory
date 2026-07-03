@@ -1,2 +1,2 @@
 gunicorn>=21.0
-python-docx>=1.0
+python-docx>=1.0faster-whisper>=1.0.0

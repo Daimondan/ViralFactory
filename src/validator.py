@@ -69,7 +69,13 @@ def validate_json_schema(output: dict, schema: dict, context: str = "") -> dict:
         value = output[field]
         expected_type = field_schema.get("type")
 
-        # Type checking
+        # P0-2: Coerce None → "" for optional string fields.
+        # LLMs return null for optional fields when they have no value.
+        # This prevents validation crashes on fields like next_focus.
+        if value is None and expected_type == "string" and field not in schema.get("required", []):
+            output[field] = ""
+            value = ""
+
         type_map = {
             "string": str,
             "integer": int,

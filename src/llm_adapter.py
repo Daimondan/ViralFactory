@@ -92,6 +92,9 @@ class LLMAdapter:
 
         R8/T2.10: Uses regex single-pass replacement to prevent double-substitution.
         If a variable's value contains '{another_var}', that brace is NOT re-interpreted.
+
+        P0-1(e): Logs a warning to provenance when a {placeholder} survives rendering
+        — no rendered prompt anywhere in the system may ship with an unresolved placeholder.
         """
         def replacer(match):
             key = match.group(1)
@@ -100,7 +103,32 @@ class LLMAdapter:
             return match.group(0)  # leave unknown placeholders as-is
 
         # Single pass: replace all {key} occurrences in one regex sweep
-        return re.sub(r'\{(\w+)\}', replacer, template)
+        rendered = re.sub(r'\{(\w+)\}', replacer, template)
+
+        # Check for unresolved placeholders (braces with word chars that survived rendering)
+        unresolved = re.findall(r'\{(\w+)\}', rendered)
+        if unresolved:
+            # Log to provenance if available
+            unique_unresolved = list(set(unresolved))
+            try:
+                self.provenance.log(
+                    input_hash="unresolved_placeholders",
+                    prompt_file="(render)",
+                    prompt_version="n/a",
+                    model="n/a",
+                    provider="n/a",
+                    raw_output=template[:500],
+                    validated_output=None,
+                    validator_verdict="warning",
+                    validator_errors=f"Unresolved placeholders in rendered prompt: {unique_unresolved}",
+                    context="Prompt render check",
+                    temperature=0,
+                    business_slug=None,
+                )
+            except Exception:
+                pass  # provenance not critical for the warning
+
+        return rendered
 
     def _call_ollama(
         self,
@@ -218,9 +246,9 @@ class LLMAdapter:
             ValidationError if the output can't be validated after retry
         """
         # Get backend config
-        # The config may use an "active" block that maps role names ("default", "drafter")
-        # to named backend definitions, OR it may have backends as top-level keys (legacy).
-        # "backend" can be: "default" / "drafter" (resolved via active block),
+        # The config may use an "active" block that maps role names ("default", "drafter",
+        # "converse") to named backend definitions, OR it may have backends as top-level keys.
+        # "backend" can be: "default" / "drafter" / "converse" (resolved via active block),
         # or a named backend key directly (e.g. "ollama_glm52").
         models_config = self.models_config
         backend_config = None
@@ -229,6 +257,12 @@ class LLMAdapter:
         active = models_config.get("active")
         if active and backend in active:
             backend_name = active[backend]
+            if backend_name:
+                backend_config = models_config.get(backend_name)
+
+        # P2-1: Fallback to default if the requested role (e.g. "converse") is not configured
+        if not backend_config and active and backend != "default" and "default" in active:
+            backend_name = active["default"]
             if backend_name:
                 backend_config = models_config.get(backend_name)
 
@@ -337,8 +371,9 @@ class LLMAdapter:
                         latency_ms=latency_ms,
                         business_slug=business_slug,
                         )
-                    # Retry once — append "Please respond with valid JSON only" and re-call
-                    retry_prompt = rendered + "\n\n---\nIMPORTANT: Your previous response was not valid JSON. Please respond with ONLY valid JSON, no markdown, no explanation."
+                    # Retry once — include the actual validation error text so the
+                    # model can correct the specific issue, not just "invalid JSON"
+                    retry_prompt = rendered + f"\n\n---\nIMPORTANT: Your previous response failed validation: {e}. Please correct this error and respond with ONLY valid JSON, no markdown, no explanation."
                     raw_output, latency_ms = call_fn(
                         retry_prompt, model, base_url, temperature, max_tokens
                     )

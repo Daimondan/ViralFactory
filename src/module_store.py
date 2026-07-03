@@ -115,16 +115,22 @@ class ModuleStore:
 
     def store(self, business_slug: str, module_name: str, content: str,
               version: str = "1.0", provenance: dict = None,
-              gate_token: str = None, run_id: int = None) -> str:
+              gate_token: str = None, run_id: int = None,
+              status: str = "approved") -> str:
         """
         Store a module as versioned markdown.
         Returns the path to the stored module.
 
-        Gate enforcement: a valid gate_token (verified against the runs DB)
-        is required before writing. The caller must have recorded an 'approve'
-        gate decision on the run BEFORE calling this method.
+        P1-1: status parameter controls gate enforcement:
+        - "approved" (default): gate_token + run_id required (existing behavior).
+        - "draft": no gate token needed (onboarding auto-drafts). Draft-status
+          modules never feed production pipelines.
 
-        Raises GateTokenError if the gate token is missing or invalid.
+        Gate enforcement: for approved modules, a valid gate_token (verified
+        against the runs DB) is required before writing. The caller must have
+        recorded an 'approve' gate decision on the run BEFORE calling this method.
+
+        Raises GateTokenError if the gate token is missing or invalid (approved only).
         """
         if not business_slug or business_slug == "unknown":
             raise GateTokenError(
@@ -132,14 +138,15 @@ class ModuleStore:
                 f"A valid business slug is required — orphans are not permitted."
             )
 
-        if not gate_token or run_id is None:
-            raise GateTokenError(
-                "Gate token and run_id are required for module writes. "
-                "Record a gate approval on the run first, then pass the token."
-            )
-
-        # Verify the gate token against the DB
-        verify_gate_token(self.db_path, run_id, gate_token)
+        # Gate enforcement only for approved modules
+        if status == "approved":
+            if not gate_token or run_id is None:
+                raise GateTokenError(
+                    "Gate token and run_id are required for approved module writes. "
+                    "Record a gate approval on the run first, then pass the token."
+                )
+            # Verify the gate token against the DB
+            verify_gate_token(self.db_path, run_id, gate_token)
 
         path = self._module_path(business_slug, module_name)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -147,6 +154,11 @@ class ModuleStore:
         # Archive previous version if it exists
         if path.exists():
             self._archive_version(business_slug, module_name, path)
+
+        # P1-1: Prepend status marker for draft modules
+        if status == "draft":
+            # Insert a status marker at the top of the file
+            content = f"<!-- status: draft -->\n{content}"
 
         # Write the new version
         path.write_text(content)
@@ -156,6 +168,42 @@ class ModuleStore:
             prov_path = path.parent / f"{module_name}_provenance.json"
             prov_path.write_text(json.dumps(provenance, indent=2))
 
+        return str(path)
+
+    def get_status(self, business_slug: str, module_name: str) -> str:
+        """P1-1: Get the status of a module ('draft' or 'approved').
+        Checks for the status marker comment at the top of the file."""
+        content = self.load(business_slug, module_name)
+        if not content:
+            return "none"
+        if content.startswith("<!-- status: draft -->"):
+            return "draft"
+        return "approved"
+
+    def promote_to_approved(self, business_slug: str, module_name: str,
+                            gate_token: str = None, run_id: int = None) -> str:
+        """P1-1: Promote a draft module to approved status.
+        Removes the draft status marker and enforces the gate.
+        Returns the path to the promoted module."""
+        if not gate_token or run_id is None:
+            raise GateTokenError(
+                "Gate token and run_id are required to promote a draft to approved."
+            )
+        verify_gate_token(self.db_path, run_id, gate_token)
+
+        content = self.load(business_slug, module_name)
+        if not content:
+            raise ValueError(f"Module '{module_name}' not found for '{business_slug}'")
+
+        # Remove the draft status marker
+        if content.startswith("<!-- status: draft -->\n"):
+            content = content[len("<!-- status: draft -->\n"):]
+
+        path = self._module_path(business_slug, module_name)
+        # Archive the draft version
+        if path.exists():
+            self._archive_version(business_slug, module_name, path)
+        path.write_text(content)
         return str(path)
 
     def load(self, business_slug: str, module_name: str) -> Optional[str]:

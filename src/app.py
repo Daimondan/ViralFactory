@@ -481,6 +481,11 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         Lists each material with filename, type, and an excerpt of content.
         Caps total size to ~6,000 chars so it fits within the LLM context window.
+
+        Audio files show transcription status honestly:
+        - pending/processing: "(transcribing — will be available shortly)"
+        - done: transcript excerpt
+        - failed: failure note
         """
         from materials import MaterialsIntake
         intake = MaterialsIntake(app.config["DB_PATH"])
@@ -496,17 +501,31 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             filename = m.get("filename", "unknown")
             mtype = m.get("material_type", "unknown")
             raw = m.get("raw_content", "")
-            # Don't include binary garbage
-            if raw and any(ord(c) < 9 for c in raw[:50]):
-                excerpt = "(binary content — not text-extractable)"
-            elif raw:
-                excerpt = raw[:PER_MATERIAL_CAP]
-                if len(raw) > PER_MATERIAL_CAP:
-                    excerpt += "... [truncated]"
-            else:
-                excerpt = "(empty)"
+            normalized = m.get("normalized_content", "")
 
-            entry = f"- {filename} ({mtype}): {excerpt}"
+            # Audio materials: show transcription status honestly
+            if mtype == "audio":
+                if normalized and not normalized.startswith("[Audio") and not normalized.startswith("["):
+                    excerpt = normalized[:PER_MATERIAL_CAP]
+                    if len(normalized) > PER_MATERIAL_CAP:
+                        excerpt += "... [truncated]"
+                    entry = f"- {filename} (audio, transcript): {excerpt}"
+                elif normalized and "failed" in normalized.lower():
+                    entry = f"- {filename} (audio): {normalized[:200]}"
+                else:
+                    entry = f"- {filename} (audio): (transcribing — will be available shortly)"
+            elif raw and any(ord(c) < 9 for c in raw[:50]):
+                excerpt = "(binary content — not text-extractable)"
+                entry = f"- {filename} ({mtype}): {excerpt}"
+            elif normalized or raw:
+                content = normalized or raw
+                excerpt = content[:PER_MATERIAL_CAP]
+                if len(content) > PER_MATERIAL_CAP:
+                    excerpt += "... [truncated]"
+                entry = f"- {filename} ({mtype}): {excerpt}"
+            else:
+                entry = f"- {filename} ({mtype}): (empty)"
+
             if total + len(entry) > TOTAL_CAP:
                 remaining = TOTAL_CAP - total
                 if remaining > 50:
@@ -518,6 +537,38 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             total += len(entry)
 
         return "\n".join(lines)
+
+    def _build_shot_library_summary(run_id):
+        """P0-1(d): Build a real shot library listing from uploaded materials.
+
+        Replaces the hardcoded '(see uploaded files)' literal that told the LLM nothing.
+        Lists filenames, types, and extracted content for image-adjacent text materials.
+        """
+        from materials import MaterialsIntake
+        intake = MaterialsIntake(app.config["DB_PATH"])
+        materials = intake.list_materials(run_id=run_id)
+        if not materials:
+            return "(No shot library uploaded.)"
+
+        lines = []
+        for m in materials:
+            filename = m.get("filename", "unknown")
+            mtype = m.get("material_type", "unknown")
+            raw = m.get("raw_content", "")
+            normalized = m.get("normalized_content", "")
+            content = normalized or raw
+
+            if mtype == "image":
+                lines.append(f"- {filename} (image)")
+            elif content and not content.startswith("[Audio") and not content.startswith("[Binary"):
+                excerpt = content[:300]
+                if len(content) > 300:
+                    excerpt += "..."
+                lines.append(f"- {filename} ({mtype}): {excerpt}")
+            else:
+                lines.append(f"- {filename} ({mtype})")
+
+        return "\n".join(lines) if lines else "(No shot library uploaded.)"
 
     def _build_readback(playbook_name, profile):
         """Build a plain-language readback for the operator based on playbook type."""
@@ -637,20 +688,22 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         orchestrator_schema = {
             "type": "object",
-            "required": ["reply", "routed_seeds", "coverage_updates", "next_focus"],
+            "required": ["reply", "routed_seeds", "coverage_updates"],
             "properties": {
                 "reply": {"type": "string"},
                 "routed_seeds": {"type": "array", "items": {"type": "object",
                     "properties": {"doc": {"type": "string"}, "seed": {"type": "string"}}}},
                 "coverage_updates": {"type": "array", "items": {"type": "object",
                     "properties": {"doc": {"type": "string"}, "status": {"type": "string"}}}},
-                "next_focus": {"type": "string"},
+                "next_focus": {"type": "string"},  # optional — orchestrator may return null
             },
         }
 
         try:
+            # P2-1: Use the fast converse backend for orchestrator turns.
+            # Falls back to default if converse role is not configured.
             result = adapter.complete(
-                prompt_file="session/onboarding_orchestrator_v1.md",
+                prompt_file="session/onboarding_orchestrator_v2.md",
                 variables={
                     "business_name": business["business"]["name"],
                     "coverage_map": _format_coverage_map(coverage),
@@ -659,12 +712,18 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     "conversation_so_far": conversation_so_far[-12000:],
                 },
                 schema=orchestrator_schema,
-                backend="default",
+                backend="converse",  # P2-1: fast non-reasoning backend
                 context=f"Onboarding orchestrator for run {run_id}",
                 business_slug=business["business"]["slug"],
             )
         except (LLMAdapterError, Exception) as e:
-            return jsonify({"error": str(e)}), 500
+            # P0-2: Never surface raw validator internals to the operator.
+            # Log the real error to provenance (already done by adapter), show friendly copy.
+            import logging
+            logging.getLogger("viralfactory").error(f"Onboarding orchestrator error: {e}", exc_info=True)
+            return jsonify({
+                "error": "I hit a snag processing that — say 'continue' and I'll pick up where we left off."
+            }), 500
 
         # Apply coverage updates
         for update in result.get("coverage_updates", []):
@@ -674,6 +733,20 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 coverage[doc] = {"status": status}
         collected["coverage"] = coverage
 
+        # P0-1(a): Persist routed seeds — the orchestrator's core function.
+        # These are the primary input for drafting. Without them, drafting starves.
+        if "seeds" not in collected:
+            collected["seeds"] = {}
+        for seed in result.get("routed_seeds", []):
+            doc = seed.get("doc", "")
+            seed_text = seed.get("seed", "")
+            if doc and seed_text and doc in ONBOARDING_PLAYBOOKS:
+                if doc not in collected["seeds"]:
+                    collected["seeds"][doc] = []
+                # Avoid exact-duplicate seeds
+                if seed_text not in collected["seeds"][doc]:
+                    collected["seeds"][doc].append(seed_text)
+
         # Save the AI's reply
         if "ai_replies" not in collected:
             collected["ai_replies"] = []
@@ -681,6 +754,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         runner.update_run(run_id, collected_inputs=json.dumps(collected))
 
         # Check if any docs just hit "ready" — trigger drafting for them
+        # P1-1: Drafts are stored immediately as draft-status modules in the Library.
+        # No gate card blocks the conversation — the Library is the review surface.
         drafted_cards = []
         for update in result.get("coverage_updates", []):
             doc = update.get("doc", "")
@@ -693,6 +768,19 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     # Trigger drafting for this doc
                     draft_result = _draft_onboarding_doc(run_id, runner, run, doc, business, models_config, collected)
                     if draft_result:
+                        # P1-1: Store as draft-status module immediately
+                        try:
+                            business_slug = business["business"]["slug"]
+                            from module_store import ModuleStore
+                            ms = ModuleStore(app.config.get("MODULES_DIR", "modules"), db_path=app.config["DB_PATH"])
+                            md = _convert_playbook_output_to_markdown(doc, draft_result)
+                            module_name = doc.replace("-starter", "").replace("-builder", "").replace("-intake", "").replace("-engine", "")
+                            if doc == "business-profile-intake":
+                                module_name = "brand-context"
+                            ms.store(business_slug, module_name, md, status="draft")
+                        except Exception:
+                            pass  # Module store failure shouldn't crash the conversation
+
                         drafted_cards.append({
                             "playbook": doc,
                             "readback": _build_readback(doc, draft_result),
@@ -729,54 +817,154 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             "next_focus": result.get("next_focus", ""),
         })
 
+    def _build_drafting_package(run_id, collected, playbook_name, business):
+        """P0-1(b): Build a uniform drafting input package for a doc.
+
+        Assembles: routed seeds + conversation transcript + materials content.
+        This replaces the legacy per-playbook variable scavenging that resolved
+        everything to "(none provided)" because the orchestrator never populated
+        those keys.
+        """
+        # 1. Routed seeds for this doc (verbatim operator phrasing)
+        seeds = collected.get("seeds", {}).get(playbook_name, [])
+        routed_seeds_text = "\n".join(f"- {s}" for s in seeds) if seeds else "(No routed seeds for this doc yet.)"
+
+        # 2. Full conversation transcript
+        conversation_transcript = _build_conversation_history(collected)
+
+        # 3. Materials content — full raw_content with a ~24,000 char budget
+        #    (drafting is a one-shot analysis call, not a conversational turn)
+        from materials import MaterialsIntake
+        intake = MaterialsIntake(app.config["DB_PATH"])
+        materials = intake.list_materials(run_id=run_id)
+
+        MATERIALS_BUDGET = 24000
+        materials_parts = []
+        total_chars = 0
+
+        for m in materials:
+            filename = m.get("filename", "unknown")
+            mtype = m.get("material_type", "unknown")
+            raw = m.get("raw_content", "")
+            normalized = m.get("normalized_content", "")
+
+            # Prefer normalized_content (transcripts, cleaned text) over raw
+            content = normalized or raw
+            if not content:
+                continue
+
+            # Skip binary content
+            if content.startswith("[Audio") or content.startswith("[Image") or content.startswith("[Binary"):
+                # For audio: check if transcription is pending/done
+                if mtype == "audio":
+                    if normalized and normalized.startswith("[Audio"):
+                        materials_parts.append(f"--- {filename} (audio — transcription pending) ---\n(transcription pending)\n")
+                    elif normalized and not normalized.startswith("["):
+                        materials_parts.append(f"--- {filename} (audio transcript) ---\n{content}\n")
+                    else:
+                        materials_parts.append(f"--- {filename} (audio — transcription pending) ---\n(transcription pending)\n")
+                continue
+
+            # Truncate per-material proportionally if over budget
+            remaining = MATERIALS_BUDGET - total_chars
+            if remaining <= 100:
+                materials_parts.append(f"... (materials budget exhausted, {len(materials) - len(materials_parts)} more files omitted)")
+                break
+
+            if len(content) > remaining:
+                content = content[:remaining] + "... [truncated]"
+
+            materials_parts.append(f"--- {filename} ({mtype}) ---\n{content}\n")
+            total_chars += len(content) + len(filename) + 20
+
+        materials_content = "\n".join(materials_parts) if materials_parts else "(No materials uploaded.)"
+
+        # 4. Voice Profile corpus: text-bearing materials + operator's conversational messages
+        corpus = ""
+        if playbook_name == "voice-profile-builder":
+            corpus_parts = []
+            for m in materials:
+                mtype = m.get("material_type", "")
+                normalized = m.get("normalized_content", "")
+                raw = m.get("raw_content", "")
+                content = normalized or raw
+                if not content:
+                    continue
+                # Include text-bearing materials (exclude audio unless transcribed)
+                if mtype == "audio":
+                    if normalized and not normalized.startswith("[Audio") and not normalized.startswith("["):
+                        corpus_parts.append(content)
+                    continue
+                if content.startswith("[Image") or content.startswith("[Binary"):
+                    continue
+                corpus_parts.append(content)
+            # Add operator's own conversational messages as corpus
+            for msg in collected.get("session_messages", []):
+                # Strip file attachment notes
+                clean_msg = msg.split("\n[Operator attached files:")[0].strip()
+                if clean_msg:
+                    corpus_parts.append(clean_msg)
+            corpus = "\n\n".join(corpus_parts) if corpus_parts else "(No corpus available — upload text materials or voice notes for analysis.)"
+
+        return {
+            "routed_seeds": routed_seeds_text,
+            "conversation_transcript": conversation_transcript[-12000:],
+            "materials_content": materials_content,
+            "corpus": corpus,
+        }
+
     def _draft_onboarding_doc(run_id, runner, run, playbook_name, business, models_config, collected):
         """Trigger the playbook-specific analysis for a doc that hit 'ready'.
 
         Returns the analysis result dict, or None on failure.
+
+        P0-1(b): Now uses a uniform drafting package (routed seeds + transcript +
+        materials content) instead of scavenging legacy keys that were never populated.
         """
-        # Map playbook name → analysis prompt file, schema, and output key
         from module_store import (
             BUSINESS_PROFILE_SCHEMA, SOURCE_CRITERIA_SCHEMA, VIRAL_PATTERNS_SCHEMA,
             AUDIENCE_INSIGHTS_SCHEMA, STORY_FRAMEWORKS_SCHEMA, FORMAT_GUIDE_SCHEMA,
             VISUAL_STYLE_SCHEMA, VOICE_PROFILE_SCHEMA,
         )
 
+        # Map playbook name → analysis prompt file (v2), schema, and output key
         playbook_map = {
-            "business-profile-intake": ("business_profile/analyze_v1.md", BUSINESS_PROFILE_SCHEMA, "business_profile_intake"),
-            "voice-profile-builder": ("voice_profile/analyze_v1.md", VOICE_PROFILE_SCHEMA, "voice_profile_builder"),
-            "sources-engine": ("sources_engine/analyze_v1.md", SOURCE_CRITERIA_SCHEMA, "sources_engine"),
-            "viral-patterns-starter": ("viral_patterns/analyze_v1.md", VIRAL_PATTERNS_SCHEMA, "viral_patterns_starter"),
-            "audience-insights-builder": ("audience_insights/analyze_v1.md", AUDIENCE_INSIGHTS_SCHEMA, "audience_insights_builder"),
-            "story-frameworks-starter": ("story_frameworks/analyze_v1.md", STORY_FRAMEWORKS_SCHEMA, "story_frameworks_starter"),
-            "format-guide-starter": ("format_guide/analyze_v1.md", FORMAT_GUIDE_SCHEMA, "format_guide_starter"),
-            "visual-style-intake": ("visual_style/analyze_v1.md", VISUAL_STYLE_SCHEMA, "visual_style_intake"),
+            "business-profile-intake": ("business_profile/analyze_v2.md", BUSINESS_PROFILE_SCHEMA, "business_profile_intake"),
+            "voice-profile-builder": ("voice_profile/analyze_v2.md", VOICE_PROFILE_SCHEMA, "voice_profile_builder"),
+            "sources-engine": ("sources_engine/analyze_v2.md", SOURCE_CRITERIA_SCHEMA, "sources_engine"),
+            "viral-patterns-starter": ("viral_patterns/analyze_v2.md", VIRAL_PATTERNS_SCHEMA, "viral_patterns_starter"),
+            "audience-insights-builder": ("audience_insights/analyze_v2.md", AUDIENCE_INSIGHTS_SCHEMA, "audience_insights_builder"),
+            "story-frameworks-starter": ("story_frameworks/analyze_v2.md", STORY_FRAMEWORKS_SCHEMA, "story_frameworks_starter"),
+            "format-guide-starter": ("format_guide/analyze_v2.md", FORMAT_GUIDE_SCHEMA, "format_guide_starter"),
+            "visual-style-intake": ("visual_style/analyze_v2.md", VISUAL_STYLE_SCHEMA, "visual_style_intake"),
         }
 
         prompt_file, schema, output_key = playbook_map.get(
-            playbook_name, ("business_profile/analyze_v1.md", BUSINESS_PROFILE_SCHEMA, "business_profile_intake")
+            playbook_name, ("business_profile/analyze_v2.md", BUSINESS_PROFILE_SCHEMA, "business_profile_intake")
         )
 
-        # Build transcript from collected Q&A
-        qa_pairs = collected.get("business_qa", [])
-        transcript = ""
-        for i, pair in enumerate(qa_pairs, 1):
-            transcript += f"Q{i}: {pair.get('q', '(free-form)')}\nA{i}: {pair['a']}\n\n"
+        # Build the drafting package
+        pkg = _build_drafting_package(run_id, collected, playbook_name, business)
 
-        from llm_adapter import LLMAdapter, LLMAdapterError
-        adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
-
+        # Build common variables — the v2 prompts use the package variables
         variables = {
             "business_name": business["business"]["name"],
             "existing_info": business["business"].get("description", ""),
-            "qa_transcript": transcript[:8000],
             "subjects": ", ".join(business.get("subjects", [])),
             "audience_description": business.get("audience_description", ""),
+            "routed_seeds": pkg["routed_seeds"],
+            "conversation_transcript": pkg["conversation_transcript"],
+            "materials_content": pkg["materials_content"],
+            "corpus": pkg["corpus"],
         }
 
-        # Add playbook-specific variables
+        # Add playbook-specific variables (from config/business, not from collected
+        # which was the legacy path that always resolved to "(none)")
+        platforms_text = ", ".join(f"{p['name']} ({p.get('handle', '')})" for p in business.get("platforms", []))
         if playbook_name == "sources-engine":
             variables["seed_sources"] = _format_seed_sources(collected)
             variables["anti_examples"] = _format_anti_examples(collected)
+            variables["business_region"] = business.get("business", {}).get("region", "global")
         elif playbook_name == "viral-patterns-starter":
             variables["admired_examples"] = _format_admired(collected)
             variables["anti_examples"] = _format_viral_anti(collected)
@@ -789,16 +977,18 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             variables["operator_stories"] = collected.get("operator_stories", "")
             variables["voice_summary"] = collected.get("voice_summary", "(not available)")
         elif playbook_name == "format-guide-starter":
-            platforms_text = ", ".join(f"{p['name']} ({p.get('handle', '')})" for p in business.get("platforms", []))
             variables["platforms"] = platforms_text
             variables["format_observations"] = collected.get("format_observations", "(none)")
             variables["platform_norms"] = collected.get("platform_norms", "(use general knowledge)")
         elif playbook_name == "visual-style-intake":
-            platforms_text = ", ".join(f"{p['name']} ({p.get('handle', '')})" for p in business.get("platforms", []))
             variables["platforms"] = platforms_text
             variables["brand_assets"] = collected.get("brand_assets", "(none)")
             variables["visual_examples"] = collected.get("visual_examples", "(none)")
-            variables["shot_library_summary"] = "(see uploaded files)"
+            # P0-1(d): Kill the "(see uploaded files)" literal — use actual materials listing
+            variables["shot_library_summary"] = _build_shot_library_summary(run_id)
+
+        from llm_adapter import LLMAdapter, LLMAdapterError
+        adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
 
         try:
             result = adapter.complete(
@@ -1085,45 +1275,55 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         for i, pair in enumerate(qa_pairs, 1):
             transcript += f"Q{i}: {pair.get('q', '(free-form)')}\nA{i}: {pair['a']}\n\n"
 
-        # Map playbook name → analysis prompt file, schema, and output key
+        # Map playbook name → analysis prompt file (v2), schema, and output key
         from module_store import (
             BUSINESS_PROFILE_SCHEMA, SOURCE_CRITERIA_SCHEMA, VIRAL_PATTERNS_SCHEMA,
             AUDIENCE_INSIGHTS_SCHEMA, STORY_FRAMEWORKS_SCHEMA, FORMAT_GUIDE_SCHEMA,
-            VISUAL_STYLE_SCHEMA,
+            VISUAL_STYLE_SCHEMA, VOICE_PROFILE_SCHEMA,
         )
 
         playbook_map = {
-            "business-profile-intake": ("business_profile/analyze_v1.md", BUSINESS_PROFILE_SCHEMA, "analysis"),
-            "sources-engine": ("sources_engine/analyze_v1.md", SOURCE_CRITERIA_SCHEMA, "criteria"),
-            "viral-patterns-starter": ("viral_patterns/analyze_v1.md", VIRAL_PATTERNS_SCHEMA, "patterns"),
-            "audience-insights-builder": ("audience_insights/analyze_v1.md", AUDIENCE_INSIGHTS_SCHEMA, "insights"),
-            "story-frameworks-starter": ("story_frameworks/analyze_v1.md", STORY_FRAMEWORKS_SCHEMA, "frameworks"),
-            "format-guide-starter": ("format_guide/analyze_v1.md", FORMAT_GUIDE_SCHEMA, "guide"),
-            "visual-style-intake": ("visual_style/analyze_v1.md", VISUAL_STYLE_SCHEMA, "style_guide"),
+            "business-profile-intake": ("business_profile/analyze_v2.md", BUSINESS_PROFILE_SCHEMA, "analysis"),
+            "voice-profile-builder": ("voice_profile/analyze_v2.md", VOICE_PROFILE_SCHEMA, "voice_profile"),
+            "sources-engine": ("sources_engine/analyze_v2.md", SOURCE_CRITERIA_SCHEMA, "criteria"),
+            "viral-patterns-starter": ("viral_patterns/analyze_v2.md", VIRAL_PATTERNS_SCHEMA, "patterns"),
+            "audience-insights-builder": ("audience_insights/analyze_v2.md", AUDIENCE_INSIGHTS_SCHEMA, "insights"),
+            "story-frameworks-starter": ("story_frameworks/analyze_v2.md", STORY_FRAMEWORKS_SCHEMA, "frameworks"),
+            "format-guide-starter": ("format_guide/analyze_v2.md", FORMAT_GUIDE_SCHEMA, "guide"),
+            "visual-style-intake": ("visual_style/analyze_v2.md", VISUAL_STYLE_SCHEMA, "style_guide"),
         }
 
         pb_name = run["playbook_name"]
         prompt_file, schema, output_key = playbook_map.get(
-            pb_name, ("business_profile/analyze_v1.md", BUSINESS_PROFILE_SCHEMA, "analysis")
+            pb_name, ("business_profile/analyze_v2.md", BUSINESS_PROFILE_SCHEMA, "analysis")
         )
 
         from llm_adapter import LLMAdapter, LLMAdapterError
 
         adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
 
-        # Build variables — start with the common ones, add playbook-specific ones
+        # Build drafting package (same as orchestrator path)
+        pkg = _build_drafting_package(run_id, collected, pb_name, business)
+
+        # Build variables — start with the drafting package + common ones
         variables = {
             "business_name": business["business"]["name"],
             "existing_info": business["business"].get("description", ""),
             "qa_transcript": transcript[:8000],
             "subjects": ", ".join(business.get("subjects", [])),
             "audience_description": business.get("audience_description", ""),
+            "routed_seeds": pkg["routed_seeds"],
+            "conversation_transcript": pkg["conversation_transcript"],
+            "materials_content": pkg["materials_content"],
+            "corpus": pkg["corpus"],
         }
 
         # Add playbook-specific variables from collected inputs
+        platforms_text = ", ".join(f"{p['name']} ({p.get('handle', '')})" for p in business.get("platforms", []))
         if pb_name == "sources-engine":
             variables["seed_sources"] = _format_seed_sources(collected)
             variables["anti_examples"] = _format_anti_examples(collected)
+            variables["business_region"] = business.get("business", {}).get("region", "global")
         elif pb_name == "viral-patterns-starter":
             variables["admired_examples"] = _format_admired(collected)
             variables["anti_examples"] = _format_viral_anti(collected)
@@ -1136,16 +1336,14 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             variables["operator_stories"] = collected.get("operator_stories", "")
             variables["voice_summary"] = collected.get("voice_summary", "(not available)")
         elif pb_name == "format-guide-starter":
-            platforms_text = ", ".join(f"{p['name']} ({p.get('handle', '')})" for p in business.get("platforms", []))
             variables["platforms"] = platforms_text
             variables["format_observations"] = collected.get("format_observations", "(none)")
             variables["platform_norms"] = collected.get("platform_norms", "(use general knowledge)")
         elif pb_name == "visual-style-intake":
-            platforms_text = ", ".join(f"{p['name']} ({p.get('handle', '')})" for p in business.get("platforms", []))
             variables["platforms"] = platforms_text
             variables["brand_assets"] = collected.get("brand_assets", "(none)")
             variables["visual_examples"] = collected.get("visual_examples", "(none)")
-            variables["shot_library_summary"] = "(see uploaded files)"
+            variables["shot_library_summary"] = _build_shot_library_summary(run_id)
 
         try:
             result = adapter.complete(
@@ -1319,7 +1517,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     @app.route("/library")
     def library():
-        """Library surface — read-only browse of modules + version history."""
+        """Library surface — browse modules with draft/approved status, inline edit, and approve."""
         try:
             config = load_all(config_dir)
             business_slug = config["business"]["business"]["slug"]
@@ -1333,6 +1531,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             for name in store.list_modules(business_slug):
                 content = store.load(business_slug, name)
                 versions = store.list_versions(business_slug, name)
+                status = store.get_status(business_slug, name)
                 # Extract schema marker
                 schema_name = None
                 if content:
@@ -1342,7 +1541,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 modules.append({
                     "name": name,
                     "schema": schema_name,
-                    "version_count": len(versions) + 1,  # +1 for current
+                    "status": status,
+                    "version_count": len(versions) + 1,
                     "versions": [{"version": v["version"], "timestamp": v["timestamp"]} for v in versions],
                     "preview": content[:500] if content else "",
                 })
@@ -1351,19 +1551,83 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     @app.route("/api/library/<business_slug>/<module_name>")
     def api_library_module(business_slug, module_name):
-        """API: get a specific module's content + version history."""
+        """API: get a specific module's content + version history + status."""
         from module_store import ModuleStore
         store = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
         content = store.load(business_slug, module_name)
         if not content:
             return jsonify({"error": "Module not found"}), 404
         versions = store.list_versions(business_slug, module_name)
+        status = store.get_status(business_slug, module_name)
         return jsonify({
             "module": module_name,
             "business_slug": business_slug,
             "content": content,
+            "status": status,
             "versions": [{"version": v["version"], "timestamp": v["timestamp"], "filename": v["filename"]} for v in versions],
         })
+
+    @app.route("/api/library/<business_slug>/<module_name>/approve", methods=["POST"])
+    def api_library_approve(business_slug, module_name):
+        """P1-1: Approve a draft module — promotes it to approved status with gate token."""
+        from module_store import ModuleStore, generate_gate_token
+        store = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
+
+        status = store.get_status(business_slug, module_name)
+        if status != "draft":
+            return jsonify({"error": f"Module is not a draft (status: {status})"}), 400
+
+        # Get the run_id from the request or find the onboarding run
+        run_id = request.json.get("run_id")
+        if not run_id:
+            # Find the onboarding run for this business
+            runner = PlaybookRunner(app.config["DB_PATH"])
+            runs = runner.list_runs(business_slug=business_slug)
+            onboarding_runs = [r for r in runs if r.get("playbook_name") == "onboarding"]
+            if onboarding_runs:
+                run_id = onboarding_runs[-1]["id"]
+            else:
+                return jsonify({"error": "No onboarding run found to issue gate token"}), 400
+
+        # Record gate approval and generate token
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        runner.set_gate_result(run_id, module_name, "approve", "Library approve action")
+        runner.set_gate_result(run_id, "gate", "approve", "Library approve action")
+        gate_token = generate_gate_token(run_id)
+
+        try:
+            store.promote_to_approved(business_slug, module_name, gate_token=gate_token, run_id=run_id)
+        except Exception as e:
+            return jsonify({"error": f"Failed to promote module: {e}"}), 500
+
+        return jsonify({"status": "ok", "module": module_name, "new_status": "approved"})
+
+    @app.route("/api/library/<business_slug>/<module_name>/edit", methods=["POST"])
+    def api_library_edit(business_slug, module_name):
+        """P1-1: Edit a module's content inline. Saves the edited content."""
+        from module_store import ModuleStore
+        store = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
+
+        content = request.json.get("content", "").strip()
+        if not content:
+            return jsonify({"error": "No content provided"}), 400
+
+        existing = store.load(business_slug, module_name)
+        if not existing:
+            return jsonify({"error": "Module not found"}), 404
+
+        # Preserve status marker
+        current_status = store.get_status(business_slug, module_name)
+        if current_status == "draft":
+            content = f"<!-- status: draft -->\n{content}"
+
+        # Archive and write
+        path = store._module_path(business_slug, module_name)
+        if path.exists():
+            store._archive_version(business_slug, module_name, path)
+        path.write_text(content)
+
+        return jsonify({"status": "ok", "module": module_name})
 
     @app.route("/onboard/<playbook_name>/<int:run_id>/intake", methods=["GET"])
     def intake_page(playbook_name, run_id):
@@ -4012,6 +4276,21 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
     def health():
         """Health check endpoint."""
         return jsonify({"status": "ok", "version": "0.2.0"})
+
+    # P1-transcription: Start the transcription worker daemon thread
+    try:
+        from transcription import TranscriptionWorker
+        config_for_worker = load_all(config_dir)
+        worker = TranscriptionWorker(
+            db_path=db_path,
+            upload_dir=app.config.get("UPLOAD_DIR", "data/uploads"),
+            models_config=config_for_worker.get("models", {}),
+        )
+        worker.start()
+        app.config["TRANSCRIPTION_WORKER"] = worker
+    except Exception as e:
+        import logging
+        logging.getLogger("viralfactory").warning(f"Transcription worker not started: {e}")
 
     return app
 

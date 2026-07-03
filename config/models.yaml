@@ -13,6 +13,7 @@
 active:
   default: "ollama_glm52"       # processing steps (temperature 0)
   drafter: "ollama_glm52"       # content drafting (uses backend's temperature)
+  converse: "ollama_gpt_oss_120b"  # P2-1: fast non-reasoning backend for conversational turns
   drafter_ab_candidate: null    # set to a backend name for M3 A/B test
 
 # ── Named backends ────────────────────────────────────────────────────
@@ -53,9 +54,10 @@ ollama_kimi_k26:
 # ── Transcription (R6 fix per DIVERGENCE-003) ───────────────────────
 # faster-whisper for speech-to-text. Runs on CPU (int8 quantization).
 # Audio files uploaded during intake are transcribed automatically.
+# Per DECISION-transcription-whisper-v1.0.md: medium model, CPU int8.
 transcription:
-  engine: "faster_whisper"
-  model: "small"          # tiny | base | small | medium | large-v3 (RAM scales)
+  enabled: true
+  model: "medium"          # tiny | base | small | medium | large-v3 (RAM scales)
   compute_type: "int8"   # CPU-only VPS; float16 if GPU available
   language: "en"         # "auto" for auto-detect
 
