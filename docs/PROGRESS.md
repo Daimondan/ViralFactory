@@ -97,3 +97,21 @@
 - [ ] F4: replace parallel-array transcript with single turn log (P1, deferred).
 - [ ] F2c: audio transcription implementation — blocked on DIVERGENCE-005 (operator decision: faster-whisper vs hosted API).
 - [x] Onboarding Orchestrator: single-thread onboarding — one conversation feeds all 8 playbooks. Coverage map, inline drafting, gate cards in chat, progress rail. 357 tests total.
+### 2026-07-03 — Applied CORRECTION-orchestrator-drafting-and-ux-v1.0 (P0-1 through P2-2 + transcription)
+
+**Tasks completed:**
+- P0-1: Drafting input starvation root cause fix (routed seeds persisted, per-doc drafting package, 8 v2 prompts, shot_library_summary, placeholder check)
+- P0-2: Validation crash on next_focus null (schema, validator, retry, error copy)
+- P1-1: Gate relocation to Library (draft-status modules, Library UI with approve/edit)
+- P2-1: Conversational latency (converse backend in models.yaml)
+- P2-2: Orchestrator prompt v2 (agency-intake posture)
+- Transcription worker (faster-whisper daemon, transcription_status column, backfill)
+- Inbox batch 2026-07-03 filed (3 documents processed)
+- Definition of Done process added to CONTEXT.md
+- 375 tests passing (18 new regression tests for P0-1/P0-2)
+
+**Awaiting subagents:**
+- P1-2: Conversation continuity (template changes)
+- P1-4: Upload feedback (template changes)
+- P1-3: Readback/message rendering (per-schema formatters)
+

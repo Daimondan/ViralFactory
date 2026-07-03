@@ -159,6 +159,17 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         # Build conversation history
         conversation_so_far = _build_conversation_history(collected)
 
+        # P1-2: Build structured conversation turns for template rendering on page load
+        session_messages = collected.get("session_messages", [])
+        ai_replies = collected.get("ai_replies", [])
+        conversation_turns = []
+        max_len = max(len(session_messages), len(ai_replies))
+        for i in range(max_len):
+            if i < len(ai_replies):
+                conversation_turns.append({"role": "ai", "text": ai_replies[i]})
+            if i < len(session_messages):
+                conversation_turns.append({"role": "operator", "text": session_messages[i]})
+
         # Opening question for fresh conversation
         opening_question = "Welcome! I'm going to learn everything about your business in one conversation — your story, your voice, your audience, your style. This will feed all eight onboarding modules at once. Let's start simple: tell me about your business. What do you do, who's it for, and what makes you different?"
 
@@ -209,6 +220,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             run_id=run_id, run=run,
             opening_question=opening_question,
             conversation_so_far=conversation_so_far,
+            conversation_turns=conversation_turns,
             coverage_chips=coverage_chips,
             gate_cards=gate_cards,
             materials_summary=materials_summary)

@@ -56,6 +56,8 @@
         .chip-dot.drafted { background: #a855f7; }
         .chip-dot.approved { background: #22c55e; }
         .chip-label { flex: 1; }
+        .chip-label a { color: inherit; text-decoration: none; }
+        .chip-label a:hover { text-decoration: underline; }
         .chip-status {
             font-size: 10px;
             text-transform: uppercase;
@@ -78,6 +80,20 @@
         }
         .chat-header h2 { font-size: 18px; font-weight: 600; }
         .chat-header .biz-name { color: #71717a; font-size: 14px; }
+        .chat-header .back-link {
+            color: #71717a;
+            font-size: 14px;
+            text-decoration: none;
+        }
+        .chat-header .back-link:hover { color: #e4e4e7; }
+        .autosave-notice {
+            padding: 6px 24px;
+            background: #16181f;
+            border-bottom: 1px solid #27272a;
+            font-size: 12px;
+            color: #71717a;
+            text-align: center;
+        }
 
         .chat-messages {
             flex: 1;
@@ -94,6 +110,7 @@
             font-size: 15px;
             line-height: 1.6;
             white-space: pre-wrap;
+            overflow-wrap: break-word;
             word-wrap: break-word;
         }
         .message.ai {
@@ -113,66 +130,19 @@
             margin-bottom: 4px;
         }
 
-        /* ── Gate Cards (inline in chat) ── */
-        .gate-card {
+        /* ── Drafted acknowledgment (replaces gate cards) ── */
+        .draft-notice {
             align-self: center;
             max-width: 85%;
             background: #1a1a2e;
             border: 1px solid #a855f7;
-            border-radius: 12px;
-            padding: 20px;
-            margin: 8px 0;
-        }
-        .gate-card-header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-        .gate-card-header .badge {
-            background: #a855f7;
-            color: #fff;
-            font-size: 11px;
-            padding: 2px 8px;
-            border-radius: 4px;
-            text-transform: uppercase;
-        }
-        .gate-card h4 { font-size: 16px; }
-        .gate-card .readback {
-            background: #0f1117;
-            border-radius: 8px;
-            padding: 12px;
-            margin: 12px 0;
+            border-radius: 10px;
+            padding: 12px 20px;
             font-size: 14px;
-            line-height: 1.6;
-            max-height: 400px;
-            overflow-y: auto;
-            white-space: pre-wrap;
+            text-align: center;
         }
-        .gate-card .readback details {
-            margin-top: 8px;
-            color: #71717a;
-            font-size: 12px;
-        }
-        .gate-actions {
-            display: flex;
-            gap: 8px;
-            margin-top: 12px;
-        }
-        .gate-btn {
-            padding: 8px 20px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-        }
-        .gate-btn.approve { background: #22c55e; color: #fff; }
-        .gate-btn.approve:hover { background: #16a34a; }
-        .gate-btn.park { background: #3f3f46; color: #e4e4e7; }
-        .gate-btn.park:hover { background: #52525b; }
-        .gate-btn.edit { background: transparent; border: 1px solid #3f3f46; color: #e4e4e7; }
-        .gate-btn.edit:hover { background: #1f2128; }
+        .draft-notice a { color: #a855f7; text-decoration: none; font-weight: 500; }
+        .draft-notice a:hover { text-decoration: underline; }
 
         /* ── Input Area ── */
         .input-area {
@@ -236,6 +206,26 @@
             gap: 4px;
         }
         .file-chip .remove { cursor: pointer; color: #71717a; }
+        /* P1-4: Upload states */
+        .file-chip.uploading {
+            border-color: #3b82f6;
+            color: #3b82f6;
+        }
+        .file-chip.uploading::before {
+            content: '⟳';
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .file-chip.error {
+            border-color: #ef4444;
+            color: #ef4444;
+        }
+        .file-chip .retry {
+            cursor: pointer;
+            color: #ef4444;
+            text-decoration: underline;
+        }
 
         .typing-indicator {
             align-self: flex-start;
@@ -268,7 +258,13 @@
         {% for chip in coverage_chips %}
         <div class="coverage-chip" id="chip-{{ chip.name }}" data-playbook="{{ chip.name }}">
             <span class="chip-dot {{ chip.status }}"></span>
-            <span class="chip-label">{{ chip.label }}</span>
+            <span class="chip-label">
+                {% if chip.status == 'drafted' or chip.status == 'approved' %}
+                <a href="/library">{{ chip.label }}</a>
+                {% else %}
+                {{ chip.label }}
+                {% endif %}
+            </span>
             <span class="chip-status">{{ chip.status }}</span>
         </div>
         {% endfor %}
@@ -278,14 +274,21 @@
     <div class="chat-area">
         <div class="chat-header">
             <div>
-                <h2>Onboarding Conversation</h2>
+                <a href="/" class="back-link">← Console</a>
+                <span style="margin: 0 8px; color: #3f3f46;">|</span>
                 <span class="biz-name">{{ business_name }}</span>
             </div>
         </div>
+        <div class="autosave-notice">Your progress saves automatically — you can leave and come back anytime.</div>
 
         <div class="chat-messages" id="chatMessages">
-            {% if conversation_so_far and conversation_so_far != "(This is the first turn — no conversation yet)" %}
-            {# Render existing conversation from server #}
+            {% if conversation_turns %}
+            {% for turn in conversation_turns %}
+            <div class="message {{ turn.role }}">
+                <div class="sender">{{ 'AI' if turn.role == 'ai' else 'You' }}</div>
+                {{ turn.text }}
+            </div>
+            {% endfor %}
             {% else %}
             <div class="message ai">
                 <div class="sender">AI</div>
@@ -312,13 +315,6 @@
     (function() {
         const runId = {{ run_id }};
         let pendingFiles = [];
-
-        // ── Render conversation from server-side data ──
-        {% if conversation_so_far and conversation_so_far != "(This is the first turn — no conversation yet)" %}
-        const existingConversation = {{ conversation_so_far|tojson }};
-        // The server passes a string; we need to parse the interleaved format
-        // For now, we render the conversation server-side in the template
-        {% endif %}
 
         // ── Chat messages container ──
         const chatMessages = document.getElementById('chatMessages');
@@ -357,24 +353,18 @@
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
-        // ── Add gate card to chat ──
-        function addGateCard(playbook, readback, outputKey) {
-            const card = document.createElement('div');
-            card.className = 'gate-card';
-            card.id = 'gate-card-' + outputKey;
-            card.innerHTML = `
-                <div class="gate-card-header">
-                    <span class="badge">Draft Ready</span>
-                    <h4>${playbook.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</h4>
-                </div>
-                <div class="readback">${readback}</div>
-                <div class="gate-actions">
-                    <button class="gate-btn approve" onclick="approveGate('${playbook}', '${outputKey}')">✓ Approve & Save</button>
-                    <button class="gate-btn park" onclick="parkGate('${playbook}', '${outputKey}')">Park</button>
-                    <button class="gate-btn edit" onclick="toggleEdit(this)">Edit</button>
-                </div>
-            `;
-            chatMessages.appendChild(card);
+        // ── P1-1: Add drafted acknowledgment (replaces gate cards) ──
+        function addDraftNotice(playbook) {
+            const label = playbook.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            const div = document.createElement('div');
+            div.className = 'draft-notice';
+            div.textContent = "I've drafted your " + label + " — it's in your ";
+            const link = document.createElement('a');
+            link.href = '/library';
+            link.textContent = 'Library';
+            div.appendChild(link);
+            div.appendChild(document.createTextNode(' whenever you want to review it.'));
+            chatMessages.appendChild(div);
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
@@ -387,6 +377,11 @@
                     const status = el.querySelector('.chip-status');
                     dot.className = 'chip-dot ' + chip.status;
                     status.textContent = chip.status;
+                    // P1-1: Link drafted/approved chips to Library
+                    const labelEl = el.querySelector('.chip-label');
+                    if (chip.status === 'drafted' || chip.status === 'approved') {
+                        labelEl.innerHTML = '<a href="/library">' + chip.label + '</a>';
+                    }
                 }
             });
         }
@@ -438,7 +433,7 @@
                 document.getElementById('typing').remove();
 
                 if (data.error) {
-                    addMessage('ai', 'Sorry, something went wrong: ' + data.error);
+                    addMessage('ai', data.error);
                 } else {
                     addMessage('ai', data.reply);
 
@@ -447,10 +442,10 @@
                         updateCoverageChips(data.coverage_chips);
                     }
 
-                    // Show drafted gate cards
+                    // P1-1: Show drafted acknowledgment instead of gate cards
                     if (data.drafted_cards) {
                         data.drafted_cards.forEach(card => {
-                            addGateCard(card.playbook, card.readback, card.output_key);
+                            addDraftNotice(card.playbook);
                         });
                     }
                 }
@@ -463,66 +458,6 @@
             messageInput.focus();
         }
 
-        // ── Gate actions ──
-        window.approveGate = async function(playbook, outputKey) {
-            const card = document.getElementById('gate-card-' + outputKey);
-            card.innerHTML = '<div style="text-align:center;padding:20px;color:#71717a;">Storing module...</div>';
-
-            try {
-                const resp = await fetch('/api/onboarding/' + runId + '/gate/' + playbook, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ decision: 'approve' }),
-                });
-                const data = await resp.json();
-                if (data.status === 'ok') {
-                    card.innerHTML = '<div style="text-align:center;padding:20px;color:#22c55e;">✓ Approved and stored</div>';
-                    // Update chip
-                    const el = document.getElementById('chip-' + playbook);
-                    if (el) {
-                        el.querySelector('.chip-dot').className = 'chip-dot approved';
-                        el.querySelector('.chip-status').textContent = 'approved';
-                    }
-                } else {
-                    card.innerHTML = '<div style="text-align:center;padding:20px;color:#ef4444;">Error: ' + (data.error || 'unknown') + '</div>';
-                }
-            } catch (err) {
-                card.innerHTML = '<div style="text-align:center;padding:20px;color:#ef4444;">Connection error</div>';
-            }
-        };
-
-        window.parkGate = async function(playbook, outputKey) {
-            const card = document.getElementById('gate-card-' + outputKey);
-            try {
-                const resp = await fetch('/api/onboarding/' + runId + '/gate/' + playbook, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ decision: 'park' }),
-                });
-                const data = await resp.json();
-                if (data.status === 'ok') {
-                    card.style.opacity = '0.5';
-                    card.querySelector('.gate-actions').innerHTML = '<span style="color:#71717a;font-size:13px;">Parked — you can review later</span>';
-                }
-            } catch (err) {
-                alert('Connection error');
-            }
-        };
-
-        window.toggleEdit = function(btn) {
-            const readback = btn.parentElement.previousElementSibling;
-            if (readback.contentEditable === 'true') {
-                readback.contentEditable = 'false';
-                readback.style.border = 'none';
-                btn.textContent = 'Edit';
-            } else {
-                readback.contentEditable = 'true';
-                readback.style.border = '1px solid #3b82f6';
-                readback.focus();
-                btn.textContent = 'Done';
-            }
-        };
-
         // ── File upload ──
         function updateFileChips() {
             fileChips.innerHTML = '';
@@ -530,7 +465,7 @@
                 const chip = document.createElement('div');
                 chip.className = 'file-chip';
                 const sizeStr = f.size > 1024*1024 ? (f.size/1024/1024).toFixed(1)+'MB' : Math.round(f.size/1024)+'KB';
-                chip.innerHTML = `📎 ${f.name} (${sizeStr}) <span class="remove" onclick="removeFile(${i})">✕</span>`;
+                chip.innerHTML = '📎 ' + f.name + ' (' + sizeStr + ') <span class="remove" onclick="removeFile(' + i + ')">✕</span>';
                 fileChips.appendChild(chip);
             });
         }
@@ -540,8 +475,18 @@
             updateFileChips();
         };
 
+        // P1-4: Upload with immediate indicator, error state, never add failed to pendingFiles
         async function uploadFile() {
             for (const file of fileInput.files) {
+                // Immediately render uploading chip
+                const chipId = 'upload-chip-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
+                const chip = document.createElement('div');
+                chip.className = 'file-chip uploading';
+                chip.id = chipId;
+                const sizeStr = file.size > 1024*1024 ? (file.size/1024/1024).toFixed(1)+'MB' : Math.round(file.size/1024)+'KB';
+                chip.textContent = '📎 ' + file.name + ' (' + sizeStr + ')';
+                fileChips.appendChild(chip);
+
                 const formData = new FormData();
                 formData.append('file', file);
 
@@ -553,18 +498,45 @@
                     const contentType = resp.headers.get('content-type') || '';
                     if (contentType.includes('application/json')) {
                         const data = await resp.json();
-                        if (data.status === 'ok') {
+                        if (data.status === 'ok' && data.material_id) {
+                            // Success — flip to done state
+                            chip.className = 'file-chip';
+                            const removeSpan = document.createElement('span');
+                            removeSpan.className = 'remove';
+                            removeSpan.textContent = '✕';
+                            removeSpan.onclick = function() {
+                                const idx = pendingFiles.findIndex(f => f.name === file.name && f.size === file.size);
+                                if (idx >= 0) pendingFiles.splice(idx, 1);
+                                updateFileChips();
+                            };
+                            chip.innerHTML = '📎 ' + file.name + ' (' + sizeStr + ') ';
+                            chip.appendChild(removeSpan);
+                            // Add to pendingFiles ONLY on success
                             pendingFiles.push({ name: file.name, size: file.size });
+                        } else {
+                            // Upload returned but no material_id — error
+                            chip.className = 'file-chip error';
+                            chip.innerHTML = '📎 ' + file.name + ' (failed) <span class="retry" onclick="retryUpload()">retry</span>';
                         }
+                    } else {
+                        chip.className = 'file-chip error';
+                        chip.innerHTML = '📎 ' + file.name + ' (failed) <span class="retry" onclick="retryUpload()">retry</span>';
                     }
                 } catch (err) {
-                    // Ignore upload errors — file note still stored in message
-                    pendingFiles.push({ name: file.name, size: file.size });
+                    // P1-4: Never add failed uploads to pendingFiles
+                    chip.className = 'file-chip error';
+                    chip.innerHTML = '📎 ' + file.name + ' (failed) <span class="retry" onclick="retryUpload()">retry</span>';
                 }
             }
-            updateFileChips();
             fileInput.value = '';
         }
+
+        window.retryUpload = function() {
+            // Clear error chips and re-trigger file input
+            fileChips.querySelectorAll('.file-chip.error').forEach(c => c.remove());
+            fileInput.value = '';
+            fileInput.click();
+        };
 
         // ── Wire up events ──
         function initEvents() {
