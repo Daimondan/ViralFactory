@@ -75,6 +75,15 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
     def request_entity_too_large(error):
         return jsonify({"status": "error", "error": "File too large. Maximum upload size is 2GB."}), 413
 
+    @app.after_request
+    def add_no_cache_headers(response):
+        """Prevent browser caching of HTML pages so code updates are always served."""
+        if response.content_type and 'text/html' in response.content_type:
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+        return response
+
     # --- Routes ---
 
     @app.route("/")
