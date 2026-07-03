@@ -4604,8 +4604,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             return jsonify({"error": "Draft not found"}), 404
 
         action = request.json.get("action", "")
-        if action not in ("ship", "kill", "revise"):
-            return jsonify({"error": "Invalid action. Use ship, kill, or revise."}), 400
+        if action not in ("ship", "kill", "revise", "reopen"):
+            return jsonify({"error": "Invalid action. Use ship, kill, revise, or reopen."}), 400
 
         if action == "ship":
             store.update_draft_state(draft_id, "shipped")
@@ -4627,6 +4627,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             # Increment version, set state to revised
             new_version = store.increment_draft_version(draft_id)
             return jsonify({"status": "ok", "new_state": "revised", "new_version": new_version})
+        elif action == "reopen":
+            store.update_draft_state(draft_id, "draft_ready")
+            return jsonify({"status": "ok", "new_state": "draft_ready"})
 
     @app.route("/api/draft/<int:draft_id>/audit-flag", methods=["POST"])
     def draft_audit_flag(draft_id):

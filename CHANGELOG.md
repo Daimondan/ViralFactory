@@ -13,7 +13,7 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 **Findings filed:** `docs/reviews/UI-REVIEW-002-deep-walkthrough-2026-07-03.md` — 15 findings. All fixed in this session.
 
 **Fixes applied:**
-1. Draft page: shipped state locks editing controls (Edit/Regenerate/Kill/Revise/audit-apply/feedback hidden when shipped; only "Proceed to Assets" + "Reopen for revision" shown)
+1. Draft page: shipped state locks editing controls (Edit/Regenerate/Kill/Revise/audit-apply/feedback hidden when shipped; only "Proceed to Assets" + "Reopen for revision" shown). Gate API accepts `reopen` to return a shipped draft to `draft_ready` without bumping the draft version.
 2. Asset staleness: draft page shows warning when draft was edited after assets were generated
 3. Ideas page: series children grouped under parent (sorted, not scattered)
 4. Ideas page: old clone children still have identical text — noted for architect (legacy data)

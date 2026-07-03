@@ -428,3 +428,91 @@ class TestF4OwnerType:
         assert len(all_draft) == 1
         all_asset = adapter.list_asset_media(5)
         assert len(all_asset) == 1
+
+
+class TestUIReview002DraftStateLock:
+    """UI-REVIEW-002: shipped drafts are read-only until explicitly reopened."""
+
+    def test_shipped_draft_hides_mutating_controls(self, app, store, sample_treatment):
+        card_id, draft_id = _make_draft(store, sample_treatment, "Ready to ship.")
+        store.update_draft_state(draft_id, "shipped")
+
+        resp = app.test_client().get(f"/create/draft/{card_id}")
+        assert resp.status_code == 200
+        html = resp.data.decode()
+
+        assert "v1 · SHIPPED" in html
+        assert "Proceed to Assets →" in html
+        assert "Reopen for revision" in html
+        assert 'id="editDraftBtn"' not in html
+        assert '>Regenerate draft<' not in html
+        assert '>Ship forward →<' not in html
+        assert '>Send feedback<' not in html
+        assert '>Apply all remaining<' not in html
+        assert '>Generate visual preview<' not in html
+
+    def test_reopen_gate_returns_shipped_draft_to_draft_ready(self, app, store, sample_treatment):
+        _card_id, draft_id = _make_draft(store, sample_treatment, "Ready to ship.")
+        store.update_draft_state(draft_id, "shipped")
+
+        resp = app.test_client().post(f"/api/draft/{draft_id}/gate", json={"action": "reopen"})
+
+        assert resp.status_code == 200
+        assert resp.get_json()["new_state"] == "draft_ready"
+        assert store.get_draft(draft_id)["draft_state"] == "draft_ready"
+
+    def test_create_page_uses_descriptive_titles_and_keeps_shipped_separate(self, app, store, sample_treatment):
+        long_idea = "Digital transformation gap needs Caribbean operators to move faster before outsiders capture value"
+        draft_card_id = store.create_idea_card(
+            business_slug="testbiz", idea=long_idea,
+            hook_options=["h"], treatment=sample_treatment, origin="ai_originated",
+        )
+        active_draft_id = store.create_draft("testbiz", draft_card_id, "ai_originated", "X Thread", "one_off")
+        store.save_draft_content(active_draft_id, "Draft text", {"image_prompts": [], "reference_notes": [], "shot_format_choices": []}, [])
+
+        approved_only_idea = long_idea + " with approved-only suffix"
+        approved_card_id = store.create_idea_card(
+            business_slug="testbiz", idea=approved_only_idea,
+            hook_options=["h"], treatment=sample_treatment, origin="ai_originated",
+        )
+        store.update_card_state(approved_card_id, "approved")
+
+        shipped_card_id = store.create_idea_card(
+            business_slug="testbiz", idea="Shipped idea should only be in assets lane",
+            hook_options=["h"], treatment=sample_treatment, origin="ai_originated",
+        )
+        shipped_draft_id = store.create_draft("testbiz", shipped_card_id, "ai_originated", "X Thread", "one_off")
+        store.save_draft_content(shipped_draft_id, "Shipped draft", {"image_prompts": [], "reference_notes": [], "shot_format_choices": []}, [])
+        store.update_draft_state(shipped_draft_id, "shipped")
+
+        resp = app.test_client().get("/create")
+        assert resp.status_code == 200
+        html = resp.data.decode()
+
+        assert "Draft #" not in html
+        assert f"{approved_only_idea[:80]}..." in html
+        assert f"{long_idea[:50]}..." in html
+
+        drafts_section = html.split("<h3>Drafts</h3>", 1)[1].split("<h3>Shipped (ready for assets)</h3>", 1)[0]
+        shipped_section = html.split("<h3>Shipped (ready for assets)</h3>", 1)[1].split("<h3>Quick stats</h3>", 1)[0]
+        assert "Shipped idea should only be in assets lane" not in drafts_section
+        assert "Shipped idea should only be in assets lane" in shipped_section
+
+    def test_dashboard_groups_activity_by_idea_with_asset_parent_context(self, app, store, sample_treatment):
+        idea = "Digital transformation gap"
+        card_id = store.create_idea_card(
+            business_slug="testbiz", idea=idea,
+            hook_options=["h"], treatment=sample_treatment, origin="ai_originated",
+        )
+        draft_id = store.create_draft("testbiz", card_id, "ai_originated", "X Thread", "one_off")
+        store.save_draft_content(draft_id, "Draft text", {"image_prompts": [], "reference_notes": [], "shot_format_choices": []}, [])
+        asset_id = store.create_asset("testbiz", draft_id, "Instagram", "carousel", "Asset content")
+        store.update_asset_state(asset_id, "pending")
+
+        resp = app.test_client().get("/")
+        assert resp.status_code == 200
+        html = resp.data.decode()
+
+        assert idea in html
+        assert "Draft v1" in html
+        assert f"Asset for {idea}: Instagram carousel" in html
