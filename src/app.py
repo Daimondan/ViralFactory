@@ -5933,6 +5933,201 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         except BufferError as e:
             return jsonify({"error": str(e)}), 502
 
+    # ── M6: Outward research loop ──
+
+    @app.route("/research")
+    def research_page():
+        """T6.1: Show discovered research items from YouTube RSS scans."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return "Business not configured", 500
+
+        from research_job import ResearchJob
+        rj = ResearchJob(db_path=app.config["DB_PATH"])
+        items = rj.list_research_items(business_slug, limit=100)
+
+        # Group by analysis status
+        pending = [i for i in items if i.get("analysis_status") == "pending"]
+        analyzed = [i for i in items if i.get("analysis_status") == "analyzed"]
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            business_name = config["business"]["business"]["name"]
+        except ConfigError:
+            business_name = "Not configured"
+
+        return render_template("research.html",
+                               business_name=business_name,
+                               pending_items=pending,
+                               analyzed_items=analyzed)
+
+    @app.route("/api/research/run", methods=["POST"])
+    def run_research():
+        """T6.1: Run the YouTube RSS research job manually."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            sources_config = config.get("sources", {})
+        except ConfigError as e:
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        from research_job import ResearchJob
+        rj = ResearchJob(db_path=app.config["DB_PATH"])
+        result = rj.run(business_slug, sources_config)
+        return jsonify({"status": "ok", **result})
+
+    @app.route("/api/research/<int:item_id>/analyze", methods=["POST"])
+    def analyze_research_item(item_id):
+        """T6.2: Analyze a research item with LLM (hook/structure/format/emotion/pacing + hypothesis)."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        from research_job import ResearchJob
+        rj = ResearchJob(db_path=app.config["DB_PATH"])
+        item = rj.get_research_item(item_id)
+        if not item:
+            return jsonify({"error": "Research item not found"}), 404
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+            business = config["business"]
+        except ConfigError as e:
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        # Load source criteria module
+        from module_store import ModuleStore
+        modules_dir = app.config.get("MODULES_DIR", "modules")
+        ms = ModuleStore(modules_dir=modules_dir, db_path=app.config["DB_PATH"])
+        source_criteria = ms.load(business_slug, "source-criteria") or "(not built)"
+
+        from llm_adapter import LLMAdapter, LLMAdapterError
+
+        adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
+
+        analysis_schema = {
+            "type": "object",
+            "required": ["hook_analysis", "structure_analysis", "format_analysis",
+                        "emotion_analysis", "pacing_analysis", "hypothesis", "relevance_score"],
+            "properties": {
+                "hook_analysis": {"type": "string"},
+                "structure_analysis": {"type": "string"},
+                "format_analysis": {"type": "string"},
+                "emotion_analysis": {"type": "string"},
+                "pacing_analysis": {"type": "string"},
+                "hypothesis": {"type": "string"},
+                "relevance_score": {"type": "integer"},
+                "key_takeaways": {"type": "array", "items": {"type": "string"}},
+                "source_bank_entry": {"type": "string"},
+            },
+        }
+
+        try:
+            result = adapter.complete(
+                prompt_file="research/analyze_v1.md",
+                variables={
+                    "business_name": business["business"]["name"],
+                    "source_name": item["source_name"],
+                    "channel_name": item.get("channel_name", ""),
+                    "video_title": item["title"],
+                    "video_description": item.get("description", ""),
+                    "watch_url": item["watch_url"],
+                    "published_at": item.get("published_at", ""),
+                    "source_criteria": source_criteria[:3000],
+                },
+                schema=analysis_schema,
+                backend="default",
+                context=f"Research analysis for item {item_id} ({item['source_name']})",
+                business_slug=business_slug,
+            )
+        except (LLMAdapterError, Exception) as e:
+            return jsonify({"error": str(e)}), 500
+
+        rj.update_analysis(item_id, "analyzed", result)
+        return jsonify({"status": "ok", "analysis": result})
+
+    @app.route("/api/research/<int:item_id>/propose-experiment", methods=["POST"])
+    def propose_experiment(item_id):
+        """T6.3: Create an experiment proposal from an analyzed research item.
+        Approved experiments flow into the proposals gate as seed suggestions."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        from research_job import ResearchJob
+        rj = ResearchJob(db_path=app.config["DB_PATH"])
+        item = rj.get_research_item(item_id)
+        if not item:
+            return jsonify({"error": "Research item not found"}), 404
+        if item.get("analysis_status") != "analyzed":
+            return jsonify({"error": "Item must be analyzed first"}), 400
+
+        analysis = json.loads(item.get("analysis_result") or "{}")
+        hypothesis = analysis.get("hypothesis", "")
+        takeaways = analysis.get("key_takeaways", [])
+        source_bank_entry = analysis.get("source_bank_entry", "")
+
+        # Create a proposal in the gate queue (T5.2 infrastructure)
+        from proposal_store import ProposalStore
+        ps = ProposalStore(db_path=app.config["DB_PATH"])
+        proposal_id = ps.create_proposal(
+            business_slug=business_slug,
+            target_module="source-bank",
+            target_section="research-findings",
+            proposal_type="experiment",
+            evidence=[f"YouTube video: {item['watch_url']}", f"Hypothesis: {hypothesis}"],
+            change_description=f"Experiment from {item['source_name']}: {item['title'][:80]}",
+            exact_diff=source_bank_entry,
+            rationale=hypothesis,
+            confidence="medium",
+        )
+
+        return jsonify({"status": "ok", "proposal_id": proposal_id})
+
+    @app.route("/api/sources/discover", methods=["POST"])
+    def discover_sources():
+        """T6.4: Sources Engine Part B — discover new sources from research findings.
+        Proposes new channel additions or prunes based on analysis scores."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        from research_job import ResearchJob
+        rj = ResearchJob(db_path=app.config["DB_PATH"])
+        analyzed = rj.list_research_items(business_slug, status="analyzed", limit=100)
+
+        # Group by source_name and compute average relevance
+        from collections import defaultdict
+        by_source = defaultdict(list)
+        for item in analyzed:
+            analysis = json.loads(item.get("analysis_result") or "{}")
+            score = analysis.get("relevance_score", 5)
+            by_source[item["source_name"]].append(score)
+
+        proposals = []
+        for source_name, scores in by_source.items():
+            avg_score = sum(scores) / len(scores)
+            if avg_score >= 7:
+                proposals.append({
+                    "source_name": source_name,
+                    "avg_relevance": round(avg_score, 1),
+                    "video_count": len(scores),
+                    "recommendation": "keep — high relevance",
+                })
+            elif avg_score <= 3:
+                proposals.append({
+                    "source_name": source_name,
+                    "avg_relevance": round(avg_score, 1),
+                    "video_count": len(scores),
+                    "recommendation": "prune — low relevance",
+                })
+
+        return jsonify({"status": "ok", "proposals": proposals, "sources_evaluated": len(by_source)})
+
     # ── T5.2: Gate as persistent async queue ──
 
     @app.route("/proposals")

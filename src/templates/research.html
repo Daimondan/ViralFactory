@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}Research — {{ business_name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Research</h1>
+    <p class="subtle">Outward research loop — YouTube channels scanned for viral patterns and content ideas.</p>
+</div>
+
+<div class="research-controls">
+    <button class="btn" onclick="runResearch(this)">Scan YouTube channels now</button>
+    <button class="btn btn-secondary" onclick="discoverSources(this)">Evaluate sources</button>
+</div>
+
+<div id="research-status"></div>
+
+{% if pending_items %}
+<section class="research-section">
+    <h2>Pending analysis ({{ pending_items|length }})</h2>
+    <p class="subtle">Discovered videos awaiting analysis.</p>
+    <div class="research-grid">
+    {% for item in pending_items %}
+        <div class="research-card" id="item-{{ item.id }}">
+            <div class="research-card-header">
+                <span class="research-source">{{ item.source_name }}</span>
+                <span class="research-date">{{ item.published_at[:10] if item.published_at else '' }}</span>
+            </div>
+            <h3>{{ item.title }}</h3>
+            {% if item.thumbnail_url %}
+            <img src="{{ item.thumbnail_url }}" alt="thumbnail" class="research-thumb" loading="lazy">
+            {% endif %}
+            <p class="research-desc">{{ item.description[:200] }}{% if item.description|length > 200 %}...{% endif %}</p>
+            <div class="research-actions">
+                <a href="{{ item.watch_url }}" target="_blank" class="btn btn-small">Watch →</a>
+                <button class="btn btn-small" onclick="analyzeItem({{ item.id }}, this)">Analyze</button>
+            </div>
+        </div>
+    {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{% if analyzed_items %}
+<section class="research-section">
+    <h2>Analyzed ({{ analyzed_items|length }})</h2>
+    <div class="research-grid">
+    {% for item in analyzed_items %}
+        {% set analysis = item.analysis_result | from_json %}
+        <div class="research-card analyzed">
+            <div class="research-card-header">
+                <span class="research-source">{{ item.source_name }}</span>
+                <span class="research-score">Relevance: {{ analysis.relevance_score or '?' }}/10</span>
+            </div>
+            <h3>{{ item.title }}</h3>
+            <p class="research-hypothesis"><strong>Hypothesis:</strong> {{ analysis.hypothesis or '' }}</p>
+            {% if analysis.key_takeaways %}
+            <ul class="research-takeaways">
+                {% for takeaway in analysis.key_takeaways[:3] %}
+                <li>{{ takeaway }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+            <div class="research-actions">
+                <a href="{{ item.watch_url }}" target="_blank" class="btn btn-small">Watch →</a>
+                <button class="btn btn-small" onclick="proposeExperiment({{ item.id }}, this)">Propose experiment</button>
+            </div>
+        </div>
+    {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{% if not pending_items and not analyzed_items %}
+<section class="empty-state">
+    <p>No research items yet. Click "Scan YouTube channels now" to discover videos from your configured sources.</p>
+</section>
+{% endif %}
+
+<style>
+.research-controls { margin-bottom: 24px; display: flex; gap: 12px; }
+.research-section { margin-bottom: 32px; }
+.research-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.research-card { background: var(--card-bg, #1a1a2e); border: 1px solid var(--border, #333); border-radius: 12px; padding: 16px; }
+.research-card.analyzed { border-color: var(--accent, #d2a04a); }
+.research-card-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.8rem; }
+.research-source { color: var(--accent, #d2a04a); font-weight: 600; }
+.research-date { color: #888; }
+.research-thumb { width: 100%; border-radius: 8px; margin: 8px 0; }
+.research-desc { font-size: 0.85rem; color: #aaa; margin: 8px 0; }
+.research-hypothesis { font-size: 0.9rem; margin: 8px 0; }
+.research-takeaways { font-size: 0.85rem; padding-left: 20px; }
+.research-actions { display: flex; gap: 8px; margin-top: 12px; }
+.btn-small { padding: 4px 12px; font-size: 0.8rem; }
+.empty-state { text-align: center; padding: 48px; color: #888; }
+</style>
+
+<script>
+function runResearch(btn) {
+    btn.disabled = true;
+    btn.textContent = 'Scanning...';
+    fetch('/api/research/run', {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                document.getElementById('research-status').innerHTML =
+                    '<div class="info-box">Found ' + data.discovered + ' videos, ' + data.new + ' new, ' + data.duplicates + ' already seen. ' + data.channels_scanned + ' channels scanned.</div>';
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                document.getElementById('research-status').innerHTML = '<div class="warn-box">Error: ' + (data.error || 'Unknown') + '</div>';
+            }
+        })
+        .catch(e => {
+            document.getElementById('research-status').innerHTML = '<div class="warn-box">Request failed: ' + e + '</div>';
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.textContent = 'Scan YouTube channels now';
+        });
+}
+
+function analyzeItem(id, btn) {
+    btn.disabled = true;
+    btn.textContent = 'Analyzing...';
+    fetch('/api/research/' + id + '/analyze', {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                btn.textContent = 'Done ✓';
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                btn.textContent = 'Analyze';
+                alert('Error: ' + (data.error || 'Unknown'));
+            }
+        })
+        .catch(e => {
+            btn.textContent = 'Analyze';
+            alert('Request failed: ' + e);
+        });
+}
+
+function proposeExperiment(id, btn) {
+    btn.disabled = true;
+    btn.textContent = 'Proposing...';
+    fetch('/api/research/' + id + '/propose-experiment', {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                btn.textContent = 'Proposed ✓';
+                alert('Experiment proposal created! Check the Proposals page to approve it.');
+            } else {
+                btn.textContent = 'Propose experiment';
+                alert('Error: ' + (data.error || 'Unknown'));
+            }
+        })
+        .catch(e => {
+            btn.textContent = 'Propose experiment';
+            alert('Request failed: ' + e);
+        });
+}
+
+function discoverSources(btn) {
+    btn.disabled = true;
+    btn.textContent = 'Evaluating...';
+    fetch('/api/sources/discover', {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                var msg = 'Evaluated ' + data.sources_evaluated + ' sources.\n';
+                data.proposals.forEach(function(p) {
+                    msg += '\n' + p.source_name + ': ' + p.avg_relevance + '/10 (' + p.recommendation + ', ' + p.video_count + ' videos)';
+                });
+                alert(msg);
+            } else {
+                alert('Error: ' + (data.error || 'Unknown'));
+            }
+        })
+        .catch(e => alert('Request failed: ' + e))
+        .finally(() => {
+            btn.disabled = false;
+            btn.textContent = 'Evaluate sources';
+        });
+}
+</script>
+{% endblock %}
