@@ -181,7 +181,7 @@
     {% if profile and run.status != 'completed' %}
     <!-- Readback -->
     <div class="readback" id="readback">
-        <h3>Here's what I understood — correct anything.</h3>
+        <h3>Here's what I put together — correct anything.</h3>
         <div class="readback-content" id="readbackDisplay">{{ readback_text }}</div>
         <div class="gate-bar">
             <button class="btn btn-edit" onclick="toggleEdit()">Edit directly</button>
@@ -192,8 +192,8 @@
         <details class="tech-details">
             <summary>Technical details</summary>
             <div class="tech-details-content">
-                Saves to: config/business.yaml + modules/{{ business_slug }}/brand-context.md<br>
-                Schema: brand_context_v1 · Gate step: {{ gate_step }}
+                Playbook: {{ playbook_name }} · Run #{{ run_id }}<br>
+                Gate step: {{ gate_step }}
             </div>
         </details>
     </div>
@@ -405,9 +405,21 @@ function saveEdits() {
     });
 }
 
-// Gate actions
+// Gate actions — route to the correct store endpoint based on playbook
+const playbookName = "{{ playbook_name }}";
+const storeEndpoints = {
+    "business-profile-intake": "/api/run/{{ run_id }}/store-business",
+    "sources-engine": "/api/run/{{ run_id }}/store-sources",
+    "viral-patterns-starter": "/api/run/{{ run_id }}/store-viral-patterns",
+    "audience-insights-builder": "/api/run/{{ run_id }}/store-audience-insights",
+    "story-frameworks-starter": "/api/run/{{ run_id }}/store-story-frameworks",
+    "format-guide-starter": "/api/run/{{ run_id }}/store-format-guide",
+    "visual-style-intake": "/api/run/{{ run_id }}/store-visual-style",
+};
+const storeUrl = storeEndpoints[playbookName] || "/api/run/{{ run_id }}/store-business";
+
 async function approveGate() {
-    const resp = await fetch(`/api/run/${runId}/store-business`, {
+    const resp = await fetch(storeUrl, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({approved: true, version: '1.0', note: 'Approved via session'}),
@@ -421,7 +433,7 @@ async function approveGate() {
 }
 
 async function parkGate() {
-    const resp = await fetch(`/api/run/${runId}/store-business`, {
+    const resp = await fetch(storeUrl, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({approved: false, version: '1.0', note: 'Parked via session'}),
@@ -432,7 +444,7 @@ async function parkGate() {
 
 async function rejectGate() {
     if (!confirm('Start over? Your answers will be kept but the draft will be discarded.')) return;
-    const resp = await fetch(`/api/run/${runId}/store-business`, {
+    const resp = await fetch(storeUrl, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({approved: false, version: '1.0', note: 'Rejected — starting over'}),

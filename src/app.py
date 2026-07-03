@@ -79,11 +79,18 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             business_name = "Not configured"
             business_slug = None
 
-        # Get playbook runs if we have a slug
+        # Get playbook runs if we have a slug — only show the latest per playbook
         runs = []
         if business_slug:
             runner = PlaybookRunner(db_path)
-            runs = runner.list_runs(business_slug)
+            all_runs = runner.list_runs(business_slug)
+            # Dedupe: keep only the latest run per playbook name
+            seen = set()
+            for r in all_runs:
+                pb_name = r["playbook_name"]
+                if pb_name not in seen:
+                    seen.add(pb_name)
+                    runs.append(r)
 
         return render_template("index.html",
             business_name=business_name,
@@ -147,7 +154,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     @app.route("/onboard/<playbook_name>")
     def start_playbook(playbook_name):
-        """Start or resume a playbook — renders session UI for Business Profile, falls back to original for others."""
+        """Start or resume a playbook — all playbooks use the session component (UI-REVIEW-001 F3)."""
         pb_path = os.path.join(app.config["PLAYBOOKS_DIR"], f"{playbook_name}.md")
         if not os.path.exists(pb_path):
             return "Playbook not found", 404
@@ -157,61 +164,118 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         business_slug = config["business"]["business"]["slug"]
 
         runner = PlaybookRunner(app.config["DB_PATH"])
-        run_id = runner.start_run(playbook.name, playbook.file_version, business_slug)
-        run = runner.get_run(run_id)
 
-        # UI-REVIEW-001 F3: Business Profile Intake uses the session component
-        if playbook_name == "business-profile-intake":
-            # Build progress rail from playbook steps
-            rail_steps = []
-            for s in playbook.steps:
-                state = "pending"
-                if s.is_gate:
-                    state = "pending"
-                elif s.is_intake:
+        # Run reuse: find the latest run for this playbook that isn't completed/cancelled.
+        # Only create a new run if no resumable one exists (UI-REVIEW-001 — don't create runs on every visit).
+        all_runs = runner.list_runs(business_slug)
+        existing_run = None
+        for r in all_runs:
+            if r["playbook_name"] == playbook.name and r["status"] not in ("completed", "cancelled"):
+                existing_run = r
+                break
+
+        if existing_run:
+            run_id = existing_run["id"]
+            run = existing_run
+        else:
+            run_id = runner.start_run(playbook.name, playbook.file_version, business_slug)
+            run = runner.get_run(run_id)
+
+        # Build progress rail from playbook steps
+        rail_steps = []
+        gate_results = json.loads(run.get("gate_results") or "{}")
+        for s in playbook.steps:
+            state = "pending"
+            if s.number in gate_results:
+                if gate_results[s.number].get("decision") == "approve":
+                    state = "done"
+                else:
                     state = "active"
-                rail_steps.append({"label": s.title[:40], "state": state})
+            elif s.is_intake and not s.is_gate:
+                state = "active"
+            rail_steps.append({"label": s.title[:40], "state": state})
 
-            # Check if analysis already exists
-            llm_outputs = json.loads(run.get("llm_outputs") or "{}")
-            profile = llm_outputs.get("analysis")
+        # Check if analysis already exists
+        llm_outputs = json.loads(run.get("llm_outputs") or "{}")
+        # The analysis key varies by playbook — check common ones
+        profile = (llm_outputs.get("analysis") or llm_outputs.get("profile")
+                   or llm_outputs.get("patterns") or llm_outputs.get("insights")
+                   or llm_outputs.get("frameworks") or llm_outputs.get("guide")
+                   or llm_outputs.get("style_guide") or llm_outputs.get("criteria"))
 
-            # Build readback text if profile exists
-            readback_text = ""
-            if profile:
-                readback_text = _build_business_readback(profile)
+        # Build readback text if profile exists
+        readback_text = ""
+        if profile:
+            readback_text = _build_readback(playbook_name, profile)
 
-            try:
-                business_name = config["business"]["business"]["name"]
-            except (ConfigError, KeyError):
-                business_name = "Your Business"
+        try:
+            business_name = config["business"]["business"]["name"]
+        except (ConfigError, KeyError):
+            business_name = "Your Business"
 
-            return render_template("session.html",
-                display_label=playbook.display_label or "Business Profile",
-                business_name=business_name, business_slug=business_slug,
-                playbook_name=playbook_name, run_id=run_id, run=run,
-                rail_steps=rail_steps, opening_question=_get_opening_question(playbook),
-                profile=profile, readback_text=readback_text,
-                gate_step=PlaybookRunner.get_gate_step_number(playbook))
+        # Build conversation so far for the opening question
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        conversation_so_far = _build_conversation_history(collected)
 
-        # Other playbooks: use the original playbook_run template for now
-        return render_template("playbook_run.html",
-            playbook=playbook,
-            run_id=run_id,
-            run=run,
-        )
+        # Determine the opening question
+        opening_question = _get_opening_question(playbook)
+
+        return render_template("session.html",
+            display_label=playbook.display_label or playbook.name,
+            business_name=business_name, business_slug=business_slug,
+            playbook_name=playbook_name, run_id=run_id, run=run,
+            rail_steps=rail_steps, opening_question=opening_question,
+            profile=profile, readback_text=readback_text,
+            gate_step=PlaybookRunner.get_gate_step_number(playbook),
+            conversation_so_far=conversation_so_far)
 
     def _get_opening_question(playbook):
         """Extract an operator-facing opening question from the playbook's procedure."""
         if not playbook.steps:
             return "Tell me about your business."
-        # Use the first step's description as the opening, cleaned up
         first = playbook.steps[0]
         desc = first.description.strip() if first.description else first.title
-        # If it's a Q&A step, ask the first question
-        if "Q&A" in desc or "q&a" in desc.lower():
-            return "Let's start with the basics. What does your business do? Just tell me in your own words — no structure needed."
+        if "Q&A" in desc or "q&a" in desc.lower() or "intake" in desc.lower():
+            return "Let's get started. Tell me about your business — what do you do, in your own words?"
         return desc[:200]
+
+    def _build_conversation_history(collected):
+        """Build a text summary of the conversation so far from collected inputs."""
+        lines = []
+        # Business Q&A pairs
+        qa_pairs = collected.get("business_qa", [])
+        for pair in qa_pairs:
+            q = pair.get("q", "")
+            a = pair.get("a", "")
+            lines.append(f"Q: {q}")
+            lines.append(f"A: {a}")
+            lines.append("")
+        # Free-form messages
+        messages = collected.get("session_messages", [])
+        for msg in messages:
+            lines.append(f"Operator: {msg}")
+            lines.append("")
+        return "\n".join(lines) if lines else "(no conversation yet)"
+
+    def _build_readback(playbook_name, profile):
+        """Build a plain-language readback for the operator based on playbook type."""
+        if playbook_name == "business-profile-intake":
+            return _build_business_readback(profile)
+        # Generic readback: just format the key fields
+        lines = ["Here's what I put together:", ""]
+        if isinstance(profile, dict):
+            for key, val in profile.items():
+                if isinstance(val, str) and len(val) < 500:
+                    lines.append(f"**{key.replace('_', ' ').title()}:** {val}")
+                elif isinstance(val, list):
+                    lines.append(f"**{key.replace('_', ' ').title()}:**")
+                    for item in val[:10]:
+                        if isinstance(item, str):
+                            lines.append(f"  • {item}")
+                        elif isinstance(item, dict):
+                            name = item.get("name", item.get("subject", item.get("format", str(item)[:60])))
+                            lines.append(f"  • {name}")
+        return "\n".join(lines)
 
     def _build_business_readback(profile):
         """Build a plain-language readback of the business profile for the operator."""
@@ -219,44 +283,37 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         biz = profile.get("business", {})
         lines.append(f"Business: {biz.get('name', '?')} — {biz.get('description', '')}")
         lines.append("")
-
         brands = profile.get("brands", [])
         if brands:
             lines.append("Brands:")
             for b in brands:
                 lines.append(f"  • {b['name']} — {b.get('purpose', '')}")
             lines.append("")
-
         subjects = profile.get("subjects", [])
         if subjects:
             lines.append(f"Topics: {', '.join(subjects)}")
             lines.append("")
-
         platforms = profile.get("platforms", [])
         if platforms:
             lines.append("Platforms:")
             for p in platforms:
                 lines.append(f"  • {p['name']} ({p.get('handle', '')})")
             lines.append("")
-
         goals = profile.get("goals", [])
         if goals:
             lines.append("Goals:")
             for g in goals:
                 lines.append(f"  • {g}")
             lines.append("")
-
         red_lines = profile.get("red_lines", [])
         if red_lines:
             lines.append("Never do:")
             for r in red_lines:
                 lines.append(f"  • {r}")
             lines.append("")
-
         audience = profile.get("audience_description", "")
         if audience:
             lines.append(f"Audience: {audience}")
-
         return "\n".join(lines)
 
     # ── Session API endpoints (UI-REVIEW-001 F3) ──
@@ -264,7 +321,11 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
     @app.route("/api/session/<int:run_id>/message", methods=["POST"])
     def session_message(run_id):
         """Handle a message from the operator in the chat session.
-        Stores the answer, then either asks a follow-up or triggers analysis."""
+
+        The AI reasons about what it knows and what it still needs, then either:
+        - Asks a smart follow-up question (LLM-driven, not template)
+        - Says it's ready to draft → triggers analysis
+        """
         runner = PlaybookRunner(app.config["DB_PATH"])
         run = runner.get_run(run_id)
         if not run:
@@ -276,78 +337,21 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         if not text and not files:
             return jsonify({"error": "No message provided"}), 400
 
-        # Store the answer as a Q&A pair (reuse the business-qa path)
+        # Store the message
         collected = json.loads(run.get("collected_inputs") or "{}")
+        if "session_messages" not in collected:
+            collected["session_messages"] = []
+        collected["session_messages"].append(text)
+        # Also keep in business_qa for backward compat with analysis
         if "business_qa" not in collected:
             collected["business_qa"] = []
-
-        # If files were uploaded, note them
         file_note = ""
         if files:
             file_note = f"\n[Files attached: {', '.join(files)}]"
-
-        # Store the message — use a contextual question if we can infer one
-        question = _infer_next_question(collected)
-        collected["business_qa"].append({"q": question, "a": text + file_note})
+        collected["business_qa"].append({"q": "(session message)", "a": text + file_note})
         runner.update_run(run_id, collected_inputs=json.dumps(collected))
 
-        # Decide: ask follow-up, or trigger analysis
-        qa_count = len(collected["business_qa"])
-
-        if qa_count >= 5:
-            # Enough answers — trigger analysis
-            return _session_trigger_analysis(run_id, runner, run)
-        else:
-            # Ask the next question
-            next_q = _next_question(qa_count)
-            return jsonify({"status": "ok", "reply": next_q, "show_readback": False})
-
-    def _infer_next_question(collected):
-        """Infer which question the operator just answered based on count."""
-        qa_count = len(collected.get("business_qa", []))
-        questions = [
-            "What does your business do?",
-            "What brands or sub-brands do you run?",
-            "What topics does your content cover?",
-            "What platforms do you publish on?",
-            "What are your content goals?",
-            "What are your red lines?",
-            "Who is your audience?",
-            "Anything else?",
-        ]
-        if qa_count < len(questions):
-            return questions[qa_count]
-        return "Anything else?"
-
-    def _next_question(qa_count):
-        """Return the next question for the operator."""
-        questions = [
-            "Good. What brands or sub-brands do you run? What's each one for?",
-            "What topics does your content cover? Just list them — we'll structure later.",
-            "What platforms do you publish on? Drop your handles if you have them.",
-            "What are you trying to achieve with your content? Goals, even vague ones.",
-            "What are your red lines — things you'd NEVER post about or do?",
-            "Who is your audience? Describe them in your own words.",
-            "Anything else you want me to know about the business? This is your chance to add context.",
-            "Thanks — I have enough to draft your profile. Let me put it together...",
-        ]
-        if qa_count < len(questions):
-            return questions[qa_count]
-        return "Thanks — I have enough to draft your profile. Let me put it together..."
-
-    def _session_trigger_analysis(run_id, runner, run):
-        """Trigger the LLM analysis and return a readback signal."""
-        collected = json.loads(run.get("collected_inputs") or "{}")
-        qa_pairs = collected.get("business_qa", [])
-
-        if not qa_pairs:
-            return jsonify({"status": "error", "error": "No Q&A collected yet."}), 400
-
-        # Build transcript
-        transcript = ""
-        for i, pair in enumerate(qa_pairs, 1):
-            transcript += f"Q{i}: {pair.get('q', '(free-form)')}\nA{i}: {pair['a']}\n\n"
-
+        # Get config
         try:
             config = load_all(app.config["CONFIG_DIR"])
             models_config = config["models"]
@@ -355,29 +359,173 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         except ConfigError as e:
             return jsonify({"error": f"Config error: {e}"}), 500
 
-        from module_store import BUSINESS_PROFILE_SCHEMA
+        # Build conversation history for the LLM
+        conversation_so_far = _build_conversation_history(collected)
+
+        # Get playbook info
+        playbook_name = run["playbook_name"]
+        pb_path = os.path.join(app.config["PLAYBOOKS_DIR"], f"{playbook_name}.md")
+        playbook = PlaybookParser.parse(pb_path)
+
         from llm_adapter import LLMAdapter, LLMAdapterError
 
         adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
 
+        converse_schema = {
+            "type": "object",
+            "required": ["reply", "ready_to_draft"],
+            "properties": {
+                "reply": {"type": "string"},
+                "ready_to_draft": {"type": "boolean"},
+            },
+        }
+
         try:
             result = adapter.complete(
-                prompt_file="business_profile/analyze_v1.md",
+                prompt_file="session/generic_converse_v1.md",
                 variables={
-                    "business_name": business["business"]["name"],
-                    "existing_info": business["business"].get("description", ""),
-                    "qa_transcript": transcript[:8000],
+                    "playbook_display_label": playbook.display_label or playbook.name,
+                    "playbook_purpose": playbook.purpose[:500],
+                    "conversation_so_far": conversation_so_far[:4000],
+                    "playbook_inputs": "\n".join(f"- {i}" for i in playbook.inputs)[:1000],
                 },
-                schema=BUSINESS_PROFILE_SCHEMA,
+                schema=converse_schema,
                 backend="default",
-                context=f"Business Profile analysis for run {run_id} (session)",
+                context=f"Session conversation for {playbook_name} run {run_id}",
                 business_slug=business["business"]["slug"],
             )
         except (LLMAdapterError, Exception) as e:
             return jsonify({"error": str(e)}), 500
 
-        runner.add_llm_output(run_id, "analysis", result)
-        return jsonify({"status": "ok", "reply": "I've drafted your business profile. Review it below — correct anything, then approve to save.", "show_readback": True})
+        if result.get("ready_to_draft"):
+            # AI says it has enough — trigger analysis
+            return _session_trigger_analysis(run_id, runner, run, playbook, business, models_config)
+        else:
+            return jsonify({"status": "ok", "reply": result["reply"], "show_readback": False})
+
+    def _session_trigger_analysis(run_id, runner, run, playbook, business, models_config):
+        """Trigger the playbook's analysis LLM call and return a readback signal.
+        Works for all playbooks — routes to the right prompt + schema based on playbook name."""
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        qa_pairs = collected.get("business_qa", [])
+        if not qa_pairs:
+            return jsonify({"status": "error", "error": "No Q&A collected yet."}), 400
+
+        # Build transcript from all collected Q&A and messages
+        transcript = ""
+        for i, pair in enumerate(qa_pairs, 1):
+            transcript += f"Q{i}: {pair.get('q', '(free-form)')}\nA{i}: {pair['a']}\n\n"
+
+        # Map playbook name → analysis prompt file, schema, and output key
+        from module_store import (
+            BUSINESS_PROFILE_SCHEMA, SOURCE_CRITERIA_SCHEMA, VIRAL_PATTERNS_SCHEMA,
+            AUDIENCE_INSIGHTS_SCHEMA, STORY_FRAMEWORKS_SCHEMA, FORMAT_GUIDE_SCHEMA,
+            VISUAL_STYLE_SCHEMA,
+        )
+
+        playbook_map = {
+            "business-profile-intake": ("business_profile/analyze_v1.md", BUSINESS_PROFILE_SCHEMA, "analysis"),
+            "sources-engine": ("sources_engine/analyze_v1.md", SOURCE_CRITERIA_SCHEMA, "criteria"),
+            "viral-patterns-starter": ("viral_patterns/analyze_v1.md", VIRAL_PATTERNS_SCHEMA, "patterns"),
+            "audience-insights-builder": ("audience_insights/analyze_v1.md", AUDIENCE_INSIGHTS_SCHEMA, "insights"),
+            "story-frameworks-starter": ("story_frameworks/analyze_v1.md", STORY_FRAMEWORKS_SCHEMA, "frameworks"),
+            "format-guide-starter": ("format_guide/analyze_v1.md", FORMAT_GUIDE_SCHEMA, "guide"),
+            "visual-style-intake": ("visual_style/analyze_v1.md", VISUAL_STYLE_SCHEMA, "style_guide"),
+        }
+
+        pb_name = run["playbook_name"]
+        prompt_file, schema, output_key = playbook_map.get(
+            pb_name, ("business_profile/analyze_v1.md", BUSINESS_PROFILE_SCHEMA, "analysis")
+        )
+
+        from llm_adapter import LLMAdapter, LLMAdapterError
+
+        adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
+
+        # Build variables — start with the common ones, add playbook-specific ones
+        variables = {
+            "business_name": business["business"]["name"],
+            "existing_info": business["business"].get("description", ""),
+            "qa_transcript": transcript[:8000],
+            "subjects": ", ".join(business.get("subjects", [])),
+            "audience_description": business.get("audience_description", ""),
+        }
+
+        # Add playbook-specific variables from collected inputs
+        if pb_name == "sources-engine":
+            variables["seed_sources"] = _format_seed_sources(collected)
+            variables["anti_examples"] = _format_anti_examples(collected)
+        elif pb_name == "viral-patterns-starter":
+            variables["admired_examples"] = _format_admired(collected)
+            variables["anti_examples"] = _format_viral_anti(collected)
+        elif pb_name == "audience-insights-builder":
+            variables["operator_description"] = collected.get("audience_operator_desc", "")
+            variables["audience_data"] = collected.get("audience_data", "(none)")
+            variables["admired_signals"] = collected.get("audience_admired_signals", "(none)")
+        elif pb_name == "story-frameworks-starter":
+            variables["admired_examples"] = collected.get("story_admired_refs", "(none)")
+            variables["operator_stories"] = collected.get("operator_stories", "")
+            variables["voice_summary"] = collected.get("voice_summary", "(not available)")
+        elif pb_name == "format-guide-starter":
+            platforms_text = ", ".join(f"{p['name']} ({p.get('handle', '')})" for p in business.get("platforms", []))
+            variables["platforms"] = platforms_text
+            variables["format_observations"] = collected.get("format_observations", "(none)")
+            variables["platform_norms"] = collected.get("platform_norms", "(use general knowledge)")
+        elif pb_name == "visual-style-intake":
+            platforms_text = ", ".join(f"{p['name']} ({p.get('handle', '')})" for p in business.get("platforms", []))
+            variables["platforms"] = platforms_text
+            variables["brand_assets"] = collected.get("brand_assets", "(none)")
+            variables["visual_examples"] = collected.get("visual_examples", "(none)")
+            variables["shot_library_summary"] = "(see uploaded files)"
+
+        try:
+            result = adapter.complete(
+                prompt_file=prompt_file,
+                variables=variables,
+                schema=schema,
+                backend="default",
+                context=f"{playbook.display_label} analysis for run {run_id} (session)",
+                business_slug=business["business"]["slug"],
+            )
+        except (LLMAdapterError, Exception) as e:
+            return jsonify({"error": str(e)}), 500
+
+        runner.add_llm_output(run_id, output_key, result)
+        return jsonify({
+            "status": "ok",
+            "reply": "I've put together your " + (playbook.display_label or pb_name) + ". Review it below — correct anything, then approve to save.",
+            "show_readback": True,
+        })
+
+    def _format_seed_sources(collected):
+        seeds = collected.get("seed_sources", [])
+        if not seeds:
+            return "(none provided yet — ask the operator for trusted sources)"
+        lines = []
+        for i, s in enumerate(seeds, 1):
+            lines.append(f"  {i}. {s.get('name', '')} — {s.get('url', '')} ({s.get('type', 'rss')})")
+        return "\n".join(lines)
+
+    def _format_anti_examples(collected):
+        anti = collected.get("anti_examples", [])
+        if not anti:
+            return "(none provided)"
+        return "\n".join(f"  {i+1}. {a}" for i, a in enumerate(anti))
+
+    def _format_admired(collected):
+        admired = collected.get("admired_examples", [])
+        if not admired:
+            return "(none provided yet)"
+        lines = []
+        for a in admired:
+            lines.append(f"  {a.get('name', '')} — {a.get('url', '')}")
+        return "\n".join(lines)
+
+    def _format_viral_anti(collected):
+        anti = collected.get("viral_anti_examples", [])
+        if not anti:
+            return "(none provided)"
+        return "\n".join(f"  {i+1}. {a}" for i, a in enumerate(anti))
 
     @app.route("/api/session/<int:run_id>/upload", methods=["POST"])
     def session_upload(run_id):
