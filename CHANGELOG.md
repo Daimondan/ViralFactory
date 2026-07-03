@@ -6,7 +6,16 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
-### 2026-07-02 INBOX — Batch D filed (UI-REVIEW-001 + APPLY section executed)
+### 2026-07-02 BUILD — Zip file support + PDF/image intake (DIVERGENCE-004)
+
+**What:**
+- `MaterialsIntake.ingest_zip()`: extracts zip archives to a temp directory, ingests each file recursively through the existing intake pipeline. Handles nested directories, skips hidden files and __MACOSX junk, cleans up temp dir. Failed files logged as error-channel materials — zip doesn't fail if one file is broken.
+- `ingest_file()` extended: `.zip` delegates to `ingest_zip()`. PDF text extraction (pdfplumber → PyPDF2 → graceful fallback). Image files (.png/.jpg/.jpeg/.gif/.bmp/.webp) stored as visual references with file copied to upload dir. Binary files get graceful placeholder instead of crashing.
+- Works through both `/api/run/<id>/upload` and `/api/session/<id>/upload` (session component).
+- DIVERGENCE-004 filed for architect awareness.
+- 9 new tests (319 total).
+
+**Rationale:** Operator needs to upload a zip of mixed materials (chats, docs, photos, audio) in one shot. Without zip support, the file fell through to "unknown type" and tried to read binary as text. This enables true one-go intake per the charter. No charter conflict — capability extension, not a design change.
 
 **What filed:**
 - `UI-REVIEW-001-intake-console.md` → `docs/reviews/UI-REVIEW-001-intake-console.md` (ADD)

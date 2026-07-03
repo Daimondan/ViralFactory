@@ -78,7 +78,11 @@ class MaterialsIntake:
                     date_approx: str = "", audience: str = "") -> int:
         """
         Ingest an uploaded file. Detects type by extension and content.
-        Returns the material ID.
+        Returns the material ID of the first file ingested.
+
+        For .zip files: extracts to a temp directory, ingests each extracted
+        file recursively, and returns the first material ID. All extracted
+        files are stored as separate materials under the same run.
         """
         path = Path(filepath)
         if not path.exists():
@@ -86,6 +90,11 @@ class MaterialsIntake:
 
         filename = path.name
         ext = path.suffix.lower()
+
+        # ── ZIP: extract and ingest each file ──
+        if ext == ".zip":
+            return self.ingest_zip(filepath, run_id=run_id, business_slug=business_slug,
+                                   channel=channel, date_approx=date_approx, audience=audience)
 
         if ext in (".txt", ".md"):
             content = path.read_text(encoding="utf-8", errors="replace")
@@ -107,9 +116,22 @@ class MaterialsIntake:
             content = f"[Audio file: {filename} — transcription pending]"
             material_type = "audio"
             channel = channel or "voice_note"
+        elif ext in (".pdf",):
+            # PDF — try to extract text
+            content = self._extract_pdf_text(filepath) or f"[PDF file: {filename} — text extraction returned empty]"
+            material_type = "plain_text"
+            channel = channel or "document"
+        elif ext in (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"):
+            # Image — store as reference, copy to upload dir
+            content = f"[Image file: {filename}]"
+            material_type = "image"
+            channel = channel or "visual_reference"
         else:
             # Unknown type — try as text
-            content = path.read_text(encoding="utf-8", errors="replace")
+            try:
+                content = path.read_text(encoding="utf-8", errors="replace")
+            except Exception:
+                content = f"[Binary file: {filename} — could not read as text]"
             material_type = "plain_text"
             channel = channel or "text"
 
@@ -132,7 +154,121 @@ class MaterialsIntake:
             self._update_field(material_id, "normalized_content",
                              f"[Audio file stored at: {dest} — transcription pending]")
 
+        # If image, copy to upload dir for reference
+        if material_type == "image":
+            dest = os.path.join(self.upload_dir, f"material_{material_id}{ext}")
+            import shutil
+            shutil.copy2(filepath, dest)
+
         return material_id
+
+    def ingest_zip(self, filepath: str, run_id: Optional[int] = None,
+                   business_slug: str = "", channel: str = "",
+                   date_approx: str = "", audience: str = "") -> int:
+        """
+        Extract a zip file and ingest each file inside it.
+        Returns the first material ID. All files are stored as separate materials.
+
+        Handles nested directories inside the zip. Skips:
+        - Hidden files (starting with .)
+        - __MACOSX metadata directories
+        - Empty directories
+        """
+        import zipfile
+        import tempfile
+        import shutil
+
+        path = Path(filepath)
+        if not path.exists():
+            raise FileNotFoundError(f"Zip file not found: {filepath}")
+
+        # Extract to a temp directory
+        extract_dir = tempfile.mkdtemp(prefix="vf_zip_")
+        try:
+            with zipfile.ZipFile(filepath, "r") as zf:
+                # Filter out junk entries
+                valid_names = [
+                    name for name in zf.namelist()
+                    if not name.startswith("__MACOSX")
+                    and not os.path.basename(name).startswith(".")
+                    and not name.endswith("/")  # skip directories
+                ]
+                if not valid_names:
+                    # Empty or junk-only zip
+                    material_id = self._store(
+                        run_id=run_id, business_slug=business_slug,
+                        filename=path.name, material_type="plain_text",
+                        channel=channel or "archive",
+                        date_approx=date_approx, audience=audience,
+                        raw_content=f"[Zip file: {path.name} — no readable files found inside]",
+                    )
+                    return material_id
+
+                zf.extractall(extract_dir, members=valid_names)
+
+            # Ingest each extracted file
+            material_ids = []
+            for root, dirs, files in os.walk(extract_dir):
+                # Skip __MACOSX dirs
+                dirs[:] = [d for d in dirs if not d.startswith(".") and d != "__MACOSX"]
+                for f in sorted(files):
+                    if f.startswith("."):
+                        continue
+                    extracted_path = os.path.join(root, f)
+                    rel_path = os.path.relpath(extracted_path, extract_dir)
+                    try:
+                        mid = self.ingest_file(
+                            extracted_path, run_id=run_id,
+                            business_slug=business_slug,
+                            channel=channel or "zip_extract",
+                            date_approx=date_approx, audience=audience,
+                        )
+                        material_ids.append(mid)
+                    except Exception as e:
+                        # Log the failure but continue with other files
+                        mid = self._store(
+                            run_id=run_id, business_slug=business_slug,
+                            filename=rel_path, material_type="plain_text",
+                            channel="zip_extract_error",
+                            date_approx=date_approx, audience=audience,
+                            raw_content=f"[Failed to ingest {rel_path}: {e}]",
+                        )
+                        material_ids.append(mid)
+
+            if not material_ids:
+                material_id = self._store(
+                    run_id=run_id, business_slug=business_slug,
+                    filename=path.name, material_type="plain_text",
+                    channel=channel or "archive",
+                    date_approx=date_approx, audience=audience,
+                    raw_content=f"[Zip file: {path.name} — no files could be ingested]",
+                )
+                return material_id
+
+            return material_ids[0]
+
+        finally:
+            # Clean up the temp directory
+            shutil.rmtree(extract_dir, ignore_errors=True)
+
+    def _extract_pdf_text(self, filepath: str) -> Optional[str]:
+        """Try to extract text from a PDF file using available libraries."""
+        # Try pdfplumber first (best quality), then PyPDF2, then fall back
+        try:
+            import pdfplumber
+            with pdfplumber.open(filepath) as pdf:
+                text = "\n\n".join(page.extract_text() or "" for page in pdf.pages)
+                return text.strip() if text.strip() else None
+        except ImportError:
+            pass
+        try:
+            from PyPDF2 import PdfReader
+            reader = PdfReader(filepath)
+            text = "\n\n".join(page.extract_text() or "" for page in reader.pages)
+            return text.strip() if text.strip() else None
+        except ImportError:
+            pass
+        return None
 
     def normalize_whatsapp(self, content: str, user_identifiers: list[str]) -> str:
         """
