@@ -3618,6 +3618,44 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             return "reel"
         return "single_post"
 
+    def _carry_draft_media(db_path: str, draft_id: int, asset_id: int):
+        """S4: Copy draft media rows into a spawned asset (link, don't re-render).
+        Copies owner_type='draft' rows for this draft_id as new owner_type='asset'
+        rows with the new asset_id, same file path (no file copy)."""
+        import sqlite3 as _sqlite3
+        conn = _sqlite3.connect(db_path)
+        # Check owner_type column exists
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(asset_media)").fetchall()]
+        if "owner_type" not in cols:
+            conn.close()
+            return 0
+
+        # Get draft media rows
+        rows = conn.execute(
+            "SELECT kind, path, model, prompt, cost_usd FROM asset_media WHERE asset_id = ? AND owner_type = 'draft'",
+            (draft_id,),
+        ).fetchall()
+
+        if not rows:
+            conn.close()
+            return 0
+
+        from datetime import datetime, timezone
+        ts = datetime.now(timezone.utc).isoformat()
+        carried = 0
+        for row in rows:
+            kind, path, model, prompt, cost_usd = row
+            conn.execute(
+                """INSERT INTO asset_media
+                   (asset_id, kind, path, model, prompt, cost_usd, created_at, owner_type)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 'asset')""",
+                (asset_id, kind, path, model, (prompt or "")[:2000], cost_usd, ts),
+            )
+            carried += 1
+        conn.commit()
+        conn.close()
+        return carried
+
     # ── S1b/S2: Novelty context helpers ──
 
     def _build_existing_ideas(business_slug: str, limit: int = 40) -> str:
@@ -5099,6 +5137,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     posts=posts,
                     native=True,
                 )
+                _carry_draft_media(app.config["DB_PATH"], draft_id, asset_id)
                 assets_created.append({"id": asset_id, "platform": platform_name, "native": True})
             else:
                 # Non-native platform — adaptation LLM call (fan_out_v2.1 with preserve-wording)
@@ -5133,6 +5172,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     posts=result.get("posts", []),
                     native=False,
                 )
+                _carry_draft_media(app.config["DB_PATH"], draft_id, asset_id)
                 assets_created.append({"id": asset_id, "platform": platform_name, "native": False})
 
         # F1: Mark job as done
@@ -5212,6 +5252,24 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         from media_adapter import MediaAdapter, MediaAdapterError
         adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
 
+        # S4: Count carried media — generate only for prompts beyond what's carried
+        carried_media = adapter.list_asset_media(asset_id, kind="image", owner_type="asset")
+        carried_count = len(carried_media)
+
+        # Check for regenerate flag
+        try:
+            req_body = request.get_json(silent=True) or {}
+        except Exception:
+            req_body = {}
+        regenerate = req_body.get("regenerate", False) if req_body else False
+
+        # If we have carried media and not regenerating, only generate for uncovered prompts
+        if carried_count > 0 and not regenerate:
+            active_prompts = [(i, p) for i, p in enumerate(image_prompts)
+                            if p.strip().lower() != "none" and i >= carried_count]
+        else:
+            active_prompts = [(i, p) for i, p in enumerate(image_prompts) if p.strip().lower() != "none"]
+
         # Determine aspect ratio from the platform
         platform_name = asset.get("platform", "").lower()
         if "instagram" in platform_name and "reel" in asset.get("variant_type", "").lower():
@@ -5225,8 +5283,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         results = []
         errors = []
-        # Filter out "none" prompts (text-only posts/slides)
-        active_prompts = [(i, p) for i, p in enumerate(image_prompts) if p.strip().lower() != "none"]
+        # S4: active_prompts already filtered above (carried media check)
         for idx, prompt in active_prompts:
             try:
                 result = adapter.generate_image(
@@ -5269,6 +5326,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         return jsonify({
             "status": "ok",
             "images_generated": len(results),
+            "carried": carried_count,
+            "regenerate": regenerate,
             "errors": errors,
             "image_paths": generated_paths,
         })
