@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error — ViralFactory</title>
+    <style>
+        :root {
+            --bg: #0d1117; --surface: #161b22; --border: #30363d;
+            --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7; --red: #f85149;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg); color: var(--text); line-height: 1.6;
+            padding: 2rem; max-width: 800px; margin: 0 auto;
+        }
+        h1 { color: var(--red); margin-bottom: 1rem; }
+        .nav { display: flex; gap: 1.5rem; margin-bottom: 2rem; }
+        .nav a { color: var(--muted); text-decoration: none; }
+        p { color: var(--muted); margin-bottom: 1rem; }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">Home</a>
+        <a href="/materials">Materials</a>
+        <a href="/library">Library</a>
+    </div>
+    <h1>Something went wrong</h1>
+    <p>{{ error }}</p>
+    <p><a href="/" style="color:var(--accent)">← Back to Dashboard</a></p>
+</body>
+</html>

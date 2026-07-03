@@ -56,6 +56,21 @@ class MaterialsIntake:
             conn.execute("SELECT transcription_status FROM materials LIMIT 1")
         except sqlite3.OperationalError:
             conn.execute("ALTER TABLE materials ADD COLUMN transcription_status TEXT")
+        # Additive migration: add excluded column if it doesn't exist
+        try:
+            conn.execute("SELECT excluded FROM materials LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute("ALTER TABLE materials ADD COLUMN excluded INTEGER DEFAULT 0")
+        # Material edits log — lightweight versioning (material_id, timestamp, before_hash)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS material_edits (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                material_id INTEGER NOT NULL,
+                edited_at TEXT NOT NULL,
+                before_hash TEXT,
+                FOREIGN KEY (material_id) REFERENCES materials(id)
+            );
+        """)
         conn.commit()
         conn.close()
 
@@ -366,6 +381,7 @@ class MaterialsIntake:
 
         Audio materials with transcription_status='done' include the transcript
         as corpus. Pending/failed audio is excluded.
+        Excluded materials are dropped (never deleted).
         """
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
@@ -378,6 +394,10 @@ class MaterialsIntake:
         samples = []
         total_words = 0
         for row in rows:
+            # Excluded materials drop out of corpus
+            if row["excluded"]:
+                continue
+
             content = row["normalized_content"] or row["raw_content"]
             trans_status = row["transcription_status"] if "transcription_status" in row.keys() else None
 
@@ -489,6 +509,7 @@ class MaterialsIntake:
             "date_approx",
             "audience",
             "transcription_status",
+            "excluded",
         }
         if field not in ALLOWED_FIELDS:
             raise ValueError(f"Invalid field name: {field!r}. Allowed: {sorted(ALLOWED_FIELDS)}")
@@ -499,3 +520,126 @@ class MaterialsIntake:
         )
         conn.commit()
         conn.close()
+
+    # ── Materials Library: edit, restore, exclude ──
+
+    def save_edit(self, material_id: int, new_normalized_content: str) -> dict:
+        """
+        Save an edit to a material's normalized_content.
+
+        - raw_content is NEVER touched (original forever).
+        - The previous normalized_content hash is logged to material_edits
+          for lightweight versioning (restore-to-original is a separate action).
+        - word_count is recomputed from the new content.
+        - Returns the updated material dict.
+        """
+        import hashlib
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT normalized_content, raw_content FROM materials WHERE id = ?",
+            (material_id,),
+        ).fetchone()
+        if not row:
+            conn.close()
+            raise ValueError(f"Material {material_id} not found")
+
+        # Hash the before-state (whatever the downstream consumer was reading)
+        before_content = row["normalized_content"] or row["raw_content"]
+        before_hash = hashlib.sha256(before_content.encode("utf-8")).hexdigest()
+
+        wc = len(new_normalized_content.split()) if new_normalized_content else 0
+        ts = datetime.now().isoformat()
+
+        conn.execute(
+            "UPDATE materials SET normalized_content = ?, word_count = ? WHERE id = ?",
+            (new_normalized_content, wc, material_id),
+        )
+        conn.execute(
+            "INSERT INTO material_edits (material_id, edited_at, before_hash) VALUES (?, ?, ?)",
+            (material_id, ts, before_hash),
+        )
+        conn.commit()
+        conn.close()
+
+        return self.get_material(material_id)
+
+    def restore_to_raw(self, material_id: int) -> dict:
+        """
+        Restore a material's normalized_content to its raw_content (the original).
+
+        - raw_content is the original extraction/transcription output.
+        - For audio materials, this means re-copying raw → normalized.
+        - For text materials, this undoes all normalize_text() edits.
+        - The restore is logged in material_edits like any other edit.
+        """
+        import hashlib
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT normalized_content, raw_content FROM materials WHERE id = ?",
+            (material_id,),
+        ).fetchone()
+        if not row:
+            conn.close()
+            raise ValueError(f"Material {material_id} not found")
+
+        before_content = row["normalized_content"] or row["raw_content"]
+        before_hash = hashlib.sha256(before_content.encode("utf-8")).hexdigest()
+        raw = row["raw_content"]
+        wc = len(raw.split()) if raw else 0
+        ts = datetime.now().isoformat()
+
+        conn.execute(
+            "UPDATE materials SET normalized_content = ?, word_count = ? WHERE id = ?",
+            (raw, wc, material_id),
+        )
+        conn.execute(
+            "INSERT INTO material_edits (material_id, edited_at, before_hash) VALUES (?, ?, ?)",
+            (material_id, ts, before_hash),
+        )
+        conn.commit()
+        conn.close()
+
+        return self.get_material(material_id)
+
+    def toggle_exclude(self, material_id: int, excluded: bool) -> dict:
+        """
+        Set the excluded flag on a material.
+
+        Excluded materials drop out of corpus, summaries, and drafting packages
+        but are never deleted. Toggling back to False restores them.
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            "UPDATE materials SET excluded = ? WHERE id = ?",
+            (1 if excluded else 0, material_id),
+        )
+        conn.commit()
+        conn.close()
+
+        return self.get_material(material_id)
+
+    def get_edit_history(self, material_id: int) -> list[dict]:
+        """Return the edit history log for a material (newest first)."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT * FROM material_edits WHERE material_id = ? ORDER BY id DESC",
+            (material_id,),
+        ).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+    def get_material_with_extras(self, material_id: int) -> dict:
+        """Get a single material with edit_count and excluded flag."""
+        mat = self.get_material(material_id)
+        if not mat:
+            return None
+        edits = self.get_edit_history(material_id)
+        mat["edit_count"] = len(edits)
+        mat["edits"] = edits
+        # Ensure excluded field exists
+        if "excluded" not in mat:
+            mat["excluded"] = 0
+        return mat

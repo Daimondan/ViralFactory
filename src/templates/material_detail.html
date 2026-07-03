@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ material.filename or 'Material' }} — Materials — ViralFactory</title>
+    <style>
+        :root {
+            --bg: #0d1117; --surface: #161b22; --border: #30363d;
+            --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7;
+            --green: #22c55e; --yellow: #eab308; --red: #f85149;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg); color: var(--text); line-height: 1.6;
+            padding: 2rem; max-width: 1000px; margin: 0 auto;
+        }
+        h1 { color: var(--accent); margin-bottom: 0.3rem; font-size: 1.4rem; }
+        .subtitle { color: var(--muted); margin-bottom: 1.5rem; font-size: 0.85rem; }
+        .nav { display: flex; gap: 1.5rem; margin-bottom: 2rem; }
+        .nav a { color: var(--muted); text-decoration: none; }
+        .nav a.active { color: var(--text); font-weight: 600; }
+
+        .meta-bar {
+            display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center;
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 10px; padding: 1rem 1.5rem; margin-bottom: 1.5rem;
+        }
+        .meta-item { font-size: 0.85rem; }
+        .meta-label { color: var(--muted); }
+        .meta-value { font-weight: 500; }
+        .badge {
+            font-size: 11px; font-weight: 600; padding: 3px 10px;
+            border-radius: 12px; text-transform: uppercase;
+        }
+        .badge.excluded {
+            background: rgba(248, 81, 73, 0.15); color: var(--red);
+            border: 1px solid rgba(248, 81, 73, 0.3);
+        }
+        .badge.active {
+            background: rgba(34, 197, 94, 0.15); color: var(--green);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .content-section {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem;
+        }
+        .section-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+        .section-header h2 {
+            font-size: 1rem; font-weight: 600; color: var(--text);
+        }
+        .section-actions { display: flex; gap: 0.5rem; }
+
+        .btn {
+            padding: 6px 16px; border: none; border-radius: 6px;
+            font-size: 13px; font-weight: 500; cursor: pointer;
+        }
+        .btn-edit { background: var(--accent); color: #fff; }
+        .btn-edit:hover { background: #1c6dd0; }
+        .btn-save { background: var(--green); color: #fff; }
+        .btn-cancel { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+        .btn-exclude { background: transparent; border: 1px solid rgba(248, 81, 73, 0.4); color: var(--red); }
+        .btn-exclude:hover { background: rgba(248, 81, 73, 0.1); }
+        .btn-include { background: transparent; border: 1px solid rgba(34, 197, 94, 0.4); color: var(--green); }
+        .btn-restore { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+        .btn-restore:hover { background: var(--bg); }
+
+        .content-display {
+            background: var(--bg); border-radius: 8px; padding: 1rem;
+            font-size: 14px; line-height: 1.7; white-space: pre-wrap;
+            word-wrap: break-word; min-height: 200px;
+            max-height: 600px; overflow-y: auto;
+        }
+        .edit-area {
+            width: 100%; min-height: 300px;
+            background: var(--bg); color: var(--text);
+            border: 1px solid var(--accent); border-radius: 8px;
+            padding: 1rem; font-family: -apple-system, sans-serif;
+            font-size: 14px; line-height: 1.7; resize: vertical;
+        }
+
+        .raw-section .content-display {
+            color: var(--muted); font-size: 13px;
+        }
+        .raw-section {
+            border-style: dashed;
+        }
+
+        .edit-history {
+            font-size: 0.8rem; color: var(--muted);
+        }
+        .edit-history li { margin-bottom: 0.3rem; }
+
+        .spinner {
+            display: inline-block; width: 14px; height: 14px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #fff; border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            vertical-align: middle; margin-right: 6px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .toast {
+            position: fixed; bottom: 20px; right: 20px;
+            background: var(--green); color: #fff; padding: 10px 20px;
+            border-radius: 8px; font-size: 14px; z-index: 100;
+            display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .toast.error { background: var(--red); }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">Home</a>
+        <a href="/materials" class="active">← Materials</a>
+        <a href="/library">Library</a>
+    </div>
+
+    <h1>{{ material.filename or 'Pasted text' }}</h1>
+    <p class="subtitle">
+        {{ material.material_type }} · {{ material.channel or 'no channel' }}
+        {% if material.run_id %}· Run #{{ material.run_id }}{% endif %}
+        · {{ material.word_count or 0 }} words
+    </p>
+
+    <div class="meta-bar">
+        <div class="meta-item">
+            <span class="meta-label">Status:</span>
+            {% if material.excluded %}
+            <span class="badge excluded">Excluded</span>
+            {% else %}
+            <span class="badge active">Active</span>
+            {% endif %}
+        </div>
+        {% if material.transcription_status %}
+        <div class="meta-item">
+            <span class="meta-label">Transcription:</span>
+            <span class="meta-value">{{ material.transcription_status }}</span>
+        </div>
+        {% endif %}
+        {% if material.date_approx %}
+        <div class="meta-item">
+            <span class="meta-label">Date:</span>
+            <span class="meta-value">{{ material.date_approx }}</span>
+        </div>
+        {% endif %}
+        {% if material.audience %}
+        <div class="meta-item">
+            <span class="meta-label">Audience:</span>
+            <span class="meta-value">{{ material.audience }}</span>
+        </div>
+        {% endif %}
+        {% if material.edit_count %}
+        <div class="meta-item">
+            <span class="meta-label">Edits:</span>
+            <span class="meta-value">{{ material.edit_count }}</span>
+        </div>
+        {% endif %}
+        <div class="meta-item" style="margin-left:auto;">
+            {% if material.excluded %}
+            <button class="btn btn-include" id="excludeBtn" onclick="toggleExclude(false)">Include in corpus</button>
+            {% else %}
+            <button class="btn btn-exclude" id="excludeBtn" onclick="toggleExclude(true)">Exclude from corpus</button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="content-section" id="contentSection">
+        <div class="section-header">
+            <h2>Content (editable)</h2>
+            <div class="section-actions" id="contentActions">
+                <button class="btn btn-edit" onclick="startEdit()">Edit</button>
+                <button class="btn btn-restore" onclick="restoreRaw()">Restore to original</button>
+            </div>
+        </div>
+        <div class="content-display" id="contentDisplay">{{ material.normalized_content or material.raw_content or '[No content]' }}</div>
+    </div>
+
+    <div class="content-section raw-section">
+        <div class="section-header">
+            <h2>Original (read-only — never modified)</h2>
+        </div>
+        <div class="content-display">{{ material.raw_content or '[No raw content]' }}</div>
+    </div>
+
+    {% if material.edits %}
+    <div class="content-section">
+        <div class="section-header">
+            <h2>Edit history</h2>
+        </div>
+        <ul class="edit-history">
+            {% for edit in material.edits %}
+            <li>{{ edit.edited_at }} — before-hash: <code>{{ edit.before_hash[:12] }}…</code></li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+    let originalContent = {{ (material.normalized_content or material.raw_content or '') | tojson }};
+
+    function showToast(msg, isError) {
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.className = 'toast' + (isError ? ' error' : '');
+        toast.style.display = 'block';
+        setTimeout(() => toast.style.display = 'none', 3000);
+    }
+
+    function startEdit() {
+        const display = document.getElementById('contentDisplay');
+        const actions = document.getElementById('contentActions');
+        const textarea = document.createElement('textarea');
+        textarea.className = 'edit-area';
+        textarea.id = 'editArea';
+        textarea.value = originalContent;
+        display.replaceWith(textarea);
+        actions.innerHTML = `
+            <button class="btn btn-save" id="saveBtn" onclick="saveEdit()">Save</button>
+            <button class="btn btn-cancel" onclick="cancelEdit()">Cancel</button>
+        `;
+        // Safe: static HTML only, no user content in innerHTML
+        textarea.focus();
+    }
+
+    function cancelEdit() {
+        location.reload();
+    }
+
+    async function saveEdit() {
+        const textarea = document.getElementById('editArea');
+        const content = textarea.value;
+        const saveBtn = document.getElementById('saveBtn');
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<span class="spinner"></span>Saving…';
+
+        try {
+            const resp = await fetch('/api/materials/{{ material.id }}/edit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: content }),
+            });
+            const data = await resp.json();
+            if (data.status === 'ok') {
+                originalContent = content;
+                showToast('Saved — word count: ' + data.word_count);
+                setTimeout(() => location.reload(), 800);
+            } else {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Save';
+                showToast('Error: ' + (data.error || 'unknown'), true);
+            }
+        } catch (err) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save';
+            showToast('Connection error', true);
+        }
+    }
+
+    async function toggleExclude(exclude) {
+        const btn = document.getElementById('excludeBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Working…';
+
+        try {
+            const resp = await fetch('/api/materials/{{ material.id }}/exclude', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ excluded: exclude }),
+            });
+            const data = await resp.json();
+            if (data.status === 'ok') {
+                showToast(exclude ? 'Excluded from corpus' : 'Included in corpus');
+                setTimeout(() => location.reload(), 800);
+            } else {
+                btn.disabled = false;
+                showToast('Error: ' + (data.error || 'unknown'), true);
+            }
+        } catch (err) {
+            btn.disabled = false;
+            showToast('Connection error', true);
+        }
+    }
+
+    async function restoreRaw() {
+        if (!confirm('Restore normalized content to the original? This undoes all edits.')) return;
+
+        const btn = event.target;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Restoring…';
+
+        try {
+            const resp = await fetch('/api/materials/{{ material.id }}/restore', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
+            });
+            const data = await resp.json();
+            if (data.status === 'ok') {
+                showToast('Restored to original');
+                setTimeout(() => location.reload(), 800);
+            } else {
+                btn.disabled = false;
+                btn.textContent = 'Restore to original';
+                showToast('Error: ' + (data.error || 'unknown'), true);
+            }
+        } catch (err) {
+            btn.disabled = false;
+            btn.textContent = 'Restore to original';
+            showToast('Connection error', true);
+        }
+    }
+    </script>
+</body>
+</html>

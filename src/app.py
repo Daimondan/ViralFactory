@@ -1664,6 +1664,113 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         return jsonify({"status": "ok", "module": module_name})
 
+    # ── Materials Library (CORRECTION-final-assembly-and-materials-editing-v1.0 Part 2) ──
+
+    @app.route("/materials")
+    def materials_library():
+        """Materials page — lists all materials with filter by run and channel."""
+        from materials import MaterialsIntake
+        try:
+            config = load_all(config_dir)
+            business_slug = config["business"]["business"]["slug"]
+        except ConfigError:
+            business_slug = None
+
+        materials_list = []
+        if business_slug:
+            intake = MaterialsIntake(db_path=app.config["DB_PATH"])
+            materials_list = intake.list_materials(business_slug=business_slug)
+
+        # Build filter options
+        channels = sorted(set(m.get("channel", "") for m in materials_list if m.get("channel")))
+        run_ids = sorted(set(m.get("run_id") for m in materials_list if m.get("run_id")))
+
+        # Apply filters from query params
+        filter_run = request.args.get("run_id", type=int)
+        filter_channel = request.args.get("channel", "")
+        if filter_run:
+            materials_list = [m for m in materials_list if m.get("run_id") == filter_run]
+        if filter_channel:
+            materials_list = [m for m in materials_list if m.get("channel") == filter_channel]
+
+        # Add excerpts
+        for m in materials_list:
+            content = m.get("normalized_content") or m.get("raw_content", "")
+            m["excerpt"] = content[:300] if content else ""
+            m["excluded_flag"] = bool(m.get("excluded", 0))
+
+        return render_template("materials.html",
+            business_slug=business_slug,
+            materials=materials_list,
+            channels=channels,
+            run_ids=run_ids,
+            filter_run=filter_run,
+            filter_channel=filter_channel,
+        )
+
+    @app.route("/materials/<int:material_id>")
+    def material_detail(material_id):
+        """Detail view for a single material — editable normalized_content."""
+        from materials import MaterialsIntake
+        intake = MaterialsIntake(db_path=app.config["DB_PATH"])
+        material = intake.get_material_with_extras(material_id)
+        if not material:
+            return render_template("error.html", error="Material not found"), 404
+        return render_template("material_detail.html", material=material)
+
+    @app.route("/api/materials/<int:material_id>/edit", methods=["POST"])
+    def api_material_edit(material_id):
+        """Edit a material's normalized_content. raw_content is never touched."""
+        from materials import MaterialsIntake
+        intake = MaterialsIntake(db_path=app.config["DB_PATH"])
+        material = intake.get_material(material_id)
+        if not material:
+            return jsonify({"error": "Material not found"}), 404
+
+        content = request.json.get("content", "")
+        if not content.strip():
+            return jsonify({"error": "Content cannot be empty"}), 400
+
+        updated = intake.save_edit(material_id, content)
+        return jsonify({
+            "status": "ok",
+            "material_id": material_id,
+            "word_count": updated.get("word_count", 0),
+        })
+
+    @app.route("/api/materials/<int:material_id>/exclude", methods=["POST"])
+    def api_material_exclude(material_id):
+        """Toggle the excluded flag on a material."""
+        from materials import MaterialsIntake
+        intake = MaterialsIntake(db_path=app.config["DB_PATH"])
+        material = intake.get_material(material_id)
+        if not material:
+            return jsonify({"error": "Material not found"}), 404
+
+        excluded = request.json.get("excluded", False)
+        updated = intake.toggle_exclude(material_id, excluded)
+        return jsonify({
+            "status": "ok",
+            "material_id": material_id,
+            "excluded": bool(updated.get("excluded", 0)),
+        })
+
+    @app.route("/api/materials/<int:material_id>/restore", methods=["POST"])
+    def api_material_restore(material_id):
+        """Restore a material's normalized_content to its raw_content."""
+        from materials import MaterialsIntake
+        intake = MaterialsIntake(db_path=app.config["DB_PATH"])
+        material = intake.get_material(material_id)
+        if not material:
+            return jsonify({"error": "Material not found"}), 404
+
+        restored = intake.restore_to_raw(material_id)
+        return jsonify({
+            "status": "ok",
+            "material_id": material_id,
+            "word_count": restored.get("word_count", 0),
+        })
+
     @app.route("/onboard/<playbook_name>/<int:run_id>/intake", methods=["GET"])
     def intake_page(playbook_name, run_id):
         """Materials intake UI for a playbook run."""
