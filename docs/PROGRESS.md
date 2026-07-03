@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-03
-**Current Phase:** M5 complete. Inbox batch F (CORRECTION-generation-diversity-and-asset-continuity-v1.0) received — T3.13 added to BUILD_PLAN. Starting S1a → S3 → S1b/S1c → S4 → S2, then M3 checkpoint, then M6. 543 tests passing.
+**Current Phase:** T3.13 complete (S1a-S4 + Buffer adapter). 565 tests passing. Postiz replaced with Buffer API (channels configured, verified live). M3 checkpoint next, then T2.12 (processes.yaml), then M6 (outward research).
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
