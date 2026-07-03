@@ -138,6 +138,16 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 except Exception:
                     return iso_str[:16]
 
+            def fmt_date(iso_str):
+                """Format ISO timestamp as date only."""
+                if not iso_str:
+                    return ""
+                try:
+                    dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+                    return dt.strftime("%b %d, %Y")
+                except Exception:
+                    return iso_str[:10]
+
             # Build a grouped activity log: each idea gets one entry with sub-events
             all_cards = store.list_idea_cards(business_slug)
             grouped = {}  # {idea_title: {type, state, title, link, time, sub_events: []}}
