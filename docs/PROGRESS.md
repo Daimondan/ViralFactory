@@ -96,3 +96,4 @@
 - [x] Session memory & materials fixes (CORRECTION-session-memory-and-materials-v1.1): F3 tail-slice + 12k budget, F1 file note in transcript, F2a materials in converse prompt, F2b docx extraction, F2c mp4/opus/aac/flac as audio, F5 anti-repeat guard. 347 tests total.
 - [ ] F4: replace parallel-array transcript with single turn log (P1, deferred).
 - [ ] F2c: audio transcription implementation — blocked on DIVERGENCE-005 (operator decision: faster-whisper vs hosted API).
+- [x] Onboarding Orchestrator: single-thread onboarding — one conversation feeds all 8 playbooks. Coverage map, inline drafting, gate cards in chat, progress rail. 357 tests total.

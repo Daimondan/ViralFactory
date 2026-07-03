@@ -118,7 +118,104 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     @app.route("/onboard")
     def onboard():
-        """Onboarding surface — list playbooks sorted by run_order with locked/completed state."""
+        """Single-thread onboarding — one conversation for all 8 playbooks.
+
+        Opens directly into the conversation (new or resumed). The hub page
+        is retired as an entry point. (CORRECTION-onboarding-single-thread-v1.0 Item 2)
+        """
+        config = load_all(app.config["CONFIG_DIR"])
+        business_slug = config["business"]["business"]["slug"]
+        business_name = config["business"]["business"]["name"]
+
+        runner = PlaybookRunner(app.config["DB_PATH"])
+
+        # Find or create the single onboarding run (playbook_name = "onboarding")
+        all_runs = runner.list_runs(business_slug)
+        onboarding_run = None
+        for r in all_runs:
+            if r["playbook_name"] == "onboarding" and r["status"] not in ("completed", "cancelled"):
+                onboarding_run = r
+                break
+
+        if onboarding_run:
+            run_id = onboarding_run["id"]
+            run = onboarding_run
+        else:
+            run_id = runner.start_run("onboarding", "1.0", business_slug)
+            run = runner.get_run(run_id)
+
+        collected = json.loads(run.get("collected_inputs") or "{}")
+
+        # Build coverage map
+        from module_store import ModuleStore
+        ms = ModuleStore(app.config.get("MODULES_DIR", "modules"))
+        coverage = _build_coverage_map(collected, module_store=ms)
+
+        # Save coverage if it's new
+        if "coverage" not in collected:
+            collected["coverage"] = coverage
+            runner.update_run(run_id, collected_inputs=json.dumps(collected))
+
+        # Build conversation history
+        conversation_so_far = _build_conversation_history(collected)
+
+        # Opening question for fresh conversation
+        opening_question = "Welcome! I'm going to learn everything about your business in one conversation — your story, your voice, your audience, your style. This will feed all eight onboarding modules at once. Let's start simple: tell me about your business. What do you do, who's it for, and what makes you different?"
+
+        if not collected.get("ai_replies") and not collected.get("session_messages"):
+            if "ai_replies" not in collected:
+                collected["ai_replies"] = []
+            collected["ai_replies"].append(opening_question)
+            runner.update_run(run_id, collected_inputs=json.dumps(collected))
+
+        # Build coverage chips for the progress rail
+        coverage_chips = []
+        pb_dir = app.config["PLAYBOOKS_DIR"]
+        for pb_name in ONBOARDING_PLAYBOOKS:
+            pb_path = os.path.join(pb_dir, f"{pb_name}.md")
+            label = pb_name
+            if os.path.exists(pb_path):
+                pb = PlaybookParser.parse(pb_path)
+                label = pb.display_label or pb_name
+            entry = coverage.get(pb_name, {"status": "empty"})
+            coverage_chips.append({
+                "name": pb_name,
+                "label": label,
+                "status": entry.get("status", "empty"),
+            })
+
+        # Check for any drafted docs with gate cards pending
+        llm_outputs = json.loads(run.get("llm_outputs") or "{}")
+        gate_cards = []
+        for pb_name in ONBOARDING_PLAYBOOKS:
+            output_key = pb_name.replace("-", "_")
+            if output_key in llm_outputs:
+                output = llm_outputs[output_key]
+                gate_results = json.loads(run.get("gate_results") or "{}")
+                if pb_name not in gate_results:
+                    # This doc has been drafted but not yet gated — show gate card
+                    readback = _build_readback(pb_name, output)
+                    gate_cards.append({
+                        "playbook": pb_name,
+                        "readback": readback,
+                        "output_key": output_key,
+                    })
+
+        # Build materials summary
+        materials_summary = _build_materials_summary(run_id)
+
+        return render_template("onboarding_session.html",
+            business_name=business_name, business_slug=business_slug,
+            run_id=run_id, run=run,
+            opening_question=opening_question,
+            conversation_so_far=conversation_so_far,
+            coverage_chips=coverage_chips,
+            gate_cards=gate_cards,
+            materials_summary=materials_summary)
+
+    @app.route("/onboard/hub")
+    def onboard_hub():
+        """Legacy hub page — kept for reference, not the entry point."""
         playbooks = []
         pb_dir = app.config["PLAYBOOKS_DIR"]
         if os.path.isdir(pb_dir):
@@ -315,6 +412,70 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 return True
         return False
 
+    # ── Onboarding Orchestrator (single-thread onboarding) ──
+
+    ONBOARDING_PLAYBOOKS = [
+        "business-profile-intake",
+        "voice-profile-builder",
+        "sources-engine",
+        "viral-patterns-starter",
+        "audience-insights-builder",
+        "story-frameworks-starter",
+        "format-guide-starter",
+        "visual-style-intake",
+    ]
+
+    def _build_coverage_map(collected, module_store=None):
+        """Build the coverage map from collected inputs and existing approved modules.
+
+        Statuses: empty → collecting → ready → drafted → approved
+        """
+        coverage = collected.get("coverage", {})
+        # Seed from existing approved modules
+        if module_store:
+            for pb_name in ONBOARDING_PLAYBOOKS:
+                if pb_name not in coverage or coverage[pb_name].get("status") == "empty":
+                    try:
+                        mod = module_store.load_latest("default", pb_name.replace("-starter", "").replace("-builder", "").replace("-intake", "").replace("-engine", ""))
+                        if mod:
+                            coverage[pb_name] = {"status": "approved", "doc_version": mod.get("version", "1.0")}
+                    except Exception:
+                        pass
+        # Ensure all 8 playbooks are in the map
+        for pb_name in ONBOARDING_PLAYBOOKS:
+            if pb_name not in coverage:
+                coverage[pb_name] = {"status": "empty"}
+        return coverage
+
+    def _format_coverage_map(coverage):
+        """Format coverage map as readable text for the LLM prompt."""
+        lines = []
+        for pb_name in ONBOARDING_PLAYBOOKS:
+            entry = coverage.get(pb_name, {"status": "empty"})
+            status = entry.get("status", "empty")
+            extra = ""
+            if entry.get("gaps"):
+                extra = f" — gaps: {', '.join(entry['gaps'])}"
+            if entry.get("doc_version"):
+                extra += f" (v{entry['doc_version']})"
+            lines.append(f"- {pb_name}: {status}{extra}")
+        return "\n".join(lines)
+
+    def _build_playbook_inputs_all():
+        """Build a combined summary of what each of the 8 playbooks needs."""
+        pb_dir = app.config["PLAYBOOKS_DIR"]
+        lines = []
+        for pb_name in ONBOARDING_PLAYBOOKS:
+            pb_path = os.path.join(pb_dir, f"{pb_name}.md")
+            if not os.path.exists(pb_path):
+                continue
+            playbook = PlaybookParser.parse(pb_path)
+            label = playbook.display_label or pb_name
+            purpose = playbook.purpose[:200] if playbook.purpose else ""
+            inputs = "; ".join(playbook.inputs[:5]) if playbook.inputs else "free-form conversation"
+            lines.append(f"### {label} ({pb_name})\n{purpose}\nNeeds: {inputs}\n")
+        return "\n".join(lines)
+
     def _build_materials_summary(run_id):
         """Build a summary of uploaded materials for the converse prompt.
 
@@ -416,6 +577,362 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         if audience:
             lines.append(f"Audience: {audience}")
         return "\n".join(lines)
+
+    # ── Onboarding Orchestrator API ──
+
+    @app.route("/api/onboarding/<int:run_id>/message", methods=["POST"])
+    def onboarding_message(run_id):
+        """Handle a message in the single-thread onboarding conversation.
+
+        Uses the orchestrator prompt which routes seeds to all 8 docs,
+        updates coverage, and flags docs as ready for drafting.
+        """
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        text = request.json.get("text", "").strip()
+        files = request.json.get("files", [])
+
+        if not text and not files:
+            return jsonify({"error": "No message provided"}), 400
+
+        # Store the message
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        if "session_messages" not in collected:
+            collected["session_messages"] = []
+        file_note = ""
+        if files:
+            file_note = f"\n[Operator attached files: {', '.join(files)}]"
+        turn_text = (text + "\n" if text else "") + file_note.strip() if files else text
+        collected["session_messages"].append(turn_text)
+        if "business_qa" not in collected:
+            collected["business_qa"] = []
+        collected["business_qa"].append({"q": "(session message)", "a": turn_text})
+
+        # Get config
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+            business = config["business"]
+        except ConfigError as e:
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        # Build conversation history and materials summary
+        conversation_so_far = _build_conversation_history(collected)
+        materials_summary = _build_materials_summary(run_id)
+
+        # Build coverage map
+        from module_store import ModuleStore
+        ms = ModuleStore(app.config.get("MODULES_DIR", "modules"))
+        coverage = _build_coverage_map(collected, module_store=ms)
+
+        # Build playbook inputs summary
+        playbook_inputs = _build_playbook_inputs_all()
+
+        # Call the orchestrator LLM
+        from llm_adapter import LLMAdapter, LLMAdapterError
+        adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
+
+        orchestrator_schema = {
+            "type": "object",
+            "required": ["reply", "routed_seeds", "coverage_updates", "next_focus"],
+            "properties": {
+                "reply": {"type": "string"},
+                "routed_seeds": {"type": "array", "items": {"type": "object",
+                    "properties": {"doc": {"type": "string"}, "seed": {"type": "string"}}}},
+                "coverage_updates": {"type": "array", "items": {"type": "object",
+                    "properties": {"doc": {"type": "string"}, "status": {"type": "string"}}}},
+                "next_focus": {"type": "string"},
+            },
+        }
+
+        try:
+            result = adapter.complete(
+                prompt_file="session/onboarding_orchestrator_v1.md",
+                variables={
+                    "business_name": business["business"]["name"],
+                    "coverage_map": _format_coverage_map(coverage),
+                    "materials_summary": materials_summary,
+                    "playbook_inputs": playbook_inputs[:4000],
+                    "conversation_so_far": conversation_so_far[-12000:],
+                },
+                schema=orchestrator_schema,
+                backend="default",
+                context=f"Onboarding orchestrator for run {run_id}",
+                business_slug=business["business"]["slug"],
+            )
+        except (LLMAdapterError, Exception) as e:
+            return jsonify({"error": str(e)}), 500
+
+        # Apply coverage updates
+        for update in result.get("coverage_updates", []):
+            doc = update.get("doc", "")
+            status = update.get("status", "")
+            if doc in ONBOARDING_PLAYBOOKS and status in ("empty", "collecting", "ready", "drafted", "approved"):
+                coverage[doc] = {"status": status}
+        collected["coverage"] = coverage
+
+        # Save the AI's reply
+        if "ai_replies" not in collected:
+            collected["ai_replies"] = []
+        collected["ai_replies"].append(result["reply"])
+        runner.update_run(run_id, collected_inputs=json.dumps(collected))
+
+        # Check if any docs just hit "ready" — trigger drafting for them
+        drafted_cards = []
+        for update in result.get("coverage_updates", []):
+            doc = update.get("doc", "")
+            status = update.get("status", "")
+            if status == "ready" and doc in ONBOARDING_PLAYBOOKS:
+                # Check if we already have an output for this doc
+                llm_outputs = json.loads(run.get("llm_outputs") or "{}")
+                output_key = doc.replace("-", "_")
+                if output_key not in llm_outputs:
+                    # Trigger drafting for this doc
+                    draft_result = _draft_onboarding_doc(run_id, runner, run, doc, business, models_config, collected)
+                    if draft_result:
+                        drafted_cards.append({
+                            "playbook": doc,
+                            "readback": _build_readback(doc, draft_result),
+                            "output_key": output_key,
+                        })
+
+        # Update coverage for drafted docs
+        for card in drafted_cards:
+            coverage[card["playbook"]] = {"status": "drafted"}
+        collected["coverage"] = coverage
+        runner.update_run(run_id, collected_inputs=json.dumps(collected))
+
+        # Return coverage chips for UI update
+        coverage_chips = []
+        pb_dir = app.config["PLAYBOOKS_DIR"]
+        for pb_name in ONBOARDING_PLAYBOOKS:
+            pb_path = os.path.join(pb_dir, f"{pb_name}.md")
+            label = pb_name
+            if os.path.exists(pb_path):
+                pb = PlaybookParser.parse(pb_path)
+                label = pb.display_label or pb_name
+            entry = coverage.get(pb_name, {"status": "empty"})
+            coverage_chips.append({
+                "name": pb_name,
+                "label": label,
+                "status": entry.get("status", "empty"),
+            })
+
+        return jsonify({
+            "status": "ok",
+            "reply": result["reply"],
+            "coverage_chips": coverage_chips,
+            "drafted_cards": drafted_cards,
+            "next_focus": result.get("next_focus", ""),
+        })
+
+    def _draft_onboarding_doc(run_id, runner, run, playbook_name, business, models_config, collected):
+        """Trigger the playbook-specific analysis for a doc that hit 'ready'.
+
+        Returns the analysis result dict, or None on failure.
+        """
+        # Map playbook name → analysis prompt file, schema, and output key
+        from module_store import (
+            BUSINESS_PROFILE_SCHEMA, SOURCE_CRITERIA_SCHEMA, VIRAL_PATTERNS_SCHEMA,
+            AUDIENCE_INSIGHTS_SCHEMA, STORY_FRAMEWORKS_SCHEMA, FORMAT_GUIDE_SCHEMA,
+            VISUAL_STYLE_SCHEMA, VOICE_PROFILE_SCHEMA,
+        )
+
+        playbook_map = {
+            "business-profile-intake": ("business_profile/analyze_v1.md", BUSINESS_PROFILE_SCHEMA, "business_profile_intake"),
+            "voice-profile-builder": ("voice_profile/analyze_v1.md", VOICE_PROFILE_SCHEMA, "voice_profile_builder"),
+            "sources-engine": ("sources_engine/analyze_v1.md", SOURCE_CRITERIA_SCHEMA, "sources_engine"),
+            "viral-patterns-starter": ("viral_patterns/analyze_v1.md", VIRAL_PATTERNS_SCHEMA, "viral_patterns_starter"),
+            "audience-insights-builder": ("audience_insights/analyze_v1.md", AUDIENCE_INSIGHTS_SCHEMA, "audience_insights_builder"),
+            "story-frameworks-starter": ("story_frameworks/analyze_v1.md", STORY_FRAMEWORKS_SCHEMA, "story_frameworks_starter"),
+            "format-guide-starter": ("format_guide/analyze_v1.md", FORMAT_GUIDE_SCHEMA, "format_guide_starter"),
+            "visual-style-intake": ("visual_style/analyze_v1.md", VISUAL_STYLE_SCHEMA, "visual_style_intake"),
+        }
+
+        prompt_file, schema, output_key = playbook_map.get(
+            playbook_name, ("business_profile/analyze_v1.md", BUSINESS_PROFILE_SCHEMA, "business_profile_intake")
+        )
+
+        # Build transcript from collected Q&A
+        qa_pairs = collected.get("business_qa", [])
+        transcript = ""
+        for i, pair in enumerate(qa_pairs, 1):
+            transcript += f"Q{i}: {pair.get('q', '(free-form)')}\nA{i}: {pair['a']}\n\n"
+
+        from llm_adapter import LLMAdapter, LLMAdapterError
+        adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
+
+        variables = {
+            "business_name": business["business"]["name"],
+            "existing_info": business["business"].get("description", ""),
+            "qa_transcript": transcript[:8000],
+            "subjects": ", ".join(business.get("subjects", [])),
+            "audience_description": business.get("audience_description", ""),
+        }
+
+        # Add playbook-specific variables
+        if playbook_name == "sources-engine":
+            variables["seed_sources"] = _format_seed_sources(collected)
+            variables["anti_examples"] = _format_anti_examples(collected)
+        elif playbook_name == "viral-patterns-starter":
+            variables["admired_examples"] = _format_admired(collected)
+            variables["anti_examples"] = _format_viral_anti(collected)
+        elif playbook_name == "audience-insights-builder":
+            variables["operator_description"] = collected.get("audience_operator_desc", "")
+            variables["audience_data"] = collected.get("audience_data", "(none)")
+            variables["admired_signals"] = collected.get("audience_admired_signals", "(none)")
+        elif playbook_name == "story-frameworks-starter":
+            variables["admired_examples"] = collected.get("story_admired_refs", "(none)")
+            variables["operator_stories"] = collected.get("operator_stories", "")
+            variables["voice_summary"] = collected.get("voice_summary", "(not available)")
+        elif playbook_name == "format-guide-starter":
+            platforms_text = ", ".join(f"{p['name']} ({p.get('handle', '')})" for p in business.get("platforms", []))
+            variables["platforms"] = platforms_text
+            variables["format_observations"] = collected.get("format_observations", "(none)")
+            variables["platform_norms"] = collected.get("platform_norms", "(use general knowledge)")
+        elif playbook_name == "visual-style-intake":
+            platforms_text = ", ".join(f"{p['name']} ({p.get('handle', '')})" for p in business.get("platforms", []))
+            variables["platforms"] = platforms_text
+            variables["brand_assets"] = collected.get("brand_assets", "(none)")
+            variables["visual_examples"] = collected.get("visual_examples", "(none)")
+            variables["shot_library_summary"] = "(see uploaded files)"
+
+        try:
+            result = adapter.complete(
+                prompt_file=prompt_file,
+                variables=variables,
+                schema=schema,
+                backend="default",
+                context=f"Onboarding auto-draft: {playbook_name} for run {run_id}",
+                business_slug=business["business"]["slug"],
+            )
+        except (LLMAdapterError, Exception):
+            return None
+
+        runner.add_llm_output(run_id, output_key, result)
+        return result
+
+    @app.route("/api/onboarding/<int:run_id>/gate/<playbook_name>", methods=["POST"])
+    def onboarding_gate(run_id, playbook_name):
+        """Handle a gate decision for an onboarding doc (approve/park/reject)."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        decision = request.json.get("decision", "park")
+        edit_text = request.json.get("edit", "")
+
+        # Record gate result
+        runner.set_gate_result(run_id, playbook_name, decision, edit_text[:500])
+
+        # If approved, store the module
+        if decision == "approve":
+            llm_outputs = json.loads(run.get("llm_outputs") or "{}")
+            output_key = playbook_name.replace("-", "_")
+            output = llm_outputs.get(output_key)
+            if output:
+                try:
+                    config = load_all(app.config["CONFIG_DIR"])
+                    business_slug = config["business"]["business"]["slug"]
+                    from module_store import ModuleStore, generate_gate_token
+                    ms = ModuleStore(app.config.get("MODULES_DIR", "modules"))
+                    gate_token = generate_gate_token(run_id)
+                    pb_path = os.path.join(app.config["PLAYBOOKS_DIR"], f"{playbook_name}.md")
+                    playbook = PlaybookParser.parse(pb_path)
+                    gate_step = PlaybookRunner.get_gate_step_number(playbook)
+                    runner.set_gate_result(run_id, gate_step, "approve", "Onboarding orchestrator")
+                    gate_token = generate_gate_token(run_id)
+
+                    # Convert output to markdown and store
+                    md = _convert_playbook_output_to_markdown(playbook_name, output)
+                    module_name = playbook_name.replace("-starter", "").replace("-builder", "").replace("-intake", "").replace("-engine", "")
+                    ms.store(business_slug, module_name, md, gate_token=gate_token, run_id=run_id)
+                except Exception as e:
+                    return jsonify({"error": f"Failed to store module: {e}"}), 500
+
+        # Update coverage map
+        collected = json.loads(run.get("collected_inputs") or "{}")
+        coverage = collected.get("coverage", {})
+        if decision == "approve":
+            coverage[playbook_name] = {"status": "approved"}
+        elif decision == "park":
+            coverage[playbook_name] = {"status": "drafted"}  # stays drafted
+        collected["coverage"] = coverage
+        runner.update_run(run_id, collected_inputs=json.dumps(collected))
+
+        return jsonify({"status": "ok", "decision": decision})
+
+    def _convert_playbook_output_to_markdown(playbook_name, output):
+        """Convert a playbook analysis output to markdown for module storage."""
+        from module_store import (
+            business_profile_to_markdown, source_criteria_to_markdown,
+            viral_patterns_to_markdown, audience_insights_to_markdown,
+            story_frameworks_to_markdown, format_guide_to_markdown,
+            visual_style_to_markdown, voice_profile_to_markdown,
+        )
+        # Each converter has its own signature — call appropriately
+        if playbook_name == "business-profile-intake":
+            return business_profile_to_markdown(output)
+        elif playbook_name == "sources-engine":
+            return source_criteria_to_markdown(output)
+        elif playbook_name == "viral-patterns-starter":
+            return viral_patterns_to_markdown(output)
+        elif playbook_name == "audience-insights-builder":
+            return audience_insights_to_markdown(output)
+        elif playbook_name == "story-frameworks-starter":
+            return story_frameworks_to_markdown(output)
+        elif playbook_name == "format-guide-starter":
+            return format_guide_to_markdown(output)
+        elif playbook_name == "visual-style-intake":
+            return visual_style_to_markdown(output)
+        elif playbook_name == "voice-profile-builder":
+            return voice_profile_to_markdown(output, "Business", "1.0")
+        # Fallback: generic JSON dump
+        return f"```json\n{json.dumps(output, indent=2)}\n```"
+
+    @app.route("/api/onboarding/<int:run_id>/upload", methods=["POST"])
+    def onboarding_upload(run_id):
+        """Handle a file upload in the onboarding session."""
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        run = runner.get_run(run_id)
+        if not run:
+            return jsonify({"error": "Run not found"}), 404
+
+        if "file" not in request.files:
+            return jsonify({"error": "No file provided"}), 400
+
+        file = request.files["file"]
+        if file.filename == "":
+            return jsonify({"error": "No filename"}), 400
+
+        import uuid
+        upload_dir = os.path.join(app.config.get("UPLOAD_DIR", "data/uploads"))
+        os.makedirs(upload_dir, exist_ok=True)
+        filename = f"{uuid.uuid4().hex[:8]}_{file.filename}"
+        filepath = os.path.join(upload_dir, filename)
+        file.save(filepath)
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            business_slug = config["business"]["business"]["slug"]
+        except ConfigError:
+            business_slug = "unknown"
+
+        from materials import MaterialsIntake
+        intake = MaterialsIntake(app.config["DB_PATH"], upload_dir)
+        material_id = intake.ingest_file(
+            filepath, run_id=run_id, business_slug=business_slug,
+            channel="session_upload")
+
+        return jsonify({
+            "status": "ok",
+            "filename": file.filename,
+            "material_id": material_id,
+        })
 
     # ── Session API endpoints (UI-REVIEW-001 F3) ──
 

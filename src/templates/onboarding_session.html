@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Onboarding — {{ business_name }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f1117;
+            color: #e4e4e7;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ── Progress Rail (sidebar) ── */
+        .progress-rail {
+            width: 260px;
+            min-width: 260px;
+            background: #16181f;
+            border-right: 1px solid #27272a;
+            padding: 20px 16px;
+            overflow-y: auto;
+        }
+        .progress-rail h3 {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #71717a;
+            margin-bottom: 16px;
+            letter-spacing: 1px;
+        }
+        .coverage-chip {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            margin-bottom: 4px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .coverage-chip:hover { background: #1f2128; }
+        .coverage-chip.active { background: #2563eb33; }
+        .chip-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .chip-dot.empty { background: #3f3f46; }
+        .chip-dot.collecting { background: #eab308; }
+        .chip-dot.ready { background: #3b82f6; }
+        .chip-dot.drafted { background: #a855f7; }
+        .chip-dot.approved { background: #22c55e; }
+        .chip-label { flex: 1; }
+        .chip-status {
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #71717a;
+        }
+
+        /* ── Chat Area ── */
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        .chat-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid #27272a;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .chat-header h2 { font-size: 18px; font-weight: 600; }
+        .chat-header .biz-name { color: #71717a; font-size: 14px; }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .message {
+            max-width: 75%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 15px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .message.ai {
+            align-self: flex-start;
+            background: #1c1c24;
+            border: 1px solid #27272a;
+        }
+        .message.operator {
+            align-self: flex-end;
+            background: #2563eb;
+            color: #fff;
+        }
+        .message.sender {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #71717a;
+            margin-bottom: 4px;
+        }
+
+        /* ── Gate Cards (inline in chat) ── */
+        .gate-card {
+            align-self: center;
+            max-width: 85%;
+            background: #1a1a2e;
+            border: 1px solid #a855f7;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 8px 0;
+        }
+        .gate-card-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .gate-card-header .badge {
+            background: #a855f7;
+            color: #fff;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+        .gate-card h4 { font-size: 16px; }
+        .gate-card .readback {
+            background: #0f1117;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 12px 0;
+            font-size: 14px;
+            line-height: 1.6;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .gate-card .readback details {
+            margin-top: 8px;
+            color: #71717a;
+            font-size: 12px;
+        }
+        .gate-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .gate-btn {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .gate-btn.approve { background: #22c55e; color: #fff; }
+        .gate-btn.approve:hover { background: #16a34a; }
+        .gate-btn.park { background: #3f3f46; color: #e4e4e7; }
+        .gate-btn.park:hover { background: #52525b; }
+        .gate-btn.edit { background: transparent; border: 1px solid #3f3f46; color: #e4e4e7; }
+        .gate-btn.edit:hover { background: #1f2128; }
+
+        /* ── Input Area ── */
+        .input-area {
+            padding: 16px 24px;
+            border-top: 1px solid #27272a;
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+        .input-area textarea {
+            flex: 1;
+            background: #1c1c24;
+            border: 1px solid #27272a;
+            border-radius: 12px;
+            padding: 12px 16px;
+            color: #e4e4e7;
+            font-size: 15px;
+            font-family: inherit;
+            resize: none;
+            min-height: 44px;
+            max-height: 120px;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .input-area textarea:focus { border-color: #3b82f6; }
+        .input-area button {
+            background: #2563eb;
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 20px;
+            font-size: 15px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .input-area button:hover { background: #1d4ed8; }
+        .input-area button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .attach-btn {
+            background: transparent !important;
+            border: 1px solid #3f3f46 !important;
+            padding: 10px 14px !important;
+            font-size: 20px !important;
+        }
+        .attach-btn:hover { background: #1f2128 !important; }
+
+        .file-chips {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+        .file-chip {
+            background: #1c1c24;
+            border: 1px solid #27272a;
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: 12px;
+            color: #a1a1aa;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .file-chip .remove { cursor: pointer; color: #71717a; }
+
+        .typing-indicator {
+            align-self: flex-start;
+            padding: 12px 16px;
+            background: #1c1c24;
+            border: 1px solid #27272a;
+            border-radius: 12px;
+            color: #71717a;
+            font-size: 14px;
+        }
+        .typing-indicator::after {
+            content: '...';
+            animation: dots 1.5s infinite;
+        }
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+
+        @media (max-width: 768px) {
+            .progress-rail { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Progress Rail -->
+    <div class="progress-rail">
+        <h3>Onboarding Modules</h3>
+        {% for chip in coverage_chips %}
+        <div class="coverage-chip" id="chip-{{ chip.name }}" data-playbook="{{ chip.name }}">
+            <span class="chip-dot {{ chip.status }}"></span>
+            <span class="chip-label">{{ chip.label }}</span>
+            <span class="chip-status">{{ chip.status }}</span>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Chat Area -->
+    <div class="chat-area">
+        <div class="chat-header">
+            <div>
+                <h2>Onboarding Conversation</h2>
+                <span class="biz-name">{{ business_name }}</span>
+            </div>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+            {% if conversation_so_far and conversation_so_far != "(This is the first turn — no conversation yet)" %}
+            {# Render existing conversation from server #}
+            {% else %}
+            <div class="message ai">
+                <div class="sender">AI</div>
+                {{ opening_question }}
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="input-area">
+            <div style="flex:1; display:flex; flex-direction:column;">
+                <div class="file-chips" id="fileChips"></div>
+                <div style="display:flex; gap:12px; align-items:flex-end;">
+                    <button class="attach-btn" id="attachBtn" title="Attach files">📎</button>
+                    <textarea id="messageInput" placeholder="Type your message..." rows="1"></textarea>
+                    <button id="sendBtn">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="fileInput" style="display:none" multiple>
+
+    <script>
+    (function() {
+        const runId = {{ run_id }};
+        let pendingFiles = [];
+
+        // ── Render conversation from server-side data ──
+        {% if conversation_so_far and conversation_so_far != "(This is the first turn — no conversation yet)" %}
+        const existingConversation = {{ conversation_so_far|tojson }};
+        // The server passes a string; we need to parse the interleaved format
+        // For now, we render the conversation server-side in the template
+        {% endif %}
+
+        // ── Chat messages container ──
+        const chatMessages = document.getElementById('chatMessages');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const attachBtn = document.getElementById('attachBtn');
+        const fileInput = document.getElementById('fileInput');
+        const fileChips = document.getElementById('fileChips');
+
+        // ── Auto-grow textarea ──
+        function autoGrow(el) {
+            el.style.height = '44px';
+            el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+        }
+
+        // ── Handle Enter to send ──
+        function handleKey(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        }
+
+        // ── Add message to chat ──
+        function addMessage(sender, text) {
+            const div = document.createElement('div');
+            div.className = 'message ' + sender;
+            const senderLabel = document.createElement('div');
+            senderLabel.className = 'sender';
+            senderLabel.textContent = sender === 'ai' ? 'AI' : 'You';
+            div.appendChild(senderLabel);
+            const content = document.createElement('div');
+            content.textContent = text;
+            div.appendChild(content);
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // ── Add gate card to chat ──
+        function addGateCard(playbook, readback, outputKey) {
+            const card = document.createElement('div');
+            card.className = 'gate-card';
+            card.id = 'gate-card-' + outputKey;
+            card.innerHTML = `
+                <div class="gate-card-header">
+                    <span class="badge">Draft Ready</span>
+                    <h4>${playbook.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</h4>
+                </div>
+                <div class="readback">${readback}</div>
+                <div class="gate-actions">
+                    <button class="gate-btn approve" onclick="approveGate('${playbook}', '${outputKey}')">✓ Approve & Save</button>
+                    <button class="gate-btn park" onclick="parkGate('${playbook}', '${outputKey}')">Park</button>
+                    <button class="gate-btn edit" onclick="toggleEdit(this)">Edit</button>
+                </div>
+            `;
+            chatMessages.appendChild(card);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // ── Update coverage chips ──
+        function updateCoverageChips(chips) {
+            chips.forEach(chip => {
+                const el = document.getElementById('chip-' + chip.name);
+                if (el) {
+                    const dot = el.querySelector('.chip-dot');
+                    const status = el.querySelector('.chip-status');
+                    dot.className = 'chip-dot ' + chip.status;
+                    status.textContent = chip.status;
+                }
+            });
+        }
+
+        // ── Send message ──
+        async function sendMessage() {
+            const text = messageInput.value.trim();
+            const files = pendingFiles.map(f => f.name);
+
+            if (!text && files.length === 0) return;
+
+            // Show operator message
+            let displayText = text;
+            if (files.length > 0) {
+                displayText += (text ? '\n' : '') + '[Attached: ' + files.join(', ') + ']';
+            }
+            addMessage('operator', displayText);
+
+            // Clear input
+            messageInput.value = '';
+            messageInput.style.height = '44px';
+            pendingFiles = [];
+            updateFileChips();
+            sendBtn.disabled = true;
+
+            // Show typing indicator
+            const typing = document.createElement('div');
+            typing.className = 'typing-indicator';
+            typing.id = 'typing';
+            chatMessages.appendChild(typing);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            try {
+                const resp = await fetch('/api/onboarding/' + runId + '/message', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text, files: files }),
+                });
+
+                const contentType = resp.headers.get('content-type') || '';
+                if (!contentType.includes('application/json')) {
+                    document.getElementById('typing').remove();
+                    addMessage('ai', 'Server error. Try again — your message is saved.');
+                    sendBtn.disabled = false;
+                    return;
+                }
+
+                const data = await resp.json();
+                document.getElementById('typing').remove();
+
+                if (data.error) {
+                    addMessage('ai', 'Sorry, something went wrong: ' + data.error);
+                } else {
+                    addMessage('ai', data.reply);
+
+                    // Update coverage chips
+                    if (data.coverage_chips) {
+                        updateCoverageChips(data.coverage_chips);
+                    }
+
+                    // Show drafted gate cards
+                    if (data.drafted_cards) {
+                        data.drafted_cards.forEach(card => {
+                            addGateCard(card.playbook, card.readback, card.output_key);
+                        });
+                    }
+                }
+            } catch (err) {
+                document.getElementById('typing')?.remove();
+                addMessage('ai', 'Connection error. Try again — your message is saved.');
+            }
+
+            sendBtn.disabled = false;
+            messageInput.focus();
+        }
+
+        // ── Gate actions ──
+        window.approveGate = async function(playbook, outputKey) {
+            const card = document.getElementById('gate-card-' + outputKey);
+            card.innerHTML = '<div style="text-align:center;padding:20px;color:#71717a;">Storing module...</div>';
+
+            try {
+                const resp = await fetch('/api/onboarding/' + runId + '/gate/' + playbook, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ decision: 'approve' }),
+                });
+                const data = await resp.json();
+                if (data.status === 'ok') {
+                    card.innerHTML = '<div style="text-align:center;padding:20px;color:#22c55e;">✓ Approved and stored</div>';
+                    // Update chip
+                    const el = document.getElementById('chip-' + playbook);
+                    if (el) {
+                        el.querySelector('.chip-dot').className = 'chip-dot approved';
+                        el.querySelector('.chip-status').textContent = 'approved';
+                    }
+                } else {
+                    card.innerHTML = '<div style="text-align:center;padding:20px;color:#ef4444;">Error: ' + (data.error || 'unknown') + '</div>';
+                }
+            } catch (err) {
+                card.innerHTML = '<div style="text-align:center;padding:20px;color:#ef4444;">Connection error</div>';
+            }
+        };
+
+        window.parkGate = async function(playbook, outputKey) {
+            const card = document.getElementById('gate-card-' + outputKey);
+            try {
+                const resp = await fetch('/api/onboarding/' + runId + '/gate/' + playbook, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ decision: 'park' }),
+                });
+                const data = await resp.json();
+                if (data.status === 'ok') {
+                    card.style.opacity = '0.5';
+                    card.querySelector('.gate-actions').innerHTML = '<span style="color:#71717a;font-size:13px;">Parked — you can review later</span>';
+                }
+            } catch (err) {
+                alert('Connection error');
+            }
+        };
+
+        window.toggleEdit = function(btn) {
+            const readback = btn.parentElement.previousElementSibling;
+            if (readback.contentEditable === 'true') {
+                readback.contentEditable = 'false';
+                readback.style.border = 'none';
+                btn.textContent = 'Edit';
+            } else {
+                readback.contentEditable = 'true';
+                readback.style.border = '1px solid #3b82f6';
+                readback.focus();
+                btn.textContent = 'Done';
+            }
+        };
+
+        // ── File upload ──
+        function updateFileChips() {
+            fileChips.innerHTML = '';
+            pendingFiles.forEach((f, i) => {
+                const chip = document.createElement('div');
+                chip.className = 'file-chip';
+                const sizeStr = f.size > 1024*1024 ? (f.size/1024/1024).toFixed(1)+'MB' : Math.round(f.size/1024)+'KB';
+                chip.innerHTML = `📎 ${f.name} (${sizeStr}) <span class="remove" onclick="removeFile(${i})">✕</span>`;
+                fileChips.appendChild(chip);
+            });
+        }
+
+        window.removeFile = function(i) {
+            pendingFiles.splice(i, 1);
+            updateFileChips();
+        };
+
+        async function uploadFile() {
+            for (const file of fileInput.files) {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const resp = await fetch('/api/onboarding/' + runId + '/upload', {
+                        method: 'POST',
+                        body: formData,
+                    });
+                    const contentType = resp.headers.get('content-type') || '';
+                    if (contentType.includes('application/json')) {
+                        const data = await resp.json();
+                        if (data.status === 'ok') {
+                            pendingFiles.push({ name: file.name, size: file.size });
+                        }
+                    }
+                } catch (err) {
+                    // Ignore upload errors — file note still stored in message
+                    pendingFiles.push({ name: file.name, size: file.size });
+                }
+            }
+            updateFileChips();
+            fileInput.value = '';
+        }
+
+        // ── Wire up events ──
+        function initEvents() {
+            messageInput.addEventListener('input', () => autoGrow(messageInput));
+            messageInput.addEventListener('keydown', handleKey);
+            sendBtn.addEventListener('click', sendMessage);
+
+            if (attachBtn && fileInput) {
+                attachBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    fileInput.value = '';
+                    fileInput.click();
+                });
+                fileInput.addEventListener('change', uploadFile);
+            }
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initEvents);
+        } else {
+            initEvents();
+        }
+    })();
+    </script>
+</body>
+</html>
