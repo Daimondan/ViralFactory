@@ -3,187 +3,124 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ViralFactory</title>
+    <title>ViralFactory — {{ business_name }}</title>
+    <link rel="stylesheet" href="/static/vf.css">
+    <script src="/static/busy.js"></script>
     <style>
-        :root {
-            --bg: #0d1117;
-            --surface: #161b22;
-            --border: #30363d;
-            --text: #e6edf3;
-            --muted: #8b949e;
-            --accent: #2f81f7;
-            --green: #3fb950;
-            --red: #f85149;
-            --yellow: #d29922;
-            --purple: #a371f7;
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            line-height: 1.6;
-            padding: 2rem;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
-        h2 { font-size: 1.3rem; margin: 1.5rem 0 0.5rem; }
-        p { margin-bottom: 0.8rem; color: var(--muted); }
-        a { color: var(--accent); text-decoration: none; }
-        a:hover { text-decoration: underline; }
-        .header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 2rem; }
-        .header h1 { color: var(--accent); }
-        .card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 1.2rem;
-            margin-bottom: 1rem;
-        }
-        .nav { display: flex; gap: 1.5rem; margin-bottom: 2rem; }
-        .nav a { color: var(--muted); font-size: 0.9rem; }
-        .nav a.active { color: var(--text); font-weight: 600; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
-        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
-        .stat-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 1rem;
-            text-align: center;
-        }
-        .stat-num { font-size: 1.8rem; font-weight: 700; color: var(--accent); }
-        .stat-label { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
-
-        /* Activity log */
+        /* Page-specific: activity icons and state pills */
         .activity-list { list-style: none; }
         .activity-item {
-            display: flex; gap: 12px; align-items: center;
-            padding: 10px 0; border-bottom: 1px solid var(--border);
+            display: flex; gap: 12px; align-items: flex-start;
+            padding: 12px 0; border-bottom: 1px solid var(--border);
         }
         .activity-item:last-child { border-bottom: none; }
         .activity-icon {
-            width: 32px; height: 32px; border-radius: 8px;
+            width: 32px; height: 32px; border-radius: var(--radius-sm);
             display: flex; align-items: center; justify-content: center;
             font-size: 0.8rem; font-weight: 600; flex-shrink: 0;
         }
-        .icon-idea { background: rgba(47, 129, 247, 0.15); color: var(--accent); }
-        .icon-draft { background: rgba(210, 153, 34, 0.15); color: var(--yellow); }
+        .icon-idea { background: rgba(91, 159, 214, 0.15); color: var(--blue); }
+        .icon-draft { background: rgba(212, 168, 67, 0.15); color: var(--accent); }
         .icon-asset { background: rgba(163, 113, 247, 0.15); color: var(--purple); }
-        .icon-published { background: rgba(63, 185, 80, 0.15); color: var(--green); }
-        .activity-body { flex: 1; }
-        .activity-title { font-size: 0.88rem; color: var(--text); }
+        .icon-published { background: rgba(76, 175, 125, 0.15); color: var(--green); }
+        .activity-body { flex: 1; min-width: 0; }
+        .activity-title { font-size: 0.88rem; }
         .activity-meta { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
-        .activity-state {
-            font-size: 0.68rem; padding: 2px 8px; border-radius: 10px;
-        }
-        .activity-sublist { list-style: none; margin-top: 8px; padding-left: 0; border-left: 1px solid var(--border); }
+        .activity-sublist { list-style: none; margin-top: 8px; border-left: 1px solid var(--border); }
         .activity-subitem { display: flex; gap: 8px; align-items: center; margin: 7px 0 7px 12px; font-size: 0.8rem; }
-        .activity-subitem .activity-icon { width: 24px; height: 24px; border-radius: 6px; font-size: 0.68rem; }
-        .activity-subtitle { color: var(--text); }
-        .state-new { background: #2a2d36; color: #aaa; }
-        .state-approved { background: rgba(63, 185, 80, 0.2); color: var(--green); }
-        .state-drafting { background: rgba(47, 129, 247, 0.2); color: var(--accent); }
-        .state-draft_ready { background: rgba(210, 153, 34, 0.2); color: var(--yellow); }
-        .state-shipped { background: rgba(63, 185, 80, 0.2); color: var(--green); }
-        .state-pending { background: #2a2d36; color: #aaa; }
-        .state-published { background: rgba(63, 185, 80, 0.2); color: var(--green); }
-        .state-killed { background: rgba(248, 81, 73, 0.2); color: var(--red); }
-        .empty { color: var(--muted); font-style: italic; padding: 1rem; text-align: center; }
-        .muted { color: var(--muted); font-size: 0.85rem; }
-        .btn {
-            display: inline-block; padding: 0.5rem 1.2rem;
-            background: var(--accent); color: white; border: none;
-            border-radius: 6px; cursor: pointer; font-size: 0.9rem;
-        }
-        .btn:hover { opacity: 0.9; }
+        .activity-subitem .activity-icon { width: 24px; height: 24px; font-size: 0.68rem; }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>ViralFactory</h1>
-        <p>{{ business_name }}</p>
-    </div>
-
-    <div class="nav">
-        <a href="/" class="active">Home</a>
-        <a href="/onboard">Onboard</a>
-        <a href="/library">Library</a>
-        <a href="/materials">Materials</a>
-        <a href="/ideas">Ideas</a>
-        <a href="/create">Create</a>
-        <a href="/published">Published</a>
-        <a href="/metrics">Metrics</a>
-        <a href="/research">Research</a>
-        <a href="/proposals">Gate Queue</a>
-    </div>
-
-    {% if activity %}
-    <div class="grid">
-        <div class="stat-card">
-            <div class="stat-num">{{ activity | selectattr('type', 'equalto', 'idea') | list | length }}</div>
-            <div class="stat-label">Ideas</div>
+    <div class="container">
+        <div class="header">
+            <h1>ViralFactory</h1>
+            <p class="subtle">{{ business_name }}</p>
         </div>
-        <div class="stat-card">
-            <div class="stat-num">{{ activity | selectattr('type', 'equalto', 'draft') | list | length }}</div>
-            <div class="stat-label">Drafts</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-num">{{ activity | selectattr('type', 'equalto', 'published') | list | length }}</div>
-            <div class="stat-label">Published</div>
-        </div>
-    </div>
-    {% endif %}
 
-    <h2>Recent Activity</h2>
-    <div class="card">
+        <div class="nav">
+            <a href="/" class="active">Home</a>
+            <a href="/onboard">Onboard</a>
+            <a href="/library">Library</a>
+            <a href="/materials">Materials</a>
+            <a href="/ideas">Ideas</a>
+            <a href="/create">Create</a>
+            <a href="/published">Published</a>
+            <a href="/metrics">Metrics</a>
+            <a href="/research">Research</a>
+            <a href="/proposals">Gate Queue</a>
+        </div>
+
         {% if activity %}
-        <ul class="activity-list">
-            {% for item in activity %}
-            <li class="activity-item">
-                <div class="activity-icon icon-{{ item.type }}">{{ item.type[0] | upper }}</div>
-                <div class="activity-body">
-                    <div class="activity-title">
-                        <a href="{{ item.link }}">{{ item.title }}</a>
-                    </div>
-                    <div class="activity-meta">
-                        {{ item.type }} · {{ item.time }}
-                    </div>
-                    {% if item.sub_events %}
-                    <ul class="activity-sublist">
-                        {% for sub in item.sub_events %}
-                        <li class="activity-subitem">
-                            <div class="activity-icon icon-{{ sub.type }}">{{ sub.type[0] | upper }}</div>
-                            <div class="activity-body">
-                                <div class="activity-subtitle">
-                                    <a href="{{ sub.link }}">
-                                        {% if sub.type == 'asset' %}
-                                        Asset for {{ item.title }}: {{ sub.title | replace('  → ', '') }}
-                                        {% else %}
-                                        {{ sub.title }}
-                                        {% endif %}
-                                    </a>
-                                </div>
-                                <div class="activity-meta">{{ sub.type }} · {{ sub.time }}</div>
-                            </div>
-                            <span class="activity-state state-{{ sub.state }}">{{ sub.state }}</span>
-                        </li>
-                        {% endfor %}
-                    </ul>
-                    {% endif %}
-                </div>
-                <span class="activity-state state-{{ item.state }}">{{ item.state }}</span>
-            </li>
-            {% endfor %}
-        </ul>
-        {% else %}
-        <p class="empty">No activity yet. Start by <a href="/onboard">onboarding</a> or <a href="/ideas">generating ideas</a>.</p>
+        <div class="grid grid-3">
+            <div class="stat-card">
+                <div class="stat-num">{{ activity | selectattr('type', 'equalto', 'idea') | list | length }}</div>
+                <div class="stat-label">Ideas</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-num">{{ activity | selectattr('type', 'equalto', 'draft') | list | length }}</div>
+                <div class="stat-label">Drafts</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-num">{{ activity | selectattr('type', 'equalto', 'published') | list | length }}</div>
+                <div class="stat-label">Published</div>
+            </div>
+        </div>
         {% endif %}
-    </div>
 
-    <h2>Quick Actions</h2>
-    <a href="/ideas" class="btn">Generate Ideas</a>
-    <a href="/create" class="btn" style="background: var(--surface); border: 1px solid var(--border);">View Pipeline</a>
+        <h2>Recent Activity</h2>
+        <div class="card">
+            {% if activity %}
+            <ul class="activity-list">
+                {% for item in activity %}
+                <li class="activity-item">
+                    <div class="activity-icon icon-{{ item.type }}">{{ item.type[0] | upper }}</div>
+                    <div class="activity-body">
+                        <div class="activity-title">
+                            <a href="{{ item.link }}">{{ item.title }}</a>
+                        </div>
+                        <div class="activity-meta">
+                            {{ item.type }} · {{ item.time }}
+                        </div>
+                        {% if item.sub_events %}
+                        <ul class="activity-sublist">
+                            {% for sub in item.sub_events %}
+                            <li class="activity-subitem">
+                                <div class="activity-icon icon-{{ sub.type }}">{{ sub.type[0] | upper }}</div>
+                                <div class="activity-body">
+                                    <div>
+                                        <a href="{{ sub.link }}">
+                                            {% if sub.type == 'asset' %}
+                                            Asset for {{ item.title }}: {{ sub.title | replace('  → ', '') }}
+                                            {% else %}
+                                            {{ sub.title }}
+                                            {% endif %}
+                                        </a>
+                                    </div>
+                                    <div class="activity-meta">{{ sub.type }} · {{ sub.time }}</div>
+                                </div>
+                                <span class="badge badge-muted">{{ sub.state }}</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                    </div>
+                    <span class="badge badge-{{ item.state | replace('_', '') }}">{{ item.state | replace('_', ' ') }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="empty-state">
+                <p>No activity yet. Start by <a href="/onboard">onboarding</a> or <a href="/ideas">generating ideas</a>.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <h2>Quick Actions</h2>
+        <div class="flex gap-2">
+            <a href="/ideas" class="btn">Generate Ideas</a>
+            <a href="/create" class="btn btn-secondary">View Pipeline</a>
+        </div>
+    </div>
 </body>
 </html>
