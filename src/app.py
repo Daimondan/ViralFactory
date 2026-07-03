@@ -583,23 +583,46 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         return "\n".join(lines) if lines else "(No shot library uploaded.)"
 
     def _build_readback(playbook_name, profile):
-        """Build a plain-language readback for the operator based on playbook type."""
+        """Build a plain-language readback for the operator based on playbook type.
+
+        P1-3: No raw dict text. Unknown dicts render key: value lines, untruncated.
+        Empty sections are omitted, not rendered as bare headers.
+        """
         if playbook_name == "business-profile-intake":
             return _build_business_readback(profile)
-        # Generic readback: just format the key fields
+        # Generic readback: format the key fields in prose
         lines = ["Here's what I put together:", ""]
         if isinstance(profile, dict):
             for key, val in profile.items():
+                label = key.replace('_', ' ').title()
                 if isinstance(val, str) and len(val) < 500:
-                    lines.append(f"**{key.replace('_', ' ').title()}:** {val}")
-                elif isinstance(val, list):
-                    lines.append(f"**{key.replace('_', ' ').title()}:**")
+                    if val:
+                        lines.append(f"**{label}:** {val}")
+                elif isinstance(val, list) and val:
+                    lines.append(f"**{label}:**")
                     for item in val[:10]:
                         if isinstance(item, str):
                             lines.append(f"  • {item}")
                         elif isinstance(item, dict):
-                            name = item.get("name", item.get("subject", item.get("format", str(item)[:60])))
-                            lines.append(f"  • {name}")
+                            # P1-3: Render meaningful fields in prose, never str(dict)
+                            name = item.get("name", item.get("subject", item.get("format", item.get("pattern", item.get("tell", "")))))
+                            if name:
+                                lines.append(f"  • {name}")
+                            else:
+                                # Fallback: key: value lines, untruncated
+                                for k, v in item.items():
+                                    if isinstance(v, str) and len(v) < 200:
+                                        lines.append(f"  • {k}: {v}")
+                                    elif isinstance(v, list):
+                                        lines.append(f"  • {k}: {', '.join(str(x) for x in v[:5])}")
+                elif isinstance(val, dict) and val:
+                    lines.append(f"**{label}:**")
+                    for k, v in val.items():
+                        if isinstance(v, (str, int, float)):
+                            lines.append(f"  • {k}: {v}")
+                        elif isinstance(v, list):
+                            lines.append(f"  • {k}: {', '.join(str(x) for x in v[:5])}")
+                # Empty values are omitted, not rendered
         return "\n".join(lines)
 
     def _build_business_readback(profile):
