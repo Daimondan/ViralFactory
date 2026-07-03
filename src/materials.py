@@ -110,15 +110,20 @@ class MaterialsIntake:
             content = path.read_text(encoding="utf-8", errors="replace")
             material_type = "plain_text"
             channel = channel or "chat"
-        elif ext in (".mp3", ".wav", ".m4a", ".ogg", ".webm"):
-            # Audio file — would need transcription service
-            # For now, store metadata and mark for transcription
-            content = f"[Audio file: {filename} — transcription pending]"
+        elif ext in (".mp3", ".wav", ".m4a", ".ogg", ".webm", ".mp4", ".opus", ".aac", ".flac"):
+            # Audio/video file — needs transcription
+            # mp4/opus/aac common for WhatsApp voice notes
+            content = f"[Audio/video file: {filename} — transcription pending]"
             material_type = "audio"
             channel = channel or "voice_note"
-        elif ext in (".pdf",):
+        elif ext == ".pdf":
             # PDF — try to extract text
             content = self._extract_pdf_text(filepath) or f"[PDF file: {filename} — text extraction returned empty]"
+            material_type = "plain_text"
+            channel = channel or "document"
+        elif ext == ".docx":
+            # Word document — extract text via python-docx
+            content = self._extract_docx_text(filepath) or f"[DOCX file: {filename} — text extraction returned empty]"
             material_type = "plain_text"
             channel = channel or "document"
         elif ext in (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"):
@@ -269,6 +274,16 @@ class MaterialsIntake:
         except ImportError:
             pass
         return None
+
+    def _extract_docx_text(self, filepath: str) -> Optional[str]:
+        """Extract text from a .docx file using python-docx."""
+        try:
+            from docx import Document
+            doc = Document(filepath)
+            paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+            return "\n\n".join(paragraphs) if paragraphs else None
+        except Exception:
+            return None
 
     def normalize_whatsapp(self, content: str, user_identifiers: list[str]) -> str:
         """

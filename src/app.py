@@ -305,6 +305,59 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         return "\n".join(lines) if lines else "(This is the first turn — no conversation yet)"
 
+    def _is_near_duplicate(reply: str, prior_replies: list[str], threshold: float = 0.9) -> bool:
+        """Check if reply is too similar to any prior AI reply using difflib."""
+        import difflib
+        normalized = reply.strip().lower()
+        for prior in prior_replies:
+            ratio = difflib.SequenceMatcher(None, normalized, prior.strip().lower()).ratio()
+            if ratio > threshold:
+                return True
+        return False
+
+    def _build_materials_summary(run_id):
+        """Build a summary of uploaded materials for the converse prompt.
+
+        Lists each material with filename, type, and an excerpt of content.
+        Caps total size to ~6,000 chars so it fits within the LLM context window.
+        """
+        from materials import MaterialsIntake
+        intake = MaterialsIntake(app.config["DB_PATH"])
+        materials = intake.list_materials(run_id=run_id)
+        if not materials:
+            return "(No materials uploaded yet.)"
+
+        PER_MATERIAL_CAP = 1500
+        TOTAL_CAP = 6000
+        lines = []
+        total = 0
+        for m in materials:
+            filename = m.get("filename", "unknown")
+            mtype = m.get("material_type", "unknown")
+            raw = m.get("raw_content", "")
+            # Don't include binary garbage
+            if raw and any(ord(c) < 9 for c in raw[:50]):
+                excerpt = "(binary content — not text-extractable)"
+            elif raw:
+                excerpt = raw[:PER_MATERIAL_CAP]
+                if len(raw) > PER_MATERIAL_CAP:
+                    excerpt += "... [truncated]"
+            else:
+                excerpt = "(empty)"
+
+            entry = f"- {filename} ({mtype}): {excerpt}"
+            if total + len(entry) > TOTAL_CAP:
+                remaining = TOTAL_CAP - total
+                if remaining > 50:
+                    entry = entry[:remaining] + "... [truncated]"
+                    lines.append(entry)
+                lines.append(f"... and {len(materials) - len(lines)} more materials (truncated)")
+                break
+            lines.append(entry)
+            total += len(entry)
+
+        return "\n".join(lines)
+
     def _build_readback(playbook_name, profile):
         """Build a plain-language readback for the operator based on playbook type."""
         if playbook_name == "business-profile-intake":
@@ -385,18 +438,19 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         if not text and not files:
             return jsonify({"error": "No message provided"}), 400
 
-        # Store the message
+        # Store the message — include file note so the AI can see uploads
         collected = json.loads(run.get("collected_inputs") or "{}")
         if "session_messages" not in collected:
             collected["session_messages"] = []
-        collected["session_messages"].append(text)
+        file_note = ""
+        if files:
+            file_note = f"\n[Operator attached files: {', '.join(files)}]"
+        turn_text = (text + "\n" if text else "") + file_note.strip() if files else text
+        collected["session_messages"].append(turn_text)
         # Also keep in business_qa for backward compat with analysis
         if "business_qa" not in collected:
             collected["business_qa"] = []
-        file_note = ""
-        if files:
-            file_note = f"\n[Files attached: {', '.join(files)}]"
-        collected["business_qa"].append({"q": "(session message)", "a": text + file_note})
+        collected["business_qa"].append({"q": "(session message)", "a": turn_text})
         runner.update_run(run_id, collected_inputs=json.dumps(collected))
 
         # Get config
@@ -409,6 +463,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         # Build conversation history for the LLM
         conversation_so_far = _build_conversation_history(collected)
+
+        # Build materials summary so the AI can see what was uploaded
+        materials_summary = _build_materials_summary(run_id)
 
         # Get playbook info
         playbook_name = run["playbook_name"]
@@ -434,8 +491,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 variables={
                     "playbook_display_label": playbook.display_label or playbook.name,
                     "playbook_purpose": playbook.purpose[:500],
-                    "conversation_so_far": conversation_so_far[:4000],
+                    "conversation_so_far": conversation_so_far[-12000:],
                     "playbook_inputs": "\n".join(f"- {i}" for i in playbook.inputs)[:1000],
+                    "materials_summary": materials_summary,
                 },
                 schema=converse_schema,
                 backend="default",
@@ -444,6 +502,29 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             )
         except (LLMAdapterError, Exception) as e:
             return jsonify({"error": str(e)}), 500
+
+        # Anti-repeat guard: check if the reply is too similar to a prior AI reply
+        prior_replies = collected.get("ai_replies", [])
+        if prior_replies and _is_near_duplicate(result["reply"], prior_replies):
+            # Regenerate once with a collision warning
+            try:
+                retry_variables = {
+                    "playbook_display_label": playbook.display_label or playbook.name,
+                    "playbook_purpose": playbook.purpose[:500],
+                    "conversation_so_far": conversation_so_far[-12000:],
+                    "playbook_inputs": "\n".join(f"- {i}" for i in playbook.inputs)[:1000],
+                    "materials_summary": materials_summary,
+                }
+                result = adapter.complete(
+                    prompt_file="session/generic_converse_v1.md",
+                    variables=retry_variables,
+                    schema=converse_schema,
+                    backend="default",
+                    context=f"Session conversation for {playbook_name} run {run_id} (anti-repeat retry)",
+                    business_slug=business["business"]["slug"],
+                )
+            except (LLMAdapterError, Exception):
+                pass  # Use the original result if retry fails
 
         if result.get("ready_to_draft"):
             # AI says it has enough — trigger analysis

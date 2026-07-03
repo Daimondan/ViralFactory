@@ -93,3 +93,6 @@
 - [ ] After UI review: T2.6 (faster-whisper transcription) → T2.8 (voice samples) → T2.7 (voice cloning smoke test) → operator end-to-end test → tag review-w2
 - [x] P0 FIX: duplicate `const playbookName` in session.html killed all JS (attach/send/gate buttons dead). Fixed + JS parse smoke test added (CORRECTION-onboarding-single-thread-v1.0 Item 1). 320 tests total.
 - [ ] P1 REDESIGN: single-thread onboarding — one conversation, not eight chats (CORRECTION-onboarding-single-thread-v1.0 Item 2). GitHub issue #2. Scheduled for next review tag.
+- [x] Session memory & materials fixes (CORRECTION-session-memory-and-materials-v1.1): F3 tail-slice + 12k budget, F1 file note in transcript, F2a materials in converse prompt, F2b docx extraction, F2c mp4/opus/aac/flac as audio, F5 anti-repeat guard. 347 tests total.
+- [ ] F4: replace parallel-array transcript with single turn log (P1, deferred).
+- [ ] F2c: audio transcription implementation — blocked on DIVERGENCE-005 (operator decision: faster-whisper vs hosted API).

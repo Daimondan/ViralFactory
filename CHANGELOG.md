@@ -28,6 +28,28 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 **Root cause:** Many LLMs (GLM-5.2, Claude, GPT) wrap structured output in markdown code fences despite instructions to return raw JSON. The retry prompt ("respond with ONLY valid JSON") doesn't help because the model considers the fence to BE "only JSON." The fix is in the validator, not the prompt — stripping fences is mechanical, not judgment.
 
+**Corrections filed:** `docs/reviews/CORRECTION-session-memory-and-materials-v1.1.md` — arrived without manifest. Filed as architect direction. 5 findings (F1–F5) covering: file-only turns invisible to AI, materials not injected into converse prompt, history truncation keeping oldest/not newest, parallel-array transcript fragility, no anti-repeat guard. Fixes in priority order starting with F3 + F1.
+
+---
+
+### 2026-07-03 FIX — Session memory & materials (F1, F2a, F2b, F2c, F3, F5)
+
+**What:**
+- **F3 (P0):** History truncation was a head slice (`[:4000]`) — kept the OLDEST turns, dropped the NEWEST. Changed to tail slice (`[-12000:]`) + raised budget from 4k to 12k chars. This was the root cause of the AI repeating earlier questions verbatim: from its perspective, the conversation was still at that earlier point.
+- **F1 (P0):** File-only turns (uploads with no text) were invisible to the AI. The file note was stored only in `business_qa`, which `_build_conversation_history` excludes for session messages. Now `session_messages` stores `[Operator attached files: ...]` so the AI can see uploads in the transcript.
+- **F2a (P0):** Uploaded material content never reached the converse LLM. Added `_build_materials_summary(run_id)` — queries materials for the run, builds a capped summary (1,500 chars/material, 6,000 total), and injects it as `{materials_summary}` into the converse prompt (v3.0). The AI now sees document excerpts and audio status.
+- **F2b (P0):** No `.docx` extraction existed. Added `_extract_docx_text()` using python-docx. `.docx` files now extract paragraph text, same as PDF.
+- **F2c (P0, blocks voice profile):** `.mp4`, `.opus`, `.aac`, `.flac` not recognized as audio — stored as binary garbage. Added to audio extension list. Transcription itself needs a decision (DIVERGENCE-005 filed) — interim: materials summary says "transcription pending" so the AI acknowledges receipt.
+- **F5 (P1):** No anti-repeat guard. Added prompt section ("Questions you have already asked") + server-side `_is_near_duplicate()` using difflib SequenceMatcher (threshold 0.9). On near-duplicate, regenerates once with the same prompt (the anti-repeat section now visible in context).
+- **18 new tests** (`tests/test_session_memory_fixes.py`). 347 total.
+- **Prompt bumped to v3.0:** materials section, anti-repeat section, "reference uploaded materials" rules.
+- **python-docx added to requirements-prod.txt.**
+- **DIVERGENCE-005 filed:** audio transcription implementation decision (self-hosted faster-whisper vs hosted API) — operator gate required.
+
+**Rationale:** CORRECTION-session-memory-and-materials-v1.1 traced the operator's exact field report: AI asked "what kind of stuff did you send?" after receiving a zip, re-asked "what's the business?" after receiving the Brand Report, then repeated an earlier reply word-for-word. Four compounding bugs (F1–F3, F5) made every intake session degrade into a loop. These fixes address the P0 items; F4 (turn log restructure) deferred to this tag or next.
+
+**Not done:** F4 (replace parallel arrays with single turn log) — P1, deferred. F3 rolling summary — P1, with orchestrator. F2c transcription implementation — blocked on DIVERGENCE-005 operator decision.
+
 ---
 
 ### 2026-07-02 BUILD — Session component: LLM-driven conversation, all playbooks, run reuse
