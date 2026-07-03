@@ -4393,6 +4393,16 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         _get_jobs_store().complete_job(dv_job_id, f"draft_visuals:{len(results)}")
 
+        # If all images failed, return error status so the JS shows the message
+        if len(results) == 0 and errors:
+            error_msg = errors[0].get("error", "Image generation failed")
+            return jsonify({
+                "status": "error",
+                "error": error_msg,
+                "images_generated": 0,
+                "errors": errors,
+            }), 500
+
         return jsonify({
             "status": "ok",
             "images_generated": len(results),
@@ -4670,6 +4680,16 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             conn.close()
 
         _get_jobs_store().complete_job(media_job_id, f"images:{len(results)}")
+
+        # If all images failed, return error status so the JS shows the message
+        if len(results) == 0 and errors:
+            error_msg = errors[0].get("error", "Image generation failed")
+            return jsonify({
+                "status": "error",
+                "error": error_msg,
+                "images_generated": 0,
+                "errors": errors,
+            }), 500
 
         return jsonify({
             "status": "ok",
