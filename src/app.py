@@ -66,6 +66,15 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
     app.config["DB_PATH"] = db_path
     app.config["PLAYBOOKS_DIR"] = playbooks_dir
 
+    # Allow large file uploads (videos, zips of brand assets, etc.)
+    # Default Flask has no limit; set explicit high limit so it fails clearly
+    # rather than timing out silently. 2GB max upload.
+    app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024 * 1024  # 2 GB
+
+    @app.errorhandler(413)
+    def request_entity_too_large(error):
+        return jsonify({"status": "error", "error": "File too large. Maximum upload size is 2GB."}), 413
+
     # --- Routes ---
 
     @app.route("/")

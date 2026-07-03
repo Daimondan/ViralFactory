@@ -357,7 +357,7 @@ async function uploadFile() {
         // Show a loading chip immediately
         const loadingChip = document.createElement('span');
         loadingChip.className = 'attachment-chip';
-        loadingChip.textContent = '⏳ ' + file.name;
+        loadingChip.textContent = '⏳ ' + file.name + ' (' + formatSize(file.size) + ')';
         loadingChip.style.opacity = '0.5';
         document.getElementById('attachments').appendChild(loadingChip);
 
@@ -374,7 +374,11 @@ async function uploadFile() {
             const contentType = resp.headers.get('content-type') || '';
             if (!contentType.includes('application/json')) {
                 loadingChip.remove();
-                alert('Upload failed (HTTP ' + resp.status + '). The server returned an error page.');
+                if (resp.status === 413) {
+                    alert('File too large. Maximum upload size is 2GB.');
+                } else {
+                    alert('Upload failed (HTTP ' + resp.status + '). The server returned an error page.');
+                }
                 continue;
             }
 
@@ -389,10 +393,21 @@ async function uploadFile() {
             }
         } catch (e) {
             loadingChip.remove();
-            alert('Upload error: ' + e.message);
+            if (e.name === 'TimeoutError' || e.message.includes('timed out')) {
+                alert('Upload timed out. The file may be too large for your connection. Try a smaller file or a zip.');
+            } else {
+                alert('Upload error: ' + e.message);
+            }
         }
     }
     input.value = '';
+}
+
+function formatSize(bytes) {
+    if (bytes < 1024) return bytes + 'B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + 'KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(0) + 'MB';
+    return (bytes / (1024 * 1024 * 1024)).toFixed(1) + 'GB';
 }
 
 // Toggle edit mode on readback
