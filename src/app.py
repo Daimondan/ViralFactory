@@ -4024,10 +4024,23 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         except ConfigError:
             business_name = "Not configured"
 
+        # Load draft visual previews (generated images from visual_direction)
+        draft_visuals = []
+        if existing_draft:
+            from media_adapter import MediaAdapter
+            try:
+                mc = load_all(app.config["CONFIG_DIR"])
+                ma = MediaAdapter(mc.get("models", {}), db_path=app.config["DB_PATH"])
+                synthetic_id = existing_draft["id"] + 100000
+                draft_visuals = ma.list_asset_media(synthetic_id, kind="image")
+            except Exception:
+                pass
+
         return render_template("draft.html",
             business_name=business_name, card=card,
             treatment=treatment, hook_options=hook_options,
-            draft=_parse_draft_for_display(existing_draft))
+            draft=_parse_draft_for_display(existing_draft),
+            draft_visuals=draft_visuals)
 
     def _parse_draft_for_display(draft):
         """Parse JSON fields on a draft for template display. Merges parsed fields into the draft dict."""
@@ -4307,6 +4320,101 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             "flag_status": json.loads(updated.get("self_audit_flags") or "[]")[flag_index].get("status", ""),
         })
 
+    # ── Draft visual preview: generate images from visual direction ──
+
+    @app.route("/api/draft/<int:draft_id>/generate-visuals", methods=["POST"])
+    def draft_generate_visuals(draft_id):
+        """Generate images from the draft's visual_direction prompts, for preview on the draft page."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        # F1: Idempotency guard
+        is_running, job_info = _check_job_running("draft_visuals", entity_id=draft_id)
+        if is_running:
+            return jsonify({
+                "status": "running",
+                "message": "Already generating draft visuals.",
+            }), 409
+        dv_job_id = job_info.get("job_id")
+
+        store = _get_pipeline_store()
+        draft = store.get_draft(draft_id)
+        if not draft:
+            _get_jobs_store().fail_job(dv_job_id, "Draft not found")
+            return jsonify({"error": "Draft not found"}), 404
+
+        visual_direction = json.loads(draft.get("visual_direction") or "{}")
+        image_prompts = visual_direction.get("image_prompts", [])
+
+        if not image_prompts:
+            _get_jobs_store().fail_job(dv_job_id, "No image prompts in visual direction")
+            return jsonify({"error": "No image prompts in this draft's visual direction"}), 400
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+        except ConfigError as e:
+            _get_jobs_store().fail_job(dv_job_id, str(e)[:200])
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        from media_adapter import MediaAdapter, MediaAdapterError
+        adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
+
+        # Use the draft_id as the asset_id for media storage (keeps draft visuals separate)
+        # The media_adapter creates data/media/<asset_id>/ dirs
+        # We use a negative ID scheme: draft visuals stored under draft_id * -1 to avoid collision
+        # Simpler: just use a synthetic asset_id = draft_id + 100000 (won't collide with real asset IDs)
+        synthetic_asset_id = draft_id + 100000
+
+        # Determine aspect ratio from format
+        format_name = (draft.get("format") or "").lower()
+        if "reel" in format_name or "short" in format_name:
+            aspect_ratio = "9:16"
+        elif "carousel" in format_name:
+            aspect_ratio = "1:1"
+        else:
+            aspect_ratio = "16:9"
+
+        results = []
+        errors = []
+        for i, prompt in enumerate(image_prompts):
+            try:
+                result = adapter.generate_image(
+                    prompt=prompt,
+                    asset_id=synthetic_asset_id,
+                    aspect_ratio=aspect_ratio,
+                    context=f"Draft visual preview {i+1}/{len(image_prompts)} for draft {draft_id}",
+                    business_slug=business_slug,
+                )
+                results.append(result)
+            except (MediaAdapterError, Exception) as e:
+                errors.append({"prompt": prompt[:100], "error": str(e)[:200]})
+
+        _get_jobs_store().complete_job(dv_job_id, f"draft_visuals:{len(results)}")
+
+        return jsonify({
+            "status": "ok",
+            "images_generated": len(results),
+            "errors": errors,
+            "image_paths": [r["path"] for r in results],
+        })
+
+    @app.route("/api/draft/<int:draft_id>/visuals", methods=["GET"])
+    def draft_list_visuals(draft_id):
+        """List generated visual previews for a draft."""
+        from media_adapter import MediaAdapter
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+        except ConfigError:
+            models_config = {}
+        adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
+        # Draft visuals stored under synthetic asset_id = draft_id + 100000
+        synthetic_asset_id = draft_id + 100000
+        media = adapter.list_asset_media(synthetic_asset_id, kind="image")
+        return jsonify({"status": "ok", "visuals": media})
+
     # ── T3.7: Assets stage ──
 
     @app.route("/create/assets/<int:draft_id>")
@@ -4324,17 +4432,39 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         assets = store.list_assets(draft_id)
         visual_direction = json.loads(draft.get("visual_direction") or "{}")
 
+        # F5: Load media + edit plans for each asset so the preview can show final cuts
+        from media_adapter import MediaAdapter
         try:
             config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
             business_name = config["business"]["business"]["name"]
             platforms = config["business"].get("platforms", [])
         except ConfigError:
+            models_config = {}
             business_name = "Not configured"
             platforms = []
 
+        media_adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
+
+        # Enrich each asset with its media and edit plans
+        enriched_assets = []
+        for asset in assets:
+            a = dict(asset)
+            # Parse JSON string fields
+            a["image_prompts_parsed"] = json.loads(asset.get("image_prompts") or "[]")
+            a["generated_images_parsed"] = json.loads(asset.get("generated_images") or "[]")
+            # Get all media for this asset (images, videos, final cuts)
+            a["media_list"] = media_adapter.list_asset_media(asset["id"])
+            a["final_cuts"] = [m for m in a["media_list"] if m.get("kind") == "final_cut"]
+            a["videos"] = [m for m in a["media_list"] if m.get("kind") == "video"]
+            a["images"] = [m for m in a["media_list"] if m.get("kind") == "image"]
+            # Get edit plans
+            a["edit_plans"] = store.list_edit_plans(asset["id"])
+            enriched_assets.append(a)
+
         return render_template("assets.html",
             business_name=business_name, draft=draft,
-            assets=assets, visual_direction=visual_direction,
+            assets=enriched_assets, visual_direction=visual_direction,
             platforms=platforms)
 
     @app.route("/api/assets/<int:draft_id>/fan-out", methods=["POST"])

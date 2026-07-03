@@ -508,3 +508,17 @@ class TestFlaskRoutes:
         resp = client.get("/static/busy.js")
         assert resp.status_code == 200
         assert b"busyAction" in resp.data
+
+    def test_draft_generate_visuals_endpoint_exists(self, tmp_path):
+        from app import create_app
+        app = create_app(config_dir="config", db_path=str(tmp_path / "test.db"))
+        client = app.test_client()
+        resp = client.post("/api/draft/999/generate-visuals", json={})
+        assert resp.status_code in (500, 404)
+
+    def test_draft_visuals_list_endpoint_exists(self, tmp_path):
+        from app import create_app
+        app = create_app(config_dir="config", db_path=str(tmp_path / "test.db"))
+        client = app.test_client()
+        resp = client.get("/api/draft/999/visuals")
+        assert resp.status_code == 200

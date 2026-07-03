@@ -56,6 +56,11 @@
         .chip:hover { background: #333; }
         .draft-version { font-size: 0.75rem; color: #666; }
         .status-line { font-size: 0.82rem; margin-top: 6px; color: #5b9fd6; }
+        /* Visual preview grid */
+        .visual-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin: 12px 0; }
+        .visual-thumb { background: #12131a; border-radius: 8px; overflow: hidden; aspect-ratio: 9 / 16; border: 1px solid #2a2d36; }
+        .visual-thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .status-line { font-size: 0.82rem; margin-top: 6px; color: #5b9fd6; }
     </style>
 </head>
 <body>
@@ -130,6 +135,28 @@
         {% endif %}
     </div>
 
+    {# Visual preview — generated images shown inline #}
+    {% if draft.visual_direction_parsed and draft.visual_direction_parsed.image_prompts %}
+    <h2>Visual preview</h2>
+    <div class="visual-preview" id="visual-preview">
+        {% if draft_visuals and draft_visuals|length > 0 %}
+        <div class="visual-grid">
+            {% for v in draft_visuals %}
+            <div class="visual-thumb">
+                <img src="/media/{{ v.path }}" alt="Generated preview {{ loop.index }}" onerror="this.style.display='none';">
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty-vd">No visuals generated yet. Click to preview what the images will look like.</p>
+        {% endif %}
+        <div class="actions" style="margin: 10px 0;">
+            <button class="btn btn-gen" id="genVisualsBtn" onclick="generateDraftVisuals()">Generate visual preview</button>
+        </div>
+        <div id="visualStatus" class="status-line" style="display: none;"></div>
+    </div>
+    {% endif %}
+
     <h2>Human pass (Gate 2)</h2>
     <div class="feedback-section">
         <p class="subtle">React with chips, type feedback, or edit directly. Direct edits are authoritative (highest weight).</p>
@@ -186,6 +213,19 @@ function generateDraft() {
 function regenerate() {
     if (!confirm('Regenerate will overwrite the current draft. Continue?')) return;
     generateDraft();
+}
+
+// Visual preview: generate images from visual direction
+function generateDraftVisuals() {
+    var btn = document.getElementById('genVisualsBtn');
+    var status = document.getElementById('visualStatus');
+    busyAction(btn, '/api/draft/{{ draft.id }}/generate-visuals', {
+        busyLabel: 'Generating visuals…',
+        statusElem: status,
+        body: '{}',
+        reloadOnSuccess: true,
+        onError: function(msg) { status.style.color = '#cc4a4a'; status.textContent = msg; }
+    });
 }
 
 function sendChip(text) {
