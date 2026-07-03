@@ -78,6 +78,10 @@
         .activity-state {
             font-size: 0.68rem; padding: 2px 8px; border-radius: 10px;
         }
+        .activity-sublist { list-style: none; margin-top: 8px; padding-left: 0; border-left: 1px solid var(--border); }
+        .activity-subitem { display: flex; gap: 8px; align-items: center; margin: 7px 0 7px 12px; font-size: 0.8rem; }
+        .activity-subitem .activity-icon { width: 24px; height: 24px; border-radius: 6px; font-size: 0.68rem; }
+        .activity-subtitle { color: var(--text); }
         .state-new { background: #2a2d36; color: #aaa; }
         .state-approved { background: rgba(63, 185, 80, 0.2); color: var(--green); }
         .state-drafting { background: rgba(47, 129, 247, 0.2); color: var(--accent); }
@@ -146,12 +150,23 @@
                         {{ item.type }} · {{ item.time }}
                     </div>
                     {% if item.sub_events %}
-                    <ul style="list-style: none; margin-top: 6px; padding-left: 12px; border-left: 2px solid var(--border);">
+                    <ul class="activity-sublist">
                         {% for sub in item.sub_events %}
-                        <li style="padding: 4px 0; font-size: 0.8rem;">
-                            <a href="{{ sub.link }}" style="color: var(--muted);">{{ sub.title }}</a>
-                            <span class="activity-state state-{{ sub.state }}" style="font-size: 0.65rem; margin-left: 6px;">{{ sub.state }}</span>
-                            <span style="color: var(--muted); font-size: 0.7rem; margin-left: 4px;">{{ sub.time }}</span>
+                        <li class="activity-subitem">
+                            <div class="activity-icon icon-{{ sub.type }}">{{ sub.type[0] | upper }}</div>
+                            <div class="activity-body">
+                                <div class="activity-subtitle">
+                                    <a href="{{ sub.link }}">
+                                        {% if sub.type == 'asset' %}
+                                        Asset for {{ item.title }}: {{ sub.title | replace('  → ', '') }}
+                                        {% else %}
+                                        {{ sub.title }}
+                                        {% endif %}
+                                    </a>
+                                </div>
+                                <div class="activity-meta">{{ sub.type }} · {{ sub.time }}</div>
+                            </div>
+                            <span class="activity-state state-{{ sub.state }}">{{ sub.state }}</span>
                         </li>
                         {% endfor %}
                     </ul>

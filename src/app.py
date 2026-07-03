@@ -3630,7 +3630,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             fmt = treatment.get("format", {})
             capture = treatment.get("capture_required", [])
             compact = []
-            compact.append(f"Scope: {scope_labels.get(scope.get('type', '?'), scope.get('type', '?'))}")
+            compact.append(f"Scope: {SCOPE_LABELS.get(scope.get('type', '?'), scope.get('type', '?'))}")
             if scope.get("type") == "series_of_n":
                 compact.append(f"({scope.get('n', '?')} × {scope.get('cadence', '?')})")
             compact.append(f"Format: {fmt.get('format_name', '?')}")

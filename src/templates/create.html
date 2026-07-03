@@ -17,8 +17,9 @@
         .pipeline-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 16px; }
         .stage-card { background: #1a1d27; border-radius: 10px; padding: 16px; border: 1px solid #2a2d36; }
         .stage-card h3 { font-size: 0.9rem; color: #aaa; margin-bottom: 10px; }
-        .item { padding: 8px 10px; background: #12131a; border-radius: 6px; margin-bottom: 6px; font-size: 0.85rem; }
-        .item a { color: #5b9fd6; }
+        .item { padding: 8px 10px; background: #12131a; border-radius: 6px; margin-bottom: 6px; font-size: 0.85rem; overflow-wrap: anywhere; }
+        .item a { color: #5b9fd6; line-height: 1.35; }
+        .item-title { display: block; margin-bottom: 4px; }
         .state-badge { font-size: 0.68rem; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
         .state-new { background: #2a2d36; color: #aaa; }
         .state-approved { background: #1a3a2a; color: #4acc6a; }
@@ -50,7 +51,7 @@
             {% if approved_cards or fulfilled_cards %}
                 {% for card in approved_cards + fulfilled_cards %}
                 <div class="item">
-                    <a href="/create/draft/{{ card.id }}" style="word-break: break-word;">{{ card.idea[:80] }}{% if card.idea|length > 80 %}…{% endif %}</a>
+                    <a class="item-title" href="/create/draft/{{ card.id }}">{{ card.idea[:80] }}{% if card.idea|length > 80 %}...{% endif %}</a>
                     <span class="state-badge state-approved">{{ card.card_state }}</span>
                 </div>
                 {% endfor %}
@@ -64,7 +65,7 @@
             {% if all_active_drafts %}
                 {% for d in all_active_drafts %}
                 <div class="item">
-                    <a href="/create/draft/{{ d.idea_card_id }}">{{ d.idea_text }}…</a>
+                    <a class="item-title" href="/create/draft/{{ d.idea_card_id }}">{{ d.idea_text[:50] }}{% if d.idea_text|length > 50 %}...{% endif %}</a>
                     {% if d.draft_state == 'drafting' %}
                     <span class="state-badge state-drafting">drafting</span>
                     {% elif d.draft_state == 'draft_ready' %}
@@ -83,7 +84,10 @@
             <h3>Shipped (ready for assets)</h3>
             {% if shipped %}
                 {% for d in shipped %}
-                <div class="item"><a href="/create/assets/{{ d.id }}">{{ d.idea_text }}… → assets</a></div>
+                <div class="item">
+                    <a class="item-title" href="/create/assets/{{ d.id }}">{{ d.idea_text[:50] }}{% if d.idea_text|length > 50 %}...{% endif %} → assets</a>
+                    <span class="state-badge state-shipped">shipped</span>
+                </div>
                 {% endfor %}
             {% else %}
                 <p class="empty">No shipped drafts.</p>
