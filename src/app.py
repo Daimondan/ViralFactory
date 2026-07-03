@@ -4779,8 +4779,15 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     @app.route("/media/<path:filepath>")
     def serve_media(filepath):
-        """Serve generated media files from data/media/."""
-        return send_from_directory("data/media", filepath)
+        """Serve generated media files from data/media/.
+        Handles paths that may or may not include the data/media/ prefix."""
+        # Strip leading "data/media/" if present (paths from DB include it)
+        if filepath.startswith("data/media/"):
+            filepath = filepath[len("data/media/"):]
+        # Use absolute path to avoid gunicorn working directory issues
+        media_root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "media")
+        media_root = os.path.abspath(media_root)
+        return send_from_directory(media_root, filepath)
 
     # ── Final Assembly: Edit Plan + Render (CORRECTION-final-assembly Part 1) ──
 

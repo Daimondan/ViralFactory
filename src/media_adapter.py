@@ -223,10 +223,28 @@ class MediaAdapter:
         data = response.json()
 
         # Extract image URL from response
-        # OpenRouter returns image data or URL
-        image_url = data.get("data", {}).get("url") or data.get("url")
-        image_b64 = data.get("data", {}).get("b64_json") or data.get("b64_json")
+        # OpenRouter Image API returns: {"data": [{"b64_json": "..."} or {"url": "..."}]}
+        # The data field is a LIST of image objects, not a dict.
+        image_url = None
+        image_b64 = None
         cost_usd = data.get("cost", 0)
+
+        data_items = data.get("data", [])
+        if isinstance(data_items, list) and len(data_items) > 0:
+            first = data_items[0]
+            if isinstance(first, dict):
+                image_url = first.get("url")
+                image_b64 = first.get("b64_json")
+        elif isinstance(data_items, dict):
+            # Some models might return a dict directly
+            image_url = data_items.get("url")
+            image_b64 = data_items.get("b64_json")
+
+        # Also check top-level fields as fallback
+        if not image_url:
+            image_url = data.get("url")
+        if not image_b64:
+            image_b64 = data.get("b64_json")
 
         if not image_url and not image_b64:
             raise MediaAdapterError(f"Image API returned no image data: {json.dumps(data)[:500]}")
