@@ -7,70 +7,64 @@
     <title>Draft — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f1117; color: #e0e0e0; }
-        .container { max-width: 900px; margin: 0 auto; padding: 20px; }
-        h1 { font-size: 1.5rem; margin-bottom: 6px; }
-        h2 { font-size: 1.1rem; margin: 20px 0 10px; }
-        h3 { font-size: 0.95rem; margin: 15px 0 8px; color: #aaa; }
-        .subtle { color: #888; font-size: 0.85rem; margin-bottom: 20px; }
-        a { color: #5b9fd6; text-decoration: none; }
-        .nav { display: flex; gap: 15px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #2a2d36; }
-        .card-info { background: #1a1d27; border-radius: 10px; padding: 16px; border: 1px solid #2a2d36; margin-bottom: 16px; }
+
+        h3 { font-size: 0.95rem; margin: 15px 0 8px; color: #8A857C; }
+
+        .card-info { background: #FFFFFF; border-radius: 10px; padding: 16px; border: 1px solid #D8D4C8; margin-bottom: 16px; }
         .card-info .idea { font-size: 1rem; margin-bottom: 8px; }
-        .card-info .meta { font-size: 0.8rem; color: #888; }
+        .card-info .met
         .origin-badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
-        .origin-ai { background: #1a3a5a; color: #6ab0ff; }
-        .origin-human { background: #2a4a1a; color: #8acc4a; }
-        .origin-developed { background: #4a2a1a; color: #ff9a4a; }
-        .draft-text { background: #1a1d27; border-radius: 10px; padding: 20px; border: 1px solid #2a2d36; font-size: 0.95rem; line-height: 1.7; white-space: pre-wrap; margin-bottom: 16px; }
-        .audit-flags { background: #1a1d27; border-radius: 10px; padding: 16px; border: 1px solid #2a2d36; margin-bottom: 16px; }
-        .audit-flag { padding: 10px; background: #12131a; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #ccaa4a; }
-        .audit-flag.applied { border-left-color: #4acc6a; opacity: 0.6; }
-        .audit-flag.dismissed { border-left-color: #666; opacity: 0.5; }
-        .audit-flag.line_changed { border-left-color: #ff9a4a; }
-        .audit-flag .line { font-style: italic; color: #ccc; }
-        .audit-flag .rule { font-size: 0.78rem; color: #ff9a4a; }
-        .audit-flag .suggestion { font-size: 0.8rem; color: #888; }
+        .origin-ai { background: rgba(74, 111, 165, 0.12); color: #4A6FA5; }
+        .origin-human { background: rgba(74, 124, 58, 0.12); color: #4A7C3A; }
+        .origin-developed { background: rgba(229, 75, 44, 0.12); color: #E54B2C; }
+        .draft-text { background: #FFFFFF; border-radius: 10px; padding: 20px; border: 1px solid #D8D4C8; font-size: 0.95rem; line-height: 1.7; white-space: pre-wrap; margin-bottom: 16px; }
+        .audit-flags { background: #FFFFFF; border-radius: 10px; padding: 16px; border: 1px solid #D8D4C8; margin-bottom: 16px; }
+        .audit-flag { padding: 10px; background: #F0EDE4; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #8A6D20; }
+        .audit-flag.applied { border-left-color: #4A7C3A; opacity: 0.6; }
+        .audit-flag.dismissed { border-left-color: #A8A399; opacity: 0.5; }
+        .audit-flag.line_changed { border-left-color: #E54B2C; }
+        .audit-flag .line { font-style: italic; color: #4A4744; }
+        .audit-flag .rule { font-size: 0.78rem; color: #E54B2C; }
+        .audit-flag .suggestion { font-size: 0.8rem; color: #8A857C; }
         .audit-flag .flag-actions { display: flex; gap: 6px; margin-top: 6px; }
-        .audit-flag .flag-status { font-size: 0.75rem; color: #888; margin-top: 4px; }
-        .visual-dir { background: #1a1d27; border-radius: 10px; padding: 16px; border: 1px solid #2a2d36; margin-bottom: 16px; font-size: 0.85rem; }
-        .visual-dir li { margin-left: 18px; margin-bottom: 4px; color: #aaa; }
-        .visual-dir .empty-vd { color: #888; font-style: italic; }
+        .audit-flag .flag-status { font-size: 0.75rem; color: #8A857C; margin-top: 4px; }
+        .visual-dir { background: #FFFFFF; border-radius: 10px; padding: 16px; border: 1px solid #D8D4C8; margin-bottom: 16px; font-size: 0.85rem; }
+        .visual-dir li { margin-left: 18px; margin-bottom: 4px; color: #8A857C; }
+        .visual-dir .empty-vd { color: #8A857C; font-style: italic; }
         .actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 20px 0; }
         .btn { padding: 8px 20px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.9rem; font-weight: 500; }
-        .btn-gen { background: #1a3a5a; color: #6ab0ff; }
-        .btn-ship { background: #1a4a2a; color: #4acc6a; }
-        .btn-kill { background: #4a1a1a; color: #cc4a4a; }
-        .btn-revise { background: #3a3a1a; color: #ccaa4a; }
-        .btn-edit { background: #2a2d36; color: #aaa; }
-        .btn-apply { background: #1a4a2a; color: #4acc6a; font-size: 0.78rem; padding: 3px 10px; }
-        .btn-dismiss { background: #2a2d36; color: #888; font-size: 0.78rem; padding: 3px 10px; }
-        .btn:hover { opacity: 0.85; }
+        .btn-gen { background: rgba(74, 111, 165, 0.12); color: #4A6FA5; }
+        .btn-ship { background: rgba(74, 124, 58, 0.15); color: #4A7C3A; }
+        .btn-kill { background: rgba(192, 57, 43, 0.15); color: #C0392B; }
+        .btn-revise { background: rgba(212, 168, 67, 0.15); color: #8A6D20; }
+        .btn-edit { background: #D8D4C8; color: #8A857C; }
+        .btn-apply { background: rgba(74, 124, 58, 0.15); color: #4A7C3A; font-size: 0.78rem; padding: 3px 10px; }
+        .btn-dismiss { background: #D8D4C8; color: #8A857C; font-size: 0.78rem; padding: 3px 10px; }
+        
         .btn:disabled { opacity: 0.4; cursor: default; }
-        .loading { color: #5b9fd6; font-style: italic; }
-        .empty { color: #666; font-style: italic; padding: 20px; text-align: center; }
-        .feedback-section { background: #1a1d27; border-radius: 10px; padding: 16px; border: 1px solid #2a2d36; margin-bottom: 16px; }
-        .feedback-section textarea { width: 100%; min-height: 40px; padding: 8px; border-radius: 6px; border: 1px solid #333; background: #12131a; color: #e0e0e0; font-size: 0.85rem; resize: vertical; font-family: inherit; margin-bottom: 6px; }
+        .loading { color: #E54B2C; font-style: italic; }
+        .empty { color: #A8A399; font-style: italic; padding: 20px; text-align: center; }
+        .feedback-section { background: #FFFFFF; border-radius: 10px; padding: 16px; border: 1px solid #D8D4C8; margin-bottom: 16px; }
+        .feedback-section textare
         .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
-        .chip { padding: 4px 12px; background: #2a2d36; border-radius: 16px; font-size: 0.78rem; cursor: pointer; color: #aaa; border: 1px solid #333; }
-        .chip:hover { background: #333; }
-        .state-badge { display: inline-block; font-size: 0.82rem; padding: 5px 12px; border-radius: 999px; font-weight: 700; margin-bottom: 12px; letter-spacing: 0.02em; border: 1px solid #333; }
-        .state-drafting { background: #1a2a3a; color: #6ab0ff; border-color: #24486d; }
+        .chip { padding: 4px 12px; background: #D8D4C8; border-radius: 16px; font-size: 0.78rem; cursor: pointer; color: #8A857C; border: 1px solid #D8D4C8; }
+        .chip:hover { background: #D8D4C8; }
+        .state-badge { display: inline-block; font-size: 0.82rem; padding: 5px 12px; border-radius: 999px; font-weight: 700; margin-bottom: 12px; letter-spacing: 0.02em; border: 1px solid #D8D4C8; }
+        .state-drafting { background: rgba(74, 111, 165, 0.12); color: #4A6FA5; border-color: #24486d; }
         .state-draft_ready { background: #3a301a; color: #ffd36a; border-color: #735c24; }
         .state-revised { background: #34244a; color: #c49aff; border-color: #5b3f80; }
-        .state-shipped { background: #173a26; color: #4acc6a; border-color: #2f7a45; }
-        .state-killed { background: #3a1a1a; color: #ff7a7a; border-color: #6d2a2a; }
+        .state-shipped { background: #173a26; color: #4A7C3A; border-color: #2f7a45; }
+        .state-killed { background: rgba(192, 57, 43, 0.12); color: #ff7a7a; border-color: #6d2a2a; }
         .shipped-panel { text-align: center; margin: 24px 0; padding: 22px; background: #112217; border: 1px solid #2f7a45; border-radius: 12px; }
         .shipped-panel .btn { font-size: 1.05rem; padding: 11px 28px; }
-        .reopen-link { display: inline-block; margin-top: 12px; font-size: 0.78rem; color: #888; background: none; border: none; cursor: pointer; text-decoration: underline; }
-        .reopen-link:hover { color: #ccc; }
-        .status-line { font-size: 0.82rem; margin-top: 6px; color: #5b9fd6; }
+        .reopen-link { display: inline-block; margin-top: 12px; font-size: 0.78rem; color: #8A857C; background: none; border: none; cursor: pointer; text-decoration: underline; }
+        .reopen-link:hover { color: #4A4744; }
+        .status-line { font-size: 0.82rem; margin-top: 6px; color: #E54B2C; }
         /* Visual preview grid */
         .visual-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin: 12px 0; }
-        .visual-thumb { background: #12131a; border-radius: 8px; overflow: hidden; aspect-ratio: 9 / 16; border: 1px solid #2a2d36; }
+        .visual-thumb { background: #F0EDE4; border-radius: 8px; overflow: hidden; aspect-ratio: 9 / 16; border: 1px solid #D8D4C8; }
         .visual-thumb img { width: 100%; height: 100%; object-fit: cover; }
-        .status-line { font-size: 0.82rem; margin-top: 6px; color: #5b9fd6; }
+        .status-line { font-size: 0.82rem; margin-top: 6px; color: #E54B2C; }
     </style>
 </head>
 <body>
@@ -107,7 +101,7 @@
     {# F1: Edit draft toggle — direct edits write draft_text directly #}
     {% if draft.draft_state != 'shipped' %}
     <div id="edit-draft-area" style="display:none; margin-bottom: 16px;">
-        <textarea id="editDraftTextarea" style="width:100%; min-height:300px; padding:12px; border-radius:8px; border:1px solid #333; background:#12131a; color:#e0e0e0; font-size:0.95rem; line-height:1.7; resize:vertical; font-family:inherit;">{{ draft.draft_text }}</textarea>
+        <textarea id="editDraftTextarea" style="width:100%; min-height:300px; padding:12px; border-radius:8px; border:1px solid #D8D4C8; background:#F0EDE4; color:#1A1A1A; font-size:0.95rem; line-height:1.7; resize:vertical; font-family:inherit;">{{ draft.draft_text }}</textarea>
         <div style="display:flex; gap:8px; margin-top:8px;">
             <button class="btn btn-ship" id="saveEditBtn" onclick="saveEditedText()">Save edit</button>
             <button class="btn btn-edit" onclick="cancelEditDraft()">Cancel</button>
@@ -244,7 +238,7 @@ function generateDraft() {
         busyLabel: 'Generating…',
         statusElem: status,
         reloadOnSuccess: true,
-        onError: function(msg) { status.style.display = 'block'; status.style.color = '#cc4a4a'; status.textContent = msg; }
+        onError: function(msg) { status.style.display = 'block'; status.style.color = '#C0392B'; status.textContent = msg; }
     });
 }
 
@@ -271,7 +265,7 @@ function generateDraftVisuals() {
         statusElem: status,
         body: '{}',
         reloadOnSuccess: true,
-        onError: function(msg) { status.style.color = '#cc4a4a'; status.textContent = msg; }
+        onError: function(msg) { status.style.color = '#C0392B'; status.textContent = msg; }
     });
 }
 
@@ -328,7 +322,7 @@ function saveEditedText() {
         statusElem: status,
         body: JSON.stringify({draft_text: text}),
         reloadOnSuccess: true,
-        onError: function(msg) { status.style.color = '#cc4a4a'; status.textContent = msg; }
+        onError: function(msg) { status.style.color = '#C0392B'; status.textContent = msg; }
     });
 }
 

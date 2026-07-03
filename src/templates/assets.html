@@ -7,35 +7,28 @@
     <title>Assets — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f1117; color: #e0e0e0; }
-        .container { max-width: 1280px; margin: 0 auto; padding: 20px; }
-        h1 { font-size: 1.5rem; margin-bottom: 6px; }
-        .subtle { color: #888; font-size: 0.85rem; margin-bottom: 20px; }
-        a { color: #5b9fd6; text-decoration: none; }
-        .nav { display: flex; gap: 15px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #2a2d36; }
 
         .asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 20px; }
-        .preview-card { background: #1a1d27; border-radius: 12px; overflow: hidden; border: 1px solid #2a2d36; }
-        .preview-header { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2a2d36; }
-        .preview-platform { font-size: 0.85rem; font-weight: 600; color: #6ab0ff; }
-        .preview-type { font-size: 0.72rem; color: #888; }
+        .preview-card { background: #FFFFFF; border-radius: 12px; overflow: hidden; border: 1px solid #D8D4C8; }
+        .preview-header { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #D8D4C8; }
+        .preview-platform { font-size: 0.85rem; font-weight: 600; color: #4A6FA5; }
+        .preview-type { font-size: 0.72rem; color: #8A857C; }
 
         /* Post/slide list — how the content actually appears */
         .post-list { padding: 0; max-height: 400px; overflow-y: auto; }
-        .post-item { padding: 12px 16px; border-bottom: 1px solid #12131a; display: flex; gap: 12px; }
+        .post-item { padding: 12px 16px; border-bottom: 1px solid #F0EDE4; display: flex; gap: 12px; }
         .post-item:last-child { border-bottom: none; }
         .post-number { font-size: 0.75rem; color: #555; min-width: 20px; padding-top: 2px; }
         .post-body { flex: 1; }
         .post-text { font-size: 0.88rem; line-height: 1.5; white-space: pre-wrap; }
-        .post-meta { font-size: 0.72rem; color: #666; margin-top: 4px; }
-        .post-image { width: 60px; height: 60px; border-radius: 6px; object-fit: cover; background: #12131a; flex-shrink: 0; cursor: pointer; transition: transform 0.1s; }
+        .post-met
+        .post-image { width: 60px; height: 60px; border-radius: 6px; object-fit: cover; background: #F0EDE4; flex-shrink: 0; cursor: pointer; transition: transform 0.1s; }
         .post-image:hover { transform: scale(1.08); }
-        .post-image-placeholder { width: 60px; height: 60px; border-radius: 6px; background: #12131a; display: flex; align-items: center; justify-content: center; color: #444; font-size: 0.7rem; flex-shrink: 0; }
+        .post-image-placeholder { width: 60px; height: 60px; border-radius: 6px; background: #F0EDE4; display: flex; align-items: center; justify-content: center; color: #444; font-size: 0.7rem; flex-shrink: 0; }
         .media-frame img, .media-frame video { max-width: 100%; max-height: 100%; object-fit: contain; cursor: pointer; }
 
         /* Media frame for single visual preview */
-        .media-frame { display: flex; align-items: center; justify-content: center; background: #12131a; position: relative; }
+        .media-frame { display: flex; align-items: center; justify-content: center; background: #F0EDE4; position: relative; }
         .media-frame.vertical { aspect-ratio: 9 / 16; max-height: 400px; }
         .media-frame.square { aspect-ratio: 1 / 1; }
         .media-frame.horizontal { aspect-ratio: 16 / 9; }
@@ -45,65 +38,65 @@
         .lightbox.show { display: flex; }
         .lightbox img { max-width: 90%; max-height: 85vh; object-fit: contain; border-radius: 8px; }
         .lightbox video { max-width: 90%; max-height: 85vh; border-radius: 8px; }
-        .lightbox-close { position: absolute; top: 16px; right: 20px; color: #888; font-size: 2rem; cursor: pointer; }
+        .lightbox-close { position: absolute; top: 16px; right: 20px; color: #8A857C; font-size: 2rem; cursor: pointer; }
         .lightbox-close:hover { color: #fff; }
-        .lightbox-caption { color: #888; font-size: 0.85rem; margin-top: 10px; max-width: 80%; text-align: center; }
+        .lightbox-caption { color: #8A857C; font-size: 0.85rem; margin-top: 10px; max-width: 80%; text-align: center; }
         .media-placeholder { color: #555; font-size: 0.85rem; text-align: center; padding: 20px; }
         .final-badge { position: absolute; top: 8px; right: 8px; background: #1a3a3a; color: #4accaa; font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
 
         /* State badge */
         .asset-state { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; display: inline-block; }
-        .state-pending { background: #2a2d36; color: #aaa; }
-        .state-approved { background: #1a3a2a; color: #4acc6a; }
-        .state-fix { background: #3a3a1a; color: #ccaa4a; }
-        .state-killed { background: #3a1a1a; color: #cc4a4a; }
-        .state-published { background: #1a2a3a; color: #4a8acc; }
+        .state-pending { background: #D8D4C8; color: #8A857C; }
+        .state-approved { background: rgba(74, 124, 58, 0.12); color: #4A7C3A; }
+        .state-fix { background: rgba(212, 168, 67, 0.15); color: #8A6D20; }
+        .state-killed { background: rgba(192, 57, 43, 0.12); color: #C0392B; }
+        .state-published { background: rgba(74, 111, 165, 0.12); color: #4A6FA5; }
 
         /* Step flow — one clear action at a time */
-        .step-flow { padding: 12px 16px; border-top: 1px solid #2a2d36; }
+        .step-flow { padding: 12px 16px; border-top: 1px solid #D8D4C8; }
         .step { margin-bottom: 12px; }
-        .step-label { font-size: 0.75rem; color: #888; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
-        .step-num { background: #2a2d36; color: #aaa; font-size: 0.68rem; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-        .step-num.done { background: #1a4a2a; color: #4acc6a; }
-        .step-num.active { background: #1a3a5a; color: #6ab0ff; }
+        .step-label { font-size: 0.75rem; color: #8A857C; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+        .step-num { background: #D8D4C8; color: #8A857C; font-size: 0.68rem; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        .step-num.done { background: rgba(74, 124, 58, 0.15); color: #4A7C3A; }
+        .step-num.active { background: rgba(74, 111, 165, 0.12); color: #4A6FA5; }
 
         .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 500; }
-        .btn-primary { background: #1a3a5a; color: #6ab0ff; }
-        .btn-approve { background: #1a4a2a; color: #4acc6a; }
-        .btn-fix { background: #3a3a1a; color: #ccaa4a; }
-        .btn-kill { background: #4a1a1a; color: #cc4a4a; }
+        .btn-primary { background: rgba(74, 111, 165, 0.12); color: #4A6FA5; }
+        .btn-approve { background: rgba(74, 124, 58, 0.15); color: #4A7C3A; }
+        .btn-fix { background: rgba(212, 168, 67, 0.15); color: #8A6D20; }
+        .btn-kill { background: rgba(192, 57, 43, 0.15); color: #C0392B; }
         .btn-render { background: #1a3a3a; color: #4accaa; }
-        .btn:hover { opacity: 0.85; }
+        
         .btn:disabled { opacity: 0.4; cursor: default; }
         .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-        .gate-actions { display: flex; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #2a2d36; }
+        .gate-actions { display: flex; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #D8D4C8; }
 
-        .empty { color: #666; font-style: italic; padding: 20px; text-align: center; }
-        .status-line { font-size: 0.82rem; margin-top: 6px; color: #5b9fd6; }
-        .handle { color: #5b9fd6; font-size: 0.78rem; }
+        .empty { color: #A8A399; font-style: italic; padding: 20px; text-align: center; }
+        .status-line { font-size: 0.82rem; margin-top: 6px; color: #E54B2C; }
+        .handle { color: #E54B2C; font-size: 0.78rem; }
 
         /* Final cut video player */
-        .final-cut-section { padding: 12px 16px; border-top: 1px solid #2a2d36; }
+        .final-cut-section { padding: 12px 16px; border-top: 1px solid #D8D4C8; }
         .final-cut-section video { width: 100%; max-height: 400px; border-radius: 8px; background: #000; }
 
         /* Video dialog (only for reel formats) */
-        .video-dialog { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #1a1d27; border-radius: 12px; padding: 24px; border: 1px solid #2a2d36; z-index: 100; max-width: 400px; }
+        .video-dialog { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #FFFFFF; border-radius: 12px; padding: 24px; border: 1px solid #D8D4C8; z-index: 100; max-width: 400px; }
         .video-dialog.show { display: block; }
         .video-dialog h3 { margin-bottom: 12px; }
-        .video-dialog .cost-estimate { font-size: 1.1rem; color: #ccaa4a; margin: 12px 0; }
+        .video-dialog .cost-estimate { font-size: 1.1rem; color: #8A6D20; margin: 12px 0; }
         .video-dialog .dialog-actions { display: flex; gap: 10px; margin-top: 16px; }
-        .video-dialog input, .video-dialog select { padding: 5px 10px; border-radius: 4px; border: 1px solid #333; background: #12131a; color: #e0e0e0; font-size: 0.85rem; margin: 4px 0; }
-        .video-dialog label { font-size: 0.82rem; color: #888; display: block; margin-top: 8px; }
+        .video-dialog input, .video-dialog select { padding: 5px 10px; border-radius: 4px; border: 1px solid #D8D4C8; background: #F0EDE4; color: #1A1A1A; font-size: 0.85rem; margin: 4px 0; }
+        .video-dialog label { font-size: 0.82rem; color: #8A857C; display: block; margin-top: 8px; }
         .dialog-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 99; }
         .dialog-overlay.show { display: block; }
 
         /* Cut list */
-        .cut-list { background: #12131a; border-radius: 8px; padding: 12px; font-size: 0.8rem; line-height: 1.6; color: #aaa; white-space: pre-wrap; max-height: 200px; overflow-y: auto; margin-top: 8px; }
+        .cut-list { background: #F0EDE4; border-radius: 8px; padding: 12px; font-size: 0.8rem; line-height: 1.6; color: #8A857C; white-space: pre-wrap; max-height: 200px; overflow-y: auto; margin-top: 8px; }
         .plan-status { font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; display: inline-block; margin-left: 6px; }
-        .plan-status.proposed { background: #2a2d36; color: #aaa; }
-        .plan-status.rendering { background: #2a1a3a; color: #aa6acc; }
-        .plan-status.rendered { background: #1a3a2a; color: #4acc6a; }
-        .plan-status.failed { background: #3a1a1a; color: #cc4a4a; }
+        .plan-status.proposed { background: #D8D4C8; color: #8A857C; }
+        .plan-status.rendering { background: rgba(123, 91, 166, 0.12); color: #7B5BA6; }
+        .plan-status.rendered { background: rgba(74, 124, 58, 0.12); color: #4A7C3A; }
+        .plan-status.failed { background: rgba(192, 57, 43, 0.12); color: #C0392B; }
     </style>
 </head>
 <body>
@@ -254,7 +247,7 @@
                     <button class="btn btn-primary" onclick="generateVisuals({{ asset.id }}, this)">Generate {{ active_count }} image{{ 's' if active_count > 1 else '' }}</button>
                     <div class="status-line" id="status-{{ asset.id }}" style="display: none;"></div>
                     {% elif not has_images %}
-                    <p style="font-size: 0.78rem; color: #666;">No image prompts on this variant.</p>
+                    <p style="font-size: 0.78rem; color: #A8A399;">No image prompts on this variant.</p>
                     {% endif %}
                 </div>
                 {% endif %}
@@ -306,7 +299,7 @@
                 </div>
                 {% elif asset.asset_state == 'killed' %}
                 <div class="gate-actions">
-                    <span style="color: #cc4a4a; font-size: 0.8rem;">Killed</span>
+                    <span style="color: #C0392B; font-size: 0.8rem;">Killed</span>
                 </div>
                 {% endif %}
             </div>
@@ -385,7 +378,7 @@ function fanOut() {
         busyLabel: 'Generating variants…',
         statusElem: status,
         reloadOnSuccess: true,
-        onError: function(msg) { status.style.color = '#cc4a4a'; status.textContent = msg; }
+        onError: function(msg) { status.style.color = '#C0392B'; status.textContent = msg; }
     });
 }
 
@@ -404,7 +397,7 @@ function generateVisuals(assetId, btn) {
         statusElem: statusElem,
         body: '{}',
         reloadOnSuccess: true,
-        onError: function(msg) { statusElem.style.color = '#cc4a4a'; statusElem.textContent = msg; }
+        onError: function(msg) { statusElem.style.color = '#C0392B'; statusElem.textContent = msg; }
     });
 }
 
@@ -415,7 +408,7 @@ function generateEditPlan(assetId, btn) {
         statusElem: statusElem,
         body: '{}',
         reloadOnSuccess: true,
-        onError: function(msg) { statusElem.style.color = '#cc4a4a'; statusElem.textContent = msg; }
+        onError: function(msg) { statusElem.style.color = '#C0392B'; statusElem.textContent = msg; }
     });
 }
 
@@ -427,7 +420,7 @@ function renderFinalCut(assetId, planId, btn) {
         statusElem: statusElem,
         body: JSON.stringify({plan_id: planId}),
         reloadOnSuccess: true,
-        onError: function(msg) { statusElem.style.color = '#cc4a4a'; statusElem.textContent = msg; }
+        onError: function(msg) { statusElem.style.color = '#C0392B'; statusElem.textContent = msg; }
     });
 }
 

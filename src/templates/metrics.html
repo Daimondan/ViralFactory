@@ -7,35 +7,26 @@
     <title>Metrics — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f1117; color: #e0e0e0; }
-        .container { max-width: 900px; margin: 0 auto; padding: 20px; }
-        h1 { font-size: 1.5rem; margin-bottom: 6px; }
-        h2 { font-size: 1.1rem; margin: 20px 0 10px; }
-        .subtle { color: #888; font-size: 0.85rem; margin-bottom: 20px; }
-        a { color: #5b9fd6; text-decoration: none; }
-        .nav { display: flex; gap: 15px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #2a2d36; }
-        .btn { padding: 6px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 500; background: #1a4a2a; color: #4acc6a; }
-        .btn:hover { opacity: 0.85; }
+
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .metric-card { background: #1a1d27; border-radius: 10px; padding: 16px; border: 1px solid #2a2d36; margin-bottom: 12px; }
+        .metric-card { background: #FFFFFF; border-radius: 10px; padding: 16px; border: 1px solid #D8D4C8; margin-bottom: 12px; }
         .metric-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .platform { font-size: 0.85rem; font-weight: 600; color: #6ab0ff; }
-        .type { font-size: 0.72rem; color: #888; }
-        .time-badge { font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; background: #1a3a2a; color: #4acc6a; }
+        .platform { font-size: 0.85rem; font-weight: 600; color: #4A6FA5; }
+        .type { font-size: 0.72rem; color: #8A857C; }
+        .time-badge { font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; background: rgba(74, 124, 58, 0.12); color: #4A7C3A; }
         .metrics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 10px; }
-        .metric-item { background: #12131a; border-radius: 6px; padding: 8px 10px; }
-        .metric-label { font-size: 0.72rem; color: #888; margin-bottom: 4px; }
-        .metric-value { font-size: 1.1rem; font-weight: 600; color: #e0e0e0; }
+        .metric-item { background: #F0EDE4; border-radius: 6px; padding: 8px 10px; }
+        .metric-label { font-size: 0.72rem; color: #8A857C; margin-bottom: 4px; }
+        .metric-value { font-size: 1.1rem; font-weight: 600; color: #1A1A1A; }
         .metric-change { font-size: 0.7rem; margin-top: 2px; }
-        .change-up { color: #4acc6a; }
+        .change-up { color: #4A7C3A; }
         .change-down { color: #f85149; }
-        .change-flat { color: #888; }
-        .empty { color: #666; font-style: italic; padding: 20px; text-align: center; }
-        .info-box { color: #6ab0ff; font-size: 0.82rem; padding: 12px; background: #1a2a3a; border-radius: 6px; margin-bottom: 16px; border-left: 3px solid #6ab0ff; }
-        .warn-box { color: #d2a04a; font-size: 0.82rem; padding: 12px; background: #2a2a1a; border-radius: 6px; margin-bottom: 16px; border-left: 3px solid #d2a04a; }
+        .change-flat { color: #8A857C; }
+        .empty { color: #A8A399; font-style: italic; padding: 20px; text-align: center; }
+        .info-box { color: #4A6FA5; font-size: 0.82rem; padding: 12px; background: rgba(74, 111, 165, 0.12); border-radius: 6px; margin-bottom: 16px; border-left: 3px solid #4A6FA5; }
+        .warn-box { color: #d2a04a; font-size: 0.82rem; padding: 12px; background: rgba(212, 168, 67, 0.12); border-radius: 6px; margin-bottom: 16px; border-left: 3px solid #d2a04a; }
         .pull-status { font-size: 0.85rem; margin-top: 8px; }
-        .no-metrics { color: #666; font-size: 0.82rem; font-style: italic; }
+        .no-metrics { color: #A8A399; font-size: 0.82rem; font-style: italic; }
     </style>
 </head>
 <body>
@@ -44,7 +35,7 @@
         <a href="/">Dashboard</a>
         <a href="/create">Create</a>
         <a href="/published">Published</a>
-        <a href="/metrics" style="color:#5b9fd6">Metrics</a>
+        <a href="/metrics" style="color:#E54B2C">Metrics</a>
     </div>
 
     <h1>Metrics</h1>
@@ -62,7 +53,7 @@
 
     <button class="btn" id="pull-btn" onclick="pullMetrics(this)" {% if not postiz_available %}disabled title="Buffer not configured — cannot pull metrics"{% endif %}>Pull metrics now</button>
     {% if not postiz_available %}
-    <span style="font-size: 0.78rem; color: #888; margin-left: 8px;">Configure Buffer to enable</span>
+    <span style="font-size: 0.78rem; color: #8A857C; margin-left: 8px;">Configure Buffer to enable</span>
     {% endif %}
     <div id="pull-status" class="pull-status"></div>
 
@@ -78,7 +69,7 @@
             </div>
             <span class="time-badge">{{ item.publish_scheduled_at[:16] if item.publish_scheduled_at else 'N/A' }}</span>
         </div>
-        <div style="font-size: 0.85rem; color: #aaa; margin-bottom: 8px;">
+        <div style="font-size: 0.85rem; color: #8A857C; margin-bottom: 8px;">
             {{ item.content[:200] }}{% if item.content|length > 200 %}...{% endif %}
         </div>
         {% if item.metrics and item.metrics|length > 0 %}
@@ -123,7 +114,7 @@ function pullMetrics(btn) {
         busyLabel: 'Pulling…',
         body: JSON.stringify({days: 7}),
         onSuccess: function(data) {
-            status.innerHTML = '<span style="color: #4acc6a;">Pulled ' + data.pulled + ' posts, ' + data.failed + ' failed.</span>';
+            status.innerHTML = '<span style="color: #4A7C3A;">Pulled ' + data.pulled + ' posts, ' + data.failed + ' failed.</span>';
             setTimeout(function() { location.reload(); }, 1500);
         },
         onError: function(msg) {

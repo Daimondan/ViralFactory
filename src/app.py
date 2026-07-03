@@ -103,6 +103,14 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     # --- Routes ---
 
+    def _greeting_period() -> str:
+        """Return time-of-day greeting word."""
+        from datetime import datetime, timezone
+        h = datetime.now().hour
+        if h < 12: return "morning"
+        if h < 18: return "afternoon"
+        return "evening"
+
     @app.route("/")
     def index():
         """Dashboard — shows system status and recent activity."""
@@ -178,6 +186,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             business_name=business_name,
             business_slug=business_slug,
             activity=activity,
+            greeting_period=_greeting_period(),
+            pending_count=sum(1 for a in activity if a.get("state") in ("new", "draft_ready", "pending", "shipped")),
         )
 
     @app.route("/onboard")

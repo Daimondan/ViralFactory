@@ -7,68 +7,60 @@
     <title>Gate Queue — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f1117; color: #e0e0e0; }
-        .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
-        h1 { font-size: 1.5rem; margin-bottom: 6px; }
-        h2 { font-size: 1.1rem; margin: 20px 0 10px; }
-        .subtle { color: #888; font-size: 0.85rem; margin-bottom: 20px; }
-        a { color: #5b9fd6; text-decoration: none; }
-        .nav { display: flex; gap: 15px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #2a2d36; }
 
         .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
         @media (max-width: 768px) { .summary-grid { grid-template-columns: repeat(2, 1fr); } }
-        .stat-card { background: #1a1d27; border: 1px solid #2a2d36; border-radius: 8px; padding: 12px; text-align: center; }
+        .stat-card { background: #FFFFFF; border: 1px solid #D8D4C8; border-radius: 8px; padding: 12px; text-align: center; }
         .stat-num { font-size: 1.6rem; font-weight: 700; }
-        .stat-label { font-size: 0.75rem; color: #888; margin-top: 4px; }
+        .stat-label { font-size: 0.75rem; color: #8A857C; margin-top: 4px; }
         .num-pending { color: #d2a04a; }
-        .num-approved { color: #4acc6a; }
+        .num-approved { color: #4A7C3A; }
         .num-rejected { color: #f85149; }
-        .num-superseded { color: #888; }
+        .num-superseded { color: #8A857C; }
 
-        .proposal-card { background: #1a1d27; border: 1px solid #2a2d36; border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+        .proposal-card { background: #FFFFFF; border: 1px solid #D8D4C8; border-radius: 10px; padding: 16px; margin-bottom: 12px; }
         .proposal-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
-        .proposal-module { font-weight: 600; color: #6ab0ff; font-size: 0.9rem; }
-        .proposal-section { font-size: 0.8rem; color: #888; margin-left: 8px; }
+        .proposal-module { font-weight: 600; color: #4A6FA5; font-size: 0.9rem; }
+        .proposal-section { font-size: 0.8rem; color: #8A857C; margin-left: 8px; }
         .proposal-age { font-size: 0.72rem; color: #d2a04a; white-space: nowrap; }
         .proposal-type { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; display: inline-block; margin-right: 6px; }
-        .type-add { background: rgba(63, 185, 80, 0.15); color: #4acc6a; }
-        .type-modify { background: rgba(47, 129, 247, 0.15); color: #2f81f7; }
+        .type-add { background: rgba(63, 185, 80, 0.15); color: #4A7C3A; }
+        .type-modify { background: rgba(47, 129, 247, 0.15); color: #E54B2C; }
         .type-remove { background: rgba(248, 81, 73, 0.15); color: #f85149; }
         .type-status_change { background: rgba(210, 153, 34, 0.15); color: #d2a04a; }
         .type-mapping_change { background: rgba(163, 113, 247, 0.15); color: #a371f7; }
 
         .proposal-description { font-size: 0.88rem; line-height: 1.5; margin-bottom: 10px; }
-        .proposal-diff { font-size: 0.82rem; background: #12131a; border-radius: 6px; padding: 10px; margin-bottom: 10px; font-family: monospace; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
+        .proposal-diff { font-size: 0.82rem; background: #F0EDE4; border-radius: 6px; padding: 10px; margin-bottom: 10px; font-family: monospace; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
         .proposal-evidence { margin-bottom: 10px; }
-        .evidence-item { font-size: 0.78rem; color: #aaa; padding: 4px 0; border-bottom: 1px solid #12131a; }
+        .evidence-item { font-size: 0.78rem; color: #8A857C; padding: 4px 0; border-bottom: 1px solid #F0EDE4; }
         .evidence-item:last-child { border-bottom: none; }
-        .proposal-rationale { font-size: 0.82rem; color: #888; font-style: italic; margin-bottom: 10px; }
+        .proposal-rationale { font-size: 0.82rem; color: #8A857C; font-style: italic; margin-bottom: 10px; }
         .confidence { font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; display: inline-block; margin-left: 6px; }
-        .conf-high { background: rgba(63, 185, 80, 0.15); color: #4acc6a; }
+        .conf-high { background: rgba(63, 185, 80, 0.15); color: #4A7C3A; }
         .conf-medium { background: rgba(210, 153, 34, 0.15); color: #d2a04a; }
         .conf-low { background: rgba(248, 81, 73, 0.15); color: #f85149; }
 
-        .proposal-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid #2a2d36; }
+        .proposal-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid #D8D4C8; }
         .btn { padding: 6px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.82rem; font-weight: 500; }
-        .btn-approve { background: #1a4a2a; color: #4acc6a; }
+        .btn-approve { background: rgba(74, 124, 58, 0.15); color: #4A7C3A; }
         .btn-reject { background: #2a1a1a; color: #f85149; }
-        .btn:hover { opacity: 0.85; }
+        
         .reject-reasons { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
-        .reject-chip { font-size: 0.72rem; padding: 3px 10px; border-radius: 12px; border: 1px solid #333; cursor: pointer; background: #12131a; color: #aaa; }
+        .reject-chip { font-size: 0.72rem; padding: 3px 10px; border-radius: 12px; border: 1px solid #D8D4C8; cursor: pointer; background: #F0EDE4; color: #8A857C; }
         .reject-chip:hover { border-color: #f85149; color: #f85149; }
 
-        .superseded-notice { font-size: 0.75rem; color: #888; padding: 4px 10px; background: #1a1a1a; border-radius: 4px; margin-bottom: 8px; }
+        .superseded-notice { font-size: 0.75rem; color: #8A857C; padding: 4px 10px; background: #1a1a1a; border-radius: 4px; margin-bottom: 8px; }
         .status-badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; }
-        .badge-approved { background: rgba(63, 185, 80, 0.2); color: #4acc6a; }
+        .badge-approved { background: rgba(63, 185, 80, 0.2); color: #4A7C3A; }
         .badge-rejected { background: rgba(248, 81, 73, 0.2); color: #f85149; }
-        .badge-superseded { background: #2a2d36; color: #888; }
+        .badge-superseded { background: #D8D4C8; color: #8A857C; }
         .badge-pending { background: rgba(210, 153, 34, 0.2); color: #d2a04a; }
 
-        .empty { color: #666; font-style: italic; padding: 20px; text-align: center; }
+        .empty { color: #A8A399; font-style: italic; padding: 20px; text-align: center; }
 
-        .bulk-bar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; padding: 10px; background: #1a1d27; border-radius: 8px; border: 1px solid #2a2d36; }
-        .bulk-bar label { font-size: 0.85rem; color: #888; }
+        .bulk-bar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; padding: 10px; background: #FFFFFF; border-radius: 8px; border: 1px solid #D8D4C8; }
+        .bulk-bar label { font-size: 0.85rem; color: #8A857C; }
     </style>
 </head>
 <body>
@@ -78,7 +70,7 @@
         <a href="/create">Create</a>
         <a href="/published">Published</a>
         <a href="/metrics">Metrics</a>
-        <a href="/proposals" style="color:#5b9fd6">Gate Queue</a>
+        <a href="/proposals" style="color:#E54B2C">Gate Queue</a>
     </div>
 
     <h1>Gate Queue</h1>
@@ -135,7 +127,7 @@
         <div class="proposal-description">{{ p.change_description }}</div>
         <div class="proposal-diff">{{ p.exact_diff }}</div>
         <div class="proposal-evidence">
-            <strong style="font-size: 0.78rem; color: #888;">Evidence:</strong>
+            <strong style="font-size: 0.78rem; color: #8A857C;">Evidence:</strong>
             {% for ev in p.evidence_parsed %}
             <div class="evidence-item">{{ ev }}</div>
             {% endfor %}

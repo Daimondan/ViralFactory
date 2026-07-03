@@ -7,89 +7,77 @@
     <title>Ideas — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f1117; color: #e0e0e0; }
-        .container { max-width: 1280px; margin: 0 auto; padding: 20px; }
-        h1 { font-size: 1.8rem; margin-bottom: 8px; }
-        h2 { font-size: 1.3rem; margin: 20px 0 10px; }
-        .subtle { color: #888; font-size: 0.9rem; margin-bottom: 20px; }
-        a { color: #5b9fd6; text-decoration: none; }
-        a:hover { text-decoration: underline; }
-        .nav { display: flex; gap: 15px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #2a2d36; }
-        .nav a { color: #aaa; font-size: 0.9rem; }
-        .nav a.active { color: #5b9fd6; }
 
         /* Tabs */
         .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
-        .tab { padding: 6px 16px; border-radius: 6px 6px 0 0; background: #1a1d27; color: #888; cursor: pointer; font-size: 0.85rem; border: none; }
-        .tab.active { background: #252836; color: #e0e0e0; }
+        .tab { padding: 6px 16px; border-radius: 6px 6px 0 0; background: #FFFFFF; color: #8A857C; cursor: pointer; font-size: 0.85rem; border: none; }
+        .tab.active { background: #F0EDE4; color: #1A1A1A; }
 
         /* Card grid */
         .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 16px; }
-        .card { background: #1a1d27; border-radius: 10px; padding: 18px; border: 1px solid #2a2d36; }
-        .card:hover { border-color: #3a3d46; }
+
         .card-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px; }
         .origin-badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
-        .origin-ai { background: #1a3a5a; color: #6ab0ff; }
-        .origin-human { background: #2a4a1a; color: #8acc4a; }
-        .origin-developed { background: #4a2a1a; color: #ff9a4a; }
+        .origin-ai { background: rgba(74, 111, 165, 0.12); color: #4A6FA5; }
+        .origin-human { background: rgba(74, 124, 58, 0.12); color: #4A7C3A; }
+        .origin-developed { background: rgba(229, 75, 44, 0.12); color: #E54B2C; }
         .card-state { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; }
-        .state-new { background: #2a2d36; color: #aaa; }
-        .state-approved { background: #1a3a2a; color: #4acc6a; }
-        .state-killed { background: #3a1a1a; color: #cc4a4a; }
-        .state-parked { background: #2a2a1a; color: #ccaa4a; }
-        .state-awaiting { background: #2a1a3a; color: #aa6acc; }
-        .state-drafting { background: #1a2a3a; color: #4a8acc; }
+        .state-new { background: #D8D4C8; color: #8A857C; }
+        .state-approved { background: rgba(74, 124, 58, 0.12); color: #4A7C3A; }
+        .state-killed { background: rgba(192, 57, 43, 0.12); color: #C0392B; }
+        .state-parked { background: rgba(212, 168, 67, 0.12); color: #8A6D20; }
+        .state-awaiting { background: rgba(123, 91, 166, 0.12); color: #7B5BA6; }
+        .state-drafting { background: rgba(74, 111, 165, 0.12); color: #4A6FA5; }
 
         .card-idea { font-size: 1rem; line-height: 1.5; margin-bottom: 10px; }
-        .card-hooks { font-size: 0.85rem; color: #999; margin-bottom: 10px; }
+        .card-hooks { font-size: 0.85rem; color: #8A857C; margin-bottom: 10px; }
         .card-hooks li { margin-left: 18px; margin-bottom: 2px; }
 
         /* Treatment compact line */
-        .treatment-line { font-size: 0.78rem; color: #777; padding: 6px 10px; background: #12131a; border-radius: 6px; margin-bottom: 8px; display: flex; gap: 10px; flex-wrap: wrap; }
+        .treatment-line { font-size: 0.78rem; color: #8A857C; padding: 6px 10px; background: #F0EDE4; border-radius: 6px; margin-bottom: 8px; display: flex; gap: 10px; flex-wrap: wrap; }
         .treatment-line span { white-space: nowrap; }
-        .capture-flag { color: #ff9a4a; font-weight: 600; }
+        .capture-flag { color: #E54B2C; font-weight: 600; }
 
         /* Treatment expandable */
-        .treatment-full { display: none; font-size: 0.8rem; line-height: 1.5; color: #aaa; padding: 10px; background: #12131a; border-radius: 6px; margin-bottom: 10px; }
+        .treatment-full { display: none; font-size: 0.8rem; line-height: 1.5; color: #8A857C; padding: 10px; background: #F0EDE4; border-radius: 6px; margin-bottom: 10px; }
         .treatment-full.show { display: block; }
-        .treatment-full dt { font-weight: 600; color: #ccc; margin-top: 6px; }
+        .treatment-full dt { font-weight: 600; color: #4A4744; margin-top: 6px; }
         .treatment-full dd { margin-left: 12px; margin-bottom: 4px; }
 
-        .evidence-links { font-size: 0.75rem; color: #666; margin-bottom: 10px; }
-        .evidence-links a { color: #5b9fd6; }
+        .evidence-links { font-size: 0.75rem; color: #A8A399; margin-bottom: 10px; }
+        .evidence-links 
 
         .card-actions { display: flex; gap: 8px; }
         .btn { padding: 5px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.8rem; font-weight: 500; }
-        .btn-approve { background: #1a4a2a; color: #4acc6a; }
-        .btn-kill { background: #4a1a1a; color: #cc4a4a; }
-        .btn-park { background: #3a3a1a; color: #ccaa4a; }
-        .btn-secondary { background: #2a2d36; color: #aaa; }
-        .btn:hover { opacity: 0.85; }
+        .btn-approve { background: rgba(74, 124, 58, 0.15); color: #4A7C3A; }
+        .btn-kill { background: rgba(192, 57, 43, 0.15); color: #C0392B; }
+        .btn-park { background: rgba(212, 168, 67, 0.15); color: #8A6D20; }
+        .btn-secondary { background: #D8D4C8; color: #8A857C; }
+        
         .btn:disabled { opacity: 0.4; cursor: default; }
 
         .kill-reason { display: none; margin-top: 8px; }
         .kill-reason.show { display: flex; gap: 6px; }
-        .kill-reason input { flex: 1; padding: 5px 8px; border-radius: 4px; border: 1px solid #333; background: #12131a; color: #e0e0e0; font-size: 0.8rem; }
+        .kill-reason input { flex: 1; padding: 5px 8px; border-radius: 4px; border: 1px solid #D8D4C8; background: #F0EDE4; color: #1A1A1A; font-size: 0.8rem; }
 
         /* Seed form */
-        .seed-box { background: #1a1d27; border-radius: 10px; padding: 18px; border: 1px solid #2a2d36; margin-bottom: 20px; }
-        .seed-box textarea { width: 100%; min-height: 60px; padding: 10px; border-radius: 6px; border: 1px solid #333; background: #12131a; color: #e0e0e0; font-size: 0.9rem; resize: vertical; font-family: inherit; }
+        .seed-box { background: #FFFFFF; border-radius: 10px; padding: 18px; border: 1px solid #D8D4C8; margin-bottom: 20px; }
+        .seed-box textare
         .seed-box .btn { margin-top: 8px; }
 
         /* Generate form */
         .gen-form { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
-        .gen-form select { padding: 5px 10px; border-radius: 4px; border: 1px solid #333; background: #12131a; color: #e0e0e0; font-size: 0.85rem; }
-        .gen-form input[type=number] { width: 50px; padding: 5px; border-radius: 4px; border: 1px solid #333; background: #12131a; color: #e0e0e0; font-size: 0.85rem; }
+        .gen-form select { padding: 5px 10px; border-radius: 4px; border: 1px solid #D8D4C8; background: #F0EDE4; color: #1A1A1A; font-size: 0.85rem; }
+        .gen-form input[type=number] { width: 50px; padding: 5px; border-radius: 4px; border: 1px solid #D8D4C8; background: #F0EDE4; color: #1A1A1A; font-size: 0.85rem; }
 
-        .empty { color: #666; font-style: italic; padding: 20px; text-align: center; }
-        .loading { color: #5b9fd6; font-style: italic; }
+        .empty { color: #A8A399; font-style: italic; padding: 20px; text-align: center; }
+        .loading { color: #E54B2C; font-style: italic; }
 
-        .capture-tasks { font-size: 0.78rem; color: #ff9a4a; margin-top: 6px; }
+        .capture-tasks { font-size: 0.78rem; color: #E54B2C; margin-top: 6px; }
         .capture-tasks li { margin-left: 16px; }
 
         /* F3: Series children grouping */
-        .series-badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; background: #2a1a3a; color: #aa6acc; font-weight: 600; margin-bottom: 6px; display: inline-block; }
+        .series-badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; background: rgba(123, 91, 166, 0.12); color: #7B5BA6; font-weight: 600; margin-bottom: 6px; display: inline-block; }
         .child-card { border-left: 3px solid #4a3a6a; margin-left: 12px; }
         .bulk-approve { margin-top: 6px; }
     </style>

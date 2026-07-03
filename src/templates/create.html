@@ -6,29 +6,20 @@
     <link rel="stylesheet" href="/static/vf.css">
     <title>Create — {{ business_name }}</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f1117; color: #e0e0e0; }
-        .container { max-width: 1280px; margin: 0 auto; padding: 20px; }
-        h1 { font-size: 1.8rem; margin-bottom: 8px; }
-        h2 { font-size: 1.2rem; margin: 20px 0 10px; }
-        .subtle { color: #888; font-size: 0.9rem; margin-bottom: 20px; }
-        a { color: #5b9fd6; text-decoration: none; }
-        .nav { display: flex; gap: 15px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #2a2d36; }
-        .nav a.active { color: #5b9fd6; }
+
         .pipeline-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 16px; }
-        .stage-card { background: #1a1d27; border-radius: 10px; padding: 16px; border: 1px solid #2a2d36; }
-        .stage-card h3 { font-size: 0.9rem; color: #aaa; margin-bottom: 10px; }
-        .item { padding: 8px 10px; background: #12131a; border-radius: 6px; margin-bottom: 6px; font-size: 0.85rem; overflow-wrap: anywhere; }
-        .item a { color: #5b9fd6; line-height: 1.35; }
+        .stage-card { background: #FFFFFF; border-radius: 10px; padding: 16px; border: 1px solid #D8D4C8; }
+        .stage-card h3 { font-size: 0.9rem; color: #8A857C; margin-bottom: 10px; }
+        .item { padding: 8px 10px; background: #F0EDE4; border-radius: 6px; margin-bottom: 6px; font-size: 0.85rem; overflow-wrap: anywhere; }
+        .item 
         .item-title { display: block; margin-bottom: 4px; }
         .state-badge { font-size: 0.68rem; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
-        .state-new { background: #2a2d36; color: #aaa; }
-        .state-approved { background: #1a3a2a; color: #4acc6a; }
-        .state-shipped { background: #1a3a2a; color: #4acc6a; }
-        .state-drafting { background: #1a2a3a; color: #4a8acc; }
-        .empty { color: #666; font-style: italic; padding: 10px; text-align: center; }
-        .btn { padding: 6px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 500; background: #1a3a5a; color: #6ab0ff; }
-        .btn:hover { opacity: 0.85; }
+        .state-new { background: #D8D4C8; color: #8A857C; }
+        .state-approved { background: rgba(74, 124, 58, 0.12); color: #4A7C3A; }
+        .state-shipped { background: rgba(74, 124, 58, 0.12); color: #4A7C3A; }
+        .state-drafting { background: rgba(74, 111, 165, 0.12); color: #4A6FA5; }
+        .empty { color: #A8A399; font-style: italic; padding: 10px; text-align: center; }
+
     </style>
 </head>
 <body>

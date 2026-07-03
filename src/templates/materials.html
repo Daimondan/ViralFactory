@@ -6,12 +6,7 @@
     <link rel="stylesheet" href="/static/vf.css">
     <title>Materials — ViralFactory</title>
     <style>
-        :root {
-            --bg: #0d1117; --surface: #161b22; --border: #30363d;
-            --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7;
-            --green: #22c55e; --yellow: #eab308; --red: #f85149;
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: var(--bg); color: var(--text); line-height: 1.6;
@@ -19,9 +14,6 @@
         }
         h1 { color: var(--accent); margin-bottom: 0.5rem; }
         .subtitle { color: var(--muted); margin-bottom: 1.5rem; font-size: 0.9rem; }
-        .nav { display: flex; gap: 1.5rem; margin-bottom: 2rem; }
-        .nav a { color: var(--muted); text-decoration: none; }
-        .nav a.active { color: var(--text); font-weight: 600; }
 
         .filters {
             display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;
@@ -56,7 +48,7 @@
         .card-title a {
             color: var(--text); text-decoration: none; font-weight: 500;
         }
-        .card-title a:hover { color: var(--accent); }
+        .card-title 
         .card-title .filename { font-weight: 600; }
         .card-title .material-type {
             font-size: 11px; font-weight: 600; padding: 2px 8px;

@@ -6,12 +6,7 @@
     <link rel="stylesheet" href="/static/vf.css">
     <title>Onboard — {{ business_name }}</title>
     <style>
-        :root {
-            --bg: #0d1117; --surface: #161b22; --border: #30363d;
-            --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7;
-            --green: #3fb950; --red: #f85149; --yellow: #d29922;
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: var(--bg); color: var(--text); line-height: 1.6;
@@ -20,9 +15,6 @@
         h1 { color: var(--accent); margin-bottom: 0.5rem; }
         .subtle { color: var(--muted); font-size: 0.9rem; margin-bottom: 2rem; }
         a { color: var(--accent); text-decoration: none; }
-        .nav { display: flex; gap: 1.5rem; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
-        .nav a { color: var(--muted); }
-        .nav a.active { color: var(--text); font-weight: 600; }
 
         .playbook-card {
             display: flex; align-items: center; gap: 1rem;

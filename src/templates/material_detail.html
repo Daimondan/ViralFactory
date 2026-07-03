@@ -6,22 +6,14 @@
     <link rel="stylesheet" href="/static/vf.css">
     <title>{{ material.filename or 'Material' }} — Materials — ViralFactory</title>
     <style>
-        :root {
-            --bg: #0d1117; --surface: #161b22; --border: #30363d;
-            --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7;
-            --green: #22c55e; --yellow: #eab308; --red: #f85149;
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: var(--bg); color: var(--text); line-height: 1.6;
             padding: 2rem; max-width: 1000px; margin: 0 auto;
         }
-        h1 { color: var(--accent); margin-bottom: 0.3rem; font-size: 1.4rem; }
+        
         .subtitle { color: var(--muted); margin-bottom: 1.5rem; font-size: 0.85rem; }
-        .nav { display: flex; gap: 1.5rem; margin-bottom: 2rem; }
-        .nav a { color: var(--muted); text-decoration: none; }
-        .nav a.active { color: var(--text); font-weight: 600; }
 
         .meta-bar {
             display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center;
@@ -52,9 +44,7 @@
             display: flex; align-items: center; justify-content: space-between;
             margin-bottom: 1rem;
         }
-        .section-header h2 {
-            font-size: 1rem; font-weight: 600; color: var(--text);
-        }
+        .section-header 
         .section-actions { display: flex; gap: 0.5rem; }
 
         .btn {
