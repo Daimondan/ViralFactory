@@ -86,6 +86,11 @@
 
         .capture-tasks { font-size: 0.78rem; color: #ff9a4a; margin-top: 6px; }
         .capture-tasks li { margin-left: 16px; }
+
+        /* F3: Series children grouping */
+        .series-badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; background: #2a1a3a; color: #aa6acc; font-weight: 600; margin-bottom: 6px; display: inline-block; }
+        .child-card { border-left: 3px solid #4a3a6a; margin-left: 12px; }
+        .bulk-approve { margin-top: 6px; }
     </style>
 </head>
 <body>
@@ -134,13 +139,18 @@
     {% if cards %}
     <div class="card-grid">
         {% for card in cards %}
-        <div class="card" id="card-{{ card.id }}">
+        <div class="card {{ 'child-card' if card.parent_id else '' }}" id="card-{{ card.id }}">
             <div class="card-header">
                 <span class="origin-badge origin-{{ {'ai_originated': 'ai', 'human_seeded': 'human', 'human_seeded_ai_developed': 'developed'}.get(card.origin, 'ai') }}">
                     {{ {'ai_originated': 'AI', 'human_seeded': 'Human', 'human_seeded_ai_developed': 'Human+AI'}.get(card.origin, card.origin) }}
                 </span>
                 <span class="card-state state-{{ card.card_state }}">{{ card.card_state }}</span>
             </div>
+
+            {% if card.parent_id %}
+            <span class="series-badge">Part of series → #{{ card.parent_id }}</span>
+            {% endif %}
+
             <div class="card-idea">{{ card.idea }}</div>
 
             {% if card.hook_options %}
@@ -195,7 +205,16 @@
                 <input type="text" id="kill-text-{{ card.id }}" placeholder="Why kill? (goes to Feedback Log)">
                 <button class="btn btn-kill" onclick="confirmKill({{ card.id }})">Confirm</button>
             </div>
-            {% elif card.card_state == 'awaiting_capture' %}
+            {% endif %}
+
+            {# F3: Bulk approve for series children in 'new' state #}
+            {% if card.new_children_count and card.new_children_count > 0 %}
+            <div class="bulk-approve">
+                <button class="btn btn-approve" onclick="bulkApproveChildren({{ card.id }})">Approve {{ card.new_children_count }} new parts →</button>
+            </div>
+            {% endif %}
+
+            {% if card.card_state == 'awaiting_capture' %}
             <div class="card-actions">
                 <button class="btn btn-secondary" onclick="window.location.href='/ideas/{{ card.id }}/capture'">Manage capture</button>
             </div>
@@ -283,6 +302,21 @@ function generateAI() {
         body: JSON.stringify({count: parseInt(count)}),
         reloadOnSuccess: true,
         onError: function(msg) { status.style.display = 'none'; alert('Error: ' + msg); }
+    });
+}
+
+// F3: Bulk approve all 'new' children of a parent card
+function bulkApproveChildren(parentId) {
+    fetch('/api/ideas/' + parentId + '/bulk-approve-children', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+    }).then(r => r.json()).then(data => {
+        if (data.status === 'ok') {
+            alert('Approved ' + data.count + ' part(s).');
+            window.location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'unknown'));
+        }
     });
 }
 </script>

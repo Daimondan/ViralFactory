@@ -3655,6 +3655,14 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             # Capture tasks for display
             card["capture_tasks"] = capture if capture else None
 
+            # F3: Count new children for parent cards (for bulk approve button)
+            if not c.get("parent_id"):
+                all_children = [cc for cc in cards_raw if cc.get("parent_id") == c["id"]]
+                new_children = [cc for cc in all_children if cc["card_state"] == "new"]
+                card["new_children_count"] = len(new_children)
+            else:
+                card["new_children_count"] = 0
+
             cards.append(card)
 
         # Count cards per state for tab badges
