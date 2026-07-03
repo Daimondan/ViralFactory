@@ -6,6 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-03 FIX — P0: duplicate `const playbookName` kills all session JS + JS parse smoke test
+
+**What:**
+- **P0 bug fix:** Removed duplicate `const playbookName` declaration in `src/templates/session.html` (line 467). The second declaration, introduced when the gate-actions routing block was appended, caused a `SyntaxError: Identifier 'playbookName' has already been declared` — which prevents the browser from executing the entire `<script>` block. All interactive JS (attach button, send button, gate approve/park/reject buttons) was dead.
+- **Guardrail:** New `tests/test_template_js_parse.py` — extracts `<script>` blocks from session.html, renders Jinja placeholders with dummy values, and runs `node --check` to validate syntax. Catches the entire class of "template edit silently kills page JS" bugs. Verified: reintroducing the duplicate correctly fails the test with the exact SyntaxError.
+
+**Rationale:** CORRECTION-onboarding-single-thread-v1.0 Item 1 (P0). The architect identified this as a regression that blocks all onboarding use. This is the second time a template edit silently killed page JS; the parse check ends the category.
+
+**Corrections filed:** `docs/reviews/CORRECTION-onboarding-single-thread-v1.0.md` — arrived without manifest (inbox protocol rule 5). Filed as architect direction to `docs/reviews/` since it is a correction/review document. Item 2 (architectural redesign: single-thread onboarding) tracked as GitHub issue #2, scheduled for next review tag.
+
+---
+
 ### 2026-07-02 BUILD — Session component: LLM-driven conversation, all playbooks, run reuse
 
 **What:**

@@ -464,7 +464,6 @@ function saveEdits() {
 }
 
 // Gate actions — route to the correct store endpoint based on playbook
-const playbookName = "{{ playbook_name }}";
 const storeEndpoints = {
     "business-profile-intake": "/api/run/{{ run_id }}/store-business",
     "sources-engine": "/api/run/{{ run_id }}/store-sources",
