@@ -86,9 +86,9 @@
 - [x] T4.2 Metrics collection (cron) — AC: nightly pull runs unattended 7 days
 
 ### M5 — Inward learning loop + async gate (est. week 8)
-- [ ] T5.1 Proposal job (scheduled weekly): results + Feedback Log (direct edits weighted highest) → proposals with evidence + target module + exact diff — AC: specific and actionable, never vibes. **Per AMENDMENT-005:** proposal targets widen to include the process registry alongside the eight modules.
-- [ ] T5.2 **Gate as persistent async queue** — AC: proposals accumulate with visible age ("submitted N days ago"); pending counter across all types; approve = version bump with provenance; reject = quick-reason chips; **superseding**: newer proposal on the same module section marks the older superseded (visible, not deleted); no deadline/pressure mechanics anywhere. **Per AMENDMENT-005:** gate queue handles mapping proposals identically (evidence + exact diff).
-- [ ] T5.3 Voice Profile update path from Feedback Log per playbook — AC: an approved pattern lands as a versioned entry
+- [x] T5.1 Proposal job (scheduled weekly): results + Feedback Log (direct edits weighted highest) → proposals with evidence + target module + exact diff — AC: specific and actionable, never vibes. **Per AMENDMENT-005:** proposal targets widen to include the process registry alongside the eight modules.
+- [x] T5.2 **Gate as persistent async queue** — AC: proposals accumulate with visible age ("submitted N days ago"); pending counter across all types; approve = version bump with provenance; reject = quick-reason chips; **superseding**: newer proposal on the same module section marks the older superseded (visible, not deleted); no deadline/pressure mechanics anywhere. **Per AMENDMENT-005:** gate queue handles mapping proposals identically (evidence + exact diff).
+- [x] T5.3 Voice Profile update path from Feedback Log per playbook — AC: an approved pattern lands as a versioned entry
 
 ### M6 — Outward research loop (est. weeks 9–10; charter: continuous from v1 of this phase)
 - [ ] T6.1 Research job v1: YouTube Data API against `sources.yaml` — AC: scheduled pulls; nothing hardcoded

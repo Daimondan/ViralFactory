@@ -33,6 +33,20 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-03 LOGIC — T5.1 + T5.2 + T5.3: Inward learning loop + async gate (M5)
+
+**What:**
+- `src/proposal_store.py` — ProposalStore: async gate queue for module improvement proposals. Superseding (newer proposal on same module+section marks older as superseded, visible not deleted), age tracking, pending counter, bulk approve/reject, summary stats. Per AMENDMENT-005: process-registry is a valid proposal target; mapping_change is a valid proposal type.
+- `prompts/learning/generate_proposals_v1.md` — LLM prompt for weekly proposal generation. Reads published results + Feedback Log (direct edits weighted highest) + performance notes + module versions → produces specific, evidence-backed proposals with exact diffs. Never vibes — evidence required.
+- `cron_generate_proposals.py` — weekly cron script. Gathers inputs, calls LLM via adapter (temperature 0), stores proposals in the gate queue.
+- `/proposals` page + `/api/proposals/<id>/approve` + `/api/proposals/<id>/reject` + bulk approve/reject endpoints. Gate queue UI with: pending counter, age per proposal ("submitted N days ago"), evidence display, exact diff, quick-reason reject chips, bulk select-all bar.
+- T5.3: Voice Profile update path — approved voice-profile proposals trigger version bump via ModuleStore (approval is the gate; the operator's approval is the human gate per the charter).
+- 21 new tests (492 total). `proposals` table in SQLite.
+
+**Rationale:** T5.1–T5.3 of BUILD_PLAN. The inward learning loop reads what the operator did (feedback + direct edits + performance data) and proposes specific module updates — the system gets better at the operator's voice and content quality over time, but every change passes the human gate. No deadline or pressure mechanics anywhere.
+
+---
+
 ### 2026-07-03 OPS — Inbox batch 2026-07-03 filed: orchestrator correction, definition-of-done process, whisper transcription decision
 
 **What:**

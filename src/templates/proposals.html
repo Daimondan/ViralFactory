@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gate Queue — {{ business_name }}</title>
+    <script src="/static/busy.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f1117; color: #e0e0e0; }
+        .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+        h1 { font-size: 1.5rem; margin-bottom: 6px; }
+        h2 { font-size: 1.1rem; margin: 20px 0 10px; }
+        .subtle { color: #888; font-size: 0.85rem; margin-bottom: 20px; }
+        a { color: #5b9fd6; text-decoration: none; }
+        .nav { display: flex; gap: 15px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #2a2d36; }
+
+        .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+        @media (max-width: 768px) { .summary-grid { grid-template-columns: repeat(2, 1fr); } }
+        .stat-card { background: #1a1d27; border: 1px solid #2a2d36; border-radius: 8px; padding: 12px; text-align: center; }
+        .stat-num { font-size: 1.6rem; font-weight: 700; }
+        .stat-label { font-size: 0.75rem; color: #888; margin-top: 4px; }
+        .num-pending { color: #d2a04a; }
+        .num-approved { color: #4acc6a; }
+        .num-rejected { color: #f85149; }
+        .num-superseded { color: #888; }
+
+        .proposal-card { background: #1a1d27; border: 1px solid #2a2d36; border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+        .proposal-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+        .proposal-module { font-weight: 600; color: #6ab0ff; font-size: 0.9rem; }
+        .proposal-section { font-size: 0.8rem; color: #888; margin-left: 8px; }
+        .proposal-age { font-size: 0.72rem; color: #d2a04a; white-space: nowrap; }
+        .proposal-type { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; display: inline-block; margin-right: 6px; }
+        .type-add { background: rgba(63, 185, 80, 0.15); color: #4acc6a; }
+        .type-modify { background: rgba(47, 129, 247, 0.15); color: #2f81f7; }
+        .type-remove { background: rgba(248, 81, 73, 0.15); color: #f85149; }
+        .type-status_change { background: rgba(210, 153, 34, 0.15); color: #d2a04a; }
+        .type-mapping_change { background: rgba(163, 113, 247, 0.15); color: #a371f7; }
+
+        .proposal-description { font-size: 0.88rem; line-height: 1.5; margin-bottom: 10px; }
+        .proposal-diff { font-size: 0.82rem; background: #12131a; border-radius: 6px; padding: 10px; margin-bottom: 10px; font-family: monospace; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
+        .proposal-evidence { margin-bottom: 10px; }
+        .evidence-item { font-size: 0.78rem; color: #aaa; padding: 4px 0; border-bottom: 1px solid #12131a; }
+        .evidence-item:last-child { border-bottom: none; }
+        .proposal-rationale { font-size: 0.82rem; color: #888; font-style: italic; margin-bottom: 10px; }
+        .confidence { font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; display: inline-block; margin-left: 6px; }
+        .conf-high { background: rgba(63, 185, 80, 0.15); color: #4acc6a; }
+        .conf-medium { background: rgba(210, 153, 34, 0.15); color: #d2a04a; }
+        .conf-low { background: rgba(248, 81, 73, 0.15); color: #f85149; }
+
+        .proposal-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid #2a2d36; }
+        .btn { padding: 6px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.82rem; font-weight: 500; }
+        .btn-approve { background: #1a4a2a; color: #4acc6a; }
+        .btn-reject { background: #2a1a1a; color: #f85149; }
+        .btn:hover { opacity: 0.85; }
+        .reject-reasons { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+        .reject-chip { font-size: 0.72rem; padding: 3px 10px; border-radius: 12px; border: 1px solid #333; cursor: pointer; background: #12131a; color: #aaa; }
+        .reject-chip:hover { border-color: #f85149; color: #f85149; }
+
+        .superseded-notice { font-size: 0.75rem; color: #888; padding: 4px 10px; background: #1a1a1a; border-radius: 4px; margin-bottom: 8px; }
+        .status-badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; }
+        .badge-approved { background: rgba(63, 185, 80, 0.2); color: #4acc6a; }
+        .badge-rejected { background: rgba(248, 81, 73, 0.2); color: #f85149; }
+        .badge-superseded { background: #2a2d36; color: #888; }
+        .badge-pending { background: rgba(210, 153, 34, 0.2); color: #d2a04a; }
+
+        .empty { color: #666; font-style: italic; padding: 20px; text-align: center; }
+
+        .bulk-bar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; padding: 10px; background: #1a1d27; border-radius: 8px; border: 1px solid #2a2d36; }
+        .bulk-bar label { font-size: 0.85rem; color: #888; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="nav">
+        <a href="/">Dashboard</a>
+        <a href="/create">Create</a>
+        <a href="/published">Published</a>
+        <a href="/metrics">Metrics</a>
+        <a href="/proposals" style="color:#5b9fd6">Gate Queue</a>
+    </div>
+
+    <h1>Gate Queue</h1>
+    <p class="subtle">Module improvement proposals from the inward learning loop. Clear them when you're ready — no pressure.</p>
+
+    <div class="summary-grid">
+        <div class="stat-card">
+            <div class="stat-num num-pending">{{ summary.pending }}</div>
+            <div class="stat-label">Pending</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-num num-approved">{{ summary.approved }}</div>
+            <div class="stat-label">Approved</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-num num-rejected">{{ summary.rejected }}</div>
+            <div class="stat-label">Rejected</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-num num-superseded">{{ summary.superseded }}</div>
+            <div class="stat-label">Superseded</div>
+        </div>
+    </div>
+
+    {% if summary.oldest_pending_age_days > 0 %}
+    <p class="subtle">Oldest pending proposal: {{ summary.oldest_pending_age_days }} days ago</p>
+    {% endif %}
+
+    {% if pending_proposals %}
+    <div class="bulk-bar">
+        <label><input type="checkbox" id="select-all"> Select all</label>
+        <button class="btn btn-approve" onclick="bulkApprove()">Approve selected</button>
+        <button class="btn btn-reject" onclick="bulkReject()">Reject selected</button>
+    </div>
+    {% endif %}
+
+    <h2>Pending Proposals</h2>
+    {% if pending_proposals %}
+    {% for p in pending_proposals %}
+    <div class="proposal-card" id="proposal-{{ p.id }}">
+        <div class="proposal-header">
+            <div>
+                <span class="proposal-module">{{ p.target_module }}</span>
+                <span class="proposal-section">→ {{ p.target_section }}</span>
+            </div>
+            <div>
+                <span class="proposal-age">submitted {{ p.age_days }} days ago</span>
+            </div>
+        </div>
+        <div style="margin-bottom: 8px;">
+            <span class="proposal-type type-{{ p.proposal_type }}">{{ p.proposal_type }}</span>
+            <span class="confidence conf-{{ p.confidence }}">{{ p.confidence }}</span>
+        </div>
+        <div class="proposal-description">{{ p.change_description }}</div>
+        <div class="proposal-diff">{{ p.exact_diff }}</div>
+        <div class="proposal-evidence">
+            <strong style="font-size: 0.78rem; color: #888;">Evidence:</strong>
+            {% for ev in p.evidence_parsed %}
+            <div class="evidence-item">{{ ev }}</div>
+            {% endfor %}
+        </div>
+        <div class="proposal-rationale">{{ p.rationale }}</div>
+        <div class="proposal-actions">
+            <label><input type="checkbox" class="proposal-checkbox" value="{{ p.id }}"> Select</label>
+            <button class="btn btn-approve" onclick="approve({{ p.id }}, this)">Approve</button>
+            <button class="btn btn-reject" onclick="toggleReject({{ p.id }}, this)">Reject</button>
+        </div>
+        <div class="reject-reasons" id="reject-reasons-{{ p.id }}" style="display:none;">
+            <span class="reject-chip" onclick="rejectProposal({{ p.id }}, 'not enough evidence')">Not enough evidence</span>
+            <span class="reject-chip" onclick="rejectProposal({{ p.id }}, 'disagree with direction')">Disagree with direction</span>
+            <span class="reject-chip" onclick="rejectProposal({{ p.id }}, 'too vague')">Too vague</span>
+            <span class="reject-chip" onclick="rejectProposal({{ p.id }}, 'already addressed')">Already addressed</span>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="empty">No pending proposals. The weekly job will generate new ones as performance data accumulates.</p>
+    {% endif %}
+
+    {% if decided_proposals %}
+    <h2>Recent Decisions</h2>
+    {% for p in decided_proposals %}
+    <div class="proposal-card" style="opacity: 0.7;">
+        <div class="proposal-header">
+            <div>
+                <span class="proposal-module">{{ p.target_module }}</span>
+                <span class="proposal-section">→ {{ p.target_section }}</span>
+            </div>
+            <span class="status-badge badge-{{ p.status }}">{{ p.status }}</span>
+        </div>
+        <div class="proposal-description">{{ p.change_description }}</div>
+        {% if p.status == 'rejected' and p.reject_reason %}
+        <div style="font-size: 0.78rem; color: #f85149; margin-top: 6px;">Reason: {{ p.reject_reason }}</div>
+        {% endif %}
+        {% if p.status == 'superseded' %}
+        <div class="superseded-notice">Superseded by a newer proposal on the same section.</div>
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% endif %}
+</div>
+
+<script>
+function approve(id, btn) {
+    busyAction(btn, '/api/proposals/' + id + '/approve', {
+        busyLabel: 'Approving…',
+        method: 'POST',
+        body: '{}',
+        reloadOnSuccess: true,
+        onError: function(msg) { alert('Error: ' + msg); }
+    });
+}
+
+function toggleReject(id, btn) {
+    var div = document.getElementById('reject-reasons-' + id);
+    div.style.display = div.style.display === 'none' ? 'flex' : 'none';
+}
+
+function rejectProposal(id, reason) {
+    fetch('/api/proposals/' + id + '/reject', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({reason: reason})
+    }).then(function(r) { return r.json(); }).then(function() {
+        location.reload();
+    }).catch(function(e) { alert('Error: ' + e); });
+}
+
+function bulkApprove() {
+    var ids = Array.from(document.querySelectorAll('.proposal-checkbox:checked')).map(function(cb) { return parseInt(cb.value); });
+    if (ids.length === 0) return alert('Select at least one proposal.');
+    fetch('/api/proposals/bulk-approve', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ids: ids})
+    }).then(function(r) { return r.json(); }).then(function() {
+        location.reload();
+    }).catch(function(e) { alert('Error: ' + e); });
+}
+
+function bulkReject() {
+    var ids = Array.from(document.querySelectorAll('.proposal-checkbox:checked')).map(function(cb) { return parseInt(cb.value); });
+    if (ids.length === 0) return alert('Select at least one proposal.');
+    var reason = prompt('Reject reason for all selected:');
+    if (!reason) return;
+    fetch('/api/proposals/bulk-reject', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ids: ids, reason: reason})
+    }).then(function(r) { return r.json(); }).then(function() {
+        location.reload();
+    }).catch(function(e) { alert('Error: ' + e); });
+}
+
+document.getElementById('select-all').addEventListener('change', function() {
+    document.querySelectorAll('.proposal-checkbox').forEach(function(cb) { cb.checked = this.checked; }.bind(this));
+});
+</script>
+</body>
+</html>
