@@ -247,14 +247,19 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             conversation_so_far=conversation_so_far)
 
     def _get_opening_question(playbook):
-        """Extract an operator-facing opening question from the playbook's procedure."""
-        if not playbook.steps:
-            return "Tell me about your business."
-        first = playbook.steps[0]
-        desc = first.description.strip() if first.description else first.title
-        if "Q&A" in desc or "q&a" in desc.lower() or "intake" in desc.lower():
-            return "Let's get started. Tell me about your business — what do you do, in your own words?"
-        return desc[:200]
+        """Generate a playbook-specific opening question for the operator.
+        Not generic — references what this playbook actually needs."""
+        questions = {
+            "business-profile-intake": "Let's get started. Tell me about your business — what do you do, and who's it for? Don't worry about structure, just talk.",
+            "voice-profile-builder": "I'm going to learn how YOU talk so everything we create sounds like you. What kind of stuff do you have that shows your voice — voice notes, WhatsApp chats, emails, social posts? Or would you rather I just ask you questions?",
+            "sources-engine": "I need to learn what 'good' looks like for your sources. Give me 3-5 links to content you wish you'd made — stuff in your space that you admire. URLs are fine, just paste them.",
+            "viral-patterns-starter": "Let's figure out what goes viral in YOUR space. Share 3-5 links to content you admire — stuff where you thought 'I wish we'd made that.' Paste the URLs.",
+            "audience-insights-builder": "Let's understand your audience. Who are they? Not demographics — who are they as people? What do they care about? What makes them stop scrolling?",
+            "story-frameworks-starter": "Every piece of content tells a story. Let's figure out YOUR stories. Tell me 2-3 stories you tell often — about your business, your life, your take on things. Just talk, I'll structure it.",
+            "format-guide-starter": "Let's figure out what formats work for you. What platforms do you post on, and what do you notice works well there? Threads? Reels? Carousels? Just tell me what you've seen perform.",
+            "visual-style-intake": "I need to understand your visual identity. What does your brand look like? Colors, mood, aesthetic — or just upload some images and I'll work from those.",
+        }
+        return questions.get(playbook.name, f"Let's get started with {playbook.display_label or playbook.name}. Tell me what you know about this.")
 
     def _build_conversation_history(collected):
         """Build a full conversation transcript for the LLM.

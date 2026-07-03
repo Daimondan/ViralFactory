@@ -205,12 +205,12 @@
 <div class="input-area">
     <div class="attachments" id="attachments"></div>
     <div class="input-row">
-        <button class="btn-attach" onclick="pickFile()" title="Attach a file">📎</button>
+        <input type="file" id="fileInput" style="display:none" multiple>
+        <button class="btn-attach" id="attachBtn" title="Attach a file">📎</button>
         <textarea id="messageInput" placeholder="Type your answer, or paste anything..." rows="1"
             onkeydown="handleKey(event)" oninput="autoGrow(this)"></textarea>
         <button class="btn-send" onclick="sendMessage()" id="sendBtn">➤</button>
     </div>
-    <input type="file" id="fileInput" style="position:absolute;width:0;height:0;opacity:0;overflow:hidden;" multiple>
 </div>
 {% endif %}
 
@@ -331,22 +331,36 @@ async function sendMessage() {
 }
 
 // Upload file
-// File upload — use addEventListener for reliability across browsers
-document.addEventListener('DOMContentLoaded', function() {
-    const fileInput = document.getElementById('fileInput');
-    if (fileInput) {
+// File upload — wire up via addEventListener on page load
+(function() {
+    function initFileUpload() {
+        const attachBtn = document.getElementById('attachBtn');
+        const fileInput = document.getElementById('fileInput');
+        if (!attachBtn || !fileInput) return;
+
+        attachBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            fileInput.value = '';
+            fileInput.click();
+        });
+
         fileInput.addEventListener('change', function() {
             uploadFile();
         });
     }
-});
 
-function pickFile() {
-    const fileInput = document.getElementById('fileInput');
-    if (fileInput) {
-        fileInput.value = '';  // reset so same file can be selected again
-        fileInput.click();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initFileUpload);
+    } else {
+        initFileUpload();
     }
+})();
+
+function formatSize(bytes) {
+    if (bytes < 1024) return bytes + 'B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + 'KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(0) + 'MB';
+    return (bytes / (1024 * 1024 * 1024)).toFixed(1) + 'GB';
 }
 
 async function uploadFile() {
@@ -401,13 +415,6 @@ async function uploadFile() {
         }
     }
     input.value = '';
-}
-
-function formatSize(bytes) {
-    if (bytes < 1024) return bytes + 'B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + 'KB';
-    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(0) + 'MB';
-    return (bytes / (1024 * 1024 * 1024)).toFixed(1) + 'GB';
 }
 
 // Toggle edit mode on readback
