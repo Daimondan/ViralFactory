@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-03
-**Current Phase:** M3 complete (T3.1–T3.12). **Pipeline UX + Media Generation + Final Assembly built (F1–F5 + Edit Plan + Renderer + Stock). 440 tests passing. Service live.** M2 audio/voice tasks (T2.6–T2.8) still deferred. Awaiting operator API keys (OPENROUTER, PEXELS, PIXABAY) for full media generation end-to-end.
+**Current Phase:** M4 complete (T4.1–T4.2). Postiz adapter + metrics collection built. 471 tests passing. M3 pipeline + F1–F5 + Edit Plan + Renderer + Stock all done. M2 audio/voice tasks (T2.6–T2.8) still deferred. AMENDMENT-005 filed (processes are module compositions). CORRECTION-format-selection-living-v1.0 filed.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
@@ -19,8 +19,8 @@
 | 1. Onboarding engine: Voice Profile | ✅ | T1.1–T1.5 all done. 92 tests. Runner, intake, analysis, calibration, interview fallback. |
 | 2. Remaining playbooks wired | 🔧 | All playbooks done (T2.1–T2.4) + gate enforcement (T2.9) + schema-check (T2.5) + security fixes (T2.10) + provenance business_slug (T2.11) + gate step derivation (R15). 254 tests. T2.6–T2.8 (audio/voice) **deferred after operator UI review** (architect batch C). Deployed: Tailscale URL live, basicauth on public route. |
 | 3. Co-production loop | ✅ | T3.1–T3.12 all done. Idea cards, Ideas gate, awaiting-capture, drafter, human pass (chips+direct edit), assets fan-out, Gate 3, publish handoff, series spawning, experimental format debut, origin/format/scope threading. 310 tests. |
-| 4. Publish + metrics automation | ⬜ | Postiz self-hosted confirmed. |
-| 5. Inward learning loop | ⬜ | Async gate queue (superseding, age, no pressure). |
+| 4. Publish + metrics automation | ✅ | T4.1 Postiz adapter + API wiring. T4.2 Metrics collection + nightly cron. 471 tests. Postiz not yet installed on VPS — adapter ready. |
+| 5. Inward learning loop | 🔧 | Next — T5.1–T5.3. |
 | 6. Outward research loop | ⬜ | Continuous from v1 of this phase. |
 | 7. Generalization proof | ⬜ | Real near-term but not blocking v1. |
 

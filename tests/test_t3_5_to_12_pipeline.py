@@ -532,7 +532,34 @@ class TestFlaskDraftEndpoints:
         assert b"Publish" in resp.data
 
     def test_schedule_publish(self, app, sample_treatment):
-        """Scheduling an approved asset for publish works."""
+        """Scheduling an approved asset for publish works (with Postiz mocked)."""
+        from unittest.mock import patch, MagicMock
+        from pipeline import PipelineStore
+        store = PipelineStore(db_path=app.config["DB_PATH"])
+        card_id = store.create_idea_card(
+            business_slug="testbiz", idea="Test",
+            hook_options=["h"], treatment=sample_treatment, origin="ai_originated",
+        )
+        draft_id = store.create_draft("testbiz", card_id, "ai_originated")
+        asset_id = store.create_asset("testbiz", draft_id, "X", "thread", "content")
+        store.update_asset_state(asset_id, "approved")
+
+        client = app.test_client()
+        # Mock the Postiz adapter's publish_piece to succeed
+        with patch("postiz_adapter.PostizAdapter.publish_piece") as mock_publish, \
+             patch("postiz_adapter.PostizAdapter.is_available", return_value=True):
+            mock_publish.return_value = {
+                "postiz_post_id": "post-test-1",
+                "status": "scheduled",
+            }
+            resp = client.post(f"/api/assets/{asset_id}/schedule",
+                             json={"scheduled_at": "2026-07-05T10:00:00Z"})
+        assert resp.status_code == 200
+        assert store.get_asset(asset_id)["asset_state"] == "published"
+        assert store.get_asset(asset_id)["publish_scheduled_at"] == "2026-07-05T10:00:00Z"
+
+    def test_schedule_hold_works_without_postiz(self, app, sample_treatment):
+        """Hold (no scheduled_at) works even without Postiz configured."""
         from pipeline import PipelineStore
         store = PipelineStore(db_path=app.config["DB_PATH"])
         card_id = store.create_idea_card(
@@ -545,10 +572,9 @@ class TestFlaskDraftEndpoints:
 
         client = app.test_client()
         resp = client.post(f"/api/assets/{asset_id}/schedule",
-                           json={"scheduled_at": "2026-07-05T10:00:00Z"})
+                         json={"scheduled_at": ""})
         assert resp.status_code == 200
-        assert store.get_asset(asset_id)["asset_state"] == "published"
-        assert store.get_asset(asset_id)["publish_scheduled_at"] == "2026-07-05T10:00:00Z"
+        assert "Held" in resp.get_json()["message"]
 
     def test_schedule_not_approved_fails(self, app, sample_treatment):
         """Can't schedule a non-approved asset."""

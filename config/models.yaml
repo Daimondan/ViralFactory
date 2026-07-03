@@ -88,3 +88,15 @@ stock:
     - "pixabay"
   music_source: "pixabay"      # Pixabay's audio catalog for background tracks
   cache_dir: "data/media/stock"
+
+# ── Postiz (M4: publish + metrics) ──
+# Self-hosted Postiz instance for publishing to social platforms + pulling analytics.
+# Auth: POSTIZ_API_KEY env var. base_url points to the Postiz API.
+# integration_ids map platform names to Postiz integration IDs (or leave blank to
+# auto-discover via GET /integrations).
+postiz:
+  base_url: "http://localhost:3000/api/public/v1"
+  api_key: ""                              # from POSTIZ_API_KEY env var
+  default_integration_ids:
+    X: ""
+    Instagram: ""

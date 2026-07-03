@@ -9,12 +9,27 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 ### 2026-07-03 STRUCTURE — Inbox batch 2026-07-03-e + format-selection filed: AMENDMENT-005 (processes are module compositions) + CORRECTION-format-selection-living-v1.0
 
 **What:**
-- Filed `docs/decisions/AMENDMENT-005-processes-are-module-compositions.md` — architecture doctrine: processes (ideation, drafting, treatment) are compositions of modules, not hardcoded route handlers. Process Registry (`config/processes.yaml`) is the 9th module — versioned, gate-only writes, AI-improvable through the gate. One compose-and-run engine replaces per-process module wiring. BUILD_PLAN updated to v1.4: T2.12 added (registry extraction), T3.2 reworded, M5/M6 targets widened to include mapping proposals.
+- Filed `docs/decisions/AMENDMENT-005-processes-are-module-compositions.md` — architecture doctrine: processes (ideation, drafting, treatment) are compositions of modules, not hardcoded route handlers. Process Registry (`config/processes.yaml`) is the 9th module — versioned, gate-only writes, AI-improvable through the gate. One compose-and-run engine replaces per-process module wiring. BUILD_PLAN updated to v1.4: T2.12 added (registry extraction), T3.2 reworded, M5/M6 targets widened.
 - Filed `docs/corrections/CORRECTION-format-selection-living-v1.0.md` — P0 bug: module truncation (`[:2000]`, `[:1500]`) in idea generation routes means the LLM never sees most of the Format Guide (17KB, only first 2KB injected). Fix: remove all blind truncation; stage-appropriate injection (selection sees compact digest, production sees full entry). Architecture: format selection by affordances + evidence + distribution feedback, not decision table. Format Guide schema gains `affordances`, `performance_evidence`, `variant_type`, `aspect_ratio`; loses `decision_table`. Governing principle added to CONTEXT.md: "Prompts carry procedures; modules carry knowledge."
 
 **Rationale:** Architect direction via inbox protocol (MANIFEST-2026-07-03-e, MANIFEST-2026-07-03-format-selection). AMENDMENT-005 stops process-first drift before M3 pipeline work accretes more hardcoded route handlers. The format-selection correction addresses the proximate cause of video under-suggestion: not decision-table weighting, but blind truncation hiding most formats from the LLM.
 
 **Manifests:** `docs/inbox/processed/MANIFEST-2026-07-03-e.md`, `docs/inbox/processed/MANIFEST-2026-07-03-format-selection.md`
+
+---
+
+### 2026-07-03 TECH — T4.1 + T4.2: Postiz adapter + metrics collection (M4)
+
+**What:**
+- `src/postiz_adapter.py` — Postiz Public API adapter: publish pieces (after per-piece approval), pull post-level analytics, store metrics. Config-driven (base_url, api_key, integration_ids from `config/models.yaml`). Graceful fallback when Postiz not available — asset stays in 'approved' state, no data loss.
+- Publish route updated: `/api/assets/<id>/schedule` now calls Postiz to actually post. Returns 502 with helpful hint when Postiz not configured. Retry endpoint for failed publishes.
+- `/metrics` page + `/api/metrics/pull` endpoint — view metrics for published pieces, manually trigger pulls.
+- `/api/postiz/status` — check Postiz availability + list connected integrations.
+- `cron_pull_metrics.py` — nightly cron script for unattended metrics collection (T4.2).
+- `publish_log` + `post_metrics` tables in SQLite.
+- 29 new tests (471 total). Postiz config block added to `models.yaml`.
+
+**Rationale:** T4.1 + T4.2 of BUILD_PLAN. Postiz not yet installed on VPS — Docker available but no container running. Adapter is ready; set `POSTIZ_API_KEY` env var and configure Postiz to enable end-to-end publishing. Per-piece approval enforced in code (asset_state must be 'approved').
 
 ---
 

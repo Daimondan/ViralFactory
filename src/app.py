@@ -5118,7 +5118,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     @app.route("/api/assets/<int:asset_id>/schedule", methods=["POST"])
     def schedule_publish(asset_id):
-        """T3.12: Schedule an approved asset for publish (go + timing)."""
+        """T4.1: Schedule an approved asset for publish via Postiz (go + timing).
+        HARD RULE: asset must be 'approved' — no auto-publish."""
         business_slug = _get_business_slug()
         if not business_slug:
             return jsonify({"error": "Business not configured"}), 500
@@ -5128,15 +5129,189 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         if not asset:
             return jsonify({"error": "Asset not found"}), 404
         if asset["asset_state"] != "approved":
-            return jsonify({"error": "Asset must be approved first"}), 400
+            return jsonify({"error": "Asset must be approved first — no auto-publish"}), 400
 
         scheduled_at = request.json.get("scheduled_at", "")
-        if scheduled_at:
+        if not scheduled_at:
+            return jsonify({"status": "ok", "message": "Held — not scheduled"})
+
+        # ── Postiz publish path ──
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+        except ConfigError:
+            models_config = {}
+
+        from postiz_adapter import PostizAdapter, PostizError
+        postiz = PostizAdapter(models_config, db_path=app.config["DB_PATH"])
+
+        # Parse posts for thread/carousel
+        posts_list = json.loads(asset.get("posts") or "[]")
+
+        # Get generated images for this asset
+        from media_adapter import MediaAdapter
+        media_adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
+        asset_media = media_adapter.list_asset_media(asset_id)
+        images = [{"id": m.get("postiz_id", ""), "path": m.get("path", "")} for m in asset_media if m.get("kind") == "image"]
+
+        try:
+            result = postiz.publish_piece(
+                business_slug=business_slug,
+                asset_id=asset_id,
+                platform=asset["platform"],
+                content=asset["content"],
+                posts=posts_list if posts_list else None,
+                images=images if images else None,
+                scheduled_at=scheduled_at,
+                asset_state=asset["asset_state"],
+            )
+            # Mark asset as published in pipeline
             store.set_asset_schedule(asset_id, scheduled_at)
             store.update_asset_state(asset_id, "published")
-            return jsonify({"status": "ok", "scheduled_at": scheduled_at})
-        else:
-            return jsonify({"status": "ok", "message": "Held — not scheduled"})
+            return jsonify({
+                "status": "ok",
+                "scheduled_at": scheduled_at,
+                "postiz_post_id": result.get("postiz_post_id", ""),
+                "publish_status": result.get("status", ""),
+            })
+        except PostizError as e:
+            # Postiz not available or failed — surface the error honestly
+            # The asset stays in 'approved' state, no data loss
+            return jsonify({
+                "error": str(e),
+                "hint": "Postiz may not be installed. Set POSTIZ_API_KEY and configure Postiz. The asset stays approved — no data lost.",
+            }), 502
+
+    @app.route("/api/publish/<int:asset_id>/retry", methods=["POST"])
+    def retry_publish(asset_id):
+        """Retry a failed publish attempt."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        store = _get_pipeline_store()
+        asset = store.get_asset(asset_id)
+        if not asset:
+            return jsonify({"error": "Asset not found"}), 404
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+        except ConfigError:
+            models_config = {}
+
+        from postiz_adapter import PostizAdapter, PostizError
+        postiz = PostizAdapter(models_config, db_path=app.config["DB_PATH"])
+
+        posts_list = json.loads(asset.get("posts") or "[]")
+        from media_adapter import MediaAdapter
+        media_adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
+        asset_media = media_adapter.list_asset_media(asset_id)
+        images = [{"id": m.get("postiz_id", ""), "path": m.get("path", "")} for m in asset_media if m.get("kind") == "image"]
+
+        scheduled_at = asset.get("publish_scheduled_at") or datetime.now(timezone.utc).isoformat()
+
+        try:
+            result = postiz.publish_piece(
+                business_slug=business_slug,
+                asset_id=asset_id,
+                platform=asset["platform"],
+                content=asset["content"],
+                posts=posts_list if posts_list else None,
+                images=images if images else None,
+                scheduled_at=scheduled_at,
+                asset_state="approved",
+            )
+            store.update_asset_state(asset_id, "published")
+            return jsonify({"status": "ok", "postiz_post_id": result.get("postiz_post_id", "")})
+        except PostizError as e:
+            return jsonify({"error": str(e)}), 502
+
+    @app.route("/api/postiz/status")
+    def postiz_status():
+        """Check if Postiz is configured and available."""
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+        except ConfigError:
+            models_config = {}
+
+        from postiz_adapter import PostizAdapter
+        postiz = PostizAdapter(models_config, db_path=app.config["DB_PATH"])
+        available = postiz.is_available()
+        integrations = postiz.list_integrations() if available else []
+        return jsonify({
+            "available": available,
+            "integrations": integrations,
+            "base_url": postiz.base_url,
+        })
+
+    # ── T4.2: Metrics ──
+
+    @app.route("/metrics")
+    def metrics_page():
+        """Show metrics for published pieces, pulled from Postiz analytics."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return "Business not configured", 500
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+            business_name = config["business"]["business"]["name"]
+        except ConfigError:
+            models_config = {}
+            business_name = "Not configured"
+
+        from postiz_adapter import PostizAdapter
+        postiz = PostizAdapter(models_config, db_path=app.config["DB_PATH"])
+
+        store = _get_pipeline_store()
+        published_items = []
+        all_drafts = store.list_drafts(business_slug)
+        for draft in all_drafts:
+            assets = store.list_assets(draft["id"])
+            for asset in assets:
+                if asset["asset_state"] == "published":
+                    a = dict(asset)
+                    a["draft"] = draft
+                    a["publish_log"] = postiz.get_publish_log(asset["id"])
+                    published_items.append(a)
+
+        # Get metrics summary
+        metrics_summary = postiz.get_metrics_summary(business_slug)
+        for item in published_items:
+            item["metrics"] = metrics_summary.get(item["id"], {})
+
+        postiz_available = postiz.is_available()
+
+        return render_template("metrics.html",
+            business_name=business_name,
+            published_items=published_items,
+            postiz_available=postiz_available)
+
+    @app.route("/api/metrics/pull", methods=["POST"])
+    def pull_metrics():
+        """Manually trigger a metrics pull for all published pieces."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+        except ConfigError:
+            models_config = {}
+
+        from postiz_adapter import PostizAdapter, PostizError
+        postiz = PostizAdapter(models_config, db_path=app.config["DB_PATH"])
+
+        days = request.json.get("days", 7) if request.json else 7
+        try:
+            result = postiz.pull_all_metrics(business_slug, days=days)
+            return jsonify({"status": "ok", **result})
+        except PostizError as e:
+            return jsonify({"error": str(e)}), 502
 
     @app.route("/published")
     def published_page():

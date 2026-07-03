@@ -82,8 +82,8 @@
 - [ ] **Checkpoint:** 10-piece co-production sprint through the full staged pipeline. **Drafter A/B:** same seeds through two configured backends; operator reacts blind; winner set in `models.yaml`. Tag `review-w6`.
 
 ### M4 — Publish + metrics (est. week 7)
-- [ ] T4.1 Postiz self-hosted install + API wiring — AC: piece scheduled and posted from console **only after explicit per-piece approval**; failures alert; no data loss
-- [ ] T4.2 Metrics collection (cron) — AC: nightly pull runs unattended 7 days
+- [x] T4.1 Postiz self-hosted install + API wiring — AC: piece scheduled and posted from console **only after explicit per-piece approval**; failures alert; no data loss
+- [x] T4.2 Metrics collection (cron) — AC: nightly pull runs unattended 7 days
 
 ### M5 — Inward learning loop + async gate (est. week 8)
 - [ ] T5.1 Proposal job (scheduled weekly): results + Feedback Log (direct edits weighted highest) → proposals with evidence + target module + exact diff — AC: specific and actionable, never vibes. **Per AMENDMENT-005:** proposal targets widen to include the process registry alongside the eight modules.

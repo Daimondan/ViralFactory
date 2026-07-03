@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metrics — {{ business_name }}</title>
+    <script src="/static/busy.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f1117; color: #e0e0e0; }
+        .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+        h1 { font-size: 1.5rem; margin-bottom: 6px; }
+        h2 { font-size: 1.1rem; margin: 20px 0 10px; }
+        .subtle { color: #888; font-size: 0.85rem; margin-bottom: 20px; }
+        a { color: #5b9fd6; text-decoration: none; }
+        .nav { display: flex; gap: 15px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #2a2d36; }
+        .btn { padding: 6px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 500; background: #1a4a2a; color: #4acc6a; }
+        .btn:hover { opacity: 0.85; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .metric-card { background: #1a1d27; border-radius: 10px; padding: 16px; border: 1px solid #2a2d36; margin-bottom: 12px; }
+        .metric-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .platform { font-size: 0.85rem; font-weight: 600; color: #6ab0ff; }
+        .type { font-size: 0.72rem; color: #888; }
+        .time-badge { font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; background: #1a3a2a; color: #4acc6a; }
+        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 10px; }
+        .metric-item { background: #12131a; border-radius: 6px; padding: 8px 10px; }
+        .metric-label { font-size: 0.72rem; color: #888; margin-bottom: 4px; }
+        .metric-value { font-size: 1.1rem; font-weight: 600; color: #e0e0e0; }
+        .metric-change { font-size: 0.7rem; margin-top: 2px; }
+        .change-up { color: #4acc6a; }
+        .change-down { color: #f85149; }
+        .change-flat { color: #888; }
+        .empty { color: #666; font-style: italic; padding: 20px; text-align: center; }
+        .info-box { color: #6ab0ff; font-size: 0.82rem; padding: 12px; background: #1a2a3a; border-radius: 6px; margin-bottom: 16px; border-left: 3px solid #6ab0ff; }
+        .warn-box { color: #d2a04a; font-size: 0.82rem; padding: 12px; background: #2a2a1a; border-radius: 6px; margin-bottom: 16px; border-left: 3px solid #d2a04a; }
+        .pull-status { font-size: 0.85rem; margin-top: 8px; }
+        .no-metrics { color: #666; font-size: 0.82rem; font-style: italic; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="nav">
+        <a href="/">Dashboard</a>
+        <a href="/create">Create</a>
+        <a href="/published">Published</a>
+        <a href="/metrics" style="color:#5b9fd6">Metrics</a>
+    </div>
+
+    <h1>Metrics</h1>
+    <p class="subtle">Performance data for published pieces, pulled from Postiz analytics.</p>
+
+    {% if not postiz_available %}
+    <div class="warn-box">
+        ⚠️ Postiz not available. Set <code>POSTIZ_API_KEY</code> and configure Postiz to enable metrics collection. Metrics will appear here once the nightly pull runs.
+    </div>
+    {% else %}
+    <div class="info-box">
+        ✅ Postiz connected. Click "Pull metrics now" to refresh data, or wait for the nightly cron job.
+    </div>
+    {% endif %}
+
+    <button class="btn" id="pull-btn" onclick="pullMetrics(this)">Pull metrics now</button>
+    <div id="pull-status" class="pull-status"></div>
+
+    <h2>Published Pieces</h2>
+
+    {% if published_items %}
+    {% for item in published_items %}
+    <div class="metric-card">
+        <div class="metric-header">
+            <div>
+                <span class="platform">{{ item.platform }}</span>
+                <span class="type"> · {{ item.variant_type }}</span>
+            </div>
+            <span class="time-badge">{{ item.publish_scheduled_at[:16] if item.publish_scheduled_at else 'N/A' }}</span>
+        </div>
+        <div style="font-size: 0.85rem; color: #aaa; margin-bottom: 8px;">
+            {{ item.content[:200] }}{% if item.content|length > 200 %}...{% endif %}
+        </div>
+        {% if item.metrics and item.metrics|length > 0 %}
+        <div class="metrics-grid">
+            {% for label, data in item.metrics.items() %}
+            <div class="metric-item">
+                <div class="metric-label">{{ label }}</div>
+                <div class="metric-value">{{ data.value }}</div>
+                {% if data.percentage_change is not none %}
+                <div class="metric-change {{ 'change-up' if data.percentage_change > 0 else ('change-down' if data.percentage_change < 0 else 'change-flat') }}">
+                    {{ '%.1f'|format(data.percentage_change) }}%
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="no-metrics">No metrics pulled yet for this piece.</div>
+        {% endif %}
+        {% if item.publish_log and item.publish_log|length > 0 %}
+        {% for log in item.publish_log %}
+        {% if log.status == 'failed' %}
+        <div style="margin-top: 8px; padding: 6px 10px; background: #2a1a1a; border-radius: 4px; font-size: 0.78rem; color: #f85149;">
+            Last publish attempt failed: {{ log.error_message }}
+            <button class="btn" style="background: #3a2a1a; color: #d2a04a; padding: 3px 10px; font-size: 0.75rem; margin-left: 8px;" onclick="retryPublish({{ item.id }}, this)">Retry</button>
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="empty">No published pieces yet. Publish pieces at Gate 4 to see metrics here.</p>
+    {% endif %}
+</div>
+
+<script>
+function pullMetrics(btn) {
+    var status = document.getElementById('pull-status');
+    status.innerHTML = '';
+    busyAction(btn, '/api/metrics/pull', {
+        busyLabel: 'Pulling…',
+        body: JSON.stringify({days: 7}),
+        onSuccess: function(data) {
+            status.innerHTML = '<span style="color: #4acc6a;">Pulled ' + data.pulled + ' posts, ' + data.failed + ' failed.</span>';
+            setTimeout(function() { location.reload(); }, 1500);
+        },
+        onError: function(msg) {
+            status.innerHTML = '<span style="color: #f85149;">Error: ' + msg + '</span>';
+        }
+    });
+}
+
+function retryPublish(assetId, btn) {
+    busyAction(btn, '/api/publish/' + assetId + '/retry', {
+        busyLabel: 'Retrying…',
+        reloadOnSuccess: true,
+        onError: function(msg) { alert('Retry failed: ' + msg); }
+    });
+}
+</script>
+</body>
+</html>
