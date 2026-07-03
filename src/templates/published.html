@@ -25,7 +25,7 @@
         .btn-copy { background: #D8D4C8; color: #8A857C; }
         .btn-copy:hover { background: #D8D4C8; }
         .empty { color: #A8A399; font-style: italic; padding: 20px; text-align: center; }
-        .info-box { color: #4A6FA5; font-size: 0.82rem; padding: 12px; background: rgba(74, 111, 165, 0.12); border-radius: 6px; margin-bottom: 16px; border-left: 3px solid #4A6FA5; }
+        .info-box { color: #4A7C3A; font-size: 0.82rem; padding: 12px; background: rgba(74, 124, 58, 0.08); border-radius: 6px; margin-bottom: 16px; border-left: 3px solid #4A7C3A; }
         .warn-box { color: #d2a04a; font-size: 0.82rem; padding: 12px; background: rgba(212, 168, 67, 0.12); border-radius: 6px; margin-bottom: 16px; border-left: 3px solid #d2a04a; }
 
         /* Lightbox */
@@ -60,7 +60,7 @@
                 <span class="platform">{{ item.platform }}</span>
                 <span class="type"> · {{ item.variant_type }}</span>
             </div>
-            <span class="time-badge" id="schedule-badge-{{ item.id }}">Scheduled: {{ item.publish_scheduled_at[:16] if item.publish_scheduled_at else 'N/A' }}</span>
+            <span class="time-badge" id="schedule-badge-{{ item.id }}">Scheduled: {{ item.publish_scheduled_at[:16].replace('T', ' at ') if item.publish_scheduled_at else 'N/A' }}</span>
         </div>
 
         {% if item.posts_parsed and item.posts_parsed|length > 0 %}

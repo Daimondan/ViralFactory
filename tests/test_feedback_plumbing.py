@@ -493,8 +493,8 @@ class TestUIReview002DraftStateLock:
         assert f"{approved_only_idea[:80]}..." in html
         assert f"{long_idea[:50]}..." in html
 
-        drafts_section = html.split("<h3>Drafts</h3>", 1)[1].split("<h3>Shipped (ready for assets)</h3>", 1)[0]
-        shipped_section = html.split("<h3>Shipped (ready for assets)</h3>", 1)[1].split("<h3>Quick stats</h3>", 1)[0]
+        drafts_section = html.split("<h3>Drafts</h3>", 1)[1].split("<h3>Shipped", 1)[0]
+        shipped_section = html.split("<h3>Shipped", 1)[1].split("<h3>Quick stats</h3>", 1)[0]
         assert "Shipped idea should only be in assets lane" not in drafts_section
         assert "Shipped idea should only be in assets lane" in shipped_section
 

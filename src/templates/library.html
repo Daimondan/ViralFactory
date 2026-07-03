@@ -118,7 +118,7 @@
                 <span class="status-badge {{ mod.status }}">{{ mod.status }}</span>
             </div>
         </div>
-        <div class="module-preview" id="preview-{{ mod.name }}">{{ mod.preview }}</div>
+        <div class="module-preview" id="preview-{{ mod.name }}">{{ mod.preview | strip_md }}</div>
         <button class="show-more-btn" onclick="toggleShowMore('{{ mod.name }}')">Show more ▾</button>
         <div class="module-actions" id="actions-{{ mod.name }}">
             {% if mod.status == 'draft' %}

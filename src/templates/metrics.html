@@ -67,7 +67,7 @@
                 <span class="platform">{{ item.platform }}</span>
                 <span class="type"> · {{ item.variant_type }}</span>
             </div>
-            <span class="time-badge">{{ item.publish_scheduled_at[:16] if item.publish_scheduled_at else 'N/A' }}</span>
+            <span class="time-badge">{{ item.publish_scheduled_at[:16].replace('T', ' at ') if item.publish_scheduled_at else 'N/A' }}</span>
         </div>
         <div style="font-size: 0.85rem; color: #8A857C; margin-bottom: 8px;">
             {{ item.content[:200] }}{% if item.content|length > 200 %}...{% endif %}

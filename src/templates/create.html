@@ -73,14 +73,16 @@
         </div>
 
         <div class="stage-card">
-            <h3>Shipped (ready for assets)</h3>
+            <h3>Shipped (ready for assets) — {{ shipped|length }}</h3>
             {% if shipped %}
+            <div style="max-height: 300px; overflow-y: auto;">
                 {% for d in shipped %}
                 <div class="item">
-                    <a class="item-title" href="/create/assets/{{ d.id }}">{{ d.idea_text[:50] }}{% if d.idea_text|length > 50 %}...{% endif %} → assets</a>
+                    <a class="item-title" href="/create/assets/{{ d.id }}">{{ d.idea_text[:60] }}{% if d.idea_text|length > 60 %}...{% endif %} → assets</a>
                     <span class="state-badge state-shipped">shipped</span>
                 </div>
                 {% endfor %}
+            </div>
             {% else %}
                 <p class="empty">No shipped drafts.</p>
             {% endif %}

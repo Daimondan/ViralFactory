@@ -77,6 +77,22 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         except (ValueError, TypeError):
             return []
 
+    # F10: Strip basic markdown from preview text
+    import re as _re
+    @app.template_filter("strip_md")
+    def strip_md_filter(s):
+        if not s:
+            return ""
+        # Remove markdown headers, bold, italic, code blocks, links
+        s = _re.sub(r'^#{1,6}\s+', '', s, flags=_re.MULTILINE)  # headers
+        s = _re.sub(r'\*\*(.+?)\*\*', r'\1', s)  # bold
+        s = _re.sub(r'\*(.+?)\*', r'\1', s)  # italic
+        s = _re.sub(r'`(.+?)`', r'\1', s)  # inline code
+        s = _re.sub(r'```[\s\S]*?```', '', s)  # code blocks
+        s = _re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', s)  # links
+        s = _re.sub(r'^[-*]\s+', '• ', s, flags=_re.MULTILINE)  # list items
+        return s
+
     # F1: Initialize the jobs table (shared idempotency + async job substrate)
     from jobs import JobsStore
     app.config["JOBS_DB_PATH"] = db_path  # jobs table lives in the same DB
@@ -153,7 +169,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             grouped = {}  # {idea_title: {type, state, title, link, time, sub_events: []}}
 
             for card in all_cards[:15]:
-                title = card["idea"][:80]
+                title = card["idea"][:100]  # longer truncation, CSS handles overflow
                 if title not in grouped:
                     grouped[title] = {
                         "type": "idea",
@@ -163,27 +179,35 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                         "time": card.get("created_at", ""),
                         "sub_events": [],
                     }
-                # Check for drafts on this card
-                for draft in store.list_drafts(business_slug):
-                    if draft["idea_card_id"] == card["id"]:
+                # Check for drafts on this card — group assets under each draft
+                card_drafts = [d for d in store.list_drafts(business_slug) if d["idea_card_id"] == card["id"]]
+                # Only show the latest draft version to avoid repetition
+                if card_drafts:
+                    latest_draft = max(card_drafts, key=lambda d: d.get("draft_version", 1))
+                    draft_sub = {
+                        "type": "draft",
+                        "state": latest_draft["draft_state"],
+                        "title": f"Draft v{latest_draft['draft_version']}",
+                        "link": f"/create/draft/{card['id']}",
+                        "time": fmt_time(latest_draft.get("updated_at", "")),
+                    }
+                    grouped[title]["sub_events"].append(draft_sub)
+                    # Assets for the latest draft only
+                    seen_asset_keys = set()
+                    for asset in store.list_assets(latest_draft["id"]):
+                        asset_key = f"{asset['platform']}_{asset['variant_type']}"
+                        if asset_key in seen_asset_keys:
+                            continue
+                        seen_asset_keys.add(asset_key)
                         grouped[title]["sub_events"].append({
-                            "type": "draft",
-                            "state": draft["draft_state"],
-                            "title": f"Draft v{draft['draft_version']}",
-                            "link": f"/create/draft/{card['id']}",
-                            "time": fmt_time(draft.get("updated_at", "")),
+                            "type": "asset",
+                            "state": asset["asset_state"],
+                            "title": f"  → {asset['platform']} {asset['variant_type']}",
+                            "link": f"/create/assets/{latest_draft['id']}",
+                            "time": fmt_time(asset.get("updated_at", "")),
                         })
-                        # Assets for this draft
-                        for asset in store.list_assets(draft["id"]):
-                            grouped[title]["sub_events"].append({
-                                "type": "asset",
-                                "state": asset["asset_state"],
-                                "title": f"  → {asset['platform']} {asset['variant_type']}",
-                                "link": f"/create/assets/{draft['id']}",
-                                "time": fmt_time(asset.get("updated_at", "")),
-                            })
-                        if draft["draft_state"] == "shipped":
-                            grouped[title]["state"] = "shipped"
+                    if latest_draft["draft_state"] == "shipped":
+                        grouped[title]["state"] = "shipped"
 
             # Convert to list, sort by time desc
             activity = list(grouped.values())

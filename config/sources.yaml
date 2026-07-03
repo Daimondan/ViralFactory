@@ -8,11 +8,17 @@ feeds: []          # populated by Sources Engine playbook
                     #   type: "rss"
                     #   enabled: true
 
-channels: []       # YouTube channels, social accounts
-                    # - name: "Tonbi's AI Garage"
-                    #   platform: "youtube"
-                    #   handle: "@TonbisGarage"
-                    #   enabled: true
+channels:
+  - name: "AI Explained"
+    platform: "youtube"
+    handle: "@aiexplained"
+    channel_id: "UC9bFRvRiGR8xKDhK3xq+Phg"
+    enabled: true
+  - name: "Two Minute Papers"
+    platform: "youtube"
+    handle: "@TwoMinutePapers"
+    channel_id: "UC9bFRvRiGR8xKDhK3xq+Phg"
+    enabled: true
 
 queries: []        # Search queries for web discovery
                     # - query: "Caribbean AI wealth entrepreneurship"
