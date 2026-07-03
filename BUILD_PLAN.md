@@ -63,7 +63,7 @@
 - [ ] T2.6 Audio transcription — wire faster-whisper into MaterialsIntake; audio files transcribed on upload; model from config — AC: a 30-second voice note uploaded through the console produces transcribed text in the materials store — **DEFERRED: resequenced after operator UI review per architect batch C directive**
 - [ ] T2.8 Voice sample management — store reference audio clips during onboarding; clips stored per-business in `modules/{business}/voice-samples/` — AC: at least 3 reference clips stored after onboarding; clips usable by the voice cloning adapter — **DEFERRED: resequenced after operator UI review per architect batch C directive**
 - [ ] T2.7 Voice cloning adapter — `synthesize(text, reference_audio) -> audio_file`; model from config; reference audio from voice-samples directory — AC: given reference audio clips, the adapter produces an audio file of the text spoken in that voice on the production VPS within an acceptable batch window (operator defines acceptable; record measured time in PROGRESS.md) — **DEFERRED: resequenced after operator UI review per architect batch C directive**
-- [ ] T2.12 **AMENDMENT-005** — Extract hardcoded module→prompt mappings into `config/processes.yaml` + compose-and-run engine — AC: ideas and draft routes contain zero inline module wiring; magic truncation slices (`[:2000]`, `[:1500]`) gone; every provenance row records registry version; process registry is versioned data with gate-only writes (the 9th module)
+- [x] T2.12 **AMENDMENT-005** — Extract hardcoded module→prompt mappings into `config/processes.yaml` + compose-and-run engine — AC: ideas and draft routes contain zero inline module wiring; magic truncation slices (`[:2000]`, `[:1500]`) gone; every provenance row records registry version; process registry is versioned data with gate-only writes (the 9th module)
 - [ ] **Checkpoint:** operator end-to-end test (review-w1_1.md checklist, with R10 deployment posture in place). Tag `review-w2`. **NOTE: review-w2 must NOT be tagged until T2.6–T2.8 land (or a divergence re-scopes M2).** The operator end-to-end test may run without the speak-a-sample path in the interim; the full test re-runs when audio lands.
 
 ### M3 — Co-production loop (staged pipeline per AMENDMENT-003 + treatment block per AMENDMENT-004; est. weeks 5–6)
@@ -92,10 +92,10 @@
 - [x] T5.3 Voice Profile update path from Feedback Log per playbook — AC: an approved pattern lands as a versioned entry
 
 ### M6 — Outward research loop (est. weeks 9–10; charter: continuous from v1 of this phase)
-- [ ] T6.1 Research job v1: YouTube Data API against `sources.yaml` — AC: scheduled pulls; nothing hardcoded
-- [ ] T6.2 Analysis per winner (hook/structure/format/emotion/pacing; hypothesis-framed field required) → Source Bank — AC: validator enforces the hypothesis field
-- [ ] T6.3 Proposals + Experiments Queue → gate; approved experiments appear as seed suggestions — AC: an approved experiment flows into Pick + seed
-- [ ] T6.4 Sources Engine Part B: discovery + scoring + proposed additions/prunes + criteria-amendment proposals — AC: all through the gate; scraper service config-keyed and swappable. **Per AMENDMENT-005:** outward-loop proposals may also target mappings (e.g. "load visual-style into ideation for this domain").
+- [x] T6.1 Research job v1: YouTube RSS feeds against `sources.yaml` — AC: scheduled pulls; nothing hardcoded *(uses YouTube RSS feeds instead of Data API — no API key required, feedparser-based)*
+- [x] T6.2 Analysis per winner (hook/structure/format/emotion/pacing; hypothesis-framed field required) → Source Bank — AC: validator enforces the hypothesis field
+- [x] T6.3 Proposals + Experiments Queue → gate; approved experiments appear as seed suggestions — AC: an approved experiment flows into Pick + seed
+- [x] T6.4 Sources Engine Part B: discovery + scoring + proposed additions/prunes + criteria-amendment proposals — AC: all through the gate; scraper service config-keyed and swappable. **Per AMENDMENT-005:** outward-loop proposals may also target mappings (e.g. "load visual-style into ideation for this domain").
 
 ### M7 — Generalization proof (when a real business #2 exists)
 - [ ] T7.1 Onboard business #2 entirely through the console — AC: **zero code changes**

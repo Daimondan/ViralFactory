@@ -219,10 +219,26 @@ def load_sources(config_dir: str = "config") -> dict:
     return data
 
 
+def load_processes(config_dir: str = "config") -> dict:
+    """Load and validate processes.yaml (T2.12 process registry)."""
+    filepath = os.path.join(config_dir, "processes.yaml")
+    if not os.path.exists(filepath):
+        return {"processes": {}, "schemas": {}}
+    data = load_yaml(filepath)
+    if "processes" not in data:
+        raise ConfigError(f"Missing 'processes' key in processes.yaml ({filepath})")
+    # Validate each process has required fields
+    for name, proc in data["processes"].items():
+        if "prompt_file" not in proc:
+            raise ConfigError(f"Process '{name}' missing prompt_file ({filepath})")
+    return data
+
+
 def load_all(config_dir: str = "config") -> dict:
-    """Load all config files. Returns dict with 'business', 'models', 'sources' keys."""
+    """Load all config files. Returns dict with 'business', 'models', 'sources', 'processes' keys."""
     return {
         "business": load_business(config_dir),
         "models": load_models(config_dir),
         "sources": load_sources(config_dir),
+        "processes": load_processes(config_dir),
     }

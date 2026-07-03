@@ -1,0 +1,130 @@
+# config/processes.yaml — Process Registry (AMENDMENT-005)
+#
+# Processes are module compositions: each process declares which prompt to use,
+# which backend (LLM role), which JSON schema to validate against, and which
+# inputs (business config fields + module views + dynamic variables) to assemble.
+#
+# The compose-and-run engine reads this spec and calls adapter.complete() with
+# the assembled variables — routes contain zero inline module wiring.
+#
+# Versioned data: gate-only writes. Bumping a process spec is a versioned change
+# with provenance, just like module updates.
+#
+# version: 1.0
+
+processes:
+  ideas_generate:
+    prompt_file: "ideas/generate_v1.md"
+    backend: "ideator"
+    schema: "IDEA_CARD_SCHEMA"
+    context_template: "AI idea card generation ({num_cards} cards) | module_ctx: {module_prov}"
+    inputs:
+      # Business config fields
+      business_name: {source: business, field: "business.name"}
+      subjects: {source: business, field: "subjects", transform: "join_comma"}
+      audience_description: {source: business, field: "audience_description"}
+      # Module views (resolved via views.yaml)
+      module_views: "ideas/generate_v1.md"
+      # Dynamic variables (built by route)
+      origin_type: {source: dynamic, default: "ai_originated"}
+      source_material: {source: dynamic}
+      num_cards: {source: dynamic, default: "3"}
+      existing_ideas: {source: dynamic, builder: "existing_ideas"}
+      kill_lessons: {source: dynamic, builder: "kill_lessons"}
+      format_usage: {source: dynamic, builder: "format_usage"}
+
+  ideas_seed:
+    prompt_file: "ideas/generate_v1.md"
+    backend: "ideator"
+    schema: "IDEA_CARD_SCHEMA"
+    context_template: "Idea card generation from seed ({origin_type}) | module_ctx: {module_prov}"
+    inputs:
+      business_name: {source: business, field: "business.name"}
+      subjects: {source: business, field: "subjects", transform: "join_comma"}
+      audience_description: {source: business, field: "audience_description"}
+      module_views: "ideas/generate_v1.md"
+      origin_type: {source: dynamic}
+      source_material: {source: dynamic, template: "Operator seed: {seed}"}
+      num_cards: {source: static, value: "1"}
+      existing_ideas: {source: dynamic, builder: "existing_ideas"}
+      kill_lessons: {source: dynamic, builder: "kill_lessons"}
+      format_usage: {source: dynamic, builder: "format_usage"}
+
+  draft_generate:
+    prompt_file: "draft/generate_v2.md"
+    backend: "drafter"
+    schema: "DRAFT_SCHEMA"
+    context_template: "Draft generation for card {card_id} ({origin}, {format_name}) | module_ctx: {module_prov}"
+    inputs:
+      business_name: {source: business, field: "business.name"}
+      audience_description: {source: business, field: "audience_description"}
+      module_views: "draft/generate_v2.md"
+      origin: {source: dynamic}
+      format_name: {source: dynamic}
+      scope: {source: dynamic}
+      idea: {source: dynamic}
+      hook_options: {source: dynamic, transform: "join_newline_bullet"}
+      capture_material: {source: dynamic, transform: "truncate_2000"}
+      previous_draft: {source: dynamic}
+      revision_feedback: {source: dynamic}
+
+  fan_out_adapt:
+    prompt_file: "assets/fan_out_v2.md"
+    backend: "default"
+    schema: "VARIANT_SCHEMA"
+    context_template: "Asset fan-out for draft {draft_id} → {platform_name} (adapted) | module_ctx: {module_prov}"
+    inputs:
+      business_name: {source: business, field: "business.name"}
+      module_views: "assets/fan_out_v2.md"
+      platform_name: {source: dynamic}
+      platform_handle: {source: dynamic}
+      draft_text: {source: dynamic, transform: "truncate_4000"}
+      visual_direction: {source: dynamic, transform: "json_truncate_1000"}
+      format: {source: dynamic}
+
+  native_structure:
+    prompt_file: "assets/structure_v1.md"
+    backend: "default"
+    schema: "VARIANT_SCHEMA"
+    context_template: "Native structuring for draft {draft_id} → {platform_name} ({variant_type}) | module_ctx: {module_prov}"
+    inputs:
+      platform_name: {source: dynamic}
+      format_name: {source: dynamic}
+      variant_type: {source: dynamic}
+      draft_text: {source: dynamic, transform: "truncate_4000"}
+
+  series_breakdown:
+    prompt_file: "ideas/series_breakdown_v1.md"
+    backend: "default"
+    schema: "SERIES_BREAKDOWN_SCHEMA"
+    context_template: "Series breakdown for card {card_id}"
+    inputs:
+      business_name: {source: business, field: "business.name"}
+      module_views: "ideas/series_breakdown_v1.md"
+      parent_idea: {source: dynamic}
+      n: {source: dynamic}
+      format_name: {source: dynamic}
+      cadence: {source: dynamic}
+
+  research_analyze:
+    prompt_file: "research/analyze_v1.md"
+    backend: "default"
+    schema: "ANALYSIS_SCHEMA"
+    context_template: "Research analysis for item {item_id} ({source_name})"
+    inputs:
+      business_name: {source: business, field: "business.name"}
+      source_name: {source: dynamic}
+      channel_name: {source: dynamic}
+      video_title: {source: dynamic}
+      video_description: {source: dynamic}
+      watch_url: {source: dynamic}
+      published_at: {source: dynamic}
+      source_criteria: {source: dynamic, transform: "truncate_3000"}
+
+# Schema registry — maps schema names to their Python locations
+schemas:
+  IDEA_CARD_SCHEMA: "pipeline.IDEA_CARD_SCHEMA"
+  DRAFT_SCHEMA: "pipeline.DRAFT_SCHEMA"
+  VARIANT_SCHEMA: "inline:variant_schema"
+  SERIES_BREAKDOWN_SCHEMA: "pipeline.SERIES_BREAKDOWN_SCHEMA"
+  ANALYSIS_SCHEMA: "inline:analysis_schema"

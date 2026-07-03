@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-03
-**Current Phase:** T3.13 complete (S1a-S4 + Buffer adapter). 565 tests passing. Postiz replaced with Buffer API (channels configured, verified live). M3 checkpoint next, then T2.12 (processes.yaml), then M6 (outward research).
+**Current Phase:** T2.12 + T3.13 + M6 (T6.1-T6.4) complete. 583 tests passing. Postiz replaced with Buffer API (verified live). Process registry + compose-and-run engine built. YouTube RSS research loop operational. Remaining: M3 checkpoint (10-piece sprint + Drafter A/B, requires operator involvement).
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
