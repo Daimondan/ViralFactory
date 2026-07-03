@@ -57,6 +57,7 @@ MODELS_SCHEMA = {
             "types": {
                 "default": (str, type(None)),
                 "drafter": (str, type(None)),
+                "ideator": (str, type(None)),
             },
             "optional": {"drafter_ab_candidate": (str, type(None))},
         },

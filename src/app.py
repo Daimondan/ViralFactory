@@ -3776,7 +3776,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     "num_cards": "1",
                 },
                 schema=IDEA_CARD_SCHEMA,
-                backend="default",
+                backend="ideator",
                 context=f"Idea card generation from seed ({origin}) | module_ctx: {module_prov}",
                 business_slug=business_slug,
             )
@@ -3867,7 +3867,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     "num_cards": str(num_cards),
                 },
                 schema=IDEA_CARD_SCHEMA,
-                backend="default",
+                backend="ideator",
                 context=f"AI idea card generation ({num_cards} cards) | module_ctx: {module_prov}",
                 business_slug=business_slug,
             )

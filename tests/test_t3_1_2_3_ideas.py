@@ -483,6 +483,167 @@ queries: []
         app.config["TESTING"] = True
         return app
 
+    @pytest.fixture
+    def app_with_ideator(self, tmp_path):
+        """Flask app with ideator backend configured (S1a)."""
+        from app import create_app
+
+        config_dir = str(tmp_path / "config")
+        os.makedirs(config_dir)
+
+        business_yaml = """
+business:
+  name: "TestBiz"
+  slug: "testbiz"
+  description: "Test business"
+subjects:
+  - "test"
+platforms:
+  - name: "X"
+    handle: "@test"
+    priority: 1
+audience_description: "Test audience"
+"""
+        with open(os.path.join(config_dir, "business.yaml"), "w") as f:
+            f.write(business_yaml)
+
+        models_yaml = """
+active:
+  default: "test_processing"
+  drafter: "test_creative"
+  ideator: "test_creative"
+test_processing:
+  provider: "ollama_cloud"
+  model: "test-model"
+  temperature: 0
+  max_tokens: 100
+  base_url: "http://localhost:1"
+test_creative:
+  provider: "ollama_cloud"
+  model: "test-model"
+  temperature: 0.9
+  max_tokens: 100
+  base_url: "http://localhost:1"
+"""
+        with open(os.path.join(config_dir, "models.yaml"), "w") as f:
+            f.write(models_yaml)
+
+        sources_yaml = """
+feeds: []
+channels: []
+queries: []
+"""
+        with open(os.path.join(config_dir, "sources.yaml"), "w") as f:
+            f.write(sources_yaml)
+
+        db_path = str(tmp_path / "test.db")
+        app = create_app(config_dir=config_dir, db_path=db_path)
+        app.config["TESTING"] = True
+        return app
+
+    def test_ideas_generate_uses_ideator_backend(self, app_with_ideator):
+        """S1a: ideas_generate route calls the LLM with backend='ideator'."""
+        from unittest.mock import patch
+        from llm_adapter import LLMAdapter
+
+        captured_backend = []
+
+        def mock_complete(self, prompt_file, variables, schema, **kwargs):
+            captured_backend.append(kwargs.get("backend"))
+            return {"cards": [
+                {"idea": "Test idea", "hook_options": ["h"], "treatment": {"scope": "one_off", "format": "X Thread", "capture_required": [], "rationale": "r"}, "origin": "ai_originated", "evidence_links": []}
+            ]}
+
+        with patch.object(LLMAdapter, "complete", mock_complete):
+            client = app_with_ideator.test_client()
+            resp = client.post("/api/ideas/generate", json={"count": 1})
+
+        assert resp.status_code == 200
+        assert captured_backend == ["ideator"]
+
+    def test_seed_uses_ideator_backend(self, app_with_ideator):
+        """S1a: seed-based card generation uses backend='ideator'."""
+        from unittest.mock import patch
+        from llm_adapter import LLMAdapter
+
+        captured_backend = []
+
+        def mock_complete(self, prompt_file, variables, schema, **kwargs):
+            captured_backend.append(kwargs.get("backend"))
+            return {"cards": [
+                {"idea": "Seed idea", "hook_options": ["h"], "treatment": {"scope": "one_off", "format": "X Thread", "capture_required": [], "rationale": "r"}, "origin": "human_seeded", "evidence_links": []}
+            ]}
+
+        with patch.object(LLMAdapter, "complete", mock_complete):
+            client = app_with_ideator.test_client()
+            resp = client.post("/api/ideas/seed", json={"seed": "My seed idea"})
+
+        assert resp.status_code == 200
+        assert captured_backend == ["ideator"]
+
+    def test_ideator_resolves_to_nonzero_temperature(self, tmp_path):
+        """S1a: ideator active role resolves to a backend with temperature > 0."""
+        from config_loader import load_models
+
+        config_dir = str(tmp_path / "config")
+        os.makedirs(config_dir)
+        models_yaml = """
+active:
+  default: "proc"
+  drafter: "creative"
+  ideator: "creative"
+proc:
+  provider: "ollama_cloud"
+  model: "m"
+  temperature: 0
+  max_tokens: 100
+  base_url: ""
+creative:
+  provider: "ollama_cloud"
+  model: "m"
+  temperature: 0.9
+  max_tokens: 100
+  base_url: ""
+"""
+        with open(os.path.join(config_dir, "models.yaml"), "w") as f:
+            f.write(models_yaml)
+
+        models = load_models(config_dir)
+        ideator_name = models["active"]["ideator"]
+        assert ideator_name == "creative"
+        assert models[ideator_name]["temperature"] > 0
+
+    def test_config_loader_accepts_ideator_in_active(self, tmp_path):
+        """S1a: config_loader validates ideator in active block."""
+        from config_loader import load_models
+
+        config_dir = str(tmp_path / "config")
+        os.makedirs(config_dir)
+        models_yaml = """
+active:
+  default: "proc"
+  drafter: "creative"
+  ideator: "creative"
+proc:
+  provider: "ollama_cloud"
+  model: "m"
+  temperature: 0
+  max_tokens: 100
+  base_url: ""
+creative:
+  provider: "ollama_cloud"
+  model: "m"
+  temperature: 0.9
+  max_tokens: 100
+  base_url: ""
+"""
+        with open(os.path.join(config_dir, "models.yaml"), "w") as f:
+            f.write(models_yaml)
+
+        # Should not raise
+        models = load_models(config_dir)
+        assert "ideator" in models["active"]
+
     def test_ideas_page_loads(self, app):
         """The ideas queue page loads."""
         client = app.test_client()

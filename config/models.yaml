@@ -12,7 +12,8 @@
 # Change these to switch which named backend is used for processing vs drafting.
 active:
   default: "ollama_glm52"       # processing steps (temperature 0)
-  drafter: "ollama_glm52"       # content drafting (uses backend's temperature)
+  drafter: "ollama_glm52_creative"  # content drafting (generative — real temperature)
+  ideator: "ollama_glm52_creative"  # idea generation (generative — real temperature)
   converse: "ollama_gpt_oss_120b"  # P2-1: fast non-reasoning backend for conversational turns
   drafter_ab_candidate: null    # set to a backend name for M3 A/B test
 
@@ -27,6 +28,16 @@ ollama_glm52:
   model: "glm-5.2"
   temperature: 0
   max_tokens: 8192              # GLM-5.2 is a reasoning model — needs headroom
+  base_url: "https://ollama.com"
+
+# Generative backend for idea generation + drafting (real temperature per
+# CORRECTION-generation-diversity-and-asset-continuity S1a). The temp-0 guardrail
+# correctly covers judgment/extraction only; generative calls need variance.
+ollama_glm52_creative:
+  provider: "ollama_cloud"
+  model: "glm-5.2"
+  temperature: 0.9
+  max_tokens: 8192
   base_url: "https://ollama.com"
 
 ollama_gpt_oss_120b:
