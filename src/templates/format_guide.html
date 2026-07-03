@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/vf.css">
     <title>Format Guide — ViralFactory</title>
     <style>
         :root { --bg: #0d1117; --surface: #161b22; --border: #30363d; --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7; --green: #3fb950; --red: #f85149; --yellow: #d29922; }
@@ -28,7 +29,8 @@
     </style>
 </head>
 <body>
-    <div class="nav"><a href="/">Home</a><a href="/onboard" class="active">Onboard</a><a href="/library">Library</a></div>
+    <div class="container">
+    <div class="nav"><a href="/">Home</a><a href="/onboard" class="active">Onboard</a><a href="/library" class="active">Library</a></div>
     <h1>Format Guide Starter</h1>
     <p class="muted">Run #{{ run_id }} · Which format fits which message on which platform. Includes capture requirements and reuse pathways.</p>
 
@@ -131,5 +133,6 @@
         else { status.className = 'error'; status.textContent = data.error; }
     }
     </script>
+    </div>
 </body>
 </html>

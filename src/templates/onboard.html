@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/vf.css">
     <title>Onboard — {{ business_name }}</title>
     <style>
         :root {
@@ -59,6 +60,7 @@
     </style>
 </head>
 <body>
+    <div class="container">
     <h1>Onboarding</h1>
     <p class="subtle">Run each step in order. The AI guides you through a conversation — you just talk, type, and upload.</p>
     <div class="nav">
@@ -90,5 +92,6 @@
     {% if not playbooks %}
     <p style="color: var(--muted); padding: 2rem; text-align: center;">No playbooks found.</p>
     {% endif %}
+    </div>
 </body>
 </html>

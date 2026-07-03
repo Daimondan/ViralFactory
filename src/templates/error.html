@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/vf.css">
     <title>Error — ViralFactory</title>
     <style>
         :root {
@@ -22,13 +23,15 @@
     </style>
 </head>
 <body>
+    <div class="container">
     <div class="nav">
-        <a href="/">Home</a>
+        <a href="/" class="active">Home</a>
         <a href="/materials">Materials</a>
         <a href="/library">Library</a>
     </div>
     <h1>Something went wrong</h1>
     <p>{{ error }}</p>
     <p><a href="/" style="color:var(--accent)">← Back to Dashboard</a></p>
+    </div>
 </body>
 </html>

@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/vf.css">
     <title>{{ display_label }} — {{ business_name }}</title>
     <style>
         :root {
@@ -144,6 +145,19 @@
     </style>
 </head>
 <body>
+    <div class="container">
+    <div class="nav">
+        <a href="/">Home</a>
+        <a href="/onboard" class="active">Onboard</a>
+        <a href="/library">Library</a>
+        <a href="/materials">Materials</a>
+        <a href="/ideas">Ideas</a>
+        <a href="/create">Create</a>
+        <a href="/published">Published</a>
+        <a href="/metrics">Metrics</a>
+        <a href="/research">Research</a>
+        <a href="/proposals">Gate Queue</a>
+    </div>
 
 <!-- Top bar -->
 <div class="topbar">
@@ -510,5 +524,6 @@ async function rejectGate() {
     if (data.status === 'ok') window.location.reload();
 }
 </script>
+    </div>
 </body>
 </html>
