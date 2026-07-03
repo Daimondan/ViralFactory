@@ -12,7 +12,7 @@
 > **On change:** bump `updated_at` date, add/update a decision note in
 > `docs/decisions/` if the change is non-obvious.
 
-**Updated:** 2026-07-03
+**Updated:** 2026-07-03 (source grounding + auto-production chain + AI profiles per CORRECTION-source-grounding-and-auto-production-v1.0)
 **Conforms to:** `docs/CHARTER-v3.3.md` (v3.3 — incorporates DIVERGENCE-001, DIVERGENCE-002, AMENDMENT-003 staged content pipeline, and AMENDMENT-004 treatment block on idea cards)
 
 ---
@@ -57,7 +57,7 @@ The first business using ViralFactory. All StackPenni-specific values (brand nam
 A spoken or typed idea/take/story from the user. In the staged pipeline, a seed becomes a **human-seeded** idea card (or a **human-seeded-ai-developed** card when the AI sharpens it). A seed can produce multiple pieces (different platforms/formats).
 
 ### Idea card
-The first artifact in the staged pipeline. Each card carries: the idea, hook/title options, a **treatment** (scope: one-off | series-of-N | pillar-with-derivatives; format from the Format Guide — including experimental formats debuting on the card; capture-required tasks; reuse links; rationale), origin tag (`ai-originated` | `human-seeded` | `human-seeded-ai-developed`), and evidence links. Treatment is approved WITH the idea at Gate 1 — not developed after. Cards approved with outstanding capture tasks enter **awaiting-capture** until the human supplies material through the materials intake. Gate 1 (rigorous: approve/kill/park) decides which cards proceed to Draft.
+The first artifact in the staged pipeline. Each card carries: the idea, hook/title options, a **treatment** (scope: one-off | series-of-N | pillar-with-derivatives; format from the Format Guide — including experimental formats debuting on the card; capture-required tasks; reuse links; rationale), origin tag (`ai-originated` | `human-seeded` | `human-seeded-ai-developed`), and **source_refs** (JSON list of `sources.id` — one or more Source Bank records that ground this idea). `evidence_links` is a derived display field resolved from the referenced source rows, not the grounding mechanism. Every idea cites at least one source by ID; one idea may compose multiple sources into a single story. Treatment is approved WITH the idea at Gate 1 — not developed after. Cards approved with outstanding capture tasks enter **awaiting-capture** until the human supplies material through the materials intake. Gate 1 (rigorous: approve/kill/park) decides which cards proceed to production. **Gate 1 approval triggers production automatically through to asset review** — the chain: draft generation → per-platform fan-out → visual/asset previews, executed as a background job. Publishing is never automatic.
 
 ### Treatment
 The decision of how an idea becomes a piece — scope, format, capture needs, reuse, and rationale. Lives ON the card, approved AT Gate 1. The human may edit any part at the gate (direct-edit authority). Compact treatment line (scope · format · capture flag) shown on cards for fast kills; full treatment expands on demand. Not a new stage or gate — it's a property of the card.
@@ -88,6 +88,9 @@ The one-time setup that builds all 8 modules from the user's materials. Not a si
 ### Direct edit
 When the user writes or rewrites draft text themselves. The system treats this as authoritative — the human's text overrides the AI draft, and the edit feeds the Feedback Log as a strong voice signal.
 
+### AI Profiles
+AI work runs under **named profiles** — Researcher (ideation, source scouting, social-media-native), Drafter (takes the approved, fully-specified idea and produces the final asset), and Analyst (reads results, drives the inward/outward loops, scrapes news into the Source Bank). Profiles are compositions of prompts, module views, and model settings defined in `config/profiles.yaml`, per AMENDMENT-005. They are named compositions, not code classes. Each pipeline LLM call declares the profile it runs under; the adapter resolves model/temperature through the profile → `models.yaml` roles. Provenance rows record which profile produced each artifact.
+
 ## The 8 Living Modules
 
 Every business has 8 versioned knowledge documents, stored as markdown in `modules/{business}/`, loaded into every draft, updated only through the human gate:
@@ -117,15 +120,16 @@ ingests + scores every item against Source Criteria
 IDEAS  ◄── living modules ground idea generation
 cards from 3 origins: ai-originated · human-seeded · human-seeded-ai-developed
 ai-originated = Source Bank × Viral/Audience/Story/Format modules
-each card: idea + hook options + format + origin tag + evidence links
+each card: idea + hook options + format + origin tag + source_refs (cited sources by ID)
         │
         ▼
 ■ GATE 1 — RIGOROUS: approve / kill / park per card
   the funnel kills most here, by design — kill reasons → Feedback Log
+  APPROVAL = PRODUCTION TRIGGER (auto-chain: draft → fan-out → assets, no manual Generate clicks)
         │
         ▼
-DRAFT
-AI, all modules loaded, self-audits against Tells Checklist
+DRAFT (auto-produced en route, internal versioned artifact)
+AI, all modules + grounding sources loaded, self-audits against Tells Checklist
 = full text in voice + LIGHT VISUAL DIRECTION (prompts, refs, format)
   NO rendered images at this stage
         │

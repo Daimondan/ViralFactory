@@ -4058,7 +4058,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     "subjects": ", ".join(business.get("subjects", [])),
                     "audience_description": business.get("audience_description", ""),
                     "origin_type": "ai_originated",
-                    "source_material": source_material[:4000],
+                    "source_material": source_material,
                     "existing_ideas": _build_existing_ideas(business_slug),
                     "kill_lessons": _build_kill_lessons(business_slug),
                     "format_usage": _build_format_usage(business_slug),
@@ -4149,11 +4149,6 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                         )
                         store.update_card_state(child_id, "new")
                         children.append(child_id)
-
-                response_data = {"status": "ok", "new_state": new_state}
-                if spawn_warning:
-                    response_data["warning"] = spawn_warning
-                # Include children count for the UI
 
             # T3.11: Experimental format debut — auto-write Format Guide entry
             fmt = treatment.get("format", {})

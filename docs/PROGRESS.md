@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-03
-**Current Phase:** M3 checkpoint passed (10-piece sprint + T3.13 verified). M6 complete. All UI findings fixed. 583 tests passing. Buffer API live. Cream editorial design system applied. Remaining: Drafter A/B (needs operator to set ab_candidate), T2.6-T2.8 audio (deferred).
+**Current Phase:** M8 started (source grounding + auto-production chain + AI profiles). T8.1+T8.2 (P0) done. 584 tests passing. M3 checkpoint passed, M6 complete, all UI findings fixed. Buffer API live. Cream editorial design. Remaining P1: T8.3-T8.7, Drafter A/B (needs ab_candidate), T2.6-T2.8 audio (deferred).
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
@@ -164,3 +164,18 @@ Materials Library — editable source materials. DB migrations: `excluded` colum
 **Test suite:** 375 tests passing, 0 failures. 18 new regression tests for P0-1/P0-2.
 **Service:** Restarted, health check OK at 127.0.0.1:9121.
 **UI checks (curl-based):** Onboarding page renders conversation history, back link, auto-save notice, draft acknowledgments, upload states. Library page shows status badges, approve/edit buttons, module cards.
+
+### 2026-07-03 — M8 started: T8.1 + T8.2 (P0) done
+
+**T8.1 — Kill remaining truncation:**
+- Removed `source_material[:4000]` in `ideas_generate` — full source_material passed to ideas prompt (snapshot builder already has count bounds)
+- Replaced `SNAPSHOT_CHAR_CAP = 4000` with `MAX_SNAPSHOT_ITEMS = 40` in `source_snapshot.py` — count-bounded, not character-sliced
+- `build_snapshot_text` now takes most recent N items across all feeds, each with full summary (already bounded by `SUMMARY_CHAR_LIMIT`)
+- New test: `test_build_snapshot_text_count_bounded` (6 feeds × 10 items = 60, capped to 40)
+
+**T8.2 — Housekeeping:**
+- Removed dead `response_data` block in `ideas_gate_decision` (series branch) — was built but never used; actual response built at line 4164 as `response`
+- CONTEXT.md updated: Idea card definition now includes `source_refs` + auto-production trigger; new AI Profiles section; Core Loop diagram updated with auto-chain
+- CONTEXT.md "Updated" date bumped
+
+**Tests:** 584 passing (1 new). 0 failures.

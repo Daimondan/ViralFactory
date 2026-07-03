@@ -6,6 +6,22 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-03 FIX — T8.1: Kill remaining source truncation (P0)
+
+**What:** Removed `source_material[:4000]` blind character slice in `ideas_generate` (app.py:4061). Replaced `SNAPSHOT_CHAR_CAP = 4000` in `source_snapshot.py` with `MAX_SNAPSHOT_ITEMS = 40` — count-bounded, not character-sliced. `build_snapshot_text` now takes the most recent N items across all feeds, each with its full summary (already bounded by `SUMMARY_CHAR_LIMIT` at extraction time).
+
+**Why:** Same truncation disease CORRECTION-format-selection killed for modules — blind `[:4000]` character slicing silently drops source items mid-list as content grows. Count-bounded digest is the stage-appropriate injection doctrine: selection stage gets ID + title + summary per active source, bounded by count, not by character slicing.
+
+**Rationale:** Per CORRECTION-source-grounding-and-auto-production-v1.0 Section 1.3 (P0, land immediately). AC: grep for `[:4000]`, `[:2000]`, `[:1500]` across `src/` returns none on module/source injection paths.
+
+### 2026-07-03 OPS — T8.2: Dead code removal + CONTEXT.md update (P0)
+
+**What:** Removed dead `response_data` block in `ideas_gate_decision` (series branch) — was built but never used; actual response built separately as `response`. Updated CONTEXT.md with three new lines per correction: (a) every idea cites sources by ID, one idea may compose multiple sources; (b) Gate 1 approval triggers production automatically, publishing is never automatic; (c) AI work runs under named profiles (Researcher/Drafter/Analyst) defined in `config/profiles.yaml`. Core Loop diagram updated with auto-chain. New "AI Profiles" section added to Shared Language.
+
+**Why:** Per CORRECTION-source-grounding-and-auto-production-v1.0 Section 4 (P0 housekeeping). Dead code is a defect even if harmless. CONTEXT.md is the operational mirror — it must reflect the new architecture before the P1 tasks build it.
+
+**Rationale:** The correction explicitly designated these as P0/quick — land immediately, before the P1 architecture tasks.
+
 ### 2026-07-03 STRUCTURE — CORRECTION-source-grounding-and-auto-production-v1.0 filed
 
 **What:** Filed architect correction introducing three architectural changes: (1) Source Bank as addressable store (`sources` table, idea cards carry `source_refs` by ID, kill remaining blind truncation); (2) Approval is the production trigger — Gate 1 approval auto-produces through to asset review, new card states `producing`/`asset_ready`/`production_failed`, no manual Generate clicks between approval and asset review; (3) AI Profiles (Researcher/Drafter/Analyst) as named compositions in `config/profiles.yaml`, provenance gains `profile` column. No-auto-publish remains absolute.

@@ -190,3 +190,48 @@ class TestSourceSnapshot:
             ])
 
         assert call_count[0] == 0  # never fetched
+
+    def test_build_snapshot_text_count_bounded(self, db_path):
+        """T8.1: snapshot text is count-bounded (MAX_SNAPSHOT_ITEMS), not char-capped."""
+        from source_snapshot import MAX_SNAPSHOT_ITEMS, MAX_ITEMS_PER_FEED
+        snap = SourceSnapshot(db_path=db_path)
+
+        # Generate enough entries across multiple feeds to exceed MAX_SNAPSHOT_ITEMS
+        # Each feed contributes MAX_ITEMS_PER_FEED (10) items; need >4 feeds to exceed 40
+        def make_parsed(n_items, offset=0):
+            entries = []
+            for i in range(n_items):
+                entry = MagicMock()
+                idx = offset + i
+                entry.get = lambda key, default="", _idx=idx: {
+                    "title": f"Article {_idx}",
+                    "summary": f"Summary {_idx}",
+                    "link": f"https://example.com/{_idx}",
+                }.get(key, default)
+                entry.content = []
+                entries.append(entry)
+            parsed = MagicMock()
+            parsed.entries = entries
+            return parsed
+
+        # 6 feeds × 15 entries each = 90 entries, but fetch_feed caps at MAX_ITEMS_PER_FEED=10
+        # So 6 feeds × 10 = 60 items, MAX_SNAPSHOT_ITEMS=40 should cap it
+        feeds = []
+        for f in range(6):
+            feeds.append({"name": f"Feed{f}", "url": f"https://example.com/feed{f}", "enabled": True, "type": "rss"})
+
+        def mock_parse(url):
+            for f in range(6):
+                if f"feed{f}" in url:
+                    return make_parsed(15, offset=f * 15)
+            return MagicMock(entries=[])
+
+        with patch("source_snapshot.feedparser.parse", side_effect=mock_parse):
+            text = snap.build_snapshot_text(feeds)
+
+        # Count-bounded: should include at most MAX_SNAPSHOT_ITEMS entries
+        all_lines = [l for l in text.split("\n") if l.startswith("- [Feed")]
+        assert len(all_lines) == MAX_SNAPSHOT_ITEMS
+        # Article indices beyond the bound should NOT appear
+        # 6 feeds × 10 items = 60 total, capped to 40 → items 40-59 absent
+        assert "Article 59" not in text

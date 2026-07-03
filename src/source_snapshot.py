@@ -30,7 +30,7 @@ except ImportError:
 SNAPSHOT_TTL_HOURS = 6
 MAX_ITEMS_PER_FEED = 10
 SUMMARY_CHAR_LIMIT = 300
-SNAPSHOT_CHAR_CAP = 4000  # total cap for the source_material variable
+MAX_SNAPSHOT_ITEMS = 40  # count-bounded: most recent N active items across all feeds
 
 
 class SourceSnapshot:
@@ -181,18 +181,16 @@ class SourceSnapshot:
         if not all_items:
             return "(snapshot unavailable)"
 
-        # Sort newest first (feedparser returns newest first already)
-        # Build text, cap at SNAPSHOT_CHAR_CAP
+        # Count-bounded: most recent MAX_SNAPSHOT_ITEMS across all feeds.
+        # No blind character slicing — each item gets its full summary (already
+        # bounded by SUMMARY_CHAR_LIMIT at extraction time).
+        recent_items = all_items[:MAX_SNAPSHOT_ITEMS]
         lines = []
-        char_count = 0
-        for item in all_items:
+        for item in recent_items:
             line = f"- [{item['source_name']}] {item['title']}"
             if item["summary"]:
                 line += f" — {item['summary'][:150]}"
             line += f" ({item['url']})"
-            if char_count + len(line) > SNAPSHOT_CHAR_CAP:
-                break
             lines.append(line)
-            char_count += len(line)
 
         return "\n".join(lines) if lines else "(snapshot unavailable)"
