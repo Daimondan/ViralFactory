@@ -909,6 +909,21 @@ class PipelineStore:
     def list_edit_plans(self, asset_id: int) -> list[dict]:
         """List all edit plans for an asset."""
         conn = sqlite3.connect(self.db_path)
+        # Ensure edit_plans table exists (created lazily by save_edit_plan)
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS edit_plans (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                draft_id INTEGER NOT NULL,
+                asset_id INTEGER NOT NULL,
+                plan_json TEXT NOT NULL,
+                feedback TEXT,
+                status TEXT NOT NULL DEFAULT 'proposed',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (draft_id) REFERENCES drafts(id),
+                FOREIGN KEY (asset_id) REFERENCES assets(id)
+            );
+        """)
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             "SELECT * FROM edit_plans WHERE asset_id = ? ORDER BY id DESC",
