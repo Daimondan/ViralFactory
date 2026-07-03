@@ -294,6 +294,24 @@ async function sendMessage() {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({text: text, files: filesToSend}),
         });
+
+        // Handle non-JSON responses (HTML error pages from gunicorn)
+        const contentType = resp.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+            removeTyping();
+            if (resp.status === 401 || resp.status === 403) {
+                addMessage('ai', 'Authentication error — the API key may not be configured. Contact the admin.');
+            } else if (resp.status === 500) {
+                addMessage('ai', 'Server error. The admin has been notified. Try again in a moment.');
+            } else if (resp.status === 502 || resp.status === 504) {
+                addMessage('ai', 'The AI is taking too long to respond. Try again — your answers are saved.');
+            } else {
+                addMessage('ai', `Connection error (HTTP ${resp.status}). Try again — your answers are saved.`);
+            }
+            document.getElementById('sendBtn').disabled = false;
+            return;
+        }
+
         const data = await resp.json();
         removeTyping();
 
@@ -307,7 +325,7 @@ async function sendMessage() {
         }
     } catch (e) {
         removeTyping();
-        addMessage('ai', 'Connection error: ' + e.message);
+        addMessage('ai', 'Connection error: ' + e.message + '. Your answers are saved — try again.');
     }
     document.getElementById('sendBtn').disabled = false;
 }
