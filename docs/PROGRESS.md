@@ -115,3 +115,23 @@
 - P1-4: Upload feedback (template changes)
 - P1-3: Readback/message rendering (per-schema formatters)
 
+
+### 2026-07-03 — All CORRECTION-orchestrator-drafting-and-ux-v1.0 items implemented
+
+**Completed (9 of 10 items):**
+- P0-1: Drafting input starvation root cause fix
+- P0-2: Validation crash on next_focus null
+- P1-1: Gate relocation to Library (draft-status modules)
+- P1-2: Conversation continuity (render history on load, back link, auto-save, draft acknowledgments)
+- P1-3: Readback rendering (no raw dict text, omit empty sections)
+- P1-4: Upload feedback (uploading indicator, error chip, never add failed to pendingFiles)
+- P2-1: Conversational latency (converse backend)
+- P2-2: Orchestrator prompt v2 (agency-intake posture)
+- Transcription worker (faster-whisper daemon, transcription_status column, backfill)
+
+**Pending:**
+- End-to-end acceptance test (needs browser + real LLM calls — operator should run this)
+
+**Test suite:** 375 tests passing, 0 failures. 18 new regression tests for P0-1/P0-2.
+**Service:** Restarted, health check OK at 127.0.0.1:9121.
+**UI checks (curl-based):** Onboarding page renders conversation history, back link, auto-save notice, draft acknowledgments, upload states. Library page shows status badges, approve/edit buttons, module cards.

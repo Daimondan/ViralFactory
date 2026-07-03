@@ -263,3 +263,22 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ### 2026-07-02 INBOX — Batch C filed (diagram v3.3 + ops flags)
 **Rationale:** Third inbox batch from architect. `system-overview-v3.3.svg` → `docs/diagrams/` (v3.2 left in place, superseded). `diagrams-README_2.md` → `docs/diagrams/README.md` (REPLACE). Manifest → `docs/inbox/processed/`. APPLY: (1) CONTEXT.md diagram pointer updated v3.2 → v3.3 with new flow (Gather → Ideas+Treatment → Awaiting-Capture → Draft → Assets → Publish → Learn). (2) BLOCKING OPS: no public DNS until Traefik basicauth — basicauth middleware added via usersFile approach, tested 401 without auth + 200 with auth. Deployment artifacts committed to `deploy/` (traefik config, systemd service, env example). (3) T2.6–T2.8 deferral recorded formally in BUILD_PLAN + PROGRESS.md — review-w2 must NOT be tagged until audio/voice tasks land. (4) Tailscale URL confirmed as operator review URL.
+---
+
+### 2026-07-03 TECH/FIX/LOGIC — CORRECTION-orchestrator-drafting-and-ux-v1.0 fully implemented
+
+**What:**
+- **P0-1 (FIX):** Drafting input starvation root cause — routed_seeds persisted, per-doc drafting package (seeds + transcript + 24k materials), 8 v2 prompts, shot_library_summary from real materials, unresolved-placeholder check in _render_prompt.
+- **P0-2 (FIX):** Validation crash on next_focus null — removed from required, validator coerces None→"", retry includes actual error text, friendly operator error copy.
+- **P1-1 (STRUCTURE):** Gate relocation to Library — ModuleStore.store gains status param, draft/approved badges, inline edit, approve action with gate token, drafts stored immediately on orchestration.
+- **P1-2 (FIX):** Conversation continuity — structured conversation_turns passed to template, full history rendered on page load, "← Console" back link, auto-save notice, gate cards replaced with draft acknowledgments linking to /library.
+- **P1-3 (FIX):** Readback rendering — no raw str(dict)[:60], unknown dicts render key:value untruncated, empty sections omitted, nested dicts handled.
+- **P1-4 (FIX):** Upload feedback — immediate "uploading…" chip with spinner, error chip with retry on failure, failed uploads never added to pendingFiles.
+- **P2-1 (OPS):** Conversational latency — active.converse backend role (ollama_gpt_oss_120b), adapter falls back to default if not configured.
+- **P2-2 (LOGIC):** Orchestrator prompt v2 — agency-intake posture, one-line doc definitions, mine materials before asking, aggressive verbatim seed extraction, never end without question.
+- **Transcription (TECH):** faster-whisper background daemon, transcription_status column (additive migration), backfill on startup, get_corpus excludes pending/failed audio, wired into create_app.
+
+**Rationale:** CORRECTION-orchestrator-drafting-and-ux-v1.0.md from architect review of commit 372f81e following operator's first end-to-end onboarding run. All thin/empty documents shared one root cause (P0-1) — fixed first. Definition of Done (PROCESS-definition-of-done-v1.0.md) now binding.
+
+**Test suite:** 375 passing (18 new regression tests). Service restarted, health OK.
+
