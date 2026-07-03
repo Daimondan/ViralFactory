@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Publish — {{ business_name }}</title>
+    <script src="/static/busy.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f1117; color: #e0e0e0; }
@@ -15,7 +16,7 @@
         .nav { display: flex; gap: 15px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #2a2d36; }
         .asset-card { background: #1a1d27; border-radius: 10px; padding: 16px; border: 1px solid #2a2d36; margin-bottom: 12px; }
         .asset-platform { font-weight: 600; color: #6ab0ff; margin-bottom: 6px; }
-        .asset-content { font-size: 0.88rem; white-space: pre-wrap; line-height: 1.6; margin-bottom: 10px; }
+        .asset-content { font-size: 0.88rem; white-space: pre-wrap; line-height: 1.6; margin-bottom: 10px; max-height: 200px; overflow-y: auto; }
         .schedule-row { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
         .schedule-row input { padding: 6px; border-radius: 4px; border: 1px solid #333; background: #12131a; color: #e0e0e0; font-size: 0.85rem; }
         .btn { padding: 6px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 500; }
@@ -23,23 +24,33 @@
         .btn-hold { background: #2a2d36; color: #aaa; }
         .btn:hover { opacity: 0.85; }
         .empty { color: #666; font-style: italic; padding: 20px; text-align: center; }
-        .warning { color: #ff9a4a; font-size: 0.8rem; padding: 10px; background: #2a1a0a; border-radius: 6px; margin-bottom: 16px; }
+        .info-box { color: #6ab0ff; font-size: 0.82rem; padding: 12px; background: #1a2a3a; border-radius: 6px; margin-bottom: 16px; border-left: 3px solid #6ab0ff; }
+        .published-item { display: flex; gap: 12px; padding: 12px; background: #1a1d27; border-radius: 8px; border: 1px solid #2a2d36; margin-bottom: 8px; }
+        .published-platform { font-size: 0.82rem; font-weight: 600; color: #6ab0ff; min-width: 100px; }
+        .published-content { font-size: 0.85rem; color: #aaa; flex: 1; }
+        .published-time { font-size: 0.75rem; color: #666; min-width: 140px; text-align: right; }
+        .status-badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; display: inline-block; }
+        .badge-scheduled { background: #1a2a3a; color: #4a8acc; }
+        .badge-published { background: #1a3a2a; color: #4acc6a; }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="nav">
         <a href="/create">← Create</a>
+        <a href="/published">Published</a>
         <a href="/">Dashboard</a>
     </div>
 
     <h1>Publish — Gate 4</h1>
-    <p class="subtle">Go / hold + timing. Every piece passes human approval before posting. No auto-publish, ever.</p>
+    <p class="subtle">Approve each piece for posting. No auto-publish — you approve every piece.</p>
 
-    <div class="warning">⚠ Per-piece approval is a hard business rule. No code path may post without explicit human approval on that piece.</div>
+    <div class="info-box">
+        ℹ️ Scheduling marks a piece as ready to post. Actual auto-posting to platforms (via Postiz) is coming in M4 — for now, you'll need to copy the content and post manually to each platform once scheduled.
+    </div>
 
     {% if approved_assets %}
-    <h2>Approved assets ready to publish</h2>
+    <h2>Approved — ready to schedule</h2>
     {% for asset in approved_assets %}
     <div class="asset-card">
         <div class="asset-platform">{{ asset.platform }} — {{ asset.variant_type }}</div>
@@ -47,34 +58,50 @@
         <div class="schedule-row">
             <label>Schedule for: </label>
             <input type="datetime-local" id="schedule-{{ asset.id }}">
-            <button class="btn btn-go" onclick="schedule({{ asset.id }})">Go (schedule)</button>
-            <button class="btn btn-hold" onclick="hold({{ asset.id }})">Hold</button>
+            <button class="btn btn-go" onclick="schedule({{ asset.id }}, this)">Schedule</button>
+            <button class="btn btn-hold" onclick="hold({{ asset.id }}, this)">Hold</button>
         </div>
     </div>
     {% endfor %}
     {% else %}
     <p class="empty">No approved assets ready to publish. Approve assets at Gate 3 first.</p>
     {% endif %}
+
+    {% if published_assets %}
+    <h2>Already scheduled/published</h2>
+    {% for asset in published_assets %}
+    <div class="published-item">
+        <div class="published-platform">{{ asset.platform }}</div>
+        <div class="published-content">{{ asset.content[:150] }}...</div>
+        <div class="published-time">
+            <span class="status-badge {{ 'badge-published' if asset.asset_state == 'published' else 'badge-scheduled' }}">{{ asset.asset_state }}</span>
+            {% if asset.publish_scheduled_at %}<br>{{ asset.publish_scheduled_at[:16] }}{% endif %}
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
 </div>
 
 <script>
-function schedule(id) {
-    const dt = document.getElementById('schedule-' + id).value;
+function schedule(id, btn) {
+    var dt = document.getElementById('schedule-' + id).value;
     if (!dt) return alert('Select a date/time first.');
-    fetch('/api/assets/' + id + '/schedule', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
+    busyAction(btn, '/api/assets/' + id + '/schedule', {
+        busyLabel: 'Scheduling…',
         body: JSON.stringify({scheduled_at: dt}),
-    }).then(r => r.json()).then(data => {
-        if (data.status === 'ok') { alert('Scheduled for ' + dt); window.location.reload(); }
-        else alert('Error: ' + (data.error || 'unknown'));
+        reloadOnSuccess: true,
+        onError: function(msg) { alert('Error: ' + msg); }
     });
 }
 
-function hold(id) {
-    fetch('/api/assets/' + id + '/schedule', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
+function hold(id, btn) {
+    busyAction(btn, '/api/assets/' + id + '/schedule', {
+        busyLabel: 'Holding…',
         body: JSON.stringify({scheduled_at: ''}),
-    }).then(r => r.json()).then(data => { alert('Held — not scheduled'); });
+        reloadOnSuccess: false,
+        onSuccess: function() { alert('Held — not scheduled'); },
+        onError: function(msg) { alert('Error: ' + msg); }
+    });
 }
 </script>
 </body>

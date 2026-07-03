@@ -529,7 +529,7 @@ class TestFlaskDraftEndpoints:
         client = app.test_client()
         resp = client.get(f"/create/publish/{draft_id}")
         assert resp.status_code == 200
-        assert b"Go / hold" in resp.data
+        assert b"Publish" in resp.data
 
     def test_schedule_publish(self, app, sample_treatment):
         """Scheduling an approved asset for publish works."""

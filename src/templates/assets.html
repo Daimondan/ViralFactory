@@ -28,15 +28,25 @@
         .post-body { flex: 1; }
         .post-text { font-size: 0.88rem; line-height: 1.5; white-space: pre-wrap; }
         .post-meta { font-size: 0.72rem; color: #666; margin-top: 4px; }
-        .post-image { width: 60px; height: 60px; border-radius: 6px; object-fit: cover; background: #12131a; flex-shrink: 0; }
+        .post-image { width: 60px; height: 60px; border-radius: 6px; object-fit: cover; background: #12131a; flex-shrink: 0; cursor: pointer; transition: transform 0.1s; }
+        .post-image:hover { transform: scale(1.08); }
         .post-image-placeholder { width: 60px; height: 60px; border-radius: 6px; background: #12131a; display: flex; align-items: center; justify-content: center; color: #444; font-size: 0.7rem; flex-shrink: 0; }
+        .media-frame img, .media-frame video { max-width: 100%; max-height: 100%; object-fit: contain; cursor: pointer; }
 
         /* Media frame for single visual preview */
         .media-frame { display: flex; align-items: center; justify-content: center; background: #12131a; position: relative; }
         .media-frame.vertical { aspect-ratio: 9 / 16; max-height: 400px; }
         .media-frame.square { aspect-ratio: 1 / 1; }
         .media-frame.horizontal { aspect-ratio: 16 / 9; }
-        .media-frame img, .media-frame video { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+        /* Lightbox — fullscreen image/video viewer */
+        .lightbox { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 200; align-items: center; justify-content: center; flex-direction: column; }
+        .lightbox.show { display: flex; }
+        .lightbox img { max-width: 90%; max-height: 85vh; object-fit: contain; border-radius: 8px; }
+        .lightbox video { max-width: 90%; max-height: 85vh; border-radius: 8px; }
+        .lightbox-close { position: absolute; top: 16px; right: 20px; color: #888; font-size: 2rem; cursor: pointer; }
+        .lightbox-close:hover { color: #fff; }
+        .lightbox-caption { color: #888; font-size: 0.85rem; margin-top: 10px; max-width: 80%; text-align: center; }
         .media-placeholder { color: #555; font-size: 0.85rem; text-align: center; padding: 20px; }
         .final-badge { position: absolute; top: 8px; right: 8px; background: #1a3a3a; color: #4accaa; font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
 
@@ -153,7 +163,7 @@
                     </div>
                     {% set img_idx = loop.index0 %}
                     {% if has_images and img_idx < asset.images|length %}
-                    <img class="post-image" src="/media/{{ asset.images[img_idx].path }}" alt="Image for tweet {{ loop.index }}">
+                    <img class="post-image" src="/media/{{ asset.images[img_idx].path }}" alt="Image for tweet {{ loop.index }}" onclick="openLightbox(this.src, 'Tweet {{ loop.index }} — {{ handle }}')">
                     {% elif asset.image_prompts_parsed and img_idx < asset.image_prompts_parsed|length and asset.image_prompts_parsed[img_idx] != 'none' %}
                     <div class="post-image-placeholder">img</div>
                     {% endif %}
@@ -172,7 +182,7 @@
                     </div>
                     {% set img_idx = loop.index0 %}
                     {% if has_images and img_idx < asset.images|length %}
-                    <img class="post-image" src="/media/{{ asset.images[img_idx].path }}" alt="Slide {{ loop.index }}">
+                    <img class="post-image" style="width: 80px; height: 80px;" src="/media/{{ asset.images[img_idx].path }}" alt="Slide {{ loop.index }}" onclick="openLightbox(this.src, 'Slide {{ loop.index }} — {{ handle }}')">
                     {% elif asset.image_prompts_parsed and img_idx < asset.image_prompts_parsed|length and asset.image_prompts_parsed[img_idx] != 'none' %}
                     <div class="post-image-placeholder" style="width: 80px; height: 80px;">slide</div>
                     {% endif %}
@@ -185,11 +195,11 @@
             <div class="media-frame vertical">
                 {% if has_final %}
                 <span class="final-badge">FINAL CUT</span>
-                <video controls preload="metadata">
+                <video controls preload="metadata" onclick="openLightboxVideo(this.querySelector('source').src, 'Final cut — {{ handle }}')">
                     <source src="/media/{{ asset.final_cuts[-1].path }}" type="video/mp4">
                 </video>
                 {% elif asset.videos and asset.videos|length > 0 %}
-                <video controls preload="metadata">
+                <video controls preload="metadata" onclick="openLightboxVideo(this.querySelector('source').src, 'Video — {{ handle }}')">
                     <source src="/media/{{ asset.videos[0].path }}" type="video/mp4">
                 </video>
                 {% else %}
@@ -208,9 +218,9 @@
             {% set frame_class = 'horizontal' %}
             <div class="media-frame {{ frame_class }}">
                 {% if has_images %}
-                <img src="/media/{{ asset.images[0].path }}" alt="Visual">
+                <img src="/media/{{ asset.images[0].path }}" alt="Visual" onclick="openLightbox(this.src, '{{ handle }}')">
                 {% elif asset.generated_images_parsed and asset.generated_images_parsed|length > 0 %}
-                <img src="/media/{{ asset.generated_images_parsed[0] }}" alt="Visual">
+                <img src="/media/{{ asset.generated_images_parsed[0] }}" alt="Visual" onclick="openLightbox(this.src, '{{ handle }}')">
                 {% else %}
                 <div class="media-placeholder">No image generated yet</div>
                 {% endif %}
@@ -239,7 +249,8 @@
                         {% endif %}
                     </div>
                     {% if not has_images and asset.image_prompts_parsed and asset.image_prompts_parsed|length > 0 %}
-                    <button class="btn btn-primary" onclick="generateVisuals({{ asset.id }}, this)">Generate {{ asset.image_prompts_parsed|length }} image{{ 's' if asset.image_prompts_parsed|length > 1 else '' }}</button>
+                    {% set active_count = asset.image_prompts_parsed | reject('eq', 'none') | reject('eq', 'None') | list | length %}
+                    <button class="btn btn-primary" onclick="generateVisuals({{ asset.id }}, this)">Generate {{ active_count }} image{{ 's' if active_count > 1 else '' }}</button>
                     <div class="status-line" id="status-{{ asset.id }}" style="display: none;"></div>
                     {% elif not has_images %}
                     <p style="font-size: 0.78rem; color: #666;">No image prompts on this variant.</p>
@@ -327,7 +338,45 @@
     </div>
 </div>
 
+{# Lightbox — fullscreen image/video viewer #}
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <span class="lightbox-close" onclick="closeLightbox()">&times;</span>
+    <div id="lightbox-content"></div>
+    <div class="lightbox-caption" id="lightbox-caption"></div>
+</div>
+
 <script>
+// Lightbox — fullscreen image/video viewer
+function openLightbox(src, caption) {
+    var lb = document.getElementById('lightbox');
+    var content = document.getElementById('lightbox-content');
+    var cap = document.getElementById('lightbox-caption');
+    content.innerHTML = '<img src="' + src + '">';
+    cap.textContent = caption || '';
+    lb.classList.add('show');
+}
+function openLightboxVideo(src, caption) {
+    var lb = document.getElementById('lightbox');
+    var content = document.getElementById('lightbox-content');
+    var cap = document.getElementById('lightbox-caption');
+    content.innerHTML = '<video controls autoplay style="max-width:90%;max-height:85vh;border-radius:8px;"><source src="' + src + '" type="video/mp4"></video>';
+    cap.textContent = caption || '';
+    lb.classList.add('show');
+}
+function closeLightbox() {
+    var lb = document.getElementById('lightbox');
+    var content = document.getElementById('lightbox-content');
+    // Stop video playback when closing
+    var v = content.querySelector('video');
+    if (v) v.pause();
+    content.innerHTML = '';
+    lb.classList.remove('show');
+}
+// ESC to close lightbox
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeLightbox();
+});
+
 function fanOut() {
     var btn = document.getElementById('fanOutBtn');
     var status = document.getElementById('fanStatus');

@@ -105,7 +105,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     @app.route("/")
     def index():
-        """Dashboard — shows system status and links to surfaces."""
+        """Dashboard — shows system status and recent activity."""
         try:
             config = load_all(config_dir)
             business_name = config["business"]["business"]["name"]
@@ -114,23 +114,64 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             business_name = "Not configured"
             business_slug = None
 
-        # Get playbook runs if we have a slug — only show the latest per playbook
-        runs = []
+        # Build activity log from the pipeline
+        activity = []
         if business_slug:
-            runner = PlaybookRunner(db_path)
-            all_runs = runner.list_runs(business_slug)
-            # Dedupe: keep only the latest run per playbook name
-            seen = set()
-            for r in all_runs:
-                pb_name = r["playbook_name"]
-                if pb_name not in seen:
-                    seen.add(pb_name)
-                    runs.append(r)
+            store = _get_pipeline_store()
+
+            # Recent idea cards
+            for card in store.list_idea_cards(business_slug)[:10]:
+                activity.append({
+                    "type": "idea",
+                    "state": card["card_state"],
+                    "title": card["idea"][:80],
+                    "link": f"/ideas",
+                    "time": card.get("created_at", ""),
+                })
+
+            # Recent drafts
+            for draft in store.list_drafts(business_slug)[:10]:
+                card = store.get_idea_card(draft["idea_card_id"])
+                activity.append({
+                    "type": "draft",
+                    "state": draft["draft_state"],
+                    "title": (card["idea"][:80] if card else "Unknown"),
+                    "link": f"/create/draft/{draft['idea_card_id']}",
+                    "time": draft.get("updated_at", ""),
+                })
+
+            # Recent assets
+            all_drafts = store.list_drafts(business_slug)
+            for draft in all_drafts[:10]:
+                for asset in store.list_assets(draft["id"]):
+                    activity.append({
+                        "type": "asset",
+                        "state": asset["asset_state"],
+                        "title": f"{asset['platform']} {asset['variant_type']}",
+                        "link": f"/create/assets/{draft['id']}",
+                        "time": asset.get("updated_at", ""),
+                    })
+
+            # Published items
+            for draft in all_drafts:
+                for asset in store.list_assets(draft["id"]):
+                    if asset["asset_state"] == "published":
+                        activity.append({
+                            "type": "published",
+                            "state": "published",
+                            "title": f"{asset['platform']} {asset['variant_type']}",
+                            "link": "/published",
+                            "time": asset.get("publish_scheduled_at") or asset.get("updated_at", ""),
+                        })
+
+            # Sort by time descending, take 15
+            activity.sort(key=lambda x: x.get("time") or "", reverse=True)
+            activity = activity[:15]
 
         return render_template("index.html",
             business_name=business_name,
             business_slug=business_slug,
-            runs=runs,
+            activity=activity,
         )
 
     @app.route("/onboard")
@@ -5062,6 +5103,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         assets = store.list_assets(draft_id)
         approved_assets = [a for a in assets if a["asset_state"] == "approved"]
+        published_assets = [a for a in assets if a["asset_state"] in ("published",) and a.get("publish_scheduled_at")]
 
         try:
             config = load_all(app.config["CONFIG_DIR"])
@@ -5071,7 +5113,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         return render_template("publish.html",
             business_name=business_name, draft=draft,
-            approved_assets=approved_assets)
+            approved_assets=approved_assets,
+            published_assets=published_assets)
 
     @app.route("/api/assets/<int:asset_id>/schedule", methods=["POST"])
     def schedule_publish(asset_id):
@@ -5093,8 +5136,46 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             store.update_asset_state(asset_id, "published")
             return jsonify({"status": "ok", "scheduled_at": scheduled_at})
         else:
-            # Hold — no schedule yet
             return jsonify({"status": "ok", "message": "Held — not scheduled"})
+
+    @app.route("/published")
+    def published_page():
+        """Show all published/scheduled assets across all drafts."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return "Business not configured", 500
+
+        store = _get_pipeline_store()
+        from media_adapter import MediaAdapter
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+            business_name = config["business"]["business"]["name"]
+        except ConfigError:
+            models_config = {}
+            business_name = "Not configured"
+
+        media_adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
+
+        # Get all drafts for this business
+        all_drafts = store.list_drafts(business_slug)
+        published_items = []
+        for draft in all_drafts:
+            assets = store.list_assets(draft["id"])
+            for asset in assets:
+                if asset["asset_state"] in ("published",):
+                    a = dict(asset)
+                    a["posts_parsed"] = json.loads(asset.get("posts") or "[]")
+                    a["images"] = [m for m in media_adapter.list_asset_media(asset["id"]) if m.get("kind") == "image"]
+                    a["draft"] = draft
+                    published_items.append(a)
+
+        # Sort by scheduled time descending
+        published_items.sort(key=lambda x: x.get("publish_scheduled_at") or "", reverse=True)
+
+        return render_template("published.html",
+            business_name=business_name,
+            published_items=published_items)
 
     # ── Create surface (dashboard for the co-production loop) ──
 

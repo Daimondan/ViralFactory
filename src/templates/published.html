@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Published — {{ business_name }}</title>
+    <script src="/static/busy.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f1117; color: #e0e0e0; }
+        .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+        h1 { font-size: 1.5rem; margin-bottom: 6px; }
+        .subtle { color: #888; font-size: 0.85rem; margin-bottom: 20px; }
+        a { color: #5b9fd6; text-decoration: none; }
+        .nav { display: flex; gap: 15px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #2a2d36; }
+
+        .published-card { background: #1a1d27; border-radius: 12px; padding: 16px; border: 1px solid #2a2d36; margin-bottom: 16px; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .platform { font-size: 0.85rem; font-weight: 600; color: #6ab0ff; }
+        .type { font-size: 0.72rem; color: #888; }
+        .time-badge { font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; background: #1a3a2a; color: #4acc6a; }
+        .posts-list { margin: 8px 0; }
+        .post-row { padding: 8px 0; border-bottom: 1px solid #12131a; display: flex; gap: 10px; }
+        .post-row:last-child { border-bottom: none; }
+        .post-num { font-size: 0.75rem; color: #555; min-width: 20px; }
+        .post-text { font-size: 0.85rem; line-height: 1.5; white-space: pre-wrap; flex: 1; }
+        .post-img { width: 50px; height: 50px; border-radius: 4px; object-fit: cover; cursor: pointer; }
+        .post-img:hover { transform: scale(1.1); }
+        .copy-section { margin-top: 12px; padding-top: 10px; border-top: 1px solid #2a2d36; }
+        .btn { padding: 6px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.8rem; font-weight: 500; }
+        .btn-copy { background: #2a2d36; color: #aaa; }
+        .btn-copy:hover { background: #333; }
+        .empty { color: #666; font-style: italic; padding: 20px; text-align: center; }
+        .info-box { color: #6ab0ff; font-size: 0.82rem; padding: 12px; background: #1a2a3a; border-radius: 6px; margin-bottom: 16px; border-left: 3px solid #6ab0ff; }
+
+        /* Lightbox */
+        .lightbox { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 200; align-items: center; justify-content: center; flex-direction: column; }
+        .lightbox.show { display: flex; }
+        .lightbox img { max-width: 90%; max-height: 85vh; object-fit: contain; border-radius: 8px; }
+        .lightbox-close { position: absolute; top: 16px; right: 20px; color: #888; font-size: 2rem; cursor: pointer; }
+        .lightbox-close:hover { color: #fff; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="nav">
+        <a href="/">Dashboard</a>
+        <a href="/create">Create</a>
+        <a href="/published" style="color:#5b9fd6">Published</a>
+    </div>
+
+    <h1>Published & Scheduled</h1>
+    <p class="subtle">All pieces you've approved and scheduled. Copy content to post manually — auto-posting is coming in M4.</p>
+
+    <div class="info-box">
+        ℹ️ Auto-posting to platforms (via Postiz) is not yet wired. For now, copy the content and post manually to each platform.
+    </div>
+
+    {% if published_items %}
+    {% for item in published_items %}
+    <div class="published-card">
+        <div class="card-header">
+            <div>
+                <span class="platform">{{ item.platform }}</span>
+                <span class="type"> · {{ item.variant_type }}</span>
+            </div>
+            <span class="time-badge">Scheduled: {{ item.publish_scheduled_at[:16] if item.publish_scheduled_at else 'N/A' }}</span>
+        </div>
+
+        {% if item.posts_parsed and item.posts_parsed|length > 0 %}
+        <div class="posts-list">
+            {% for post in item.posts_parsed %}
+            <div class="post-row">
+                <div class="post-num">{{ loop.index }}</div>
+                <div class="post-text">{{ post }}</div>
+                {% set img_idx = loop.index0 %}
+                {% if item.images and img_idx < item.images|length %}
+                <img class="post-img" src="/media/{{ item.images[img_idx].path }}" alt="Image {{ loop.index }}" onclick="openLightbox(this.src)">
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="post-text">{{ item.content[:500] }}{% if item.content|length > 500 %}...{% endif %}</div>
+        {% endif %}
+
+        <div class="copy-section">
+            <button class="btn btn-copy" onclick="copyContent({{ item.id }})">Copy all text</button>
+            <span id="copy-status-{{ item.id }}" style="font-size: 0.75rem; color: #4acc6a; margin-left: 8px; display: none;">Copied!</span>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="empty">Nothing published yet. Approve assets at Gate 3, then schedule them at Gate 4.</p>
+    {% endif %}
+</div>
+
+{# Lightbox #}
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <span class="lightbox-close">&times;</span>
+    <img id="lightbox-img" src="">
+</div>
+
+<script>
+function openLightbox(src) {
+    document.getElementById('lightbox-img').src = src;
+    document.getElementById('lightbox').classList.add('show');
+}
+function closeLightbox() {
+    document.getElementById('lightbox').classList.remove('show');
+}
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeLightbox(); });
+
+function copyContent(assetId) {
+    var card = document.querySelector('.published-card:nth-of-type(' + (assetId) + ')');
+    // Simpler: find the card by looking at the copy button's parent
+    var btn = event.target;
+    var cardEl = btn.closest('.published-card');
+    var texts = [];
+    var rows = cardEl.querySelectorAll('.post-row .post-text');
+    if (rows.length > 0) {
+        rows.forEach(function(r) { texts.push(r.textContent.trim()); });
+    } else {
+        var single = cardEl.querySelector('.post-text:not(.post-row .post-text)');
+        if (single) texts.push(single.textContent.trim());
+    }
+    var fullText = texts.join('\n\n---\n\n');
+    navigator.clipboard.writeText(fullText).then(function() {
+        var status = document.getElementById('copy-status-' + assetId);
+        if (status) { status.style.display = 'inline'; setTimeout(function() { status.style.display = 'none'; }, 2000); }
+    });
+}
+</script>
+</body>
+</html>
