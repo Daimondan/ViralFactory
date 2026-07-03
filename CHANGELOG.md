@@ -6,6 +6,22 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-02 BUILD — Session component: LLM-driven conversation, all playbooks, run reuse
+
+**What:**
+- **LLM-driven conversation (not template questions):** Every message goes through `prompts/session/generic_converse_v1.md` — the AI reasons about what it knows and what it still needs, asks smart follow-ups referencing what was said, and decides when it has enough to trigger analysis. No hardcoded question list. The AI is present at every stage; the operator is never handed a form.
+- **Run reuse:** Visiting a playbook page reuses the latest incomplete run instead of creating a new one every visit. Dashboard shows only the latest run per playbook, not the full history of dead runs.
+- **All playbooks use session component:** Voice Profile, Sources, Viral Patterns, Audience, Story, Format, Visual Style — all now render the same chat interface. Gate buttons route to the correct store endpoint per playbook. No more seeing raw procedure markdown.
+- **Readback shows after analysis:** When the AI says `ready_to_draft`, it triggers the playbook-specific analysis (correct prompt + schema for each of the 7 playbooks via a playbook→prompt/schema/output-key map), stores the result, reloads the page, and shows the readback with Edit / Approve / Park / Start over gate buttons.
+- **Generic readback:** `_build_readback()` formats any playbook's output for display. Business Profile gets a custom format; others get a generic key-value listing.
+- **PYTHONPATH fix:** Added `PYTHONPATH=/home/daimon/ViralFactory/src` to systemd service so nested `from module_store import...` calls work under gunicorn, not just in tests.
+- **Graceful JS error handling:** Session frontend checks `content-type` before parsing JSON; shows human-readable error messages for 401/500/502/504 instead of raw HTML parse failure.
+- **Technical details behind disclosure:** No file paths in default operator view — just playbook name + gate step behind a `<details>` element (F4 compliance).
+
+**Rationale:** UI-REVIEW-001 F3 is structural — the console must be a conversational AI session, not a document viewer. Template questions were the first attempt; the operator correctly identified that the AI should reason about what it knows and ask smart follow-ups, not recite a fixed list. Run spam was caused by creating a new run on every page visit. All playbooks needed the session component, not just Business Profile. These changes address acceptance checks 1, 3, 4, 5, 6, 7 from UI-REVIEW-001.
+
+---
+
 ### 2026-07-02 BUILD — Zip file support + PDF/image intake (DIVERGENCE-004)
 
 **What:**
