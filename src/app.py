@@ -5675,7 +5675,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     @app.route("/api/assets/<int:asset_id>/schedule", methods=["POST"])
     def schedule_publish(asset_id):
-        """T4.1: Schedule an approved asset for publish via Postiz (go + timing).
+        """T4.1: Schedule an approved asset for publish via Buffer (go + timing).
         HARD RULE: asset must be 'approved' — no auto-publish."""
         business_slug = _get_business_slug()
         if not business_slug:
@@ -5692,15 +5692,16 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         if not scheduled_at:
             return jsonify({"status": "ok", "message": "Held — not scheduled"})
 
-        # ── Postiz publish path ──
+        # ── Buffer publish path ──
         try:
             config = load_all(app.config["CONFIG_DIR"])
             models_config = config["models"]
         except ConfigError:
             models_config = {}
 
-        from postiz_adapter import PostizAdapter, PostizError
-        postiz = PostizAdapter(models_config, db_path=app.config["DB_PATH"])
+        from buffer_adapter import BufferAdapter, BufferError
+        publish = BufferAdapter(models_config, db_path=app.config["DB_PATH"])
+       
 
         # Parse posts for thread/carousel
         posts_list = json.loads(asset.get("posts") or "[]")
@@ -5712,7 +5713,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         images = [{"id": m.get("postiz_id", ""), "path": m.get("path", "")} for m in asset_media if m.get("kind") == "image"]
 
         try:
-            result = postiz.publish_piece(
+            result = publish.publish_piece(
                 business_slug=business_slug,
                 asset_id=asset_id,
                 platform=asset["platform"],
@@ -5731,12 +5732,13 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 "postiz_post_id": result.get("postiz_post_id", ""),
                 "publish_status": result.get("status", ""),
             })
-        except PostizError as e:
-            # Postiz not available or failed — surface the error honestly
+        except BufferError as e:
+            # Buffer not available or failed — surface the error honestly
             # The asset stays in 'approved' state, no data loss
             return jsonify({
+                "status": "error",
                 "error": str(e),
-                "hint": "Postiz may not be installed. Set POSTIZ_API_KEY and configure Postiz. The asset stays approved — no data lost.",
+                "hint": "Buffer may not be configured. Set BUFFER_API_KEY and configure buffer channels in models.yaml. The asset stays approved — no data lost.",
             }), 502
 
     @app.route("/api/publish/<int:asset_id>/retry", methods=["POST"])
@@ -5757,8 +5759,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         except ConfigError:
             models_config = {}
 
-        from postiz_adapter import PostizAdapter, PostizError
-        postiz = PostizAdapter(models_config, db_path=app.config["DB_PATH"])
+        from buffer_adapter import BufferAdapter, BufferError
+        publish = BufferAdapter(models_config, db_path=app.config["DB_PATH"])
+       
 
         posts_list = json.loads(asset.get("posts") or "[]")
         from media_adapter import MediaAdapter
@@ -5769,7 +5772,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         scheduled_at = asset.get("publish_scheduled_at") or datetime.now(timezone.utc).isoformat()
 
         try:
-            result = postiz.publish_piece(
+            result = publish.publish_piece(
                 business_slug=business_slug,
                 asset_id=asset_id,
                 platform=asset["platform"],
@@ -5781,33 +5784,33 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             )
             store.update_asset_state(asset_id, "published")
             return jsonify({"status": "ok", "postiz_post_id": result.get("postiz_post_id", "")})
-        except PostizError as e:
+        except BufferError as e:
             return jsonify({"error": str(e)}), 502
 
-    @app.route("/api/postiz/status")
-    def postiz_status():
-        """Check if Postiz is configured and available."""
+    @app.route("/api/buffer/status")
+    def buffer_status():
+        """Check if Buffer is configured and available."""
         try:
             config = load_all(app.config["CONFIG_DIR"])
             models_config = config["models"]
         except ConfigError:
             models_config = {}
 
-        from postiz_adapter import PostizAdapter
-        postiz = PostizAdapter(models_config, db_path=app.config["DB_PATH"])
-        available = postiz.is_available()
-        integrations = postiz.list_integrations() if available else []
+        from buffer_adapter import BufferAdapter
+        publish_adapter = BufferAdapter(models_config, db_path=app.config["DB_PATH"])
+        available = publish_adapter.is_available()
+        integrations = publish_adapter.list_integrations() if available else []
         return jsonify({
             "available": available,
             "integrations": integrations,
-            "base_url": postiz.base_url,
+            "base_url": publish_adapter.api_url,
         })
 
     # ── T4.2: Metrics ──
 
     @app.route("/metrics")
     def metrics_page():
-        """Show metrics for published pieces, pulled from Postiz analytics."""
+        """Show metrics for published pieces, pulled from Buffer analytics."""
         business_slug = _get_business_slug()
         if not business_slug:
             return "Business not configured", 500
@@ -5820,8 +5823,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             models_config = {}
             business_name = "Not configured"
 
-        from postiz_adapter import PostizAdapter
-        postiz = PostizAdapter(models_config, db_path=app.config["DB_PATH"])
+        from buffer_adapter import BufferAdapter
+        publish_adapter = BufferAdapter(models_config, db_path=app.config["DB_PATH"])
 
         store = _get_pipeline_store()
         published_items = []
@@ -5832,15 +5835,15 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 if asset["asset_state"] == "published":
                     a = dict(asset)
                     a["draft"] = draft
-                    a["publish_log"] = postiz.get_publish_log(asset["id"])
+                    a["publish_log"] = publish_adapter.get_publish_log(asset["id"])
                     published_items.append(a)
 
         # Get metrics summary
-        metrics_summary = postiz.get_metrics_summary(business_slug)
+        metrics_summary = publish_adapter.get_metrics_summary(business_slug)
         for item in published_items:
             item["metrics"] = metrics_summary.get(item["id"], {})
 
-        postiz_available = postiz.is_available()
+        postiz_available = publish_adapter.is_available()
 
         return render_template("metrics.html",
             business_name=business_name,
@@ -5860,14 +5863,15 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         except ConfigError:
             models_config = {}
 
-        from postiz_adapter import PostizAdapter, PostizError
-        postiz = PostizAdapter(models_config, db_path=app.config["DB_PATH"])
+        from buffer_adapter import BufferAdapter, BufferError
+        publish = BufferAdapter(models_config, db_path=app.config["DB_PATH"])
+       
 
         days = request.json.get("days", 7) if request.json else 7
         try:
-            result = postiz.pull_all_metrics(business_slug, days=days)
+            result = publish.pull_all_metrics(business_slug, days=days)
             return jsonify({"status": "ok", **result})
-        except PostizError as e:
+        except BufferError as e:
             return jsonify({"error": str(e)}), 502
 
     # ── T5.2: Gate as persistent async queue ──

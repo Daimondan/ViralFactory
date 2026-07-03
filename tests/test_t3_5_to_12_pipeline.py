@@ -554,7 +554,7 @@ class TestFlaskDraftEndpoints:
         assert b"Publish" in resp.data
 
     def test_schedule_publish(self, app, sample_treatment):
-        """Scheduling an approved asset for publish works (with Postiz mocked)."""
+        """Scheduling an approved asset for publish works (with Buffer mocked)."""
         from unittest.mock import patch, MagicMock
         from pipeline import PipelineStore
         store = PipelineStore(db_path=app.config["DB_PATH"])
@@ -567,9 +567,9 @@ class TestFlaskDraftEndpoints:
         store.update_asset_state(asset_id, "approved")
 
         client = app.test_client()
-        # Mock the Postiz adapter's publish_piece to succeed
-        with patch("postiz_adapter.PostizAdapter.publish_piece") as mock_publish, \
-             patch("postiz_adapter.PostizAdapter.is_available", return_value=True):
+        # Mock the Buffer adapter's publish_piece to succeed
+        with patch("buffer_adapter.BufferAdapter.publish_piece") as mock_publish, \
+             patch("buffer_adapter.BufferAdapter.is_available", return_value=True):
             mock_publish.return_value = {
                 "postiz_post_id": "post-test-1",
                 "status": "scheduled",

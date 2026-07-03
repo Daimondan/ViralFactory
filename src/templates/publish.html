@@ -89,13 +89,13 @@
 </div>
 
 <script>
-// Check Postiz status on page load
-fetch('/api/postiz/status').then(r => r.json()).then(data => {
+// Check Buffer status on page load
+fetch('/api/buffer/status').then(r => r.json()).then(data => {
     var box = document.getElementById('postiz-status');
     if (data.available) {
-        box.innerHTML = '<div class="info-box">✅ Postiz connected. Pieces will be published automatically when scheduled.</div>';
+        box.innerHTML = '<div class="info-box">✅ Buffer connected. Pieces will be published automatically when scheduled.</div>';
     } else {
-        box.innerHTML = '<div class="warn-box">⚠️ Postiz not available. Set <code>POSTIZ_API_KEY</code> env var and configure Postiz to enable auto-publishing. Until then, scheduling marks a piece as ready and you can copy content manually.</div>';
+        box.innerHTML = '<div class="warn-box">⚠️ Buffer not available. Set <code>BUFFER_API_KEY</code> env var and configure buffer channels to enable auto-publishing. Until then, scheduling marks a piece as ready and you can copy content manually.</div>';
     }
 }).catch(() => {});
 

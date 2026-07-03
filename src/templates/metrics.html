@@ -47,21 +47,21 @@
     </div>
 
     <h1>Metrics</h1>
-    <p class="subtle">Performance data for published pieces, pulled from Postiz analytics.</p>
+    <p class="subtle">Performance data for published pieces, pulled from Buffer analytics.</p>
 
     {% if not postiz_available %}
     <div class="warn-box">
-        ⚠️ Postiz not available. Set <code>POSTIZ_API_KEY</code> and configure Postiz to enable metrics collection. Metrics will appear here once the nightly pull runs.
+        ⚠️ Buffer not available. Set <code>BUFFER_API_KEY</code> and configure buffer channels to enable metrics collection. Metrics will appear here once the nightly pull runs.
     </div>
     {% else %}
     <div class="info-box">
-        ✅ Postiz connected. Click "Pull metrics now" to refresh data, or wait for the nightly cron job.
+        ✅ Buffer connected. Click "Pull metrics now" to refresh data, or wait for the nightly cron job.
     </div>
     {% endif %}
 
-    <button class="btn" id="pull-btn" onclick="pullMetrics(this)" {% if not postiz_available %}disabled title="Postiz not configured — cannot pull metrics"{% endif %}>Pull metrics now</button>
+    <button class="btn" id="pull-btn" onclick="pullMetrics(this)" {% if not postiz_available %}disabled title="Buffer not configured — cannot pull metrics"{% endif %}>Pull metrics now</button>
     {% if not postiz_available %}
-    <span style="font-size: 0.78rem; color: #888; margin-left: 8px;">Configure Postiz to enable</span>
+    <span style="font-size: 0.78rem; color: #888; margin-left: 8px;">Configure Buffer to enable</span>
     {% endif %}
     <div id="pull-status" class="pull-status"></div>
 

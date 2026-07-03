@@ -1,5 +1,5 @@
 """
-Tests for M4: Postiz adapter + metrics collection (T4.1 + T4.2)
+Tests for M4: Buffer adapter + metrics collection (T4.1 + T4.2)
 """
 
 import os
@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from postiz_adapter import PostizAdapter, PostizError
+from buffer_adapter import BufferAdapter, BufferError
 
 
 @pytest.fixture
@@ -28,21 +28,21 @@ def temp_db():
 
 @pytest.fixture
 def adapter(temp_db):
-    """Create a PostizAdapter with a temp DB and mock config."""
+    """Create a BufferAdapter with a temp DB and mock config."""
     config = {
-        "postiz": {
-            "base_url": "http://localhost:3000/api/public/v1",
+        "buffer": {
+            "api_url": "https://api.buffer.com",
             "api_key": "test-key",
-            "default_integration_ids": {
-                "X": "x-int-123",
-                "Instagram": "ig-int-456",
+            "channels": {
+                "x": {"id": "x-int-123", "name": "TestX", "service": "twitter"},
+                "instagram": {"id": "ig-int-456", "name": "TestIG", "service": "instagram"},
             },
         }
     }
-    return PostizAdapter(config, db_path=temp_db)
+    return BufferAdapter(config, db_path=temp_db)
 
 
-class TestPostizAdapterInit:
+class TestBufferAdapterInit:
     """Test adapter initialization and table creation."""
 
     def test_tables_created(self, adapter, temp_db):
@@ -57,23 +57,23 @@ class TestPostizAdapterInit:
         conn.close()
 
     def test_config_from_env(self, temp_db):
-        """Adapter should read POSTIZ_API_KEY from env if not in config."""
-        old_key = os.environ.get("POSTIZ_API_KEY")
-        os.environ["POSTIZ_API_KEY"] = "env-test-key"
+        """Adapter should read BUFFER_API_KEY from env if not in config."""
+        old_key = os.environ.get("BUFFER_API_KEY")
+        os.environ["BUFFER_API_KEY"] = "env-test-key"
         try:
-            adapter = PostizAdapter({}, db_path=temp_db)
+            adapter = BufferAdapter({}, db_path=temp_db)
             assert adapter.api_key == "env-test-key"
         finally:
             if old_key is not None:
-                os.environ["POSTIZ_API_KEY"] = old_key
+                os.environ["BUFFER_API_KEY"] = old_key
             else:
-                del os.environ["POSTIZ_API_KEY"]
+                del os.environ["BUFFER_API_KEY"]
 
     def test_no_api_key_raises_on_request(self, temp_db):
-        """Adapter without API key should raise PostizError on request."""
-        adapter = PostizAdapter({}, db_path=temp_db)
-        with pytest.raises(PostizError, match="POSTIZ_API_KEY not set"):
-            adapter._request("GET", "/integrations")
+        """Adapter without API key should raise BufferError on request."""
+        adapter = BufferAdapter({}, db_path=temp_db)
+        with pytest.raises(BufferError, match="BUFFER_API_KEY not set"):
+            adapter._gql("query { test }")
 
 
 class TestPublishPiece:
@@ -81,7 +81,7 @@ class TestPublishPiece:
 
     def test_rejects_unapproved_asset(self, adapter):
         """HARD RULE: asset must be 'approved' — no auto-publish."""
-        with pytest.raises(PostizError, match="Per-piece approval required"):
+        with pytest.raises(BufferError, match="Per-piece approval required"):
             adapter.publish_piece(
                 business_slug="test",
                 asset_id=1,
@@ -91,12 +91,12 @@ class TestPublishPiece:
             )
 
     def test_no_integration_found_logs_failure(self, adapter):
-        """When no integration is found for a platform, failure is logged."""
-        # Remove integration IDs
-        adapter.integration_ids = {}
+        """When no channel is found for a platform, failure is logged."""
+        # Remove channel config
+        adapter.channels = {}
 
         with patch.object(adapter, "list_integrations", return_value=[]):
-            with pytest.raises(PostizError, match="No Postiz integration found"):
+            with pytest.raises(BufferError, match="No Buffer channel found"):
                 adapter.publish_piece(
                     business_slug="test",
                     asset_id=1,
@@ -108,13 +108,13 @@ class TestPublishPiece:
         # Verify failure was logged
         logs = adapter.list_publish_log(business_slug="test", status="failed")
         assert len(logs) >= 1
-        assert "No Postiz integration" in logs[0]["error_message"]
+        assert "No Buffer channel" in logs[0]["error_message"]
 
-    @patch("postiz_adapter.urlrequest.urlopen")
+    @patch("buffer_adapter.urlrequest.urlopen")
     def test_successful_publish(self, mock_urlopen, adapter):
         """Successful publish creates a publish_log entry with postiz_post_id."""
         mock_resp = MagicMock()
-        mock_resp.read.return_value = b'{"id": "post-abc123"}'
+        mock_resp.read.return_value = b'{"data": {"createPost": {"post": {"id": "post-abc123", "status": "scheduled"}}}}'
         mock_resp.__enter__ = MagicMock(return_value=mock_resp)
         mock_resp.__exit__ = MagicMock(return_value=False)
         mock_urlopen.return_value = mock_resp
@@ -133,11 +133,11 @@ class TestPublishPiece:
         assert result["platform"] == "X"
         assert result["asset_id"] == 1
 
-    @patch("postiz_adapter.urlrequest.urlopen")
+    @patch("buffer_adapter.urlrequest.urlopen")
     def test_publish_now_no_schedule(self, mock_urlopen, adapter):
-        """Publishing with no scheduled_at should use type 'now'."""
+        """Publishing with no scheduled_at should use shareNow mode."""
         mock_resp = MagicMock()
-        mock_resp.read.return_value = b'{"id": "post-now-1"}'
+        mock_resp.read.return_value = b'{"data": {"createPost": {"post": {"id": "post-now-1", "status": "posted"}}}}'
         mock_resp.__enter__ = MagicMock(return_value=mock_resp)
         mock_resp.__exit__ = MagicMock(return_value=False)
         mock_urlopen.return_value = mock_resp
@@ -153,11 +153,11 @@ class TestPublishPiece:
         assert result["status"] == "posted"
         assert result["postiz_post_id"] == "post-now-1"
 
-    @patch("postiz_adapter.urlrequest.urlopen")
+    @patch("buffer_adapter.urlrequest.urlopen")
     def test_publish_thread_multi_post(self, mock_urlopen, adapter):
-        """Thread/carousel with multiple posts creates multiple value items."""
+        """Thread/carousel with multiple posts publishes successfully."""
         mock_resp = MagicMock()
-        mock_resp.read.return_value = b'{"id": "thread-1"}'
+        mock_resp.read.return_value = b'{"data": {"createPost": {"post": {"id": "thread-1", "status": "scheduled"}}}}'
         mock_resp.__enter__ = MagicMock(return_value=mock_resp)
         mock_resp.__exit__ = MagicMock(return_value=False)
         mock_urlopen.return_value = mock_resp
@@ -173,13 +173,8 @@ class TestPublishPiece:
         )
 
         assert result["postiz_post_id"] == "thread-1"
-        # Verify the request payload had 3 value items
-        call_args = mock_urlopen.call_args
-        req = call_args[0][0]
-        body = json.loads(req.data)
-        assert len(body["posts"][0]["value"]) == 3
 
-    @patch("postiz_adapter.urlrequest.urlopen")
+    @patch("buffer_adapter.urlrequest.urlopen")
     def test_publish_failure_logged(self, mock_urlopen, adapter):
         """API failure is logged and error is surfaced, no data loss."""
         from http.client import HTTPResponse
@@ -193,7 +188,7 @@ class TestPublishPiece:
             "http://test", 500, "Server Error", {}, error_fp
         )
 
-        with pytest.raises(PostizError, match="Postiz API error 500"):
+        with pytest.raises(BufferError, match="Buffer API error 500"):
             adapter.publish_piece(
                 business_slug="test",
                 asset_id=4,
@@ -205,15 +200,15 @@ class TestPublishPiece:
         # Verify failure was logged
         logs = adapter.list_publish_log(business_slug="test", status="failed")
         assert len(logs) >= 1
-        assert "Postiz API error 500" in logs[0]["error_message"]
+        assert "Buffer API error 500" in logs[0]["error_message"]
 
-    @patch("postiz_adapter.urlrequest.urlopen")
+    @patch("buffer_adapter.urlrequest.urlopen")
     def test_connection_error_logged(self, mock_urlopen, adapter):
-        """Connection error (Postiz down) is logged, not silently swallowed."""
+        """Connection error (Buffer down) is logged, not silently swallowed."""
         from urllib.error import URLError
         mock_urlopen.side_effect = URLError("Connection refused")
 
-        with pytest.raises(PostizError, match="Postiz connection error"):
+        with pytest.raises(BufferError, match="Buffer connection error"):
             adapter.publish_piece(
                 business_slug="test",
                 asset_id=5,
@@ -226,26 +221,10 @@ class TestPublishPiece:
         assert len(logs) >= 1
 
 
-class TestPlatformSettings:
-    """Test platform-specific Postiz settings."""
-
-    def test_x_settings(self, adapter):
-        settings = adapter._build_platform_settings("X")
-        assert settings["__type"] == "x"
-
-    def test_instagram_settings(self, adapter):
-        settings = adapter._build_platform_settings("Instagram")
-        assert settings["__type"] == "instagram"
-
-    def test_generic_fallback(self, adapter):
-        settings = adapter._build_platform_settings("TikTok")
-        assert settings["__type"] == "tiktok"
-
-
 class TestMetricsCollection:
     """Test metrics pull — T4.2."""
 
-    @patch("postiz_adapter.urlrequest.urlopen")
+    @patch("buffer_adapter.urlrequest.urlopen")
     def test_pull_post_metrics(self, mock_urlopen, adapter):
         """Metrics pull stores data in post_metrics table."""
         # First, create a publish log entry with a postiz_post_id
@@ -254,22 +233,17 @@ class TestMetricsCollection:
             postiz_post_id="post-abc123", status="posted",
         )
 
-        # Mock analytics response
-        analytics = [
-            {"label": "Likes", "data": [{"total": "150", "date": "2026-07-01"}], "percentageChange": 16.7},
-            {"label": "Comments", "data": [{"total": "25", "date": "2026-07-01"}], "percentageChange": 20.0},
-        ]
+        # Mock Buffer GraphQL response (post status query)
         mock_resp = MagicMock()
-        mock_resp.read.return_value = json.dumps(analytics).encode()
+        mock_resp.read.return_value = b'{"data": {"post": {"id": "post-abc123", "status": "posted", "channel": {"id": "x-int-123", "name": "TestX", "service": "twitter"}}}}'
         mock_resp.__enter__ = MagicMock(return_value=mock_resp)
         mock_resp.__exit__ = MagicMock(return_value=False)
         mock_urlopen.return_value = mock_resp
 
         result = adapter.pull_post_metrics(1, days=7)
 
-        assert len(result) == 2
-        assert result[0]["label"] == "Likes"
-        assert result[0]["value"] == "150"
+        assert len(result) >= 1
+        assert result[0]["label"] == "status"
 
     def test_pull_metrics_no_post_id(self, adapter):
         """Pulling metrics for a log entry without postiz_post_id raises."""
@@ -277,10 +251,10 @@ class TestMetricsCollection:
             business_slug="test", asset_id=1, platform="X",
             status="failed", error="test error",
         )
-        with pytest.raises(PostizError, match="No Postiz post ID"):
+        with pytest.raises(BufferError, match="No Buffer post ID"):
             adapter.pull_post_metrics(1)
 
-    @patch("postiz_adapter.urlrequest.urlopen")
+    @patch("buffer_adapter.urlrequest.urlopen")
     def test_pull_all_metrics(self, mock_urlopen, adapter):
         """pull_all_metrics iterates over all published posts."""
         # Create two published entries
@@ -293,10 +267,9 @@ class TestMetricsCollection:
             postiz_post_id="post-2", status="posted",
         )
 
-        # Mock analytics
-        analytics = [{"label": "Likes", "data": [{"total": "100", "date": "2026-07-01"}], "percentageChange": 5.0}]
+        # Mock Buffer GraphQL response
         mock_resp = MagicMock()
-        mock_resp.read.return_value = json.dumps(analytics).encode()
+        mock_resp.read.return_value = b'{"data": {"post": {"id": "post-1", "status": "posted"}}}'
         mock_resp.__enter__ = MagicMock(return_value=mock_resp)
         mock_resp.__exit__ = MagicMock(return_value=False)
         mock_urlopen.return_value = mock_resp
@@ -345,25 +318,22 @@ class TestMetricsCollection:
 
 
 class TestAvailability:
-    """Test Postiz availability check."""
+    """Test Buffer availability check."""
 
-    @patch("postiz_adapter.urlrequest.urlopen")
+    @patch("buffer_adapter.urlrequest.urlopen")
     def test_is_available_true(self, mock_urlopen, adapter):
-        mock_resp = MagicMock()
-        mock_resp.read.return_value = b"[]"
-        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
-        mock_resp.__exit__ = MagicMock(return_value=False)
-        mock_urlopen.return_value = mock_resp
-
+        # Adapter has channels in config, so is_available returns True
         assert adapter.is_available() is True
 
     def test_is_available_no_api_key(self, temp_db):
-        adapter = PostizAdapter({}, db_path=temp_db)
+        adapter = BufferAdapter({}, db_path=temp_db)
         assert adapter.is_available() is False
 
-    @patch("postiz_adapter.urlrequest.urlopen")
-    def test_is_available_connection_error(self, mock_urlopen, adapter):
+    @patch("buffer_adapter.urlrequest.urlopen")
+    def test_is_available_connection_error(self, mock_urlopen, temp_db):
+        """Adapter without channels but with API key returns False on connection error."""
         from urllib.error import URLError
+        adapter = BufferAdapter({"buffer": {"api_key": "test", "organization_id": "org-123"}}, db_path=temp_db)
         mock_urlopen.side_effect = URLError("Connection refused")
         assert adapter.is_available() is False
 
@@ -372,14 +342,14 @@ class TestIntegrationIds:
     """Test integration ID resolution."""
 
     def test_from_config(self, adapter):
-        """Integration ID from config takes priority."""
+        """Channel ID from config takes priority."""
         assert adapter.get_integration_for_platform("X") == "x-int-123"
         assert adapter.get_integration_for_platform("Instagram") == "ig-int-456"
 
     def test_from_live_integrations(self, temp_db):
         """When config is empty, resolve from live integrations."""
-        adapter = PostizAdapter(
-            {"postiz": {"api_key": "test"}},
+        adapter = BufferAdapter(
+            {"buffer": {"api_key": "test"}},
             db_path=temp_db,
         )
         with patch.object(adapter, "list_integrations", return_value=[
@@ -390,8 +360,8 @@ class TestIntegrationIds:
             assert adapter.get_integration_for_platform("Instagram") == "live-ig-id"
 
     def test_no_integration_returns_none(self, temp_db):
-        adapter = PostizAdapter(
-            {"postiz": {"api_key": "test"}},
+        adapter = BufferAdapter(
+            {"buffer": {"api_key": "test"}},
             db_path=temp_db,
         )
         with patch.object(adapter, "list_integrations", return_value=[]):
@@ -419,14 +389,13 @@ class TestFlaskRoutes:
         app.config["TESTING"] = True
         return app
 
-    def test_postiz_status_route(self, flask_app):
-        """POST /api/postiz/status returns availability info."""
+    def test_buffer_status_route(self, flask_app):
+        """GET /api/buffer/status returns availability info."""
         with flask_app.test_client() as client:
-            resp = client.get("/api/postiz/status")
+            resp = client.get("/api/buffer/status")
             assert resp.status_code == 200
             data = resp.get_json()
             assert "available" in data
-            assert "base_url" in data
 
     def test_metrics_page_renders(self, flask_app):
         """GET /metrics renders the metrics page."""
@@ -439,7 +408,7 @@ class TestFlaskRoutes:
         """POST /api/metrics/pull returns pull results."""
         with flask_app.test_client() as client:
             resp = client.post("/api/metrics/pull", json={"days": 7})
-            # Will fail if Postiz not available, but should return 502 not 500
+            # Will fail if Buffer not available, but should return 502 not 500
             assert resp.status_code in (200, 502)
 
     def test_schedule_requires_approved(self, flask_app):

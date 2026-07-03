@@ -55,7 +55,7 @@
     <p class="subtle">All pieces you've approved and scheduled.</p>
 
     <div id="postiz-info" class="info-box">
-        ℹ️ Auto-posting via Postiz will post scheduled pieces automatically once configured.
+        ℹ️ Auto-posting via Buffer will post scheduled pieces automatically once configured.
     </div>
 
     {% if published_items %}
@@ -104,19 +104,19 @@
 </div>
 
 <script>
-// Check Postiz status and update info box + schedule badges
-fetch('/api/postiz/status').then(function(r) { return r.json(); }).then(function(data) {
+// Check Buffer status and update info box + schedule badges
+fetch('/api/buffer/status').then(function(r) { return r.json(); }).then(function(data) {
     var box = document.getElementById('postiz-info');
     if (data.available) {
-        box.innerHTML = '✅ Postiz connected. Scheduled pieces are posted automatically.';
+        box.innerHTML = '✅ Buffer connected. Scheduled pieces are posted automatically.';
     } else {
-        box.innerHTML = '⚠️ Postiz not available. Set <code>POSTIZ_API_KEY</code> and configure Postiz to enable auto-posting. Until then, copy content manually.';
+        box.innerHTML = '⚠️ Buffer not available. Set <code>BUFFER_API_KEY</code> and configure buffer channels to enable auto-posting. Until then, copy content manually.';
         box.className = 'warn-box';
         // UI-REVIEW-002 #8: Fix false "Scheduled" green badges when Postiz not connected
         document.querySelectorAll('[id^="schedule-badge-"]').forEach(function(badge) {
             var text = badge.textContent;
             if (text.startsWith('Scheduled:')) {
-                badge.textContent = text.replace('Scheduled:', 'Draft schedule (Postiz not connected):');
+                badge.textContent = text.replace('Scheduled:', 'Draft schedule (Buffer not connected):');
                 badge.style.background = '#2a2a1a';
                 badge.style.color = '#d2a04a';
             }

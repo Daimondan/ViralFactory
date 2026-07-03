@@ -100,14 +100,28 @@ stock:
   music_source: "pixabay"      # Pixabay's audio catalog for background tracks
   cache_dir: "data/media/stock"
 
-# ── Postiz (M4: publish + metrics) ──
-# Self-hosted Postiz instance for publishing to social platforms + pulling analytics.
-# Auth: POSTIZ_API_KEY env var. base_url points to the Postiz API.
-# integration_ids map platform names to Postiz integration IDs (or leave blank to
-# auto-discover via GET /integrations).
-postiz:
-  base_url: "http://localhost:3000/api/public/v1"
-  api_key: ""                              # from POSTIZ_API_KEY env var
-  default_integration_ids:
-    X: ""
-    Instagram: ""
+# ── Buffer (M4: publish + metrics) ──
+# Buffer API for publishing to social platforms + pulling analytics.
+# Auth: BUFFER_API_KEY env var. Channel IDs from Buffer GraphQL API.
+# Swap = config edit, zero code change. BufferAdapter mirrors PostizAdapter interface.
+buffer:
+  api_url: "https://api.buffer.com"
+  api_key: ""                              # from BUFFER_API_KEY env var
+  organization_id: ""                       # from Buffer account (optional — channels can be in config)
+  channels:
+    x:
+      id: "6a4169425ab6d2f10680f68e"
+      name: "StackPenni"
+      service: "twitter"
+    twitter:
+      id: "6a4169425ab6d2f10680f68e"
+      name: "StackPenni"
+      service: "twitter"
+    instagram:
+      id: "6a4168f95ab6d2f10680f598"
+      name: "stackwellpennifold"
+      service: "instagram"
+    ig:
+      id: "6a4168f95ab6d2f10680f598"
+      name: "stackwellpennifold"
+      service: "instagram"
