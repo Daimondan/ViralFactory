@@ -3939,16 +3939,31 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         )
 
         # Build source material from source-criteria module + sources config
+        # S1c: Replace feed-name listing with mechanical RSS source snapshot
         from module_store import ModuleStore
         ms = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
         source_material = ms.load(business_slug, "source-criteria") or "(not built)"
         try:
             sources_config = config.get("sources", {})
-            if sources_config:
-                source_material += "\n\n## Configured monitoring\n"
-                for feed in sources_config.get("feeds", [])[:5]:
-                    source_material += f"- {feed.get('name', '')}: {feed.get('url', '')}\n"
-                for ch in sources_config.get("channels", [])[:5]:
+            feeds = sources_config.get("feeds", []) if sources_config else []
+            if feeds:
+                # S1c: Mechanical RSS snapshot (feedparser + trafilatura, no LLM)
+                from source_snapshot import SourceSnapshot
+                snapshot = SourceSnapshot(db_path=app.config["DB_PATH"])
+                snapshot_text = snapshot.build_snapshot_text(feeds)
+                source_material += "\n\n## Recent source snapshots\n"
+                if snapshot_text and snapshot_text != "(snapshot unavailable)":
+                    source_material += snapshot_text
+                else:
+                    source_material += "(snapshot unavailable)\n"
+                    # Fallback: list feed names (old behavior)
+                    for feed in feeds[:5]:
+                        source_material += f"- {feed.get('name', '')}: {feed.get('url', '')}\n"
+
+            channels = sources_config.get("channels", []) if sources_config else []
+            if channels:
+                source_material += "\n## Configured channels\n"
+                for ch in channels[:5]:
                     source_material += f"- {ch.get('name', '')} ({ch.get('platform', '')}/{ch.get('handle', '')})\n"
         except Exception:
             pass
