@@ -302,3 +302,20 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 **Build order:** Materials Library (Part 2, independent) → jobs table + busy states (F1, shared infra) → Whisper worker (already built, gains alignment mode) → gate/continuity fixes already done → F2/F3 → F4/F5 media + preview → voice reference set + Chatterbox VO → assembly engine (last, depends on all). Two operator-eared gates: cloned-voice listening test, publish-preview "does this look like a post" judgment.
 
 **Rationale:** Architect batch following operator's second hands-on review round. Filed before any new milestone work per inbox protocol. No charter conflicts identified.
+
+---
+
+### 2026-07-03 BUILD — Materials Library (CORRECTION-final-assembly Part 2)
+
+**What:**
+- DB migrations: `excluded` INTEGER column on `materials` + `material_edits` table (material_id, edited_at, before_hash). Additive, backward-compatible.
+- `MaterialsIntake.save_edit()` — writes to `normalized_content` only, logs before-hash to `material_edits`, recomputes `word_count`. `raw_content` is never touched.
+- `MaterialsIntake.restore_to_raw()` — re-copies `raw_content` → `normalized_content`, logged as an edit.
+- `MaterialsIntake.toggle_exclude()` — sets `excluded` flag; `get_corpus()` skips excluded materials. Excluded ≠ deleted.
+- Flask routes: `GET /materials` (list with run/channel filters), `GET /materials/<id>` (detail), `POST /api/materials/<id>/edit`, `/exclude`, `/restore`.
+- Templates: `materials.html` (list with excerpts, excluded badges, filters), `material_detail.html` (editable textarea, raw read-only section, exclude/restore buttons, edit history), `error.html`.
+- Nav: Materials link added to `index.html` and `library.html`.
+- 19 new tests (394 total). Live server verified via curl: edit, restore, exclude all work against real data.
+
+**Rationale:** CORRECTION-final-assembly-and-materials-editing-v1.0 Part 2. Everything the operator shared is reviewable and editable. Transcripts contain errors; extraction picks up junk; an uncorrected transcription error becomes a "voice pattern." The content-hash cache means an edited material naturally changes the variables hash on the next drafting call — no cache invalidation machinery needed. Built first per manifest -c note 1 (independent, small, operator needs it to correct transcripts as soon as Whisper lands).
+
