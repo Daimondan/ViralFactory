@@ -55,10 +55,26 @@
         .module-preview {
             background: var(--bg); border-radius: 8px; padding: 1rem;
             font-size: 13px; color: var(--muted);
-            max-height: 300px; overflow-y: auto;
+            max-height: 120px; overflow: hidden; position: relative;
             white-space: pre-wrap; word-wrap: break-word;
+            margin-bottom: 0.5rem;
+            transition: max-height 0.3s ease;
+        }
+        .module-preview.expanded {
+            max-height: 600px; overflow-y: auto;
+        }
+        .module-preview::after {
+            content: ''; position: absolute; bottom: 0; left: 0; right: 0;
+            height: 40px; background: linear-gradient(transparent, var(--bg));
+            pointer-events: none;
+        }
+        .module-preview.expanded::after { display: none; }
+        .show-more-btn {
+            background: none; border: none; color: var(--accent);
+            font-size: 0.8rem; cursor: pointer; padding: 4px 0;
             margin-bottom: 1rem;
         }
+        .show-more-btn:hover { text-decoration: underline; }
         .module-actions {
             display: flex; gap: 0.5rem;
         }
@@ -109,6 +125,7 @@
             </div>
         </div>
         <div class="module-preview" id="preview-{{ mod.name }}">{{ mod.preview }}</div>
+        <button class="show-more-btn" onclick="toggleShowMore('{{ mod.name }}')">Show more ▾</button>
         <div class="module-actions" id="actions-{{ mod.name }}">
             {% if mod.status == 'draft' %}
             <button class="btn btn-approve" onclick="approveModule('{{ mod.name }}')">✓ Approve</button>
@@ -125,6 +142,18 @@
     {% endif %}
 
     <script>
+    function toggleShowMore(name) {
+        var preview = document.getElementById('preview-' + name);
+        var btn = preview.nextElementSibling;
+        if (preview.classList.contains('expanded')) {
+            preview.classList.remove('expanded');
+            btn.textContent = 'Show more \u25be';
+        } else {
+            preview.classList.add('expanded');
+            btn.textContent = 'Show less \u25b4';
+        }
+    }
+
     async function approveModule(name) {
         if (!confirm('Approve "' + name + '"? This promotes it from draft to approved.')) return;
 

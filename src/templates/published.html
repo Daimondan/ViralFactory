@@ -66,7 +66,7 @@
                 <span class="platform">{{ item.platform }}</span>
                 <span class="type"> · {{ item.variant_type }}</span>
             </div>
-            <span class="time-badge">Scheduled: {{ item.publish_scheduled_at[:16] if item.publish_scheduled_at else 'N/A' }}</span>
+            <span class="time-badge" id="schedule-badge-{{ item.id }}">Scheduled: {{ item.publish_scheduled_at[:16] if item.publish_scheduled_at else 'N/A' }}</span>
         </div>
 
         {% if item.posts_parsed and item.posts_parsed|length > 0 %}
@@ -104,7 +104,7 @@
 </div>
 
 <script>
-// Check Postiz status and update info box
+// Check Postiz status and update info box + schedule badges
 fetch('/api/postiz/status').then(function(r) { return r.json(); }).then(function(data) {
     var box = document.getElementById('postiz-info');
     if (data.available) {
@@ -112,6 +112,15 @@ fetch('/api/postiz/status').then(function(r) { return r.json(); }).then(function
     } else {
         box.innerHTML = '⚠️ Postiz not available. Set <code>POSTIZ_API_KEY</code> and configure Postiz to enable auto-posting. Until then, copy content manually.';
         box.className = 'warn-box';
+        // UI-REVIEW-002 #8: Fix false "Scheduled" green badges when Postiz not connected
+        document.querySelectorAll('[id^="schedule-badge-"]').forEach(function(badge) {
+            var text = badge.textContent;
+            if (text.startsWith('Scheduled:')) {
+                badge.textContent = text.replace('Scheduled:', 'Draft schedule (Postiz not connected):');
+                badge.style.background = '#2a2a1a';
+                badge.style.color = '#d2a04a';
+            }
+        });
     }
 }).catch(function() {});
 

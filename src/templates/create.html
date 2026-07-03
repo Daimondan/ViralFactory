@@ -50,7 +50,7 @@
             {% if approved_cards or fulfilled_cards %}
                 {% for card in approved_cards + fulfilled_cards %}
                 <div class="item">
-                    <a href="/create/draft/{{ card.id }}">{{ card.idea[:60] }}...</a>
+                    <a href="/create/draft/{{ card.id }}" style="word-break: break-word;">{{ card.idea[:80] }}{% if card.idea|length > 80 %}…{% endif %}</a>
                     <span class="state-badge state-approved">{{ card.card_state }}</span>
                 </div>
                 {% endfor %}
@@ -64,16 +64,18 @@
             {% if all_active_drafts %}
                 {% for d in all_active_drafts %}
                 <div class="item">
-                    <a href="/create/draft/{{ d.idea_card_id }}">Draft #{{ d.id }} — {{ d.draft_state }}</a>
-                    {% if d.draft_state == 'shipped' %}
-                    <span class="state-badge state-shipped">shipped</span>
-                    {% elif d.draft_state == 'drafting' %}
+                    <a href="/create/draft/{{ d.idea_card_id }}">{{ d.idea_text }}…</a>
+                    {% if d.draft_state == 'drafting' %}
                     <span class="state-badge state-drafting">drafting</span>
+                    {% elif d.draft_state == 'draft_ready' %}
+                    <span class="state-badge state-drafting">ready</span>
+                    {% elif d.draft_state == 'revised' %}
+                    <span class="state-badge state-drafting">revised</span>
                     {% endif %}
                 </div>
                 {% endfor %}
             {% else %}
-                <p class="empty">No drafts yet. <a href="/ideas">Approve ideas →</a></p>
+                <p class="empty">No drafts in progress. <a href="/ideas">Approve ideas →</a></p>
             {% endif %}
         </div>
 
@@ -81,7 +83,7 @@
             <h3>Shipped (ready for assets)</h3>
             {% if shipped %}
                 {% for d in shipped %}
-                <div class="item"><a href="/create/assets/{{ d.id }}">Draft #{{ d.id }} — shipped → assets</a></div>
+                <div class="item"><a href="/create/assets/{{ d.id }}">{{ d.idea_text }}… → assets</a></div>
                 {% endfor %}
             {% else %}
                 <p class="empty">No shipped drafts.</p>

@@ -114,59 +114,65 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             business_name = "Not configured"
             business_slug = None
 
-        # Build activity log from the pipeline
+        # Build activity log from the pipeline — grouped by idea
         activity = []
         if business_slug:
             store = _get_pipeline_store()
+            from datetime import datetime, timezone
 
-            # Recent idea cards
-            for card in store.list_idea_cards(business_slug)[:10]:
-                activity.append({
-                    "type": "idea",
-                    "state": card["card_state"],
-                    "title": card["idea"][:80],
-                    "link": f"/ideas",
-                    "time": card.get("created_at", ""),
-                })
+            def fmt_time(iso_str):
+                """Format ISO timestamp as human-readable."""
+                if not iso_str:
+                    return ""
+                try:
+                    dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+                    return dt.strftime("%b %d, %I:%M %p").lstrip("0")
+                except Exception:
+                    return iso_str[:16]
 
-            # Recent drafts
-            for draft in store.list_drafts(business_slug)[:10]:
-                card = store.get_idea_card(draft["idea_card_id"])
-                activity.append({
-                    "type": "draft",
-                    "state": draft["draft_state"],
-                    "title": (card["idea"][:80] if card else "Unknown"),
-                    "link": f"/create/draft/{draft['idea_card_id']}",
-                    "time": draft.get("updated_at", ""),
-                })
+            # Build a grouped activity log: each idea gets one entry with sub-events
+            all_cards = store.list_idea_cards(business_slug)
+            grouped = {}  # {idea_title: {type, state, title, link, time, sub_events: []}}
 
-            # Recent assets
-            all_drafts = store.list_drafts(business_slug)
-            for draft in all_drafts[:10]:
-                for asset in store.list_assets(draft["id"]):
-                    activity.append({
-                        "type": "asset",
-                        "state": asset["asset_state"],
-                        "title": f"{asset['platform']} {asset['variant_type']}",
-                        "link": f"/create/assets/{draft['id']}",
-                        "time": asset.get("updated_at", ""),
-                    })
-
-            # Published items
-            for draft in all_drafts:
-                for asset in store.list_assets(draft["id"]):
-                    if asset["asset_state"] == "published":
-                        activity.append({
-                            "type": "published",
-                            "state": "published",
-                            "title": f"{asset['platform']} {asset['variant_type']}",
-                            "link": "/published",
-                            "time": asset.get("publish_scheduled_at") or asset.get("updated_at", ""),
+            for card in all_cards[:15]:
+                title = card["idea"][:80]
+                if title not in grouped:
+                    grouped[title] = {
+                        "type": "idea",
+                        "state": card["card_state"],
+                        "title": title,
+                        "link": "/ideas",
+                        "time": card.get("created_at", ""),
+                        "sub_events": [],
+                    }
+                # Check for drafts on this card
+                for draft in store.list_drafts(business_slug):
+                    if draft["idea_card_id"] == card["id"]:
+                        grouped[title]["sub_events"].append({
+                            "type": "draft",
+                            "state": draft["draft_state"],
+                            "title": f"Draft v{draft['draft_version']}",
+                            "link": f"/create/draft/{card['id']}",
+                            "time": fmt_time(draft.get("updated_at", "")),
                         })
+                        # Assets for this draft
+                        for asset in store.list_assets(draft["id"]):
+                            grouped[title]["sub_events"].append({
+                                "type": "asset",
+                                "state": asset["asset_state"],
+                                "title": f"  → {asset['platform']} {asset['variant_type']}",
+                                "link": f"/create/assets/{draft['id']}",
+                                "time": fmt_time(asset.get("updated_at", "")),
+                            })
+                        if draft["draft_state"] == "shipped":
+                            grouped[title]["state"] = "shipped"
 
-            # Sort by time descending, take 15
+            # Convert to list, sort by time desc
+            activity = list(grouped.values())
             activity.sort(key=lambda x: x.get("time") or "", reverse=True)
-            activity = activity[:15]
+            for item in activity:
+                item["time"] = fmt_time(item.get("time", ""))
+                item["sub_events"].sort(key=lambda x: x.get("time") or "", reverse=False)
 
         return render_template("index.html",
             business_name=business_name,
@@ -3603,6 +3609,13 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         else:
             cards_raw = store.list_idea_cards(business_slug)
 
+        # UI-REVIEW-002 #5: Human-readable scope labels
+        SCOPE_LABELS = {
+            "one_off": "Single piece",
+            "series_of_n": "Series",
+            "pillar_with_derivatives": "Main + derivatives",
+        }
+
         # Enrich cards for display
         cards = []
         for c in cards_raw:
@@ -3617,7 +3630,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             fmt = treatment.get("format", {})
             capture = treatment.get("capture_required", [])
             compact = []
-            compact.append(f"Scope: {scope.get('type', '?')}")
+            compact.append(f"Scope: {scope_labels.get(scope.get('type', '?'), scope.get('type', '?'))}")
             if scope.get("type") == "series_of_n":
                 compact.append(f"({scope.get('n', '?')} × {scope.get('cadence', '?')})")
             compact.append(f"Format: {fmt.get('format_name', '?')}")
@@ -3665,6 +3678,25 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
             cards.append(card)
 
+        # F3: Sort cards — children grouped immediately after their parent
+        grouped = []
+        used_ids = set()
+        # First pass: parents (no parent_id) in their original order
+        for c in cards:
+            if not c.get("parent_id"):
+                grouped.append(c)
+                used_ids.add(c["id"])
+                # Immediately add this parent's children
+                for child in cards:
+                    if child.get("parent_id") == c["id"] and child["id"] not in used_ids:
+                        grouped.append(child)
+                        used_ids.add(child["id"])
+        # Second pass: any remaining (orphans or edge cases)
+        for c in cards:
+            if c["id"] not in used_ids:
+                grouped.append(c)
+        cards = grouped
+
         # Count cards per state for tab badges
         all_cards = store.list_idea_cards(business_slug)
         counts = {}
@@ -3682,7 +3714,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         return render_template("ideas.html",
             business_name=business_name, business_slug=business_slug,
-            cards=cards, active_tab=active_tab, counts=counts_display)
+            cards=cards, active_tab=active_tab, counts=counts_display,
+            scope_labels=SCOPE_LABELS)
 
     @app.route("/api/ideas/seed", methods=["POST"])
     def ideas_seed():
@@ -4222,11 +4255,19 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             except Exception:
                 pass
 
+        # UI-REVIEW-002 #5: Human-readable scope labels
+        SCOPE_LABELS = {
+            "one_off": "Single piece",
+            "series_of_n": "Series",
+            "pillar_with_derivatives": "Main + derivatives",
+        }
+
         return render_template("draft.html",
             business_name=business_name, card=card,
             treatment=treatment, hook_options=hook_options,
             draft=_parse_draft_for_display(existing_draft),
-            draft_visuals=draft_visuals)
+            draft_visuals=draft_visuals,
+            scope_labels=SCOPE_LABELS)
 
     def _parse_draft_for_display(draft):
         """Parse JSON fields on a draft for template display. Merges parsed fields into the draft dict."""
@@ -5805,8 +5846,15 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         shipped = [d for d in drafts if d["draft_state"] == "shipped"]
         ready = [d for d in drafts if d["draft_state"] == "draft_ready"]
         drafting = [d for d in drafts if d["draft_state"] == "drafting"]
-        # Show all drafts that have content (drafting, draft_ready, shipped)
-        all_active_drafts = [d for d in drafts if d["draft_state"] in ("drafting", "draft_ready", "shipped")]
+        # UI-REVIEW-002 #6: Only show in-progress drafts in "Drafts" column (not shipped)
+        all_active_drafts = [d for d in drafts if d["draft_state"] in ("drafting", "draft_ready", "revised")]
+
+        # UI-REVIEW-002 #5: Add idea text to drafts for descriptive titles
+        card_ideas = {c["id"]: c["idea"][:60] for c in idea_cards}
+        for d in all_active_drafts:
+            d["idea_text"] = card_ideas.get(d["idea_card_id"], "Unknown")
+        for d in shipped:
+            d["idea_text"] = card_ideas.get(d["idea_card_id"], "Unknown")
 
         return render_template("create.html",
             business_name=business_name,

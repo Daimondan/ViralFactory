@@ -59,7 +59,10 @@
     </div>
     {% endif %}
 
-    <button class="btn" id="pull-btn" onclick="pullMetrics(this)">Pull metrics now</button>
+    <button class="btn" id="pull-btn" onclick="pullMetrics(this)" {% if not postiz_available %}disabled title="Postiz not configured — cannot pull metrics"{% endif %}>Pull metrics now</button>
+    {% if not postiz_available %}
+    <span style="font-size: 0.78rem; color: #888; margin-left: 8px;">Configure Postiz to enable</span>
+    {% endif %}
     <div id="pull-status" class="pull-status"></div>
 
     <h2>Published Pieces</h2>

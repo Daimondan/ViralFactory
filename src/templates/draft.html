@@ -80,12 +80,14 @@
             <span class="origin-badge origin-{{ {'ai_originated': 'ai', 'human_seeded': 'human', 'human_seeded_ai_developed': 'developed'}.get(card.origin, 'ai') }}">
                 {{ {'ai_originated': 'AI', 'human_seeded': 'Human', 'human_seeded_ai_developed': 'Human+AI'}.get(card.origin, card.origin) }}
             </span>
-            Format: {{ treatment.format.format_name if treatment.format else '?' }} · Scope: {{ treatment.scope.type if treatment.scope else '?' }}
+            Format: {{ treatment.format.format_name if treatment.format else '?' }} · Scope: {{ scope_labels.get(treatment.scope.type if treatment.scope else '?', treatment.scope.type if treatment.scope else '?') }}
         </div>
     </div>
 
     {% if draft %}
-    <div class="draft-version">Draft v{{ draft.draft_version }} — State: {{ draft.draft_state }}</div>
+    <div class="state-badge state-{{ draft.draft_state }}" style="display:inline-block; font-size:0.82rem; padding:4px 12px; border-radius:12px; font-weight:600; margin-bottom:12px;">
+        v{{ draft.draft_version }} · {{ draft.draft_state | upper }}
+    </div>
     {% endif %}
 
     {% if draft and draft.draft_text %}
@@ -93,6 +95,7 @@
     <div class="draft-text" id="draft-text">{{ draft.draft_text }}</div>
 
     {# F1: Edit draft toggle — direct edits write draft_text directly #}
+    {% if draft.draft_state != 'shipped' %}
     <div id="edit-draft-area" style="display:none; margin-bottom: 16px;">
         <textarea id="editDraftTextarea" style="width:100%; min-height:300px; padding:12px; border-radius:8px; border:1px solid #333; background:#12131a; color:#e0e0e0; font-size:0.95rem; line-height:1.7; resize:vertical; font-family:inherit;">{{ draft.draft_text }}</textarea>
         <div style="display:flex; gap:8px; margin-top:8px;">
@@ -104,21 +107,28 @@
     <div class="actions" style="margin: 8px 0;">
         <button class="btn btn-edit" id="editDraftBtn" onclick="toggleEditDraft()">✏️ Edit draft</button>
     </div>
+    {% endif %}
 
     {% if draft.self_audit_flags_parsed %}
     <h2>Self-audit flags (Tells Checklist)</h2>
     <div class="audit-flags" id="audit-flags">
+        {% if draft.draft_state != 'shipped' %}
         <button class="btn btn-apply" onclick="applyAllRemaining()">Apply all remaining</button>
+        {% endif %}
         {% for flag in draft.self_audit_flags_parsed %}
-        <div class="audit-flag {{ flag.status or 'active' }}" id="flag-{{ loop.index0 }}">
+        <div class="audit-flag {{ flag.status or 'active' }}{% if draft.draft_state == 'shipped' %} shipped-locked{% endif %}" id="flag-{{ loop.index0 }}">
             <div class="line">"{{ flag.line }}"</div>
             <div class="rule">Rule: {{ flag.rule }}</div>
             <div class="suggestion">Suggestion: {{ flag.suggestion }}</div>
             {% if not flag.status or flag.status == 'active' %}
+            {% if draft.draft_state != 'shipped' %}
             <div class="flag-actions">
                 <button class="btn btn-apply" onclick="auditFlag({{ loop.index0 }}, 'apply')">Apply</button>
                 <button class="btn btn-dismiss" onclick="auditFlag({{ loop.index0 }}, 'dismiss')">Dismiss</button>
             </div>
+            {% else %}
+            <div class="flag-status">Read-only (shipped)</div>
+            {% endif %}
             {% else %}
             <div class="flag-status">Status: {{ flag.status }}</div>
             {% endif %}
@@ -170,6 +180,7 @@
     </div>
     {% endif %}
 
+    {% if draft.draft_state != 'shipped' %}
     <h2>Human pass (Gate 2)</h2>
     <div class="feedback-section">
         <p class="subtle">React with chips or type feedback. To edit the draft text itself, use the ✏️ Edit draft button above — direct edits become the draft and are logged as the highest-weight voice signal.</p>
@@ -193,18 +204,22 @@
         <button class="btn btn-kill" onclick="draftGate('kill')">Kill</button>
         <button class="btn btn-gen" onclick="regenerate()">Regenerate draft</button>
     </div>
+    {% endif %}
 
     {% if draft.draft_state == 'shipped' %}
-    <div style="text-align: center; margin: 20px 0;">
-        <button class="btn btn-ship" onclick="window.location.href='/create/assets/{{ draft.id }}'">Proceed to Assets →</button>
+    <div style="text-align: center; margin: 24px 0;">
+        <button class="btn btn-ship" style="font-size: 1.1rem; padding: 10px 28px;" onclick="window.location.href='/create/assets/{{ draft.id }}'">Proceed to Assets →</button>
+        <div style="margin-top: 10px;">
+            <a href="#" onclick="reopenForRevision(); return false;" style="font-size: 0.8rem; color: #888;">Reopen for revision</a>
+        </div>
     </div>
     {% endif %}
 
     {% else %}
 
-    <p class="empty">No draft yet. Click generate to create one.</p>
-    <div class="actions">
-        <button class="btn btn-gen" id="genBtn" onclick="generateDraft()">Generate draft</button>
+    <p class="empty" style="text-align: center; margin: 30px 0;">No draft yet. Click generate to create one.</p>
+    <div class="actions" style="justify-content: center; display: flex;">
+        <button class="btn btn-gen" id="genBtn" style="font-size: 1rem; padding: 10px 24px;" onclick="generateDraft()">Generate draft</button>
     </div>
     <div id="genStatus" class="status-line" style="display: none;"></div>
     {% endif %}
@@ -225,6 +240,15 @@ function generateDraft() {
 function regenerate() {
     if (!confirm('Regenerate will overwrite the current draft. Continue?')) return;
     generateDraft();
+}
+
+// UI-REVIEW-002 #1: Reopen a shipped draft for revision
+function reopenForRevision() {
+    if (!confirm('Reopen this draft for revision? This will move it back to draft_ready state.')) return;
+    fetch('/api/draft/{{ draft.id }}/gate', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'revise'}),
+    }).then(r => r.json()).then(data => { if (data.status === 'ok') window.location.reload(); });
 }
 
 // Visual preview: generate images from visual direction

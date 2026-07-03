@@ -143,8 +143,19 @@
                         <a href="{{ item.link }}">{{ item.title }}</a>
                     </div>
                     <div class="activity-meta">
-                        {{ item.type }} · {{ item.time[:16] if item.time else '' }}
+                        {{ item.type }} · {{ item.time }}
                     </div>
+                    {% if item.sub_events %}
+                    <ul style="list-style: none; margin-top: 6px; padding-left: 12px; border-left: 2px solid var(--border);">
+                        {% for sub in item.sub_events %}
+                        <li style="padding: 4px 0; font-size: 0.8rem;">
+                            <a href="{{ sub.link }}" style="color: var(--muted);">{{ sub.title }}</a>
+                            <span class="activity-state state-{{ sub.state }}" style="font-size: 0.65rem; margin-left: 6px;">{{ sub.state }}</span>
+                            <span style="color: var(--muted); font-size: 0.7rem; margin-left: 4px;">{{ sub.time }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
                 </div>
                 <span class="activity-state state-{{ item.state }}">{{ item.state }}</span>
             </li>

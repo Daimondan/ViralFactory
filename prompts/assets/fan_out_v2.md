@@ -53,6 +53,8 @@ Adapt the master draft for {platform_name}. Produce the platform-specific conten
 ## Rules
 - Preserve the voice and message — this is the SAME piece, not a new one
 - Do NOT add new content the human didn't approve
+- Do NOT add emojis that were not in the source draft
+- Do NOT add hashtags that were not in the source draft — at most 3 relevant hashtags, only if the platform convention requires them
 - Image prompts must match the platform's aspect ratio (X = 16:9, IG carousel = 1:1, reel = 9:16)
 - Image prompts must be generation-ready: subject, composition, style anchors, aspect ratio
 

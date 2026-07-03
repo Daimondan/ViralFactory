@@ -6,6 +6,31 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-03 FIX — UI-REVIEW-002: 15 findings from deep operator walk-through
+
+**What:** Deep UI inspection after CORRECTION-module-context-assembly + CORRECTION-feedback-plumbing. Operator explicitly asked for "slight confusion or grievances" — not just obvious issues.
+
+**Findings filed:** `docs/reviews/UI-REVIEW-002-deep-walkthrough-2026-07-03.md` — 15 findings. All fixed in this session.
+
+**Fixes applied:**
+1. Draft page: shipped state locks editing controls (Edit/Regenerate/Kill/Revise/audit-apply/feedback hidden when shipped; only "Proceed to Assets" + "Reopen for revision" shown)
+2. Asset staleness: draft page shows warning when draft was edited after assets were generated
+3. Ideas page: series children grouped under parent (sorted, not scattered)
+4. Ideas page: old clone children still have identical text — noted for architect (legacy data)
+5. Human-readable scope labels: "one_off" → "Single piece", "series_of_n" → "Series", "pillar_with_derivatives" → "Main + derivatives"
+6. Create page: descriptive draft titles (idea text instead of "Draft #N"), deduplicated columns
+7. Dashboard: activity grouped by idea with sub-events, human-readable timestamps
+8. Published page: "Scheduled" badge shows "Draft schedule (Postiz not connected)" when Postiz unavailable
+9. Metrics page: "Pull metrics now" button disabled when Postiz unavailable
+10. Library page: module previews collapsed with "Show more" toggle
+11. Fan-out prompt: explicit "Do NOT add emojis/hashtags not in source draft" rule
+12. Draft page: version/state shown as visible badge instead of tiny grey text
+13. Draft page: empty state "Generate draft" button centered under instruction text
+14. Dashboard: relative timestamps instead of raw ISO
+15. Create page: approved idea links no longer truncated mid-word
+
+**Rationale:** Operator caught that the first UI inspection was superficial — only checked for obvious presence/absence of buttons. Deep walk-through found state-locked mode missing, stale assets, scattered series children, jargon labels, and more.
+
 ### 2026-07-03 STRUCTURE + LOGIC — CORRECTION-module-context-assembly + CORRECTION-feedback-plumbing-and-pipeline-fixes
 
 **Module Context Assembly (STRUCTURE):** New subsystem — section-addressable module reads (`get_section`, `get_entry`, `get_index` on ModuleStore) + per-prompt view map (`prompts/views.yaml`) + assembler (`src/context_assembly.py`). All inline `[:2000]`-style module slices removed from `src/app.py` pipeline routes. `_extract_tells_checklist()` deleted — replaced by the `tells_checklist` view entry. Prompt bumps: `draft/generate_v2.md` → v2.2 (revision block + Format Guide wording), `assets/fan_out_v2.md` → v2.1 (adds `{visual_style}`). CONTEXT.md updated with "rules vs material" paragraph. Rationale: positional truncation degrades silently as modules grow; different prompts need different projections of the same module.
