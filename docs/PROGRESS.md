@@ -116,6 +116,10 @@
 - P1-3: Readback/message rendering (per-schema formatters)
 
 
+### 2026-07-03 — Inbox batch -c + -d filed (pipeline UX, voice cloning, final assembly)
+
+5 files filed: 2 corrections to `docs/reviews/`, 1 decision to `docs/decisions/`, 2 manifests to `docs/inbox/processed/`. Inbox empty. Scope: F1–F5 (busy states, jobs table, audit flags, visual direction, media gen via OpenRouter, publish preview), voice cloning (Chatterbox, voice reference set, VO flow), final assembly (Edit Plan schema + FFmpeg renderer + stock library + Materials Library). Build order per manifest -c note 1. New deps: OPENROUTER/PEXELS/PIXABAY keys, chatterbox-tts, moviepy v2, ffmpeg. Two operator-eared gates: cloned-voice listening test, publish-preview judgment. No charter conflicts.
+
 ### 2026-07-03 — All CORRECTION-orchestrator-drafting-and-ux-v1.0 items implemented
 
 **Completed (9 of 10 items):**

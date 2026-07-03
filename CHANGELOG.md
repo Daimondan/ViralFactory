@@ -282,3 +282,23 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 **Test suite:** 375 passing (18 new regression tests). Service restarted, health OK.
 
+---
+
+### 2026-07-03 OPS — Inbox batch -c + -d filed (pipeline UX, voice cloning, final assembly)
+
+**What:** Two manifests (-c, -d) delivering 5 files filed per instructions:
+- `CORRECTION-pipeline-ux-and-media-generation-v1.0.md` → `docs/reviews/`
+- `DECISION-voice-cloning-vo-v1.0.md` → `docs/decisions/`
+- `CORRECTION-final-assembly-and-materials-editing-v1.0.md` → `docs/reviews/`
+- Manifests -c and -d → `docs/inbox/processed/`
+
+**Scope of the batch (build order per manifest -c note 1):**
+1. Pipeline UX: shared `static/busy.js` + server-side `jobs` table with in-flight idempotency (F1). Self-audit flags become actionable with Apply/Dismiss (F2). Visual direction required in DRAFT_SCHEMA with minItems:1 and prompt v2 (F3). Media generation via OpenRouter — `src/media_adapter.py`, config in `models.yaml`, `asset_media` table (F4). Assets page becomes publish-preview card with platform framing (F5).
+2. Voice cloning: Chatterbox (MIT, self-hosted), voice reference set as 9th onboarding coverage item, `voices` table, VO generation as async job on shared `jobs` framework. Operator listening test is the one non-self-certifiable gate.
+3. Final assembly engine: LLM produces Edit Plan (JSON schema) → deterministic FFmpeg/MoviePy v2 renderer. Stock library via Pexels/Pixabay. Editable Materials Library (`/materials`, normalize-content editing, exclude toggle). Whisper gains word-timestamp alignment mode.
+
+**New dependencies (noted for deployment):** `OPENROUTER_API_KEY`, `PEXELS_API_KEY`, `PIXABAY_API_KEY` env vars; pip `chatterbox-tts`, `moviepy` v2; apt `ffmpeg`. RAM budget: Whisper medium + Chatterbox may not co-reside on VPS — measure, decide, record.
+
+**Build order:** Materials Library (Part 2, independent) → jobs table + busy states (F1, shared infra) → Whisper worker (already built, gains alignment mode) → gate/continuity fixes already done → F2/F3 → F4/F5 media + preview → voice reference set + Chatterbox VO → assembly engine (last, depends on all). Two operator-eared gates: cloned-voice listening test, publish-preview "does this look like a post" judgment.
+
+**Rationale:** Architect batch following operator's second hands-on review round. Filed before any new milestone work per inbox protocol. No charter conflicts identified.
