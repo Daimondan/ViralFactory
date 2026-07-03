@@ -710,6 +710,7 @@ class PipelineStore:
         image_prompts: list[str] = None,
         generated_images: list[str] = None,
         posts: list[str] = None,
+        native: bool = False,
     ) -> int:
         """Create a new per-platform asset variant. Returns asset ID."""
         conn = sqlite3.connect(self.db_path)
@@ -718,17 +719,22 @@ class PipelineStore:
         if "posts" not in cols:
             conn.execute("ALTER TABLE assets ADD COLUMN posts TEXT")
             conn.commit()
+        # S3: Ensure native column exists (idempotent migration)
+        if "native" not in cols:
+            conn.execute("ALTER TABLE assets ADD COLUMN native INTEGER DEFAULT 0")
+            conn.commit()
         ts = self._now()
         cursor = conn.execute(
             """INSERT INTO assets
                (business_slug, draft_id, platform, variant_type, content, posts,
-                image_prompts, generated_images, asset_state,
+                image_prompts, generated_images, asset_state, native,
                 created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)""",
             (business_slug, draft_id, platform, variant_type, content,
              json.dumps(posts or []),
              json.dumps(image_prompts or []),
-             json.dumps(generated_images or []), ts, ts),
+             json.dumps(generated_images or []),
+             1 if native else 0, ts, ts),
         )
         asset_id = cursor.lastrowid
         conn.commit()

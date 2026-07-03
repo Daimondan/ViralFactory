@@ -24,6 +24,8 @@ You are producing a per-platform variant of a master draft. The human has alread
 
 Adapt the master draft for {platform_name}. Produce the platform-specific content **structured as it will actually be posted**. This is NOT a new piece — it's the same content adapted for this platform's format.
 
+**Preserve-wording rule (S3):** The approved draft's wording is inviolable. You are adapting structurally and for length — NOT stylistically. Keep the master's wording wherever the platform allows. Do not rephrase sentences that already fit. Do not compress, expand, or reword. Only change wording when the platform's character limit or format forces it, and even then, preserve the voice and meaning.
+
 ## Platform-specific structure rules
 
 ### X (Twitter) Thread
