@@ -81,7 +81,8 @@ CREATE TABLE IF NOT EXISTS assets (
     draft_id INTEGER NOT NULL,
     platform TEXT NOT NULL,              -- X | Instagram | etc.
     variant_type TEXT NOT NULL,          -- thread | carousel | reel | single_post | etc.
-    content TEXT NOT NULL,              -- the platform-specific text/caption
+    content TEXT NOT NULL,              -- the platform-specific text/caption (summary for thread/carousel)
+    posts TEXT,                         -- JSON array of individual posts/slides (for thread/carousel)
     image_prompts TEXT,                 -- JSON array of image generation prompts used
     generated_images TEXT,              -- JSON array of generated image paths/URLs
     asset_state TEXT NOT NULL DEFAULT 'pending',  -- pending | approved | fix | killed | published
@@ -687,17 +688,24 @@ class PipelineStore:
         content: str,
         image_prompts: list[str] = None,
         generated_images: list[str] = None,
+        posts: list[str] = None,
     ) -> int:
         """Create a new per-platform asset variant. Returns asset ID."""
         conn = sqlite3.connect(self.db_path)
+        # Ensure posts column exists (migration for existing DBs)
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(assets)").fetchall()]
+        if "posts" not in cols:
+            conn.execute("ALTER TABLE assets ADD COLUMN posts TEXT")
+            conn.commit()
         ts = self._now()
         cursor = conn.execute(
             """INSERT INTO assets
-               (business_slug, draft_id, platform, variant_type, content,
+               (business_slug, draft_id, platform, variant_type, content, posts,
                 image_prompts, generated_images, asset_state,
                 created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)""",
             (business_slug, draft_id, platform, variant_type, content,
+             json.dumps(posts or []),
              json.dumps(image_prompts or []),
              json.dumps(generated_images or []), ts, ts),
         )

@@ -4463,6 +4463,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             # Parse JSON string fields
             a["image_prompts_parsed"] = json.loads(asset.get("image_prompts") or "[]")
             a["generated_images_parsed"] = json.loads(asset.get("generated_images") or "[]")
+            a["posts_parsed"] = json.loads(asset.get("posts") or "[]")
             # Get all media for this asset (images, videos, final cuts)
             a["media_list"] = media_adapter.list_asset_media(asset["id"])
             a["final_cuts"] = [m for m in a["media_list"] if m.get("kind") == "final_cut"]
@@ -4527,6 +4528,10 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 "properties": {
                     "content": {"type": "string"},
                     "variant_type": {"type": "string"},
+                    "posts": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
                     "image_prompts": {
                         "type": "array",
                         "items": {"type": "string"},
@@ -4536,7 +4541,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
             try:
                 result = adapter.complete(
-                    prompt_file="assets/fan_out_v1.md",
+                    prompt_file="assets/fan_out_v2.md",
                     variables={
                         "business_name": business["business"]["name"],
                         "platform_name": platform_name,
@@ -4562,6 +4567,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 variant_type=result.get("variant_type", "post"),
                 content=result["content"],
                 image_prompts=result.get("image_prompts", []),
+                posts=result.get("posts", []),
             )
             assets_created.append({"id": asset_id, "platform": platform_name})
 
@@ -4652,13 +4658,15 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         results = []
         errors = []
-        for i, prompt in enumerate(image_prompts):
+        # Filter out "none" prompts (text-only posts/slides)
+        active_prompts = [(i, p) for i, p in enumerate(image_prompts) if p.strip().lower() != "none"]
+        for idx, prompt in active_prompts:
             try:
                 result = adapter.generate_image(
                     prompt=prompt,
                     asset_id=asset_id,
                     aspect_ratio=aspect_ratio,
-                    context=f"Image {i+1}/{len(image_prompts)} for asset {asset_id} ({platform_name})",
+                    context=f"Image {idx+1} for asset {asset_id} ({platform_name})",
                     business_slug=business_slug,
                 )
                 results.append(result)
