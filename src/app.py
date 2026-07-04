@@ -4241,6 +4241,24 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             response = {"status": "ok", "new_state": new_state}
             if spawn_warning:
                 response["warning"] = spawn_warning
+
+            # T8.6: Auto-production chain — approval triggers production
+            if new_state == "approved":
+                try:
+                    from produce_chain import enqueue_chain
+                    enqueue_chain(
+                        db_path=app.config["DB_PATH"],
+                        config_dir=app.config["CONFIG_DIR"],
+                        modules_dir=app.config.get("MODULES_DIR", "modules"),
+                        prompts_dir="prompts",
+                        card_id=card_id,
+                        business_slug=business_slug,
+                    )
+                    response["chain_started"] = True
+                except Exception as e:
+                    response["chain_started"] = False
+                    response["chain_error"] = str(e)[:200]
+
             return jsonify(response)
 
         elif action == "kill":
@@ -4257,6 +4275,34 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         elif action == "park":
             store.update_card_state(card_id, "parked")
             return jsonify({"status": "ok", "new_state": "parked"})
+
+    @app.route("/api/ideas/<int:card_id>/retry-production", methods=["POST"])
+    def retry_production(card_id):
+        """T8.6: Retry the production chain from the failed step."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        store = _get_pipeline_store()
+        card = store.get_idea_card(card_id)
+        if not card:
+            return jsonify({"error": "Card not found"}), 404
+        if card["card_state"] != "production_failed":
+            return jsonify({"error": f"Card state is '{card['card_state']}' — must be 'production_failed' to retry"}), 400
+
+        try:
+            from produce_chain import enqueue_chain
+            enqueue_chain(
+                db_path=app.config["DB_PATH"],
+                config_dir=app.config["CONFIG_DIR"],
+                modules_dir=app.config.get("MODULES_DIR", "modules"),
+                prompts_dir="prompts",
+                card_id=card_id,
+                business_slug=business_slug,
+            )
+            return jsonify({"status": "ok", "message": "Production chain retried"})
+        except Exception as e:
+            return jsonify({"error": str(e)[:200]}), 500
 
     @app.route("/api/ideas/<int:parent_id>/bulk-approve-children", methods=["POST"])
     def ideas_bulk_approve_children(parent_id):
