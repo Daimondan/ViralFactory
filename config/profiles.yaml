@@ -1,0 +1,37 @@
+# ViralFactory — AI Profiles config (v1.0)
+#
+# Per CORRECTION-source-grounding-and-auto-production-v1.0 Section 3.1:
+# Profiles are named compositions, not code classes (AMENDMENT-005).
+# Each profile is a composition of prompts, module views, and model settings.
+# The llm_adapter resolves model/temperature through the profile → models.yaml active block.
+#
+# Backend selection continues to flow through the adapter's `backend` parameter
+# (BYO-AI hook, unchanged). Profiles provide the semantic layer: which prompts,
+# which module views, what temperature class.
+
+profiles:
+  researcher:
+    description: >
+      Ideation and source scouting. Social-media-native: selects the story,
+      the format that tells it, and the treatment. Owns Gate-1-facing output.
+    temperature: generative        # per T3.13 S1 temperature doctrine
+    prompts: [ideas/generate, ideas/series_breakdown]
+    module_views: [viral_patterns, audience_insights, story_frameworks, format_guide_digest, source_bank_digest]
+
+  drafter:
+    description: >
+      Takes the approved, fully-specified idea (treatment + grounding sources)
+      and produces the final asset exactly as the Researcher specified.
+    temperature: generative
+    prompts: [draft/generate, assets/fan_out]
+    module_views: [voice_profile, tells_checklist, visual_style, format_guide_full_entry, grounding_sources_full]
+
+  analyst:
+    description: >
+      Reads performance results; drives the inward loop (own-format/scope
+      performance into Format Guide evidence) and outward loop (decomposing
+      viral mechanics in the domain); scrapes current and archival news into
+      the Source Bank for the Researcher.
+    temperature: judgment          # temp-0 class
+    prompts: [analysis/*, proposals/*]
+    module_views: [format_guide_full, metrics_views, source_criteria]

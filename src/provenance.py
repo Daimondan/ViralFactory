@@ -22,17 +22,18 @@ CREATE TABLE IF NOT EXISTS provenance (
     input_hash TEXT NOT NULL,          -- SHA-256 of the input variables
     prompt_file TEXT NOT NULL,         -- path to the prompt template
     prompt_version TEXT NOT NULL,     -- version string from the prompt file
-    model TEXT NOT NULL,               -- model name from config
-    provider TEXT NOT NULL,           -- provider name from config
-    raw_output TEXT,                   -- raw LLM response
-    validated_output TEXT,             -- validated JSON output (null if validation failed)
-    validator_verdict TEXT NOT NULL,   -- 'valid', 'invalid', 'error'
-    validator_errors TEXT,             -- error details if invalid
+    model TEXT NOT NULL,               -- model name used
+    provider TEXT NOT NULL,            -- provider name from config
+    raw_output TEXT,                  -- raw LLM response (may be null on failure)
+    validated_output TEXT,            -- validated JSON output (may be null on failure)
+    validator_verdict TEXT NOT NULL,  -- valid | invalid | error
+    validator_errors TEXT,            -- error details if invalid
     context TEXT,                      -- human-readable context for the call
     temperature REAL,                  -- temperature used
     latency_ms INTEGER,                -- response time in milliseconds
     cached INTEGER DEFAULT 0,          -- 1 if this was served from cache
-    business_slug TEXT                 -- T2.11: tenant attribution for every LLM call
+    business_slug TEXT,               -- T2.11: tenant attribution for every LLM call
+    profile TEXT                       -- T8.7: which AI profile produced this artifact
 );
 
 -- T2.11: migration for existing databases that lack the business_slug column
@@ -66,6 +67,11 @@ class ProvenanceLog:
         if "business_slug" not in cols:
             self.conn.execute("ALTER TABLE provenance ADD COLUMN business_slug TEXT")
             self.conn.commit()
+        # T8.7: migrate existing databases by adding profile column if missing
+        cols = [row[1] for row in self.conn.execute("PRAGMA table_info(provenance)").fetchall()]
+        if "profile" not in cols:
+            self.conn.execute("ALTER TABLE provenance ADD COLUMN profile TEXT")
+            self.conn.commit()
         # Now create indexes (safe — business_slug column exists either way)
         self.conn.executescript(INDEX_SQL)
         self.conn.commit()
@@ -86,8 +92,10 @@ class ProvenanceLog:
         latency_ms: Optional[int] = None,
         cached: bool = False,
         business_slug: Optional[str] = None,
+        profile: Optional[str] = None,
     ):
-        """Write a provenance row for an LLM call."""
+        """Write a provenance row for an LLM call.
+        T8.7: profile records which AI profile produced this artifact."""
         ts = datetime.now(timezone.utc).isoformat()
         validated_json = json.dumps(validated_output) if validated_output else None
 
@@ -95,11 +103,11 @@ class ProvenanceLog:
             """INSERT INTO provenance
                (timestamp, input_hash, prompt_file, prompt_version, model, provider,
                 raw_output, validated_output, validator_verdict, validator_errors,
-                context, temperature, latency_ms, cached, business_slug)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                context, temperature, latency_ms, cached, business_slug, profile)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (ts, input_hash, prompt_file, prompt_version, model, provider,
              raw_output, validated_json, validator_verdict, validator_errors,
-             context, temperature, latency_ms, 1 if cached else 0, business_slug),
+             context, temperature, latency_ms, 1 if cached else 0, business_slug, profile),
         )
         self.conn.commit()
 

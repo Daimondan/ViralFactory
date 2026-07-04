@@ -185,6 +185,7 @@ class ProductionChain:
             backend="drafter",
             context=f"Auto-chain draft for card {card_id} ({card['origin']}, {format_name}) | module_ctx: {module_prov}",
             business_slug=business_slug,
+            profile="drafter",
         )
 
         # Save draft

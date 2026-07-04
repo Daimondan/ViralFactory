@@ -226,6 +226,7 @@ class LLMAdapter:
         allowlists: Optional[dict[str, list[str]]] = None,
         context: str = "",
         business_slug: Optional[str] = None,
+        profile: Optional[str] = None,
     ) -> dict:
         """
         The main entry point. Load prompt, render, call LLM, validate, cache, log.
@@ -302,6 +303,7 @@ class LLMAdapter:
                 temperature=temperature,
                 cached=True,
                 business_slug=business_slug,
+                profile=profile,
             )
             return cached
 
@@ -327,6 +329,7 @@ class LLMAdapter:
                 context=context,
                 temperature=temperature,
                 business_slug=business_slug,
+                profile=profile,
             )
             raise
 
@@ -351,6 +354,7 @@ class LLMAdapter:
                     temperature=temperature,
                     latency_ms=latency_ms,
                     business_slug=business_slug,
+                    profile=profile,
                     )
                 return validated
             except ValidationError as e:
@@ -370,6 +374,7 @@ class LLMAdapter:
                         temperature=temperature,
                         latency_ms=latency_ms,
                         business_slug=business_slug,
+                    profile=profile,
                         )
                     # Retry once — include the actual validation error text so the
                     # model can correct the specific issue, not just "invalid JSON"
@@ -393,6 +398,7 @@ class LLMAdapter:
                         temperature=temperature,
                         latency_ms=latency_ms,
                         business_slug=business_slug,
+                    profile=profile,
                         )
                     raise LLMAdapterError(
                         f"LLM output failed validation after retry: {e}. "

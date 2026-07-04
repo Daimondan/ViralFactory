@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-03
-**Current Phase:** M8 started (source grounding + auto-production chain + AI profiles). T8.1+T8.2 (P0) done. 584 tests passing. M3 checkpoint passed, M6 complete, all UI findings fixed. Buffer API live. Cream editorial design. Remaining P1: T8.3-T8.7, Drafter A/B (needs ab_candidate), T2.6-T2.8 audio (deferred).
+**Current Phase:** M8 complete (source grounding + auto-production chain + AI profiles). All T8.1-T8.7 done. 650 tests passing. M3 checkpoint passed, M6 complete, all UI findings fixed. Buffer API live. Cream editorial design. Remaining: Drafter A/B (needs ab_candidate), T2.6-T2.8 audio (deferred).
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
@@ -204,3 +204,34 @@ Materials Library — editable source materials. DB migrations: `excluded` colum
 - 15 new T8.4 tests; 3 existing test mock outputs updated from `evidence_links` → `source_refs`
 
 **Tests:** 619 passing (15 new). 0 failures.
+
+### 2026-07-03 — T8.5 Sources flow to production done (P1)
+
+**T8.5 — Sources flow to production:**
+- `prompts/draft/generate_v2.md` → v2.3: new `{grounding_sources}` section — full content of every cited source labeled with title + ID, explicit rule "facts, quotes, dates, statistics MUST come from these sources — do NOT fabricate specifics not present in them"
+- `draft_generate` route: assembles `grounding_sources` by resolving `source_refs`; empty content degrades to summary with `(summary only)` marker (never silent)
+- `prompts/assets/fan_out_v2.md` → v2.2: new `{source_titles}` section — titles only for attribution context, "do NOT re-write facts from these"
+- `assets_fan_out` route: resolves source titles from card's `source_refs` and passes to fan-out prompt
+- 10 new tests
+
+### 2026-07-03 — T8.6 Auto-production chain done (P1)
+
+**T8.6 — Auto-production chain:**
+- New `src/produce_chain.py` module: `ProductionChain` class orchestrates draft generation → fan-out → (visual gen deferred to operator) in a background thread
+- `ideas_gate_decision` on approve (no capture): enqueues `produce_chain` job, card state → `producing` → `asset_ready` (success) or `production_failed` (with error info)
+- New `/api/ideas/<card_id>/retry-production` endpoint: retries chain from failed step (only if state=production_failed)
+- Card schema gains `production_error` column (JSON: {step, error})
+- `update_card_state` gains `production_error` parameter
+- No-auto-publish absolute — chain terminates at asset review, no publish calls in produce_chain.py
+- 8 new tests: state transitions, module import, enqueue thread, failure handling, retry endpoint, no-publish verification
+
+### 2026-07-03 — T8.7 AI Profiles done (P1)
+
+**T8.7 — AI Profiles:**
+- New `config/profiles.yaml` with three profiles: Researcher (ideation, generative temp), Drafter (asset production, generative temp), Analyst (results analysis, judgment temp)
+- `LLMAdapter.complete()` gains `profile` parameter — passed through to all `ProvenanceLog.log()` calls
+- `ProvenanceLog.log()` gains `profile` parameter; provenance table gains `profile` column (idempotent migration)
+- Pipeline LLM calls declare their profile: `ideas_generate` → `profile="researcher"`, `draft_generate` → `profile="drafter"`, `produce_chain._step_draft` → `profile="drafter"`
+- 13 new tests: profiles.yaml existence + structure, provenance profile column, log with/without profile, adapter signature, pipeline calls
+
+**Tests:** 650 passing (31 new across T8.5-T8.7). 0 failures.

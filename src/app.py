@@ -4003,6 +4003,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 backend="ideator",
                 context=f"Idea card generation from seed ({origin}) | module_ctx: {module_prov}",
                 business_slug=business_slug,
+                profile="researcher",
             )
         except (LLMAdapterError, Exception) as e:
             return {"status": "error", "error": str(e)}
@@ -4126,6 +4127,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 backend="ideator",
                 context=f"AI idea card generation ({num_cards} cards) | module_ctx: {module_prov}",
                 business_slug=business_slug,
+                profile="researcher",
             )
         except (LLMAdapterError, Exception) as e:
             return jsonify({"error": str(e)}), 500
@@ -4768,6 +4770,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 backend="drafter",
                 context=f"Draft generation for card {card_id} ({card['origin']}, {format_name}) | module_ctx: {module_prov}",
                 business_slug=business_slug,
+                profile="drafter",
             )
         except (LLMAdapterError, Exception) as e:
             _get_jobs_store().fail_job(job_id, str(e)[:200])

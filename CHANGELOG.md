@@ -6,6 +6,30 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-03 STRUCTURE — T8.7: AI Profiles (P1)
+
+**What:** New `config/profiles.yaml` with three named profiles: Researcher (ideation + source scouting, generative temp), Drafter (produces final asset from approved idea, generative temp), Analyst (reads results, drives loops, judgment/temp-0 class). `LLMAdapter.complete()` gains `profile` parameter, passed through to all `ProvenanceLog.log()` calls. Provenance table gains `profile` column (idempotent migration). Pipeline LLM calls declare their profile: ideas_generate → "researcher", draft_generate → "drafter", produce_chain → "drafter".
+
+**Why:** Per CORRECTION Section 3.1. Profiles make model/temperature/prompt composition explicit and configurable. Per AMENDMENT-005, profiles are named compositions, not code classes — they describe which prompts, which module views, what temperature class. Provenance records which profile produced each artifact.
+
+**Rationale:** Profiles are the semantic layer above backends. Backend selection flows through the adapter's `backend` parameter (BYO-AI hook, unchanged). Profiles provide the composition map: which prompts + module views + temperature class for each role.
+
+### 2026-07-03 LOGIC — T8.6: Auto-production chain (P1)
+
+**What:** New `src/produce_chain.py` module with `ProductionChain` class that orchestrates draft generation → fan-out in a background thread. `ideas_gate_decision` on approve (no capture): enqueues `produce_chain` job; card state transitions `producing` → `asset_ready` (success) or `production_failed` (with step + error info). New `/api/ideas/<card_id>/retry-production` endpoint for retry. No-auto-publish absolute — chain terminates at asset review.
+
+**Why:** Per CORRECTION Section 2.1. Operator feedback: "Once an idea is approved, it should not go to a draft page where the operator clicks Generate, then an asset page where the operator clicks Generate again. Approval is the production trigger." Eliminates 3+ manual generation clicks between approval and asset review.
+
+**Rationale:** The operator's next touchpoint after approval should be reviewing the finished asset. The chain amplifies any generation defect by running unattended, which is why T8.3-T8.5 (source grounding) landed first. No-auto-publish remains absolute.
+
+### 2026-07-03 STRUCTURE — T8.5: Sources flow to production (P1)
+
+**What:** `prompts/draft/generate_v2.md` → v2.3: new `{grounding_sources}` section with full content of every cited source labeled by title + ID, explicit no-fabrication rule. `draft_generate` route resolves `source_refs` to assemble this variable; empty content degrades to summary with `(summary only)` marker. `prompts/assets/fan_out_v2.md` → v2.2: new `{source_titles}` section — titles only, no full content (draft is authoritative per T3.13 S3).
+
+**Why:** Per CORRECTION Section 1.4. Sources died at Gate 1 — the draft prompt had no source variable. Now the full content of every cited source travels with the idea through production. Fan-out receives titles only (must not re-write facts).
+
+**Rationale:** Facts, quotes, dates, and specifics in the draft must come from real source material. The stage-appropriate injection doctrine: selection stage gets digest, production stage gets full content, fan-out gets titles only.
+
 ### 2026-07-03 STRUCTURE — T8.4: Idea cards carry source_refs (P1)
 
 **What:** `IDEA_CARD_SCHEMA` updated — `source_refs` (integer array, minItems=1) replaces `evidence_links` in required list; `source_notes` added (optional per-source annotation). `prompts/ideas/generate_v1.md` → v1.3: Source Bank section with `[S14] title — summary` digest format, cite-by-ID instructions, multi-source synthesis rule, new `source_criteria` variable. `ideas_generate` route builds source digest from `sources` table (ID-prefixed), validates source_refs, derives evidence_links from resolved sources for backward display. `_generate_card_from_seed` auto-registers seed as `manual` source, includes seed in digest, ensures seed source always cited. Ideas page template renders resolved sources with title links + source_type badges.
