@@ -2,7 +2,7 @@
 
 **Filed by:** Architect  
 **Date:** 2026-07-04  
-**Status:** IMPLEMENTED — ACTIVE  
+**Status:** IMPLEMENTED — OFF (ready, toggle scripts created)  
 **Type:** Infrastructure / OPS  
 
 ## Problem
@@ -87,7 +87,24 @@ Every 2 hours, a cron job runs a script that:
 
 ### How to Turn It Off Temporarily
 
-**Option A — Disable individual webhook route (recommended for architect→builder):**
+**EASIEST — Use the toggle scripts (one command):**
+
+```bash
+# Turn OFF (disables webhook route + pauses cron + deactivates GitHub webhook + restarts gateway)
+bash ~/.hermes/scripts/vf-webhooks-off.sh
+
+# Turn ON (enables webhook route + resumes cron + reactivates GitHub webhook + restarts gateway)
+bash ~/.hermes/scripts/vf-webhooks-on.sh
+```
+
+The toggle scripts handle all three components in one command:
+1. Hermes webhook route (`enabled: true/false` in config.yaml)
+2. Hermes cron job (`hermes cron pause/resume`)
+3. GitHub webhook (`active: true/false` via API)
+
+Each script also restarts the gateway so the config change takes effect immediately.
+
+**Manual options (if you want fine-grained control):**
 Set `enabled: false` on the route in `~/.hermes/config.yaml`:
 ```yaml
 platforms:

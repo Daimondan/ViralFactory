@@ -6,26 +6,30 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
-### 2026-07-04 OPS — DIVERGENCE-009 implemented: Architect↔Builder webhook notification loop ACTIVATED
+### 2026-07-04 OPS — DIVERGENCE-009 implemented: Architect↔Builder webhook notification loop (configured, OFF)
 
-**What:** Implemented and activated the asymmetric webhook notification loop:
+**What:** Implemented and configured (but set to OFF) the asymmetric webhook notification loop:
 1. **Architect → Builder (webhook):** GitHub webhook on push events → `https://vf.glenbeu.com/p/viralfactory/webhooks/architect-pushed` → Hermes webhook adapter → builder profile wakes up, does git pull, checks inbox/reviews/decisions, applies corrections. Response delivered to Daimon's WhatsApp.
 2. **Builder → Architect (cron, every 2h):** Cron job runs significance-filter script → if builder pushed significant changes (feat:/fix:/refactor:/src/*.py/divergences) → architect profile wakes up, reviews diff for charter compliance, writes findings. Response delivered to WhatsApp. Minor changes pile up.
 
-**Infrastructure:**
-- Traefik route added: `vf.glenbeu.com/webhooks/` and `/p/` → port 8644 (no basic auth, HMAC-validated)
-- GitHub webhook created on Daimondan/ViralFactory (ID: 649343246, push events, HMAC secret)
+**Current state: ALL OFF.** Three components disabled:
+- Webhook route: `enabled: false` (rejects all incoming POSTs with 403)
+- Cron job: paused (`hermes cron pause 5ada489bfb4c`)
+- GitHub webhook: `active: false` (GitHub won't send events)
+
+**Toggle scripts (one command to turn on/off):**
+- `bash ~/.hermes/scripts/vf-webhooks-on.sh` — turns everything ON + restarts gateway
+- `bash ~/.hermes/scripts/vf-webhooks-off.sh` — turns everything OFF + restarts gateway
+
+**Infrastructure (all in place, ready to activate):**
+- Traefik route: `vf.glenbeu.com/webhooks/` and `/p/` → port 8644 (no basic auth, HMAC-validated)
+- GitHub webhook: created on Daimondan/ViralFactory (ID: 649343246, inactive)
 - Hermes webhook platform: port 8644, two routes, multiplex_profiles=true
-- Cron job: `vf-builder-review-trigger` (every 2h, script filters for significance)
-- WhatsApp delivery: both routes deliver agent responses to Daimon's WhatsApp
+- Cron job: `vf-builder-review-trigger` (every 2h, paused, script filters for significance)
+- WhatsApp delivery: both routes configured to deliver agent responses to Daimon's WhatsApp
+- Scripts: `vf-webhooks-on.sh`, `vf-webhooks-off.sh`, `vf-builder-review-trigger.sh`
 
-**How to disable:**
-- Architect→Builder: set `enabled: false` on `architect-pushed` route in config.yaml + restart gateway
-- Builder→Architect: `hermes cron pause 5ada489bfb4c` (resume with `hermes cron resume`)
-- Both: remove `WEBHOOK_ENABLED` from .env + restart gateway
-- Nuclear: delete GitHub webhook (repo Settings → Webhooks) or `tailscale funnel reset`
-
-**Rationale:** OPS tag — eliminates manual relay between architect and builder. Asymmetric design prevents infinite loops. Config-driven (routes, prompts, secrets in config.yaml). No code changes to ViralFactory.
+**Rationale:** OPS tag — eliminates manual relay between architect and builder. Asymmetric design prevents infinite loops. Config-driven. Toggle scripts make it trivial to turn on/off without editing config files manually.
 
 ---
 
