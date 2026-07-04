@@ -6,20 +6,26 @@
     <link rel="stylesheet" href="/static/vf.css">
     <title>Create — {{ business_name }}</title>
     <style>
-
         .pipeline-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 16px; }
         .stage-card { background: #FFFFFF; border-radius: 10px; padding: 16px; border: 1px solid #D8D4C8; }
         .stage-card h3 { font-size: 0.9rem; color: #8A857C; margin-bottom: 10px; }
         .item { padding: 8px 10px; background: #F0EDE4; border-radius: 6px; margin-bottom: 6px; font-size: 0.85rem; overflow-wrap: anywhere; }
-        .item 
         .item-title { display: block; margin-bottom: 4px; }
         .state-badge { font-size: 0.68rem; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
         .state-new { background: #D8D4C8; color: #8A857C; }
         .state-approved { background: rgba(74, 124, 58, 0.12); color: #4A7C3A; }
         .state-shipped { background: rgba(74, 124, 58, 0.12); color: #4A7C3A; }
         .state-drafting { background: rgba(74, 111, 165, 0.12); color: #4A6FA5; }
+        .state-producing { background: rgba(229, 75, 44, 0.12); color: #E54B2C; }
+        .state-asset-ready { background: rgba(74, 124, 58, 0.15); color: #4A7C3A; font-weight: 600; }
+        .state-production-failed { background: rgba(192, 57, 43, 0.15); color: #C0392B; }
+        .state-awaiting-capture { background: rgba(212, 168, 67, 0.15); color: #8A6D20; }
+        .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #E54B2C30; border-top-color: #E54B2C; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 4px; vertical-align: middle; }
+        @keyframes spin { to { transform: rotate(360deg); } }
         .empty { color: #A8A399; font-style: italic; padding: 10px; text-align: center; }
-
+        .error-text { font-size: 0.75rem; color: #C0392B; margin-top: 4px; }
+        .retry-btn { font-size: 0.72rem; padding: 3px 8px; background: rgba(192, 57, 43, 0.1); color: #C0392B; border: 1px solid rgba(192, 57, 43, 0.3); border-radius: 4px; cursor: pointer; margin-top: 4px; }
+        .retry-btn:hover { background: rgba(192, 57, 43, 0.2); }
     </style>
 </head>
 <body>
@@ -36,22 +42,76 @@
     </div>
 
     <div class="pipeline-grid">
+        <!-- T8.6: In production — cards where the auto-chain is running or about to start -->
         <div class="stage-card">
-            <h3>Approved ideas (ready to draft)</h3>
+            <h3>In production</h3>
+            {% set producing_cards = idea_cards | selectattr('card_state', 'equalto', 'producing') | list %}
             {% set approved_cards = idea_cards | selectattr('card_state', 'equalto', 'approved') | list %}
-            {% set fulfilled_cards = idea_cards | selectattr('card_state', 'equalto', 'capture_fulfilled') | list %}
-            {% if approved_cards or fulfilled_cards %}
-                {% for card in approved_cards + fulfilled_cards %}
+            {% set in_production = producing_cards + approved_cards %}
+            {% if in_production %}
+                {% for card in in_production %}
                 <div class="item">
+                    {% if card.card_state == 'producing' %}<span class="spinner"></span>{% endif %}
                     <a class="item-title" href="/create/draft/{{ card.id }}">{{ card.idea[:80] }}{% if card.idea|length > 80 %}...{% endif %}</a>
-                    <span class="state-badge state-approved">{{ card.card_state }}</span>
+                    <span class="state-badge state-producing">{{ card.card_state }}</span>
                 </div>
                 {% endfor %}
             {% else %}
-                <p class="empty">No approved ideas. <a href="/ideas">Approve some →</a></p>
+                <p class="empty">Nothing in production. <a href="/ideas">Approve ideas →</a></p>
             {% endif %}
         </div>
 
+        <!-- T8.6: Ready for review — auto-chain completed, operator reviews the asset -->
+        <div class="stage-card">
+            <h3>Ready for review</h3>
+            {% set ready_cards = idea_cards | selectattr('card_state', 'equalto', 'asset_ready') | list %}
+            {% if ready_cards %}
+                {% for card in ready_cards %}
+                <div class="item">
+                    <a class="item-title" href="/create/draft/{{ card.id }}">{{ card.idea[:80] }}{% if card.idea|length > 80 %}...{% endif %}</a>
+                    <span class="state-badge state-asset-ready">asset ready</span>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="empty">Nothing ready for review yet.</p>
+            {% endif %}
+        </div>
+
+        <!-- T8.6: Production failed — error surfaced with retry -->
+        {% set failed_cards = idea_cards | selectattr('card_state', 'equalto', 'production_failed') | list %}
+        {% if failed_cards %}
+        <div class="stage-card">
+            <h3>Production failed</h3>
+            {% for card in failed_cards %}
+            <div class="item">
+                <a class="item-title" href="/create/draft/{{ card.id }}">{{ card.idea[:80] }}{% if card.idea|length > 80 %}...{% endif %}</a>
+                <span class="state-badge state-production-failed">failed</span>
+                {% if card.production_error %}
+                <div class="error-text">
+                    {{ card.production_error }}
+                </div>
+                {% endif %}
+                <button class="retry-btn" onclick="retryProduction({{ card.id }})">Retry production</button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Awaiting capture — approved cards that need operator material -->
+        {% set capture_cards = idea_cards | selectattr('card_state', 'equalto', 'awaiting_capture') | list %}
+        {% if capture_cards %}
+        <div class="stage-card">
+            <h3>Awaiting capture</h3>
+            {% for card in capture_cards %}
+            <div class="item">
+                <a class="item-title" href="/create/draft/{{ card.id }}">{{ card.idea[:80] }}{% if card.idea|length > 80 %}...{% endif %}</a>
+                <span class="state-badge state-awaiting-capture">needs material</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Drafts (manual access — operator can still edit from here) -->
         <div class="stage-card">
             <h3>Drafts</h3>
             {% if all_active_drafts %}
@@ -68,10 +128,11 @@
                 </div>
                 {% endfor %}
             {% else %}
-                <p class="empty">No drafts in progress. <a href="/ideas">Approve ideas →</a></p>
+                <p class="empty">No drafts in progress.</p>
             {% endif %}
         </div>
 
+        <!-- Shipped (ready for assets) -->
         <div class="stage-card">
             <h3>Shipped (ready for assets) — {{ shipped|length }}</h3>
             {% if shipped %}
@@ -84,10 +145,11 @@
                 {% endfor %}
             </div>
             {% else %}
-                <p class="empty">No shipped drafts.</p>
+            <p class="empty">No shipped drafts.</p>
             {% endif %}
         </div>
 
+        <!-- Quick stats -->
         <div class="stage-card">
             <h3>Quick stats</h3>
             <div class="item">Total idea cards: {{ idea_cards|length }}</div>
@@ -100,5 +162,21 @@
         <button class="btn" onclick="window.location.href='/ideas'">Go to Ideas →</button>
     </div>
 </div>
+
+<script>
+function retryProduction(cardId) {
+    if (!confirm('Retry production from the failed step?')) return;
+    fetch('/api/ideas/' + cardId + '/retry-production', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(err => alert('Network error: ' + err));
+}
+</script>
 </body>
 </html>

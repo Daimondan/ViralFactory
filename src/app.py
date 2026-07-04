@@ -6528,6 +6528,15 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         for d in shipped:
             d["idea_text"] = card_ideas.get(d["idea_card_id"], "Unknown")
 
+        # T8.6: Parse production_error for display on Create page
+        for c in idea_cards:
+            if c.get("production_error"):
+                try:
+                    err = json.loads(c["production_error"])
+                    c["production_error"] = f"{err.get('step', 'unknown')}: {err.get('error', '')[:150]}"
+                except Exception:
+                    pass
+
         return render_template("create.html",
             business_name=business_name,
             idea_cards=idea_cards,
