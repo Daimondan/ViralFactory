@@ -69,6 +69,7 @@
         .trail-connector.done { background: #4A7C3A; }
 
         .card-meta { font-size: 0.75rem; color: #8A857C; margin-top: 6px; }
+        .time-ago { font-size: 0.72rem; color: #A8A399; }
         .card-error { font-size: 0.75rem; color: #C0392B; margin-top: 4px; }
         .retry-btn { font-size: 0.72rem; padding: 3px 8px; background: rgba(192, 57, 43, 0.1); color: #C0392B; border: 1px solid rgba(192, 57, 43, 0.3); border-radius: 4px; cursor: pointer; margin-top: 6px; }
         .retry-btn:hover { background: rgba(192, 57, 43, 0.2); }
@@ -159,6 +160,10 @@
                 {% endif %}
                 {% endfor %}
             </div>
+
+            {% if card.state_changed_at %}
+            <div class="card-meta time-ago">{{ card.state_changed_at|relative_time }}</div>
+            {% endif %}
 
             {% if card.production_error %}
             <div class="card-error">{{ card.production_error }}</div>

@@ -50,7 +50,9 @@ class BufferAdapter:
 
     def _ensure_tables(self):
         """Create publish_log and post_metrics tables if they don't exist.
-        Reuses the same tables as Postiz — publish_log.postiz_post_id stores Buffer post ID."""
+        Reuses the same tables/columns from the original Postiz adapter —
+        publish_log.postiz_post_id stores the Buffer post ID (backward compat
+        per DIVERGENCE-008 — column name kept to avoid migration of existing rows)."""
         conn = sqlite3.connect(self.db_path)
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS publish_log (

@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-04
-**Current Phase:** Architect review complete. DIVERGENCE-006 ratified (AMENDMENT-006), DIVERGENCE-007 designed (source review gate), DIVERGENCE-008 filed (Postiz→Buffer swap ratified). Corrections issued: jargon cleanup, timestamps, platform fallback, dead code cleanup. 673 tests passing. Builder to apply corrections from `docs/reviews/CORRECTION-jargon-timestamps-cleanup-v1.0.md`.
+**Current Phase:** Architect corrections applied (CORRECTION-jargon-timestamps-cleanup-v1.0 + DIVERGENCE-007 Item 1 + DIVERGENCE-008 cleanup). P1-1 jargon cleanup, P1-2 relative timestamps, P2-1 config-driven platform fallback, P2-2 awaiting-capture deprecation, P2-3 Postiz dead code removed, DIVERGENCE-007 source review gate implemented. 711 tests passing. All docs updated (CHANGELOG, CONTEXT, PROGRESS, CHARTER verified).
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
@@ -258,3 +258,19 @@ Materials Library — editable source materials. DB migrations: `excluded` colum
 - Source Bank nav link added across all 29 templates
 - **Tests:** 661 passing. 0 failures.
 - FIX: FFmpeg concat crash when source files are audio-only (WhatsApp voice memos saved as .mp4 with no video stream). Renderer now probes each source and synthesizes black video for audio-only sources, silent audio for video-only sources. 4 new regression tests. **Tests: 665 passing.**
+
+### 2026-07-04 — Architect corrections applied (CORRECTION-jargon-timestamps-cleanup-v1.0 + DIVERGENCE-007 + DIVERGENCE-008)
+
+**P1-1: Jargon cleanup** — Raw state strings (`asset_ready`, `assembling`, `awaiting_capture`, `writer_failed`, `production_failed`) no longer appear as visible text in operator-facing templates. State-label mappings added to `ideas.html`, `create.html`, `assemble.html`. All state badges show human-readable labels.
+
+**P1-2: Relative timestamps** — `relative_time` Jinja filter added to `create_app()`. Cards on Ideas, Writer, and Assembler pages now show relative timestamps ("2 hours ago", "3 days ago") instead of raw ISO timestamps. `state_changed_at` field added to Writer/Assembler card dicts.
+
+**P2-1: Config-driven platform fallback** — `produce_chain._resolve_format_platforms` no longer falls back to hardcoded `["X", "Instagram"]`. Falls back to business config's platform list (`config/business.yaml`). Charter-compliant — no business values in code.
+
+**P2-2: Awaiting-capture deprecation** — Per AMENDMENT-006, `awaiting_capture` is deprecated as a blocking state. Removed separate "Awaiting" tab from Ideas page. Cards with `awaiting_capture` state now display under "Approved" tab with a "Manage capture" button (visible only when capture tasks exist). Removed `awaiting` from `state_map` in app.py. `pipeline.py` schema comment updated to note deprecation.
+
+**P2-3: Postiz dead code removed** — `src/postiz_adapter.py` deleted. `cron_pull_metrics.py` updated to use `BufferAdapter`. `buffer_adapter.py` docstring updated to note backward-compat column name. No `postiz:` config block in `models.yaml`.
+
+**DIVERGENCE-007 Item 1: Source review gate** — RSS sources now enter the Source Bank with `status='new'` (not `active`). Only `status='active'` sources feed idea generation. Dedup check now looks at any status (prevents re-adding reviewed/removed sources). Source Bank page (`/sources`) has "New" filter button with count, `st-new` CSS class for new badge, and bulk actions bar ("Keep all new →" / "Remove all new") with `/api/sources/bulk-status` endpoint. Operator materials still enter as `active` (intentionally created).
+
+**Tests:** 711 passing (46 new). 0 failures. New test file: `tests/test_architect_corrections.py` (38 tests). Existing `test_t8_3_source_bank.py` updated for `status='new'` change.

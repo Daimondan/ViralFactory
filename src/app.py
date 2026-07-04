@@ -77,6 +77,45 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         except (ValueError, TypeError):
             return []
 
+    # P1-2: Register relative_time Jinja filter for human-readable timestamps
+    from datetime import datetime as _dt, timezone as _tz
+    @app.template_filter("relative_time")
+    def relative_time_filter(iso_string):
+        """Convert ISO timestamp to relative time string (e.g. '2 hours ago')."""
+        if not iso_string:
+            return ""
+        try:
+            # Handle ISO 8601 with or without 'Z' suffix
+            ts_str = iso_string.strip()
+            if ts_str.endswith("Z"):
+                ts_str = ts_str[:-1] + "+00:00"
+            dt = _dt.fromisoformat(ts_str)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=_tz.utc)
+            now = _dt.now(_tz.utc)
+            delta = now - dt
+            seconds = int(delta.total_seconds())
+            if seconds < 0:
+                return "just now"
+            if seconds < 60:
+                return "just now"
+            if seconds < 3600:
+                minutes = seconds // 60
+                return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+            if seconds < 86400:
+                hours = seconds // 3600
+                return f"{hours} hour{'s' if hours != 1 else ''} ago"
+            if seconds < 604800:
+                days = seconds // 86400
+                return f"{days} day{'s' if days != 1 else ''} ago"
+            if seconds < 2592000:
+                weeks = seconds // 604800
+                return f"{weeks} week{'s' if weeks != 1 else ''} ago"
+            months = seconds // 2592000
+            return f"{months} month{'s' if months != 1 else ''} ago"
+        except (ValueError, TypeError):
+            return ""
+
     # F10: Strip basic markdown from preview text
     import re as _re
     @app.template_filter("strip_md")
@@ -3914,8 +3953,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         # Map tabs to states
         state_map = {
             "queue": ["new"],
-            "awaiting": ["awaiting_capture"],
-            "approved": ["approved", "capture_fulfilled"],
+            "approved": ["approved", "capture_fulfilled", "awaiting_capture"],
             "parked": ["parked"],
             "killed": ["killed"],
             "all": None,
@@ -4030,8 +4068,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             counts[s] = counts.get(s, 0) + 1
         counts_display = {
             "new": counts.get("new", 0),
-            "awaiting_capture": counts.get("awaiting_capture", 0),
-            "approved": counts.get("approved", 0) + counts.get("capture_fulfilled", 0),
+            "approved": counts.get("approved", 0) + counts.get("capture_fulfilled", 0) + counts.get("awaiting_capture", 0),
             "parked": counts.get("parked", 0),
             "killed": counts.get("killed", 0),
             "all": len(all_cards),
@@ -6815,6 +6852,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
             # Determine display state for the card
             c["display_state"] = _writer_display_state(card, draft_by_card.get(card["id"]))
+            # P1-2: state_changed_at for relative timestamp display
+            c["state_changed_at"] = card.get("updated_at") or card.get("created_at")
             unified_cards.append(c)
 
         # Count cards per state for filter buttons
@@ -6918,6 +6957,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             c["trail"] = trail
 
             c["display_state"] = _assembler_display_state(card, draft, assets)
+            # P1-2: state_changed_at for relative timestamp display
+            c["state_changed_at"] = card.get("updated_at") or card.get("created_at")
             assembler_cards.append(c)
 
         # Count cards per state for filter buttons
@@ -7162,6 +7203,32 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         conn.close()
 
         return jsonify({"status": "ok", "source_id": source_id, "new_status": new_status})
+
+    @app.route("/api/sources/bulk-status", methods=["POST"])
+    def bulk_update_source_status():
+        """DIVERGENCE-007: Bulk update source status — operator reviews new sources.
+        Updates all sources with from_status to to_status for the current business."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        from_status = request.json.get("from_status", "")
+        to_status = request.json.get("to_status", "")
+        if to_status not in ("active", "parked", "removed"):
+            return jsonify({"error": "Invalid target status. Use active, parked, or removed."}), 400
+        if not from_status:
+            return jsonify({"error": "Missing from_status."}), 400
+
+        conn = __import__("sqlite3").connect(app.config["DB_PATH"])
+        cursor = conn.execute(
+            "UPDATE sources SET status = ? WHERE business_slug = ? AND status = ?",
+            (to_status, business_slug, from_status),
+        )
+        updated = cursor.rowcount
+        conn.commit()
+        conn.close()
+
+        return jsonify({"status": "ok", "updated": updated, "from": from_status, "to": to_status})
 
     @app.route("/health")
     def health():

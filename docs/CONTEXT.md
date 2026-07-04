@@ -12,8 +12,8 @@
 > **On change:** bump `updated_at` date, add/update a decision note in
 > `docs/decisions/` if the change is non-obvious.
 
-**Updated:** 2026-07-04 (architect review: DIVERGENCE-006 ratified as AMENDMENT-006, DIVERGENCE-007 source review gate designed, DIVERGENCE-008 Postiz→Buffer swap ratified)
-**Conforms to:** `docs/CHARTER-v3.3.md` (v3.3 — incorporates DIVERGENCE-001, DIVERGENCE-002, AMENDMENT-003 staged content pipeline, AMENDMENT-004 treatment block, AMENDMENT-006 Writer/Assembler split + four-role nav)
+**Updated:** 2026-07-04 (architect corrections applied: jargon cleanup, relative timestamps, config-driven platform fallback, awaiting-capture deprecation, Postiz→Buffer cleanup, DIVERGENCE-007 source review gate implemented)
+**Conforms to:** `docs/CHARTER-v3.3.md` (v3.3 — incorporates DIVERGENCE-001, DIVERGENCE-002, AMENDMENT-003 staged content pipeline, AMENDMENT-004 treatment block, AMENDMENT-006 Writer/Assembler split + four-role nav, DIVERGENCE-008 Postiz→Buffer swap)
 
 ---
 
@@ -57,7 +57,7 @@ The first business using ViralFactory. All StackPenni-specific values (brand nam
 A spoken or typed idea/take/story from the user. In the staged pipeline, a seed becomes a **human-seeded** idea card (or a **human-seeded-ai-developed** card when the AI sharpens it). A seed can produce multiple pieces (different platforms/formats).
 
 ### Idea card
-The first artifact in the staged pipeline. Each card carries: the idea, hook/title options, a **treatment** (scope: one-off | series-of-N | pillar-with-derivatives; format from the Format Guide — including experimental formats debuting on the card; capture-required tasks; reuse links; rationale), origin tag (`ai-originated` | `human-seeded` | `human-seeded-ai-developed`), and **source_refs** (JSON list of `sources.id` — one or more Source Bank records that ground this idea). `evidence_links` is a derived display field resolved from the referenced source rows, not the grounding mechanism. Every idea cites at least one source by ID; one idea may compose multiple sources into a single story. Treatment is approved WITH the idea at Gate 1 — not developed after. Cards approved with outstanding capture tasks enter **awaiting-capture** until the human supplies material through the materials intake. Gate 1 (rigorous: approve/kill/park) decides which cards proceed to production. **Gate 1 approval triggers production automatically through to asset review** — the chain: draft generation → per-platform fan-out → visual/asset previews, executed as a background job. Publishing is never automatic.
+The first artifact in the staged pipeline. Each card carries: the idea, hook/title options, a **treatment** (scope: one-off | series-of-N | pillar-with-derivatives; format from the Format Guide — including experimental formats debuting on the card; capture-required tasks; reuse links; rationale), origin tag (`ai-originated` | `human-seeded` | `human-seeded-ai-developed`), and **source_refs** (JSON list of `sources.id` — one or more Source Bank records that ground this idea). `evidence_links` is a derived display field resolved from the referenced source rows, not the grounding mechanism. Every idea cites at least one source by ID; one idea may compose multiple sources into a single story. Treatment is approved WITH the idea at Gate 1 — not developed after. Capture tasks are a **non-blocking flag** on the card (per AMENDMENT-006 — awaiting-capture is deprecated as a blocking state; cards with capture tasks flow through approved → Writer like any other). Gate 1 (rigorous: approve/kill/park) decides which cards proceed to production. **Gate 1 approval triggers production automatically through to asset review** — the chain: draft generation → per-platform fan-out → visual/asset previews, executed as a background job. Publishing is never automatic.
 
 ### Treatment
 The decision of how an idea becomes a piece — scope, format, capture needs, reuse, and rationale. Lives ON the card, approved AT Gate 1. The human may edit any part at the gate (direct-edit authority). Compact treatment line (scope · format · capture flag) shown on cards for fast kills; full treatment expands on demand. Not a new stage or gate — it's a property of the card.
@@ -77,7 +77,7 @@ A human approval checkpoint. Three types:
 - **Async proposal queue:** Module updates, source proposals, experiments accumulate in a persistent queue. Daimon clears them when ready — not on a schedule. Every card shows age ("submitted N days ago"). Newer proposals on the same module section supersede older ones (marked, not deleted). No deadline or pressure mechanics. If the queue grows faster than it clears, the proposals are too weak or too many — fix the proposal prompt, never pressure the person.
 
 ### Ship
-A piece Daimon approves goes to the publish queue (Postiz). Does NOT mean immediately posted — Postiz schedules per the Format Guide's timing rules.
+A piece Daimon approves goes to the publish queue (Buffer). Does NOT mean immediately posted — Buffer schedules per the Format Guide's timing rules. *(Postiz→Buffer swap per DIVERGENCE-008.)*
 
 ### Playbook
 A written procedure (markdown) + prompt templates + output schema that the system's AI executes for any user. The generic playbook runner reads and executes these. Playbooks are text files in `playbooks/`, not code.
@@ -102,7 +102,7 @@ Every business has 8 versioned knowledge documents, stored as markdown in `modul
 5. **Audience Insights** — who the content is for and what they respond to
 6. **Feedback Log** — accumulated reactions and direct edits (voice signal)
 7. **Visual Style Guide** — brand look + real-vs-generated blend rules
-8. **Source Bank** — trusted sources, self-growing, self-pruning
+8. **Source Bank** — trusted sources, self-growing, self-pruning. New sources from RSS feeds and research enter with `status='new'` and require operator review before feeding ideation (DIVERGENCE-007). Only `status='active'` sources feed idea generation. Operator materials enter as `active` immediately (intentionally created). The Source Bank page (`/sources`) shows all sources with filter buttons and bulk Keep/Remove for new items.
 
 Every module has: a fixed schema, a version number, a provenance note, and an update path through the gate.
 
@@ -150,7 +150,7 @@ fan-out to per-platform variants (X thread · IG carousel/reel · …)
   NO AUTO-PUBLISH, EVER, AT ANY TRUST LEVEL — HARD RULE
         │
         ▼
-SHIP → Postiz publish queue → posted → metrics
+SHIP → Buffer publish queue → posted → metrics
         │
         ▼
 LEARN
@@ -226,7 +226,7 @@ Scheduled research of what works in the wild: monitors top accounts/hashtags/cha
 - **Two sources disagree:** The source with higher trust score wins; both are preserved in the Source Bank with their scores.
 - **Draft doesn't sound like the user:** The Tells Checklist flags it; the user reacts; the system revises. If 3 revise rounds don't converge, the piece is killed and the failure feeds the Feedback Log.
 - **User directly rewrites most of a draft:** The rewrite is stored as authoritative; the AI's draft is preserved in provenance for comparison; the rewrite patterns feed the Voice Profile update queue.
-- **Postiz is down:** Pieces stay in the publish queue. The system alerts but never loses data. Retries are automatic.
+- **Buffer is down:** Pieces stay in the publish queue. The system alerts but never loses data. Retries are automatic. *(Postiz→Buffer swap per DIVERGENCE-008.)*
 - **Module is empty at draft time:** The drafter says so explicitly ("Voice Profile not yet built — draft will be generic"). Never fills empty modules with invented content.
 - **Proposal queue gets large (>50 pending):** Group by module, show oldest first, allow bulk approve/reject for low-risk proposals (source additions, criteria amendments).
 - **Generalization (customer #2):** Same playbooks run with different config. No code changes. The playbook engine handles it.
@@ -238,7 +238,7 @@ Scheduled research of what works in the wild: monitors top accounts/hashtags/cha
 ## Open Questions
 
 1. ~~**Module storage:**~~ **RESOLVED** (Divergence-002): Repo markdown (`modules/{business}/`) is the system of record — fully standalone. No OB1 dependency whatsoever. ViralFactory has its own SQLite database. Every user onboards the same way (upload materials, share docs, connect Obsidian). OB1 is not involved.
-2. ~~**Postiz deployment:**~~ **RESOLVED** (Claude review): Self-host on the VPS (ownership, AGPL, no per-seat cost, API identical to cloud). Revisit only if maintenance burden bites.
+2. ~~**Publishing platform:**~~ **RESOLVED** (DIVERGENCE-008): Buffer is the publishing + analytics platform (operator confirmed cost-driven swap from Postiz). The `buffer:` block in `config/models.yaml` holds channel IDs. `src/buffer_adapter.py` is the adapter. `src/postiz_adapter.py` deleted.
 3. ~~**LLM backend:**~~ **RESOLVED** (Claude review): Default Ollama Cloud for processing at temperature 0. For the drafter specifically, run an A/B at the M3 checkpoint — same seeds through two configured backends, Daimon reacts blind. Voice quality is the product; the config swap makes this a measurement, not a debate.
 4. **8 modules in context window:** Load all 8 every draft (may exceed smaller model limits), or load essential 4 (Voice, Viral, Story, Format) always and pull others on demand? — *Genuinely deferrable; resolve at M3 when drafter is built.*
 5. **Video generation scope:** xAI Grok for generated video, or text/image only for v1? — *Genuinely deferrable; bounded by the charter's hybrid rules (real anchors for lived claims, generated is supporting layer).*

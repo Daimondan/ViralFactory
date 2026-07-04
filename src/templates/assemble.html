@@ -59,6 +59,7 @@
         .trail-connector.done { background: #4A7C3A; }
 
         .card-meta { font-size: 0.75rem; color: #8A857C; margin-top: 6px; }
+        .time-ago { font-size: 0.72rem; color: #A8A399; }
         .asset-summary { font-size: 0.78rem; color: #8A857C; margin-top: 6px; }
         .empty { color: #A8A399; font-style: italic; padding: 30px; text-align: center; }
         .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(74,111,165,0.2); border-top-color: #4A6FA5; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 4px; vertical-align: middle; }
@@ -147,6 +148,10 @@
                 {% endif %}
                 {% endfor %}
             </div>
+
+            {% if card.state_changed_at %}
+            <div class="card-meta time-ago">{{ card.state_changed_at|relative_time }}</div>
+            {% endif %}
         </div>
         {% else %}
         <p class="empty">No shipped scripts yet. <a href="/create">Ship a draft from Writer →</a></p>

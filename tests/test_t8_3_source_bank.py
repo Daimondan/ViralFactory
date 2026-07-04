@@ -198,7 +198,8 @@ class TestSnapshotWritesToSources:
         assert len(items) == 1
         # Verify the item was written to the sources table
         store = PipelineStore(db_path=db_path)
-        sources = store.list_sources("test-biz")
+        # DIVERGENCE-007: RSS sources enter with status='new', not 'active'
+        sources = store.list_sources("test-biz", status="new")
         assert len(sources) == 1
         assert sources[0]["title"] == "AI Breakthrough"
         assert sources[0]["source_type"] == "rss_item"
@@ -221,7 +222,8 @@ class TestSnapshotWritesToSources:
             snap.fetch_feed("https://example.com/feed", "Feed")
 
         store = PipelineStore(db_path=db_path)
-        sources = store.list_sources("test-biz")
+        # DIVERGENCE-007: RSS sources enter with status='new', not 'active'
+        sources = store.list_sources("test-biz", status="new")
         assert len(sources) == 1  # deduped
 
     def test_fetch_no_business_slug_skips_registration(self, db_path):

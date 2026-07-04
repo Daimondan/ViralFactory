@@ -13,9 +13,12 @@ Tables:
   feedback_log — reactions + direct edits (voice signal, highest weight for edits)
 
 States for idea_cards:
-  new → approved → (awaiting_capture → capture_fulfilled) → drafting → drafted
+  new → approved → writing → draft_ready → (shipped → assembling → asset_ready)
   new → killed   (kill reason → feedback_log)
   new → parked   (retrievable, can be re-activated)
+  NOTE: awaiting_capture is DEPRECATED as a blocking state per AMENDMENT-006.
+        Capture tasks are a non-blocking flag on the card. Cards with capture
+        tasks flow through approved → Writer like any other approved card.
 
 States for drafts:
   drafting → draft_ready → human_pass → shipped  (→ assets)
@@ -49,7 +52,7 @@ CREATE TABLE IF NOT EXISTS idea_cards (
     source_refs TEXT,                     -- JSON array of source IDs from the sources table
     seed_text TEXT,                      -- original seed (for human-seeded origins)
     parent_id INTEGER,                   -- for series children: links to parent card
-    card_state TEXT NOT NULL DEFAULT 'new',  -- new | approved | awaiting_capture | capture_fulfilled | drafting | drafted | killed | parked | producing | asset_ready | production_failed
+    card_state TEXT NOT NULL DEFAULT 'new',  -- new | approved | awaiting_capture (DEPRECATED per AMENDMENT-006) | capture_fulfilled | writing | draft_ready | drafted | killed | parked | producing | assembling | asset_ready | writer_failed | assembly_failed | production_failed
     kill_reason TEXT,
     capture_uploads TEXT,                -- JSON array of uploaded material IDs
     production_error TEXT,                -- JSON: {step, error} when card_state=production_failed

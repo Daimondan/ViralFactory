@@ -258,7 +258,8 @@ class ProductionChain:
 
         # Resolve platform set from Format Guide entry
         ms = ModuleStore(modules_dir=self.modules_dir, db_path=self.db_path)
-        format_platform_names = _resolve_format_platforms(ms, business_slug, draft_format)
+        # P2-1: Pass business config for config-driven platform fallback
+        format_platform_names = _resolve_format_platforms(ms, business_slug, draft_format, business_config=business)
 
         # T8.5: Source titles for fan-out
         card = store.get_idea_card(card_id)
@@ -369,14 +370,18 @@ class ProductionChain:
 
 # ── Helper functions (mirror those in app.py) ──
 
-def _resolve_format_platforms(ms, business_slug: str, format_name: str) -> list:
+def _resolve_format_platforms(ms, business_slug: str, format_name: str, business_config: dict = None) -> list:
     """Resolve the platform set for a format from the Format Guide entry.
-    Uses the same ModuleStore.get_entry API as the app.py version."""
+    Uses the same ModuleStore.get_entry API as the app.py version.
+    Falls back to the business config's platform list (config-driven, not hardcoded)."""
     if not format_name:
         return []
     try:
         entry = ms.get_entry(business_slug, "format-guide", "Formats", format_name)
         if not entry:
+            # P2-1: Fall back to business config platforms, not hardcoded names
+            if business_config:
+                return [p["name"] for p in business_config.get("platforms", [])]
             return []
         # Parse platforms from the entry text
         import re
@@ -388,9 +393,15 @@ def _resolve_format_platforms(ms, business_slug: str, format_name: str) -> list:
             # Parse comma or slash separated list
             plats = [p.strip() for p in re.split(r"[,/]", plats_str) if p.strip()]
             return plats
+        # No platforms line found — fall back to business config
+        if business_config:
+            return [p["name"] for p in business_config.get("platforms", [])]
         return []
     except Exception:
-        return ["X", "Instagram"]  # fallback
+        # P2-1: Fall back to business config platforms, not hardcoded names
+        if business_config:
+            return [p["name"] for p in business_config.get("platforms", [])]
+        return []
 
 
 def _determine_variant_type(format_name: str, platform_name: str) -> str:

@@ -183,18 +183,20 @@ class SourceSnapshot:
             content_hash = hashlib.sha256(url.encode("utf-8")).hexdigest()[:16] if url else None
             if not content_hash:
                 content_hash = hashlib.sha256(title.encode("utf-8")).hexdigest()[:16]
-            # Check for existing
+            # Check for existing (any status — don't re-add if already reviewed or pending)
             existing = conn.execute(
-                "SELECT id FROM sources WHERE business_slug = ? AND content_hash = ? AND status = 'active'",
+                "SELECT id FROM sources WHERE business_slug = ? AND content_hash = ?",
                 (self.business_slug, content_hash),
             ).fetchone()
             if existing:
                 continue
+            # DIVERGENCE-007: New RSS sources enter with status='new' (not 'active').
+            # The operator reviews them before they feed idea generation.
             conn.execute(
                 """INSERT INTO sources
                    (business_slug, source_type, title, url, summary, content,
                     origin, first_seen, content_hash, status)
-                   VALUES (?, 'rss_item', ?, ?, ?, ?, 'system', ?, ?, 'active')""",
+                   VALUES (?, 'rss_item', ?, ?, ?, ?, 'system', ?, ?, 'new')""",
                 (self.business_slug, title, url, summary, content,
                  self._now(), content_hash),
             )

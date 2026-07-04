@@ -30,6 +30,8 @@
         .state-drafting { background: rgba(74, 111, 165, 0.12); color: #4A6FA5; }
 
         .card-idea { font-size: 1rem; line-height: 1.5; margin-bottom: 10px; }
+        .card-meta { font-size: 0.75rem; color: #8A857C; margin-top: 4px; margin-bottom: 8px; }
+        .time-ago { font-size: 0.72rem; color: #A8A399; }
         .card-hooks { font-size: 0.85rem; color: #8A857C; margin-bottom: 10px; }
         .card-hooks li { margin-left: 18px; margin-bottom: 2px; }
 
@@ -115,6 +117,25 @@
         <button class="tab {{ 'active' if active_tab == 'all' else '' }}" onclick="window.location.href='/ideas?tab=all'">All ({{ counts.all }})</button>
     </div>
 
+    {% set state_labels = {
+        'new': 'New',
+        'approved': 'Approved',
+        'capture_fulfilled': 'Approved',
+        'awaiting_capture': 'Approved',
+        'writing': 'Writing',
+        'draft_ready': 'Draft ready',
+        'drafting': 'Drafting',
+        'drafted': 'Draft ready',
+        'producing': 'Producing',
+        'asset_ready': 'At Assembler',
+        'writer_failed': 'Failed',
+        'assembly_failed': 'Failed',
+        'production_failed': 'Failed',
+        'killed': 'Killed',
+        'parked': 'Parked',
+        'shipped': 'Shipped'
+    } %}
+
     {% if active_tab == 'queue' %}
     <div class="seed-box">
         <h2>Seed an idea</h2>
@@ -145,7 +166,7 @@
                 <span class="origin-badge origin-{{ {'ai_originated': 'ai', 'human_seeded': 'human', 'human_seeded_ai_developed': 'developed'}.get(card.origin, 'ai') }}">
                     {{ {'ai_originated': 'AI', 'human_seeded': 'Human', 'human_seeded_ai_developed': 'Human+AI'}.get(card.origin, card.origin) }}
                 </span>
-                <span class="card-state state-{{ card.card_state }}">{{ card.card_state }}</span>
+                <span class="card-state state-{{ card.card_state }}">{{ state_labels.get(card.card_state, card.card_state|replace('_',' ')) }}</span>
             </div>
 
             {% if card.parent_id %}
@@ -153,6 +174,10 @@
             {% endif %}
 
             <div class="card-idea">{{ card.idea }}</div>
+
+            {% if card.created_at %}
+            <div class="card-meta time-ago">{{ card.created_at|relative_time }}</div>
+            {% endif %}
 
             {% if card.hook_options %}
             <ul class="card-hooks">
@@ -230,12 +255,11 @@
             </div>
             {% endif %}
 
-            {% if card.card_state == 'awaiting_capture' %}
+            {% if card.card_state == 'awaiting_capture' or card.card_state == 'approved' or card.card_state == 'capture_fulfilled' %}
             <div class="card-actions">
+                {% if card.capture_tasks %}
                 <button class="btn btn-secondary" onclick="window.location.href='/ideas/{{ card.id }}/capture'">Manage capture</button>
-            </div>
-            {% elif card.card_state == 'approved' or card.card_state == 'capture_fulfilled' %}
-            <div class="card-actions">
+                {% endif %}
                 <button class="btn btn-approve" onclick="window.location.href='/create/draft/{{ card.id }}'">View in Writer →</button>
             </div>
             {% elif card.card_state == 'writing' %}

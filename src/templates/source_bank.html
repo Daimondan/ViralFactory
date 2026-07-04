@@ -39,6 +39,7 @@
 
         .status-badge { font-size: 0.68rem; padding: 2px 8px; border-radius: 8px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
         .st-active { background: rgba(74, 124, 58, 0.12); color: #4A7C3A; }
+        .st-new { background: rgba(229, 75, 44, 0.12); color: #E54B2C; font-weight: 700; }
         .st-parked { background: rgba(212, 168, 67, 0.15); color: #8A6D20; }
         .st-removed { background: rgba(192, 57, 43, 0.12); color: #C0392B; }
 
@@ -48,6 +49,11 @@
         .btn-park { background: rgba(212, 168, 67, 0.15); color: #8A6D20; }
         .btn-remove { background: rgba(192, 57, 43, 0.12); color: #C0392B; }
         .btn:disabled { opacity: 0.4; cursor: default; }
+
+        /* DIVERGENCE-007: Bulk actions for new sources */
+        .bulk-bar { display: flex; gap: 8px; align-items: center; margin: 12px 0; padding: 10px 14px; background: #F0EDE4; border-radius: 8px; }
+        .bulk-bar .btn { padding: 6px 16px; font-size: 0.82rem; }
+        .bulk-bar .hint { font-size: 0.78rem; color: #8A857C; margin-left: 8px; }
 
         .empty { color: #A8A399; font-style: italic; padding: 30px; text-align: center; }
     </style>
@@ -68,19 +74,35 @@
     </div>
 
     <h1>Source Bank — {{ business_name }}</h1>
-    <p class="subtle">Every source the system has ingested. Review new items, park irrelevant ones, remove junk. Sources feed idea generation.</p>
+    <p class="subtle">Every source the system has ingested. Review new items, park irrelevant ones, remove junk. Only approved sources feed idea generation.</p>
 
     <!-- Filter bar with counts -->
     <div class="filter-bar" id="filterBar">
         <button class="filter-btn active" data-filter="all" onclick="filterSources('all')">
             All <span class="filter-count">{{ sources|length }}</span>
         </button>
+        {% set status_labels = {
+            'new': 'New',
+            'active': 'Active',
+            'parked': 'Parked',
+            'removed': 'Removed'
+        } %}
         {% for status, count in status_counts.items() %}
         <button class="filter-btn" data-filter="{{ status }}" onclick="filterSources('{{ status }}')">
-            {{ status|capitalize }} <span class="filter-count">{{ count }}</span>
+            {{ status_labels.get(status, status|capitalize) }} <span class="filter-count">{{ count }}</span>
         </button>
         {% endfor %}
     </div>
+
+    {% if status_counts.get('new', 0) > 0 %}
+    <!-- DIVERGENCE-007: Bulk actions for new sources -->
+    <div class="bulk-bar" id="bulkBar">
+        <strong>{{ status_counts.new }} new source{{ 's' if status_counts.new != 1 else '' }} awaiting review.</strong>
+        <button class="btn btn-keep" onclick="bulkUpdateSources('active')">Keep all new →</button>
+        <button class="btn btn-remove" onclick="bulkUpdateSources('removed')">Remove all new</button>
+        <span class="hint">New sources don't feed idea generation until you approve them.</span>
+    </div>
+    {% endif %}
 
     <!-- Source list -->
     <div class="source-list" id="sourceList">
@@ -95,7 +117,7 @@
                     {{ source.title[:100] }}{% if source.title|length > 100 %}...{% endif %}
                     {% endif %}
                 </div>
-                <span class="status-badge st-{{ source.display_status }}">{{ source.display_status }}</span>
+                <span class="status-badge st-{{ source.display_status }}">{{ status_labels.get(source.display_status, source.display_status|capitalize) }}</span>
             </div>
             {% if source.summary %}
             <div class="source-summary">{{ source.summary[:300] }}{% if source.summary|length > 300 %}...{% endif %}</div>
@@ -161,6 +183,23 @@ function updateSource(sourceId, newStatus) {
             if (newStatus !== 'removed') actions.innerHTML += removeBtn;
         }
     });
+}
+
+// DIVERGENCE-007: Bulk update all new sources
+function bulkUpdateSources(newStatus) {
+    var action = newStatus === 'active' ? 'Keep all new' : 'Remove all new';
+    if (!confirm(action + '? This will update all sources currently marked as "new".')) return;
+    fetch('/api/sources/bulk-status', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({from_status: 'new', to_status: newStatus}),
+    }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.status === 'ok') {
+            alert('Updated ' + data.updated + ' source(s).');
+            window.location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'unknown'));
+        }
+    }).catch(function(err) { alert('Network error: ' + err); });
 }
 </script>
 </body>

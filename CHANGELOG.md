@@ -6,6 +6,32 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-04 FIX — Architect corrections applied: jargon cleanup, relative timestamps, config-driven platform fallback, awaiting-capture deprecation, Postiz dead code removed, source review gate
+
+**What:**
+
+1. **P1-1: Jargon cleanup** — Raw developer-facing state strings (`asset_ready`, `assembling`, `writer_failed`, `assembly_failed`, `production_failed`, `awaiting_capture`) no longer appear as visible text in operator-facing templates. State-label mapping dicts added to `ideas.html`, `create.html`, `assemble.html`. The Ideas page "Awaiting" tab removed (awaiting-capture cards now show under "Approved" with a "Manage capture" button when capture tasks exist).
+
+2. **P1-2: Relative timestamps** — `relative_time` Jinja filter registered in `create_app()`. Cards on Ideas (`created_at`), Writer (`state_changed_at`), and Assembler (`state_changed_at`) pages now show relative timestamps ("2 hours ago", "3 days ago") instead of raw ISO timestamps. `.time-ago` CSS class used for display.
+
+3. **P2-1: Config-driven platform fallback** — `produce_chain._resolve_format_platforms` no longer falls back to hardcoded `["X", "Instagram"]` when the Format Guide entry is missing. Falls back to the business config's platform list (`config/business.yaml` → `business.platforms`). Charter-compliant — no business values in code.
+
+4. **P2-2: Awaiting-capture deprecation** — Per AMENDMENT-006, `awaiting_capture` is deprecated as a blocking state. Removed separate "Awaiting" tab from Ideas page. Removed `awaiting` key from `state_map` in app.py. `awaiting_capture` state folded into the "Approved" tab. `pipeline.py` schema comment updated to note the deprecation. Capture tasks still display on cards as a non-blocking flag.
+
+5. **P2-3: Postiz dead code removed** — `src/postiz_adapter.py` deleted (dead code — nothing imported it; system uses `buffer_adapter.py`). `cron_pull_metrics.py` updated to import and use `BufferAdapter` + `BufferError`. `buffer_adapter.py` docstring updated to note `postiz_post_id` column name is kept for backward compat with existing publish_log rows per DIVERGENCE-008. No `postiz:` config block in `config/models.yaml`.
+
+6. **DIVERGENCE-007 Item 1: Source review gate** — RSS sources now enter the Source Bank with `status='new'` (not `active`). Only `status='active'` sources feed idea generation. Dedup check in `source_snapshot.py` now looks at any status (prevents re-adding reviewed/removed sources). Source Bank page (`/sources`) has "New" filter button with count, `st-new` CSS class for new badge, bulk actions bar ("Keep all new →" / "Remove all new") with new `/api/sources/bulk-status` endpoint. Operator materials still enter as `active` (intentionally created by the operator). Source neural network (Item 2) deferred.
+
+**Why:** Architect deep review (CORRECTION-jargon-timestamps-cleanup-v1.0) found jargon leaking into operator UI, missing timestamps on pipeline pages, hardcoded platform fallback, dead awaiting-capture code, and dead Postiz code. DIVERGENCE-007 designed the source review gate (soft gate, not hard — new sources visible but don't feed ideation until reviewed). DIVERGENCE-008 ratified the Postiz→Buffer swap with conditions (delete dead code, update docs).
+
+**Rationale:** The charter requires staleness to be always visible (async gate philosophy). Raw state strings in operator UI violate the "no jargon" expectation. Hardcoded platform fallbacks violate "no business values in code." Dead code that contradicts the live system is a defect. The source review gate is consistent with the charter's async-gate philosophy: no pressure, no deadlines, operator reviews when ready.
+
+**Files:** `src/templates/ideas.html`, `src/templates/create.html`, `src/templates/assemble.html`, `src/templates/source_bank.html`, `src/app.py`, `src/produce_chain.py`, `src/pipeline.py`, `src/source_snapshot.py`, `src/buffer_adapter.py`, `cron_pull_metrics.py`, `tests/test_architect_corrections.py`, `tests/test_t8_3_source_bank.py`, `docs/CONTEXT.md`, `docs/PROGRESS.md`
+
+**Type:** FIX (P1-1, P1-2, P2-1, P2-2, P2-3) + STRUCTURE (DIVERGENCE-007)
+
+---
+
 ### 2026-07-04 STRATEGIC — Architect review: DIVERGENCE-006 ratified, DIVERGENCE-007 designed, DIVERGENCE-008 filed, corrections issued
 
 **What:**

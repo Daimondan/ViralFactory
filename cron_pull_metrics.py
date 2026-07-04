@@ -2,7 +2,7 @@
 """
 ViralFactory — Nightly Metrics Pull Cron (T4.2)
 
-Pulls post analytics from Postiz for all published pieces.
+Pulls post analytics from Buffer for all published pieces.
 Designed to run via cron nightly. Stores metrics in post_metrics table.
 
 Usage:
@@ -10,7 +10,7 @@ Usage:
 
 Exit codes:
     0 — success (even if some pulls failed; failures are logged)
-    1 — configuration error (Postiz not configured)
+    1 — configuration error (Buffer not configured)
 """
 
 import sys
@@ -21,7 +21,7 @@ import logging
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
 
 from config_loader import load_all, ConfigError
-from postiz_adapter import PostizAdapter, PostizError
+from buffer_adapter import BufferAdapter, BufferError
 
 logging.basicConfig(
     level=logging.INFO,
@@ -32,7 +32,7 @@ logger = logging.getLogger("viralfactory.cron.metrics")
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Pull Postiz metrics for all published pieces")
+    parser = argparse.ArgumentParser(description="Pull Buffer metrics for all published pieces")
     parser.add_argument("--days", type=int, default=7, help="Days to look back (default 7)")
     parser.add_argument("--business", type=str, default=None, help="Business slug (auto-detected if omitted)")
     parser.add_argument("--config-dir", type=str, default="config", help="Config directory")
@@ -57,18 +57,18 @@ def main():
             sys.exit(1)
 
     # Create adapter
-    postiz = PostizAdapter(models_config, db_path=args.db_path)
+    buffer = BufferAdapter(models_config, db_path=args.db_path)
 
-    if not postiz.is_available():
-        logger.warning("Postiz not available — skipping metrics pull")
+    if not buffer.is_available():
+        logger.warning("Buffer not available — skipping metrics pull")
         sys.exit(0)
 
     # Pull metrics
     logger.info(f"Pulling metrics for business '{business_slug}', days={args.days}")
     try:
-        result = postiz.pull_all_metrics(business_slug, days=args.days)
+        result = buffer.pull_all_metrics(business_slug, days=args.days)
         logger.info(f"Metrics pull complete: {result['pulled']} succeeded, {result['failed']} failed, {result['total']} total")
-    except PostizError as e:
+    except BufferError as e:
         logger.error(f"Metrics pull failed: {e}")
         sys.exit(0)  # Don't fail the cron — retry next night
 
