@@ -16,6 +16,7 @@
 
         /* Post/slide list — how the content actually appears */
         .post-list { padding: 0; max-height: 400px; overflow-y: auto; }
+        .post-list.story-list { max-height: none; overflow-y: visible; }
         .post-item { padding: 12px 16px; border-bottom: 1px solid #F0EDE4; display: flex; gap: 12px; }
         .post-item:last-child { border-bottom: none; }
         .post-number { font-size: 0.75rem; color: #555; min-width: 20px; padding-top: 2px; }
@@ -228,7 +229,7 @@
 
             {% elif (is_carousel or is_story_series) and has_posts %}
             {# INSTAGRAM CAROUSEL / STORY SERIES: show every slide/frame #}
-            <div class="post-list">
+            <div class="post-list story-list">
                 {% for post in asset.posts_parsed %}
                 <div class="post-item">
                     <div class="post-number">{{ loop.index }}/{{ asset.posts_parsed|length }}</div>
