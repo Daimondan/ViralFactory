@@ -109,3 +109,33 @@ I recommend the architect:
 4. **Approve the Assembler as media-only** — format/platform locked from treatment, no text LLM calls
 
 This divergence does not block any current BUILD_PLAN task. The keyword heuristic fix can proceed as a charter violation fix.
+
+## Architect decision — 2026-07-04
+
+**All 5 changes APPROVED. Ratified via AMENDMENT-007 (`docs/decisions/AMENDMENT-007-writer-per-platform-assembler-media-only.md`). Charter v3.3 → v3.4.**
+
+### Findings before ruling
+
+1. **`_determine_variant_type` is a confirmed Business Rule #2 violation.** `produce_chain.py:407-419` and `app.py:3904` both use `if "thread" in format_lower` / `if "carousel" in format_lower` — keyword matching in code. Must be removed regardless of the structural changes.
+
+2. **`_resolve_format_platforms` is also judgment-in-code.** `produce_chain.py:373-404` and `app.py:3878-3901` parse Format Guide entry text with regex to extract platform names. Fragile and a judgment task done by code. The treatment carries the format name; the Format Guide carries the platforms. Both should be structured data, not regex-parsed text.
+
+3. **Builder's finding on Source Bank loading is correct.** The draft prompt loads 7 modules + grounding sources as a separate variable. Source Bank feeds ideation, not drafting. No redundancy. No change needed (issue #3).
+
+4. **The fan-out and structure prompts do LLM text generation in the Assembler.** If the Writer produces per-platform text, both become unnecessary. Approved for retirement from the Assembler path.
+
+5. **The self-audit is passive.** The charter says the drafter "self-audits against the Tells Checklist and presents suspect lines." Current implementation flags lines and shows them to the human — but does not auto-fix or cross-check. The operator wants active remediation + a second-AI alignment check. Approved, with the design specs in AMENDMENT-007 §3.
+
+### Rulings
+
+| # | Issue | Ruling | AMENDMENT-007 section |
+|---|---|---|---|
+| 1 | Format/platforms re-derived in Assembler | **APPROVED** — charter violation fix. Keyword heuristic + regex parser removed. Format + platforms locked from treatment. | §4 |
+| 2 | Writer produces per-platform text | **APPROVED** — DRAFT_SCHEMA gains `platform_content` array. Writer writes all platforms in one pass. | §1 |
+| 3 | Source Bank loaded into draft? | **No change** — builder's finding confirmed. No redundancy. | §5 |
+| 4 | AI review loop before Gate 2 | **APPROVED** — self-audit auto-fix + second-AI alignment check, max 3 rounds. Human is still the final gate. | §3 |
+| 5 | Assembler = media-only | **APPROVED** — zero LLM text calls. `fan_out_v2.md` and `structure_v1.md` retired from Assembler path. | §2 |
+
+### Implementation order
+
+M9 tasks added to BUILD_PLAN v1.6: T9.1 (charter violation fix) → T9.2 (Format Guide schema) → T9.3 (Writer restructure) → T9.4 (Assembler restructure) → T9.5 (AI review loop) → T9.6 (tests). See BUILD_PLAN.md for acceptance criteria.
