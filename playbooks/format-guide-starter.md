@@ -4,6 +4,7 @@
 
 <!-- run_order: 7 -->
 <!-- display_label: Format Guide -->
+<!-- required_inputs: platform_list, format_observations, platform_norms -->
 
 ## Purpose
 

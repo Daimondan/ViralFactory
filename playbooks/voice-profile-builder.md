@@ -4,6 +4,7 @@
 
 <!-- run_order: 2 -->
 <!-- display_label: Voice Profile -->
+<!-- required_inputs: voice_samples, tone_redlines -->
 
 ## Purpose
 

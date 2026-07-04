@@ -4,6 +4,7 @@
 
 <!-- run_order: 8 -->
 <!-- display_label: Visual Style -->
+<!-- required_inputs: photo_library, brand_assets, visual_examples, platform_list -->
 
 ## Purpose
 

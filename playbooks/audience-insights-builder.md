@@ -4,6 +4,7 @@
 
 <!-- run_order: 5 -->
 <!-- display_label: Audience Insights -->
+<!-- required_inputs: audience_description, audience_data, admired_signals -->
 
 ## Purpose
 

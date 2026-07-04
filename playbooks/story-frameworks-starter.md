@@ -4,6 +4,7 @@
 
 <!-- run_order: 6 -->
 <!-- display_label: Story Frameworks -->
+<!-- required_inputs: admired_examples, operator_stories, voice_summary -->
 
 ## Purpose
 

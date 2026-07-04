@@ -4,6 +4,7 @@
 
 <!-- run_order: 1 -->
 <!-- display_label: Business Profile -->
+<!-- required_inputs: business_qa -->
 
 ## Purpose
 

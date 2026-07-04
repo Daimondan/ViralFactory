@@ -4,6 +4,7 @@
 
 <!-- run_order: 4 -->
 <!-- display_label: Viral Patterns -->
+<!-- required_inputs: admired_links, anti_examples, top_performers -->
 
 ## Purpose
 

@@ -51,6 +51,7 @@ class Playbook:
     file_version: str
     run_order: int = 99             # UI-REVIEW-001 F1: explicit ordering, config-driven
     display_label: str = ""         # UI-REVIEW-001 F4: operator-facing label
+    required_inputs: list = field(default_factory=list)  # machine-readable input keys
 
 
 class PlaybookParser:
@@ -77,6 +78,12 @@ class PlaybookParser:
         # Extract display_label from comment (UI-REVIEW-001 F4)
         display_label_match = re.search(r'<!--\s*display_label:\s*(.+?)\s*-->', content)
         display_label = display_label_match.group(1) if display_label_match else name
+
+        # Extract required_inputs from comment (machine-readable input keys)
+        required_inputs_match = re.search(r'<!--\s*required_inputs:\s*(.+?)\s*-->', content)
+        required_inputs = []
+        if required_inputs_match:
+            required_inputs = [s.strip() for s in required_inputs_match.group(1).split(",")]
 
         # Extract sections by markdown headers
         purpose = PlaybookParser._extract_section(content, "Purpose")
@@ -115,6 +122,7 @@ class PlaybookParser:
             file_version=version,
             run_order=run_order,
             display_label=display_label,
+            required_inputs=required_inputs,
         )
 
     @staticmethod
