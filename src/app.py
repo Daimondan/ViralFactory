@@ -4674,6 +4674,28 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             previous_draft = "(first draft — no previous version)"
             revision_feedback = "(first draft — no previous version)"
 
+        # T8.5: Assemble grounding_sources from the card's source_refs
+        source_ref_ids = json.loads(card.get("source_refs") or "[]")
+        grounding_sources = "(no sources cited on this card)"
+        if source_ref_ids:
+            resolved_sources = store.resolve_source_refs(business_slug, source_ref_ids)
+            if resolved_sources:
+                source_blocks = []
+                for src in resolved_sources:
+                    block = f"### [S{src['id']}] {src['title']}"
+                    if src.get("url"):
+                        block += f"\nURL: {src['url']}"
+                    content = src.get("content") or ""
+                    summary = src.get("summary") or ""
+                    if content:
+                        block += f"\n\n{content}"
+                    elif summary:
+                        block += f"\n\n{summary}\n\n(summary only — full content not available)"
+                    else:
+                        block += "\n\n(no content or summary available)"
+                    source_blocks.append(block)
+                grounding_sources = "\n\n---\n\n".join(source_blocks)
+
         from llm_adapter import LLMAdapter, LLMAdapterError
         from pipeline import DRAFT_SCHEMA
 
@@ -4690,6 +4712,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     "scope": scope,
                     "idea": card["idea"],
                     "hook_options": "\n".join(f"- {h}" for h in hook_options),
+                    "grounding_sources": grounding_sources,
                     "capture_material": capture_text[:2000] if capture_text else "(none)",
                     "previous_draft": previous_draft,
                     "revision_feedback": revision_feedback,
@@ -5145,6 +5168,15 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         visual_direction = json.loads(draft.get("visual_direction") or "{}")
         draft_format = draft.get("format", "")
 
+        # T8.5: Resolve source titles for fan-out context (titles only, not full content)
+        card = store.get_idea_card(draft["idea_card_id"])
+        source_ref_ids = json.loads(card.get("source_refs") or "[]") if card else []
+        source_titles = "(none)"
+        if source_ref_ids:
+            resolved = store.resolve_source_refs(business_slug, source_ref_ids)
+            if resolved:
+                source_titles = "\n".join(f"- [S{s['id']}] {s['title']}" for s in resolved)
+
         # S3: Resolve platform set from the treatment format's Format Guide entry
         from module_store import ModuleStore
         modules_dir = app.config.get("MODULES_DIR", "modules")
@@ -5270,6 +5302,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                             "platform_name": platform_name,
                             "platform_handle": platform_info.get("handle", ""),
                             "draft_text": draft["draft_text"][:4000],
+                            "source_titles": source_titles,
                             "visual_direction": json.dumps(visual_direction)[:1000],
                             "format": draft_format,
                             **module_vars,

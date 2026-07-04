@@ -1,4 +1,4 @@
-<!-- version: 2.2 -->
+<!-- version: 2.3 -->
 # Draft Generation v2
 
 You are drafting a piece of content in the voice of a specific person. This is the core creative step of the co-production loop.
@@ -17,6 +17,12 @@ You are drafting a piece of content in the voice of a specific person. This is t
 ## Hook options (from the card — choose or create a better one)
 
 {hook_options}
+
+## Grounding sources (facts, quotes, dates, specifics MUST come from these)
+
+The following sources ground this idea. Facts, quotes, dates, statistics, and specific details in the draft MUST come from these sources. Do NOT fabricate specifics that are not present in them. If a source is marked "(summary only)", use its summary-level information with appropriate caution.
+
+{grounding_sources}
 
 ## The person's voice (Voice Profile — write in THIS voice, not generic "good writing")
 
@@ -83,6 +89,7 @@ After writing, check your draft against the Tells Checklist. Flag any lines that
 
 - Write in the person's voice — use their patterns, their dialect (never sanitized), their specific way of saying things
 - Include a specific detail only this person could know (from the idea or capture material)
+- Facts, quotes, dates, statistics, and specific details MUST come from the grounding sources — do NOT fabricate specifics not present in them
 - Do NOT produce generic "good writing" — produce THIS person's writing
 - The visual direction is text only — no image generation, no pixel references. But it must be concrete and actionable.
 - Self-audit honestly — if a line feels like an AI tell, flag it. The human will judge.

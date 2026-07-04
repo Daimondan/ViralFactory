@@ -1,4 +1,4 @@
-<!-- version: 2.1 -->
+<!-- version: 2.2 -->
 # Asset Fan-out (per-platform variant)
 
 You are producing a per-platform variant of a master draft. The human has already reviewed and approved the master draft. Now adapt it for a specific platform.
@@ -8,9 +8,13 @@ You are producing a per-platform variant of a master draft. The human has alread
 - Platform: {platform_name} ({platform_handle})
 - Source format: {format}
 
-## Master draft (approved by the human)
+## Master draft (approved by the human — this is authoritative, do NOT re-write facts)
 
 {draft_text}
+
+## Source references (titles only — for attribution context, do NOT re-write facts from these)
+
+{source_titles}
 
 ## Visual direction (from the draft)
 
