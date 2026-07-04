@@ -453,6 +453,26 @@ class MediaAdapter:
 
     # ── Querying stored media ──
 
+    def clear_draft_media(self, draft_id: int) -> int:
+        """Delete all draft preview media rows for a draft.
+
+        Called before generating fresh draft visuals so stale images from a
+        previous draft generation (different content/topic) don't persist and
+        get carried into assets during fan-out.
+
+        Returns count of deleted rows.
+        """
+        import sqlite3
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.execute(
+            "DELETE FROM asset_media WHERE asset_id = ? AND owner_type = 'draft'",
+            (draft_id,),
+        )
+        deleted = cursor.rowcount
+        conn.commit()
+        conn.close()
+        return deleted
+
     def list_asset_media(self, asset_id: int, kind: str = None,
                          owner_type: str = None) -> list[dict]:
         """List all media for an asset, optionally filtered by kind and/or owner_type.

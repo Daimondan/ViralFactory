@@ -195,8 +195,8 @@
                         </div>
                     </div>
                     {% set img_idx = loop.index0 %}
-                    {% if has_images and img_idx < asset.images|length %}
-                    <img class="post-image" src="/media/{{ asset.images[img_idx].path }}" alt="Image for tweet {{ loop.index }}" onclick="openLightbox(this.src, 'Tweet {{ loop.index }} — {{ handle }}')">
+                    {% if asset.post_images and img_idx < asset.post_images|length and asset.post_images[img_idx] %}
+                    <img class="post-image" src="/media/{{ asset.post_images[img_idx].path }}" alt="Image for tweet {{ loop.index }}" onclick="openLightbox(this.src, 'Tweet {{ loop.index }} — {{ handle }}')">
                     {% elif asset.image_prompts_parsed and img_idx < asset.image_prompts_parsed|length and asset.image_prompts_parsed[img_idx] != 'none' %}
                     <div class="post-image-placeholder">img</div>
                     {% endif %}
@@ -214,8 +214,8 @@
                         <div class="post-text">{{ post }}</div>
                     </div>
                     {% set img_idx = loop.index0 %}
-                    {% if has_images and img_idx < asset.images|length %}
-                    <img class="post-image" src="/media/{{ asset.images[img_idx].path }}" alt="Slide {{ loop.index }}" onclick="openLightbox(this.src, 'Slide {{ loop.index }} — {{ handle }}')">
+                    {% if asset.post_images and img_idx < asset.post_images|length and asset.post_images[img_idx] %}
+                    <img class="post-image" src="/media/{{ asset.post_images[img_idx].path }}" alt="Slide {{ loop.index }}" onclick="openLightbox(this.src, 'Slide {{ loop.index }} — {{ handle }}')">
                     {% elif asset.image_prompts_parsed and img_idx < asset.image_prompts_parsed|length and asset.image_prompts_parsed[img_idx] != 'none' %}
                     <div class="post-image-placeholder">slide</div>
                     {% endif %}

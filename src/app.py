@@ -3844,14 +3844,34 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
     def _carry_draft_media(db_path: str, draft_id: int, asset_id: int):
         """S4: Copy draft media rows into a spawned asset (link, don't re-render).
         Copies owner_type='draft' rows for this draft_id as new owner_type='asset'
-        rows with the new asset_id, same file path (no file copy)."""
+        rows with the new asset_id, same file path (no file copy).
+
+        Only carries media whose prompt matches one of the draft's current
+        visual_direction image_prompts. Stale media from a previous draft
+        generation (different content) is silently skipped — it would produce
+        mismatched image/text pairing on the asset page.
+        """
         import sqlite3 as _sqlite3
+        import json as _json
         conn = _sqlite3.connect(db_path)
         # Check owner_type column exists
         cols = [row[1] for row in conn.execute("PRAGMA table_info(asset_media)").fetchall()]
         if "owner_type" not in cols:
             conn.close()
             return 0
+
+        # Get the draft's current visual_direction prompts for validation
+        draft_row = conn.execute(
+            "SELECT visual_direction FROM drafts WHERE id = ?", (draft_id,)
+        ).fetchone()
+        current_prompts = set()
+        if draft_row and draft_row[0]:
+            try:
+                vd = _json.loads(draft_row[0])
+                for p in vd.get("image_prompts", []):
+                    current_prompts.add(p.strip().lower())
+            except (ValueError, TypeError):
+                pass
 
         # Get draft media rows
         rows = conn.execute(
@@ -3868,6 +3888,11 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         carried = 0
         for row in rows:
             kind, path, model, prompt, cost_usd = row
+            # Skip stale media: if we have current prompts to validate against,
+            # only carry media whose prompt matches one of them.
+            if current_prompts and prompt:
+                if prompt.strip().lower() not in current_prompts:
+                    continue  # Stale image from a previous draft generation
             conn.execute(
                 """INSERT INTO asset_media
                    (asset_id, kind, path, model, prompt, cost_usd, created_at, owner_type)
@@ -5300,6 +5325,12 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         # F4 (CORRECTION-feedback-plumbing): use owner_type='draft' with the
         # real draft_id instead of the synthetic draft_id + 100000 scheme.
 
+        # Clear any stale draft preview media before generating fresh images.
+        # If a draft was re-generated with new content, old preview images from
+        # a completely different topic would otherwise persist and get carried
+        # into assets during fan-out — causing mismatched image/text pairing.
+        adapter.clear_draft_media(draft_id)
+
         # Determine aspect ratio from format
         format_name = (draft.get("format") or "").lower()
         if "reel" in format_name or "short" in format_name:
@@ -5404,6 +5435,26 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             a["images"] = [m for m in a["media_list"] if m.get("kind") == "image"]
             # Get edit plans
             a["edit_plans"] = store.list_edit_plans(asset["id"])
+
+            # Build post_images mapping: index by post index → image dict or None.
+            # Only posts whose image_prompt is not "none" should get an image.
+            # Images list is flat (generated images only, skipping "none" prompts),
+            # so we walk image_prompts and assign images sequentially to non-"none" slots.
+            posts_list = a["posts_parsed"]
+            prompts_list = a["image_prompts_parsed"]
+            images_list = a["images"]
+            post_images = [None] * len(posts_list)
+            img_counter = 0
+            for pi in range(len(posts_list)):
+                if pi < len(prompts_list):
+                    prompt_val = (prompts_list[pi] or "").strip().lower()
+                    if prompt_val == "none" or prompt_val == "":
+                        continue  # This post is text-only
+                if img_counter < len(images_list):
+                    post_images[pi] = images_list[img_counter]
+                    img_counter += 1
+            a["post_images"] = post_images
+
             enriched_assets.append(a)
 
         # Provenance trail: idea → script → assets
