@@ -1,6 +1,6 @@
 # BUILD_PLAN.md — ViralFactory
 
-*Instructions to the builder agent (Hermes). Read `docs/CHARTER-v3.3.md` and all of `playbooks/` before writing any code. This file is the single source of truth for what to build and in what order. v1.4 — 2026-07-03 — updated per AMENDMENT-005 (processes are module compositions; process registry as 9th module; compose-and-run engine; T2.10 added; T3.2 reworded; M5/M6 targets widened).*
+*Instructions to the builder agent (Hermes). Read `docs/CHARTER-v3.3.md` and all of `playbooks/` before writing any code. This file is the single source of truth for what to build and in what order. v1.5 — 2026-07-04 — Postiz→Buffer per DIVERGENCE-008; M0/M1 checkboxes updated to reflect completed work; DIVERGENCE-007 source review gate noted; AMENDMENT-006 awaiting-capture deprecation noted. Prior: v1.4 (AMENDMENT-005 process registry).*
 
 ## How to work (non-negotiable)
 
@@ -27,26 +27,26 @@
 - Python + Flask, server-rendered, minimal JS; SQLite; systemd on the VPS.
 - **UI: laptop-first (1280px+), responsive to mobile** per `docs/UI-DIRECTION.md` (patched per review). Multi-column layouts allowed on laptop.
 - LLM adapter: `complete(prompt_file, variables, schema) -> validated JSON`; backend from `config/models.yaml` (Ollama local / Ollama Cloud / external API). Default: Ollama Cloud. Swap = config edit only.
-- trafilatura for extraction · **Postiz self-hosted** for publish/metrics · modules as markdown in `modules/{business}/` (system of record — fully standalone, no OB1 dependency) · cron for scheduling.
+- trafilatura for extraction · **Buffer** (API) for publish/metrics per DIVERGENCE-008 (operator confirmed cost-driven swap from Postiz; `src/buffer_adapter.py` is the adapter; `postiz_adapter.py` deleted) · modules as markdown in `modules/{business}/` (system of record — fully standalone, no OB1 dependency) · cron for scheduling.
 
 ## Milestones
 
 ### M0 — Foundations (est. week 1)
-- [ ] T0.1 Repo layout: `config/ prompts/ playbooks/ modules/ src/ tests/ docs/` — AC: matches charter; README maps folders to charter concepts; playbooks split into individual files under `playbooks/`
-- [ ] T0.2 Config loader: `business.yaml`, `models.yaml`, `sources.yaml` with schema validation — AC: bad config fails loudly; no hidden defaults in code
-- [ ] T0.3 LLM adapter — AC: backend switch via `models.yaml` only; retry-once on invalid JSON then flag "manual review"; temperature 0 default
-- [ ] T0.4 Validator: JSON-schema + allowlist checks — AC: unknown tag rejected in test; missing field rejected
-- [ ] T0.5 Provenance log — AC: every adapter call writes a row; test proves it
-- [ ] T0.6 Content-hash cache — AC: same input twice = one LLM call
-- [ ] T0.7 **v2 database backup**: scripted, verified copy of the v2 SQLite DB to storage outside the v2 app directory — AC: restore tested once; backup location documented in `docs/CONTEXT.md`. (Fresh start ≠ data destruction.)
+- [x] T0.1 Repo layout: `config/ prompts/ playbooks/ modules/ src/ tests/ docs/` — AC: matches charter; README maps folders to charter concepts; playbooks split into individual files under `playbooks/`
+- [x] T0.2 Config loader: `business.yaml`, `models.yaml`, `sources.yaml` with schema validation — AC: bad config fails loudly; no hidden defaults in code
+- [x] T0.3 LLM adapter — AC: backend switch via `models.yaml` only; retry-once on invalid JSON then flag "manual review"; temperature 0 default
+- [x] T0.4 Validator: JSON-schema + allowlist checks — AC: unknown tag rejected in test; missing field rejected
+- [x] T0.5 Provenance log — AC: every adapter call writes a row; test proves it
+- [x] T0.6 Content-hash cache — AC: same input twice = one LLM call
+- [x] T0.7 **v2 database backup**: scripted, verified copy of the v2 SQLite DB to storage outside the v2 app directory — AC: restore tested once; backup location documented in `docs/CONTEXT.md`. (Fresh start ≠ data destruction.)
 
 ### M1 — Onboarding engine: runner + Voice Profile (est. weeks 2–3)
-- [ ] T1.1 Generic playbook runner (procedure steps → console flows → gates) — AC: proven generic by running a trivial test playbook
-- [ ] T1.2 Materials intake UI per `docs/INTAKE-USER1.md` — AC: WhatsApp export, plain text, audio (transcribed) all ingest; other parties' text stripped
-- [ ] T1.3 Voice Profile playbook end-to-end — AC: schema-valid profile; every finding carries verbatim evidence (validator enforces); dialect preserved
-- [ ] T1.4 Calibration gate UI (3 samples → pick + react → revise, max 3 rounds) — AC: v1.0 stored with provenance only on confirmation; v0.9 fallback path works
-- [ ] T1.5 Interview fallback — AC: profile buildable from interview answers alone
-- [ ] **Checkpoint:** operator onboards their own voice. Tag `review-w3`.
+- [x] T1.1 Generic playbook runner (procedure steps → console flows → gates) — AC: proven generic by running a trivial test playbook
+- [x] T1.2 Materials intake UI per `docs/INTAKE-USER1.md` — AC: WhatsApp export, plain text, audio (transcribed) all ingest; other parties' text stripped
+- [x] T1.3 Voice Profile playbook end-to-end — AC: schema-valid profile; every finding carries verbatim evidence (validator enforces); dialect preserved
+- [x] T1.4 Calibration gate UI (3 samples → pick + react → revise, max 3 rounds) — AC: v1.0 stored with provenance only on confirmation; v0.9 fallback path works
+- [x] T1.5 Interview fallback — AC: profile buildable from interview answers alone
+- [x] **Checkpoint:** operator onboards their own voice. Tag `review-w3`.
 
 ### M2 — Remaining playbooks wired (est. week 4)
 *Revised order per REVIEW-M2-MIDPOINT R13: T2.9 pulled forward before T2.3.*
@@ -68,8 +68,8 @@
 
 ### M3 — Co-production loop (staged pipeline per AMENDMENT-003 + treatment block per AMENDMENT-004; est. weeks 5–6)
 - [x] T3.1 Idea card generation (with treatment block per AMENDMENT-004): AI-originated ideas from Source Bank × modules; human-seeded and human-seeded-ai-developed paths. Each card: idea, hook/title options, **treatment** (scope: one_off | series_of_n | pillar_with_derivatives; format from Format Guide; capture_required tasks; reuse links; rationale), `origin` tag, evidence links — AC: cards from all 3 origins producible; origin + treatment present on every card
-- [x] T3.2 Ideas gate UI (Gate 1 — rigorous): card queue with origin badge, hook options, evidence links, compact treatment line (scope · format · capture flag), expandable full treatment (all editable per D1 direct-edit authority); approve / kill / park per card; kill reasons → Feedback Log — AC: kill reason logged; approved cards flow to Draft (or awaiting-capture if capture_required ≠ none); parked cards retrievable. **Per AMENDMENT-005:** seed + modules **per the draft process spec** → draft; implementation goes through the compose-and-run engine.
-- [x] T3.3 Awaiting-capture state: cards approved with capture_required ≠ none enter awaiting-capture; capture task list shown; uploads flow through existing materials intake; audio transcribed via T2.6; transcript becomes draft input — AC: awaiting-capture card with outstanding tasks shown separately; fulfilled capture triggers flow to Draft
+- [x] T3.2 Ideas gate UI (Gate 1 — rigorous): card queue with origin badge, hook options, evidence links, compact treatment line (scope · format · capture flag), expandable full treatment (all editable per D1 direct-edit authority); approve / kill / park per card; kill reasons → Feedback Log — AC: kill reason logged; approved cards flow to Writer (capture tasks are a non-blocking flag per AMENDMENT-006); parked cards retrievable. **Per AMENDMENT-005:** seed + modules **per the draft process spec** → draft; implementation goes through the compose-and-run engine.
+- [x] T3.3 Awaiting-capture state (DEPRECATED per AMENDMENT-006 — capture tasks are now a non-blocking flag on the card; cards with capture tasks flow through approved → Writer like any other; the `awaiting_capture` state is preserved for backward compat but no longer blocks the pipeline) — AC: capture task list shown on card; uploads flow through existing materials intake; capture tasks visible but non-blocking
 - [x] T3.4 Seed intake: typed + audio with transcription — AC: a 30-second voice note becomes a stored seed and generates a human-seeded idea card with treatment
 - [x] T3.5 Drafter: approved idea card + ALL modules → draft (full text in voice + light visual direction block: image prompts, reference notes, shot/format choices) → self-audit vs Tells Checklist → flagged lines — AC: flags visible with the rule that fired; visual direction block present in draft schema; NO rendered images; prompts in `prompts/draft/`
 - [x] T3.6 Human pass UI (Gate 2): per-line reaction chips + typed feedback **+ direct-edit mode** (editable draft; human text authoritative, overrides AI; logged to Feedback Log at highest weight with the draft version) — AC: reaction path and edit path both produce Feedback Log entries; revise honors both; ship-forward/kill works
@@ -83,13 +83,13 @@
 - [x] **Checkpoint:** 10-piece co-production sprint through the full staged pipeline. **Drafter A/B:** same seeds through two configured backends; operator reacts blind; winner set in `models.yaml`. Tag `review-w6`. **NOTE: do NOT run until T3.13 (S1+S3) lands — would measure a broken generator.** *(Sprint run 2026-07-03: 10 cards generated with ideator backend, 0 overlap between batches, native fan-out verbatim verified. Drafter A/B deferred — ab_candidate is null.)*
 
 ### M4 — Publish + metrics (est. week 7)
-- [x] T4.1 Postiz self-hosted install + API wiring — AC: piece scheduled and posted from console **only after explicit per-piece approval**; failures alert; no data loss
+- [x] T4.1 Buffer API wiring (Postiz→Buffer swap per DIVERGENCE-008; `src/buffer_adapter.py` replaces `postiz_adapter.py`) — AC: piece scheduled and posted from console **only after explicit per-piece approval**; failures alert; no data loss
 - [x] T4.2 Metrics collection (cron) — AC: nightly pull runs unattended 7 days
 
 ### M8 — Source grounding + auto-production chain + AI profiles (per CORRECTION-source-grounding-and-auto-production-v1.0)
 - [x] T8.1 Kill remaining truncation (P0): remove `source_material[:4000]` in `ideas_generate`; replace with count-bounded digest view (most recent N active sources, ID + title + summary per item, recency-ordered); retire `SNAPSHOT_CHAR_CAP` in favor of per-item summary limits + item-count bounds — AC: grep for `[:4000]`, `[:2000]`, `[:1500]` across `src/` returns none on module/source injection paths; ideas prompt receives digest view bounded by count, not character slicing
 - [x] T8.2 Housekeeping (P0): remove dead `response_data` block in `ideas_gate_decision` (series branch); add CONTEXT.md lines: (a) every idea cites sources by ID, one idea may compose multiple sources; (b) Gate 1 approval triggers production automatically, publishing is never automatic; (c) AI work runs under named profiles defined in config/profiles.yaml — AC: dead code removed; CONTEXT.md updated with three new lines
-- [x] T8.3 Source Bank table (P1): new `sources` table (id, business_slug, source_type, title, url, summary, content, origin, first_seen, content_hash, status); `source_snapshot.py` writes fetched items into this table (dedupe on content_hash) as `source_type='rss_item'`; materials intake registers `source_type='operator_material'` rows; `business_slug` scoping everywhere — AC: snapshot items appear as `sources` rows; operator materials appear as `sources` rows; dedupe on content_hash works
+- [x] T8.3 Source Bank table (P1): new `sources` table (id, business_slug, source_type, title, url, summary, content, origin, first_seen, content_hash, status); `source_snapshot.py` writes fetched items into this table (dedupe on content_hash) as `source_type='rss_item'` with `status='new'` (DIVERGENCE-007: new sources require operator review before feeding ideation — only `status='active'` sources feed idea generation; Source Bank page has "New" filter + bulk Keep/Remove); materials intake registers `source_type='operator_material'` rows with `status='active'` (intentionally created by operator); `business_slug` scoping everywhere — AC: snapshot items appear as `sources` rows with status='new'; operator materials appear as `sources` rows with status='active'; dedupe on content_hash works; only active sources feed ideation
 - [x] T8.4 Idea cards carry source_refs (P1): new `source_refs` column (JSON list of sources.id, one or more); `evidence_links` becomes derived display field; `prompts/ideas/generate_v1.md` rebuilt — source material section shows `[S14] title — summary` per active source; card schema replaces free `evidence_links` with `source_refs: [14, 22]` + optional per-ref note; new rule: "Every idea MUST cite at least one source by ID; ideas synthesizing ≥2 sources are encouraged"; validation rejects/quarantines cards with unresolved source_refs; human seeds auto-register as `manual` source; ideas page renders resolved source list (title as link, source_type badge) — AC: unresolved source_refs rejected; every rendered card lists sources with links + type badges; at least one multi-source card cites ≥2 sources with per-source rationale
 - [x] T8.5 Sources flow to production (P1): `prompts/draft/generate_v2.md` → v2.3 adds `{grounding_sources}` section — full content of every source in card's `source_refs`, labeled with title + ID, instruction that facts/quotes/dates/specifics must come from these sources and fabricating specifics not in them is prohibited; `draft_generate` resolves `source_refs` to assemble this variable; empty content degrades to summary with `(summary only)` marker (never silent); fan-out and visual prompts receive source titles/notes only — AC: draft prompt payload for auto-produced draft contains full content of every cited source (inspectable via provenance)
 - [x] T8.6 Auto-production chain (P1): Gate 1 approval starts production — `ideas_gate_decision` on approve: if capture_required → awaiting_capture (chain fires on capture completion), else → approved + enqueue `produce_chain(card_id)` job; card state advances through `producing` → `asset_ready` (new states); `produce_chain` steps: (1) draft generation with grounding sources, (2) fan-out, (3) visual generation for image-required formats; failure → `production_failed` with step name + error surfaced in plain language + "Retry from failed step" control; series parent approval spawns children as today (state new, each child's own approval triggers its own chain); Create page restructured — "Approved ideas (ready to draft)" replaced by "In production" + "Ready for review"; concurrency: serialize per business (single worker queue); **DO NOT ENABLE until T8.3-T8.5 land** — AC: approving a capture-free idea produces, with zero further clicks, a reviewable asset (draft text + per-platform variants + previews) or plain-language failure with retry; verified end-to-end on console
