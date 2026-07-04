@@ -6,6 +6,19 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-04 FIX — operator materials removed from source bank; seed sources persisted
+
+**What:**
+1. **FIX-1 (STRUCTURE):** Removed the `sources` table insertion from `materials.py:_store()`. Operator materials (voice notes, uploads, WhatsApp exports) now only enter the `materials` table — they no longer create `operator_material` rows in the `sources` table. Also removed the `sources` table creation from `MaterialsIntake._init_db()` (that table belongs to `PipelineStore`). Updated `test_t8_3_source_bank.py`: `TestMaterialsRegisterSources` → `TestMaterialsDoNotRegisterSources` — all 4 tests now assert materials do NOT create source rows.
+2. **FIX-2 (STRUCTURE):** Added seed source persistence to the `store_sources` endpoint in `app.py`. When the Sources Engine gate is approved, each seed source from `collected_inputs.seed_sources` is written to the `sources` table as `source_type='seed_reference'`, `origin='operator'`, `status='active'`. Deduped on content_hash (name+url). New test file `test_fix2_seed_source_persistence.py` (4 tests): approved gate persists seeds, parked gate does not, dedup on re-approve, no-error on empty seeds.
+3. **DB cleanup:** Deleted 2 existing `operator_material` rows from live DB (IDs 1, 2 — a draft review HTML page and a manifest file). Backfilled 50 seed sources from the Obsidian Strongest Sources Export (material ID 88) as `seed_reference` rows. Live DB now has 61 sources: 50 seed_reference + 10 rss_item + 1 manual.
+
+**Rationale:** Operator materials feed the playbooks → modules (Voice Profile, Story Frameworks, etc.). The Source Bank is for external content the AI scouts and crosses with modules for ideation. Mixing operator materials into the source bank double-counts the operator's own material as external inspiration. The 50 seed sources were analyzed to produce the Source Criteria module but the individual seeds were never persisted — they were consumed and discarded, leaving the bank nearly empty (only 10 RSS items from 1 feed). Now seeds are persisted on gate approval and the backfill restores them for the live tenant.
+
+**Tests:** 726 passing (was 722 — +4 new seed persistence tests, old materials-register-sources tests rewritten).
+
+---
+
 ### 2026-07-04 FIX — ffmpeg concat crash + fan-out duplicate platform assets
 
 **What:** Three fixes for the Assembler page:

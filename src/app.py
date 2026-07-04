@@ -2726,6 +2726,46 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     run_id=run_id,
                 )
                 paths["source_criteria"] = module_path
+
+                # FIX-2: Persist seed sources into the Source Bank.
+                # The Sources Engine playbook analyzes seed sources to produce
+                # the Source Criteria, but the seeds themselves were never
+                # written to the sources table — they were consumed and
+                # discarded. On gate approval, write each seed as a source row
+                # so they're available for ideation and citation.
+                collected = json.loads(run.get("collected_inputs") or "{}")
+                seed_sources = collected.get("seed_sources", [])
+                if seed_sources:
+                    from pipeline import PipelineStore
+                    pipe_store = PipelineStore(db_path=app.config["DB_PATH"])
+                    pipe_store._init_db()
+                    import hashlib as _h
+                    persisted = 0
+                    for seed in seed_sources:
+                        seed_name = seed.get("name", "") or seed.get("url", "") or "Unnamed seed"
+                        seed_url = seed.get("url", "") or None
+                        seed_type = seed.get("type", "seed")
+                        # Normalize type: csv_export/json_export → seed_reference
+                        if seed_type in ("csv_export", "json_export"):
+                            seed_type = "seed_reference"
+                        # Build a content hash from name+url for dedup
+                        hash_input = f"{seed_name}|{seed_url or ''}"
+                        seed_hash = _h.sha256(hash_input.encode("utf-8")).hexdigest()[:16]
+                        try:
+                            pipe_store.add_source(
+                                business_slug=business_slug,
+                                source_type=seed_type,
+                                title=seed_name[:500],
+                                url=seed_url if seed_url and not seed_url.startswith("(") else None,
+                                summary=None,
+                                content=None,
+                                origin="operator",
+                                content_hash=seed_hash,
+                            )
+                            persisted += 1
+                        except Exception:
+                            pass  # non-fatal — individual seed failures don't block
+                    paths["seed_sources_persisted"] = persisted
             except GateTokenError as e:
                 return jsonify({"error": str(e)}), 403
         else:

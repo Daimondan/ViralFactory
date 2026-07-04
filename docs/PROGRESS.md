@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-04
-**Current Phase:** FIX — ffmpeg concat crash + fan-out duplicate platform assets fixed. Assembly renderer now validates in/out against source duration (clamps impossible seeks). Edit plan prompt clarifies in/out are per-source positions. Fan-out endpoint skips platforms with existing assets (no more duplicate IG cards). Error messages strip ffmpeg banner. 722 tests passing.
+**Current Phase:** FIX — operator materials removed from source bank; 50 seed sources backfilled. Materials intake no longer inserts operator_material rows into the sources table (operator materials feed playbooks→modules, not the source bank). Sources Engine gate approval now persists seed_sources into the sources table as seed_reference type. Live DB cleaned: 2 operator_material rows deleted, 50 seed_reference rows backfilled from Obsidian export. 726 tests passing.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 

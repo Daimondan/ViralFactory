@@ -247,11 +247,18 @@ class TestSnapshotWritesToSources:
         assert len(sources) == 0
 
 
-class TestMaterialsRegisterSources:
-    """T8.3: Materials intake registers operator_material sources."""
+class TestMaterialsDoNotRegisterSources:
+    """FIX-1: Materials intake must NOT create source bank rows.
 
-    def test_ingest_text_creates_source(self, db_path):
-        """ingest_text creates a sources row with source_type='operator_material'."""
+    Operator materials (voice notes, uploads, WhatsApp exports) feed the
+    playbooks → modules. They do NOT enter the Source Bank — that's for
+    external content the AI scouts. Mixing operator materials into the
+    source bank double-counts the operator's own material as external
+    inspiration.
+    """
+
+    def test_ingest_text_does_not_create_source(self, db_path):
+        """ingest_text must NOT create a sources row."""
         from materials import MaterialsIntake
         ms = MaterialsIntake(db_path=db_path)
         mid = ms.ingest_text(
@@ -260,41 +267,39 @@ class TestMaterialsRegisterSources:
             material_type="pasted",
         )
         assert mid > 0
-        # Check sources table
+        # Check sources table — should be empty
         store = PipelineStore(db_path=db_path)
+        store._init_db()  # ensure sources table exists
         sources = store.list_sources("test-biz")
-        assert len(sources) == 1
-        assert sources[0]["source_type"] == "operator_material"
-        assert sources[0]["origin"] == "operator"
-        assert "Caribbean accent" in sources[0]["content"]
+        assert len(sources) == 0
 
-    def test_ingest_text_dedupes_sources(self, db_path):
-        """Ingesting the same content twice dedupes on content_hash."""
+    def test_ingest_text_twice_no_sources(self, db_path):
+        """Ingesting the same content twice still creates zero source rows."""
         from materials import MaterialsIntake
         ms = MaterialsIntake(db_path=db_path)
         content = "Same content for dedupe test."
         ms.ingest_text(content=content, business_slug="test-biz", material_type="pasted")
         ms.ingest_text(content=content, business_slug="test-biz", material_type="pasted")
         store = PipelineStore(db_path=db_path)
+        store._init_db()
         sources = store.list_sources("test-biz")
-        assert len(sources) == 1  # deduped
+        assert len(sources) == 0
 
-    def test_audio_material_skips_source_registration(self, db_path):
-        """Audio materials don't create sources rows (transcription pending)."""
+    def test_audio_material_no_source(self, db_path):
+        """Audio materials don't create sources rows."""
         from materials import MaterialsIntake
         ms = MaterialsIntake(db_path=db_path)
-        # Audio materials have normalized_content=None
         mid = ms.ingest_text(
             content="[Audio: transcription pending]",
             business_slug="test-biz",
             material_type="audio",
         )
         store = PipelineStore(db_path=db_path)
+        store._init_db()
         sources = store.list_sources("test-biz")
-        # Audio type is explicitly skipped
         assert len(sources) == 0
 
-    def test_no_business_slug_skips_source_registration(self, db_path):
+    def test_no_business_slug_no_source(self, db_path):
         """Without business_slug, no sources row is created."""
         from materials import MaterialsIntake
         ms = MaterialsIntake(db_path=db_path)
@@ -304,5 +309,6 @@ class TestMaterialsRegisterSources:
             material_type="pasted",
         )
         store = PipelineStore(db_path=db_path)
+        store._init_db()
         sources = store.list_sources("test-biz")
         assert len(sources) == 0
