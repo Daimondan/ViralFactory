@@ -45,17 +45,16 @@
         </div>
 
         <div class="nav">
-            <a href="/" class="active">Home</a>
-            <a href="/onboard">Onboard</a>
-            <a href="/library">Library</a>
-            <a href="/materials">Materials</a>
-            <a href="/ideas">Ideas</a>
-            <a href="/create">Create</a>
-            <a href="/published">Published</a>
-            <a href="/metrics">Metrics</a>
-            <a href="/research">Research</a>
-            <a href="/proposals">Gate Queue</a>
-        </div>
+        <a href="/" class="active">Home</a>
+        <a href="/ideas">Researcher</a>
+        <a href="/create">Writer</a>
+        <a href="/create#assembler">Assembler</a>
+        <a href="/published">Analyst</a>
+        <a href="/onboard">Onboard</a>
+        <a href="/library">Library</a>
+        <a href="/materials">Materials</a>
+        <a href="/proposals">Gate Queue</a>
+    </div>
 
         <h2>Decision Desk</h2>
         <p class="greeting">Good {{ greeting_period }}, Daimon. <span class="accent">{{ pending_count }}</span> {{ "call" if pending_count == 1 else "calls" }} waiting on your hand.</p>
@@ -66,19 +65,19 @@
         <div class="cycle-flow">
             <div class="cycle-step">
                 <div class="cycle-step-num">{{ activity | selectattr('type', 'equalto', 'idea') | list | length }}</div>
-                <div class="cycle-step-label">Ideas</div>
+                <div class="cycle-step-label">Researcher</div>
             </div>
             <div class="cycle-step">
                 <div class="cycle-step-num">{{ activity | selectattr('type', 'equalto', 'draft') | list | length }}</div>
-                <div class="cycle-step-label">Drafts</div>
+                <div class="cycle-step-label">Writer</div>
             </div>
             <div class="cycle-step">
                 <div class="cycle-step-num">{{ activity | selectattr('type', 'equalto', 'asset') | list | length }}</div>
-                <div class="cycle-step-label">Assets</div>
+                <div class="cycle-step-label">Assembler</div>
             </div>
             <div class="cycle-step cycle-step-final">
                 <div class="cycle-step-num">{{ activity | selectattr('type', 'equalto', 'published') | list | length }}</div>
-                <div class="cycle-step-label">Published</div>
+                <div class="cycle-step-label">Analyst</div>
             </div>
         </div>
         {% endif %}
@@ -135,8 +134,9 @@
 
         <h2>Quick Actions</h2>
         <div class="flex gap-2">
-            <a href="/ideas" class="btn">Generate Ideas →</a>
-            <a href="/create" class="btn btn-secondary">View Pipeline</a>
+            <a href="/ideas" class="btn">Researcher — generate ideas →</a>
+            <a href="/create" class="btn btn-secondary">Writer — review drafts</a>
+            <a href="/create#assembler" class="btn btn-secondary">Assembler — review assets</a>
         </div>
 
         <div class="security-footer">

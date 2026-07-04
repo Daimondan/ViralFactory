@@ -16,6 +16,16 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-04 STRUCTURE — Writer/Assembler pipeline split + four-role menu (DIVERGENCE-006)
+
+**What:** Production chain split into two stages: Writer (draft generation, stops at draft_ready for Gate 2 review) and Assembler (fan-out, triggered when operator ships the draft). `produce_chain.py`: `run_chain` → `run_writer_chain` + `run_assembler_chain`; `enqueue_chain` → `enqueue_writer_chain` + `enqueue_assembler_chain` (legacy alias kept). `app.py`: Gate 1 approve now triggers Writer chain only (not full chain); Gate 2 ship now triggers Assembler chain. Awaiting-capture blocking removed — cards with capture tasks go straight to `approved` → Writer. Card states: `producing` → `writing`; `production_failed` → `writer_failed`/`assembly_failed` (legacy state preserved). Menu standardized across ALL 29 templates: Researcher (/ideas) / Writer (/create) / Assembler (/create#assembler) / Analyst (/published) + setup links. Page titles and button labels updated to match four-role model. Create page restructured: Writer sections (in progress / ready for review / queued) + Assembler sections (in progress / ready for review / shipped drafts) + failed retry. Ideas page: "Awaiting Capture" tab removed. Home page "This Cycle" labels: Researcher/Writer/Assembler/Analyst.
+
+**Why:** Operator: "the menus dont reflect what we discuss and workflow of the cards arent going from idea approved to the writer stage." T8.6 auto-chain bypassed Gate 2 — it auto-shipped drafts and ran fan-out without human review. Operator wants: Researcher → Writer → Assembler → Analyst as clear stages, with the card flowing through each for review.
+
+**Rationale:** Restores Gate 2 (the human pass) which T8.6 bypassed. The Writer/Assembler split maps to the existing AI Profiles (Drafter = Writer+Assembler, but the pipeline now pauses between them for human review). Awaiting-capture removal: operator said "if there is an idea that needs human capture of real photos it doesn't go to a separate waiting section — the card still goes to the Writer." Capture tasks remain visible on the card but no longer block the pipeline. Consistent nav was a defect — 24 different nav configurations across templates.
+
+---
+
 ### 2026-07-04 STRATEGIC — DIVERGENCE-006 filed: Researcher/Writer/Assembler/Analyst menu + workflow restructure
 
 **What:** Filed `docs/decisions/DIVERGENCE-006-researcher-writer-assembler-analyst-menu.md` — operator proposes four-role menu (Researcher/Ideas → Writer → Assembler → Analyst) and removal of the awaiting-capture blocking state. Four conflicts with the current charter identified: (1) awaiting-capture removal vs AMENDMENT-003, (2) Writer "continues not rewrites" as naming vs structural change, (3) menu restructure from stage-centric to role-centric, (4) Analyst owning publishing vs separate Publish gate.

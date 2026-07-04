@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/vf.css">
-    <title>Published — {{ business_name }}</title>
+    <title>Analyst — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
     <style>
 
@@ -39,14 +39,19 @@
 <body>
 <div class="container">
     <div class="nav">
-        <a href="/">Dashboard</a>
-        <a href="/create">Create</a>
-        <a href="/published" style="color:#E54B2C">Published</a>
-        <a href="/metrics">Metrics</a>
+        <a href="/">Home</a>
+        <a href="/ideas">Researcher</a>
+        <a href="/create">Writer</a>
+        <a href="/create#assembler">Assembler</a>
+        <a href="/published" class="active">Analyst</a>
+        <a href="/onboard">Onboard</a>
+        <a href="/library">Library</a>
+        <a href="/materials">Materials</a>
+        <a href="/proposals">Gate Queue</a>
     </div>
 
-    <h1>Published & Scheduled</h1>
-    <p class="subtle">All pieces you've approved and scheduled.</p>
+    <h1>Analyst — Published & Scheduled</h1>
+    <p class="subtle">Pieces you've approved for posting. The Analyst tracks performance and feeds learnings back into the source banks.</p>
 
     <div id="postiz-info" class="info-box">
         ℹ️ Auto-posting via Buffer will post scheduled pieces automatically once configured.

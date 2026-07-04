@@ -765,7 +765,7 @@ creative:
         assert data["new_state"] == "approved"
 
     def test_gate_approve_with_capture(self, app, sample_treatment_with_capture):
-        """Approving a card with capture_required → 'awaiting_capture'."""
+        """Approving a card with capture_required → 'approved' (no longer blocks)."""
         from pipeline import PipelineStore
         store = PipelineStore(db_path=app.config["DB_PATH"])
         card_id = store.create_idea_card(
@@ -781,7 +781,7 @@ creative:
                            json={"action": "approve"})
         assert resp.status_code == 200
         data = resp.get_json()
-        assert data["new_state"] == "awaiting_capture"
+        assert data["new_state"] == "approved"
 
     def test_gate_kill_logs_reason(self, app, sample_treatment):
         """Killing a card logs the reason to feedback log."""

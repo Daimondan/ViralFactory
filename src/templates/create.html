@@ -15,9 +15,13 @@
         .state-new { background: #D8D4C8; color: #8A857C; }
         .state-approved { background: rgba(74, 124, 58, 0.12); color: #4A7C3A; }
         .state-shipped { background: rgba(74, 124, 58, 0.12); color: #4A7C3A; }
+        .state-writing { background: rgba(229, 75, 44, 0.12); color: #E54B2C; }
         .state-drafting { background: rgba(74, 111, 165, 0.12); color: #4A6FA5; }
-        .state-producing { background: rgba(229, 75, 44, 0.12); color: #E54B2C; }
+        .state-draft_ready { background: rgba(74, 111, 165, 0.15); color: #4A6FA5; font-weight: 600; }
+        .state-assembling { background: rgba(229, 75, 44, 0.12); color: #E54B2C; }
         .state-asset-ready { background: rgba(74, 124, 58, 0.15); color: #4A7C3A; font-weight: 600; }
+        .state-writer-failed { background: rgba(192, 57, 43, 0.15); color: #C0392B; }
+        .state-assembly-failed { background: rgba(192, 57, 43, 0.15); color: #C0392B; }
         .state-production-failed { background: rgba(192, 57, 43, 0.15); color: #C0392B; }
         .state-awaiting-capture { background: rgba(212, 168, 67, 0.15); color: #8A6D20; }
         .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #E54B2C30; border-top-color: #E54B2C; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 4px; vertical-align: middle; }
@@ -26,44 +30,98 @@
         .error-text { font-size: 0.75rem; color: #C0392B; margin-top: 4px; }
         .retry-btn { font-size: 0.72rem; padding: 3px 8px; background: rgba(192, 57, 43, 0.1); color: #C0392B; border: 1px solid rgba(192, 57, 43, 0.3); border-radius: 4px; cursor: pointer; margin-top: 4px; }
         .retry-btn:hover { background: rgba(192, 57, 43, 0.2); }
+        .stage-label { font-size: 0.72rem; color: #8A857C; margin-bottom: 4px; }
     </style>
 </head>
 <body>
 <div class="container">
     <h1>Create — {{ business_name }}</h1>
-    <p class="subtle">The co-production loop: Ideas → Draft → Assets → Publish</p>
+    <p class="subtle">Writer takes approved ideas → you review the draft → Assembler creates media → you review assets</p>
     <div class="nav">
-        <a href="/">Dashboard</a>
+        <a href="/">Home</a>
+        <a href="/ideas">Researcher</a>
+        <a href="/create" class="active">Writer</a>
+        <a href="/create#assembler">Assembler</a>
+        <a href="/published">Analyst</a>
         <a href="/onboard">Onboard</a>
         <a href="/library">Library</a>
         <a href="/materials">Materials</a>
-        <a href="/ideas">Ideas</a>
-        <a href="/create" class="active">Create</a>
+        <a href="/proposals">Gate Queue</a>
     </div>
 
     <div class="pipeline-grid">
-        <!-- T8.6: In production — cards where the auto-chain is running or about to start -->
+        <!-- Writer: cards being written (writing state) -->
         <div class="stage-card">
-            <h3>In production</h3>
-            {% set producing_cards = idea_cards | selectattr('card_state', 'equalto', 'producing') | list %}
-            {% set approved_cards = idea_cards | selectattr('card_state', 'equalto', 'approved') | list %}
-            {% set in_production = producing_cards + approved_cards %}
-            {% if in_production %}
-                {% for card in in_production %}
+            <h3>Writer — in progress</h3>
+            {% set writing_cards = idea_cards | selectattr('card_state', 'equalto', 'writing') | list %}
+            {% if writing_cards %}
+                {% for card in writing_cards %}
                 <div class="item">
-                    {% if card.card_state == 'producing' %}<span class="spinner"></span>{% endif %}
+                    <span class="spinner"></span>
                     <a class="item-title" href="/create/draft/{{ card.id }}">{{ card.idea[:80] }}{% if card.idea|length > 80 %}...{% endif %}</a>
-                    <span class="state-badge state-producing">{{ card.card_state }}</span>
+                    <span class="state-badge state-writing">writing</span>
                 </div>
                 {% endfor %}
             {% else %}
-                <p class="empty">Nothing in production. <a href="/ideas">Approve ideas →</a></p>
+                <p class="empty">Nothing being written right now.</p>
             {% endif %}
         </div>
 
-        <!-- T8.6: Ready for review — auto-chain completed, operator reviews the asset -->
+        <!-- Writer: drafts ready for human review (Gate 2) -->
         <div class="stage-card">
-            <h3>Ready for review</h3>
+            <h3>Writer — ready for your review</h3>
+            {% set review_cards = idea_cards | selectattr('card_state', 'equalto', 'draft_ready') | list %}
+            {% set drafting_cards = idea_cards | selectattr('card_state', 'equalto', 'drafting') | list %}
+            {% set revised_cards = idea_cards | selectattr('card_state', 'equalto', 'revised') | list %}
+            {% set writer_review = review_cards + drafting_cards + revised_cards %}
+            {% if writer_review %}
+                {% for card in writer_review %}
+                <div class="item">
+                    <a class="item-title" href="/create/draft/{{ card.id }}">{{ card.idea[:80] }}{% if card.idea|length > 80 %}...{% endif %}</a>
+                    <span class="state-badge state-draft-ready">draft ready</span>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="empty">No drafts waiting for review. <a href="/ideas">Approve ideas →</a></p>
+            {% endif %}
+        </div>
+
+        <!-- Writer: approved cards waiting for the writer chain to start -->
+        <div class="stage-card">
+            <h3>Writer — queued</h3>
+            {% set approved_cards = idea_cards | selectattr('card_state', 'equalto', 'approved') | list %}
+            {% if approved_cards %}
+                {% for card in approved_cards %}
+                <div class="item">
+                    <a class="item-title" href="/create/draft/{{ card.id }}">{{ card.idea[:80] }}{% if card.idea|length > 80 %}...{% endif %}</a>
+                    <span class="state-badge state-approved">approved</span>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="empty">No approved ideas waiting.</p>
+            {% endif %}
+        </div>
+
+        <!-- Assembler: cards being assembled (fan-out running) -->
+        <div class="stage-card" id="assembler">
+            <h3>Assembler — in progress</h3>
+            {% set assembling_cards = idea_cards | selectattr('card_state', 'equalto', 'assembling') | list %}
+            {% if assembling_cards %}
+                {% for card in assembling_cards %}
+                <div class="item">
+                    <span class="spinner"></span>
+                    <a class="item-title" href="/create/draft/{{ card.id }}">{{ card.idea[:80] }}{% if card.idea|length > 80 %}...{% endif %}</a>
+                    <span class="state-badge state-assembling">assembling</span>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="empty">Nothing being assembled right now.</p>
+            {% endif %}
+        </div>
+
+        <!-- Assembler: assets ready for review (Gate 3) -->
+        <div class="stage-card">
+            <h3>Assembler — ready for your review</h3>
             {% set ready_cards = idea_cards | selectattr('card_state', 'equalto', 'asset_ready') | list %}
             {% if ready_cards %}
                 {% for card in ready_cards %}
@@ -73,68 +131,13 @@
                 </div>
                 {% endfor %}
             {% else %}
-                <p class="empty">Nothing ready for review yet.</p>
+                <p class="empty">No assets waiting for review yet.</p>
             {% endif %}
         </div>
 
-        <!-- T8.6: Production failed — error surfaced with retry -->
-        {% set failed_cards = idea_cards | selectattr('card_state', 'equalto', 'production_failed') | list %}
-        {% if failed_cards %}
+        <!-- Assembler: shipped drafts (manual access to asset page) -->
         <div class="stage-card">
-            <h3>Production failed</h3>
-            {% for card in failed_cards %}
-            <div class="item">
-                <a class="item-title" href="/create/draft/{{ card.id }}">{{ card.idea[:80] }}{% if card.idea|length > 80 %}...{% endif %}</a>
-                <span class="state-badge state-production-failed">failed</span>
-                {% if card.production_error %}
-                <div class="error-text">
-                    {{ card.production_error }}
-                </div>
-                {% endif %}
-                <button class="retry-btn" onclick="retryProduction({{ card.id }})">Retry production</button>
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-
-        <!-- Awaiting capture — approved cards that need operator material -->
-        {% set capture_cards = idea_cards | selectattr('card_state', 'equalto', 'awaiting_capture') | list %}
-        {% if capture_cards %}
-        <div class="stage-card">
-            <h3>Awaiting capture</h3>
-            {% for card in capture_cards %}
-            <div class="item">
-                <a class="item-title" href="/create/draft/{{ card.id }}">{{ card.idea[:80] }}{% if card.idea|length > 80 %}...{% endif %}</a>
-                <span class="state-badge state-awaiting-capture">needs material</span>
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-
-        <!-- Drafts (manual access — operator can still edit from here) -->
-        <div class="stage-card">
-            <h3>Drafts</h3>
-            {% if all_active_drafts %}
-                {% for d in all_active_drafts %}
-                <div class="item">
-                    <a class="item-title" href="/create/draft/{{ d.idea_card_id }}">{{ d.idea_text[:50] }}{% if d.idea_text|length > 50 %}...{% endif %}</a>
-                    {% if d.draft_state == 'drafting' %}
-                    <span class="state-badge state-drafting">drafting</span>
-                    {% elif d.draft_state == 'draft_ready' %}
-                    <span class="state-badge state-drafting">ready</span>
-                    {% elif d.draft_state == 'revised' %}
-                    <span class="state-badge state-drafting">revised</span>
-                    {% endif %}
-                </div>
-                {% endfor %}
-            {% else %}
-                <p class="empty">No drafts in progress.</p>
-            {% endif %}
-        </div>
-
-        <!-- Shipped (ready for assets) -->
-        <div class="stage-card">
-            <h3>Shipped (ready for assets) — {{ shipped|length }}</h3>
+            <h3>Assembler — shipped drafts</h3>
             {% if shipped %}
             <div style="max-height: 300px; overflow-y: auto;">
                 {% for d in shipped %}
@@ -149,17 +152,34 @@
             {% endif %}
         </div>
 
+        <!-- Failed: writer or assembler failures with retry -->
+        {% set writer_failed = idea_cards | selectattr('card_state', 'equalto', 'writer_failed') | list %}
+        {% set assembly_failed = idea_cards | selectattr('card_state', 'equalto', 'assembly_failed') | list %}
+        {% set legacy_failed = idea_cards | selectattr('card_state', 'equalto', 'production_failed') | list %}
+        {% set all_failed = writer_failed + assembly_failed + legacy_failed %}
+        {% if all_failed %}
+        <div class="stage-card">
+            <h3>Failed — retry needed</h3>
+            {% for card in all_failed %}
+            <div class="item">
+                <a class="item-title" href="/create/draft/{{ card.id }}">{{ card.idea[:80] }}{% if card.idea|length > 80 %}...{% endif %}</a>
+                <span class="state-badge state-writer-failed">{{ card.card_state | replace('_', ' ') }}</span>
+                {% if card.production_error %}
+                <div class="error-text">{{ card.production_error }}</div>
+                {% endif %}
+                <button class="retry-btn" onclick="retryProduction({{ card.id }})">Retry</button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         <!-- Quick stats -->
         <div class="stage-card">
             <h3>Quick stats</h3>
             <div class="item">Total idea cards: {{ idea_cards|length }}</div>
             <div class="item">Total drafts: {{ drafts|length }}</div>
-            <div class="item">Shipped: {{ shipped|length }}</div>
+            <div class="item">Shipped to assembler: {{ shipped|length }}</div>
         </div>
-    </div>
-
-    <div style="margin-top: 20px;">
-        <button class="btn" onclick="window.location.href='/ideas'">Go to Ideas →</button>
     </div>
 </div>
 

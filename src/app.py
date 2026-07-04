@@ -4198,13 +4198,11 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         # Handle state transitions
         if action == "approve":
-            # Check if card has capture tasks
+            # Cards with capture tasks no longer block — they go to the Writer
+            # like any other approved card. The Assembler creates what it can;
+            # real photos arrive later and update the asset.
             treatment = json.loads(card.get("treatment") or "{}")
-            capture_required = treatment.get("capture_required", [])
-            if capture_required:
-                new_state = "awaiting_capture"
-            else:
-                new_state = "approved"
+            new_state = "approved"
 
             # F3 (CORRECTION-feedback-plumbing): Series spawning via LLM breakdown
             # Children enter state 'new' (not 'approved') — "AI proposes, humans gate everything"
@@ -4244,11 +4242,11 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             if spawn_warning:
                 response["warning"] = spawn_warning
 
-            # T8.6: Auto-production chain — approval triggers production
+            # Writer chain — approval triggers draft generation (Gate 2 review next)
             if new_state == "approved":
                 try:
-                    from produce_chain import enqueue_chain
-                    enqueue_chain(
+                    from produce_chain import enqueue_writer_chain
+                    enqueue_writer_chain(
                         db_path=app.config["DB_PATH"],
                         config_dir=app.config["CONFIG_DIR"],
                         modules_dir=app.config.get("MODULES_DIR", "modules"),
@@ -4289,19 +4287,41 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         card = store.get_idea_card(card_id)
         if not card:
             return jsonify({"error": "Card not found"}), 404
-        if card["card_state"] != "production_failed":
-            return jsonify({"error": f"Card state is '{card['card_state']}' — must be 'production_failed' to retry"}), 400
+        if card["card_state"] not in ("writer_failed", "assembly_failed"):
+            return jsonify({"error": f"Card state is '{card['card_state']}' — must be 'writer_failed' or 'assembly_failed' to retry"}), 400
+
+        # Determine which chain to retry based on which step failed
+        production_error = json.loads(card.get("production_error") or "{}")
+        failed_step = production_error.get("step", "")
 
         try:
-            from produce_chain import enqueue_chain
-            enqueue_chain(
-                db_path=app.config["DB_PATH"],
-                config_dir=app.config["CONFIG_DIR"],
-                modules_dir=app.config.get("MODULES_DIR", "modules"),
-                prompts_dir="prompts",
-                card_id=card_id,
-                business_slug=business_slug,
-            )
+            if failed_step == "draft_generation":
+                # Retry writer chain from scratch
+                from produce_chain import enqueue_writer_chain
+                enqueue_writer_chain(
+                    db_path=app.config["DB_PATH"],
+                    config_dir=app.config["CONFIG_DIR"],
+                    modules_dir=app.config.get("MODULES_DIR", "modules"),
+                    prompts_dir="prompts",
+                    card_id=card_id,
+                    business_slug=business_slug,
+                )
+            else:
+                # Retry assembler chain — find the existing draft for this card
+                drafts = [d for d in store.list_drafts(business_slug) if d["idea_card_id"] == card_id]
+                if not drafts:
+                    return jsonify({"error": "No draft found to retry assembler"}), 400
+                latest_draft = max(drafts, key=lambda d: d.get("draft_version", 1))
+                from produce_chain import enqueue_assembler_chain
+                enqueue_assembler_chain(
+                    db_path=app.config["DB_PATH"],
+                    config_dir=app.config["CONFIG_DIR"],
+                    modules_dir=app.config.get("MODULES_DIR", "modules"),
+                    prompts_dir="prompts",
+                    draft_id=latest_draft["id"],
+                    card_id=card_id,
+                    business_slug=business_slug,
+                )
             return jsonify({"status": "ok", "message": "Production chain retried"})
         except Exception as e:
             return jsonify({"error": str(e)[:200]}), 500
@@ -4959,7 +4979,23 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             store.update_draft_state(draft_id, "shipped")
             # Update card state
             store.update_card_state(draft["idea_card_id"], "drafted")
-            return jsonify({"status": "ok", "new_state": "shipped"})
+
+            # Assembler chain — shipping the draft triggers fan-out → assets (Gate 3 review)
+            try:
+                from produce_chain import enqueue_assembler_chain
+                enqueue_assembler_chain(
+                    db_path=app.config["DB_PATH"],
+                    config_dir=app.config["CONFIG_DIR"],
+                    modules_dir=app.config.get("MODULES_DIR", "modules"),
+                    prompts_dir="prompts",
+                    draft_id=draft_id,
+                    card_id=draft["idea_card_id"],
+                    business_slug=business_slug,
+                )
+                return jsonify({"status": "ok", "new_state": "shipped", "chain_started": True})
+            except Exception as e:
+                return jsonify({"status": "ok", "new_state": "shipped",
+                                "chain_started": False, "chain_error": str(e)[:200]})
         elif action == "kill":
             store.update_draft_state(draft_id, "killed")
             reason = request.json.get("kill_reason", "")

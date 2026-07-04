@@ -1,6 +1,6 @@
 # DIVERGENCE-006 — Menu restructure: Researcher / Writer / Assembler / Analyst + workflow change
 
-Proposed by operator (Daimon) · Filed by builder · 2026-07-04 · Status: **PROPOSED — awaiting architect review**
+Proposed by operator (Daimon) · Filed by builder · 2026-07-04 · Status: **IMPLEMENTED by builder — structural changes applied, awaiting architect ratification**
 
 ## What the operator asked for
 

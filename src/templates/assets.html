@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/vf.css">
-    <title>Assets — {{ business_name }}</title>
+    <title>Assembler — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
     <style>
 
@@ -102,13 +102,19 @@
 <body>
 <div class="container" id="assets-container">
     <div class="nav">
-        <a href="/create" class="active">← Create</a>
-        <a href="/ideas">Ideas</a>
-        <a href="/">Dashboard</a>
+        <a href="/">Home</a>
+        <a href="/ideas">Researcher</a>
+        <a href="/create">Writer</a>
+        <a href="/create#assembler" class="active">Assembler</a>
+        <a href="/published">Analyst</a>
+        <a href="/onboard">Onboard</a>
+        <a href="/library">Library</a>
+        <a href="/materials">Materials</a>
+        <a href="/proposals">Gate Queue</a>
     </div>
 
-    <h1>Assets — Publish Preview</h1>
-    <p class="subtle">Each variant shown as it will appear on the platform. Review, then approve or kill.</p>
+    <h1>Assembler — Asset Review</h1>
+    <p class="subtle">The Assembler took your shipped draft and created per-platform media. Review each variant as it will appear, then approve or kill.</p>
 
     {% if draft.draft_state == 'shipped' and not assets %}
     <div style="text-align: center; margin: 20px 0;">

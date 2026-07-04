@@ -1,15 +1,17 @@
 """
-T8.6: Auto-production chain.
+T8.6: Production chain — split into Writer and Assembler stages.
 
-Gate 1 approval triggers production automatically through to asset review.
-The chain: draft generation → per-platform fan-out → visual generation
-(for image-required formats), executed as a background job.
+Gate 1 approval triggers the WRITER chain: draft generation only.
+The draft stops at draft_ready for human review (Gate 2).
+
+When the operator ships the draft (Gate 2), the ASSEMBLER chain triggers:
+per-platform fan-out → visual generation, producing assets for review (Gate 3).
 
 No-auto-publish remains absolute — the chain terminates at asset review.
 
 Card state transitions:
-  approved → producing → asset_ready (success)
-  approved → producing → production_failed (error, with retry)
+  Writer:   approved → writing → draft_ready (success) | writer_failed (error)
+  Assembler: shipped → assembling → asset_ready (success) | assembly_failed (error)
 
 Concurrency: serialized per business (single worker queue via jobs table).
 """
@@ -36,30 +38,44 @@ class ProductionChain:
         self.modules_dir = modules_dir
         self.prompts_dir = prompts_dir
 
-    def run_chain(self, card_id: int, business_slug: str):
-        """Run the full production chain for a card.
-        Steps: (1) draft generation, (2) fan-out, (3) visual generation (if needed).
-        Card state: producing → asset_ready | production_failed.
+    def run_writer_chain(self, card_id: int, business_slug: str):
+        """Writer stage: draft generation only. Stops at draft_ready for Gate 2 review.
+        Card state: writing → draft_ready | writer_failed.
         """
         from pipeline import PipelineStore
         store = PipelineStore(db_path=self.db_path)
 
-        # Set state to producing
-        store.update_card_state(card_id, "producing")
+        store.update_card_state(card_id, "writing")
 
         try:
-            # Step 1: Draft generation
             draft_id = self._step_draft(card_id, business_slug, store)
             if draft_id is None:
                 raise RuntimeError("Draft generation returned no draft ID")
 
-            # Step 2: Fan-out
-            self._step_fanout(draft_id, card_id, business_slug, store)
+            # Writer stops here — draft is ready for human review (Gate 2)
+            store.update_draft_state(draft_id, "draft_ready")
+            store.update_card_state(card_id, "draft_ready")
 
-            # Step 3: Visual generation (for image-required formats)
-            # This is optional — not all formats need generated images.
-            # The operator reviews at the asset stage regardless.
-            # For now, we skip auto-image-generation (operator can trigger from asset page).
+        except Exception as e:
+            error_msg = str(e)[:500]
+            step = self._identify_failed_step(e)
+            store.update_card_state(
+                card_id,
+                "writer_failed",
+                production_error={"step": step, "error": error_msg},
+            )
+
+    def run_assembler_chain(self, draft_id: int, card_id: int, business_slug: str):
+        """Assembler stage: fan-out from a shipped draft. Produces assets for Gate 3 review.
+        Card state: assembling → asset_ready | assembly_failed.
+        """
+        from pipeline import PipelineStore
+        store = PipelineStore(db_path=self.db_path)
+
+        store.update_card_state(card_id, "assembling")
+
+        try:
+            self._step_fanout(draft_id, card_id, business_slug, store)
 
             # Success — card is ready for asset review
             store.update_card_state(card_id, "asset_ready")
@@ -69,7 +85,7 @@ class ProductionChain:
             step = self._identify_failed_step(e)
             store.update_card_state(
                 card_id,
-                "production_failed",
+                "assembly_failed",
                 production_error={"step": step, "error": error_msg},
             )
 
@@ -212,8 +228,8 @@ class ProductionChain:
                 result["self_audit_flags"],
             )
 
-        # Mark draft as shipped (auto-chain bypasses Gate 2 human pass)
-        store.update_draft_state(draft_id, "shipped")
+        # Draft is saved — writer chain stops here for Gate 2 review.
+        # The assembler chain (fan-out) triggers when the operator ships.
 
         return draft_id
 
@@ -392,10 +408,10 @@ def _determine_variant_type(format_name: str, platform_name: str) -> str:
         return "single_post"
 
 
-def enqueue_chain(db_path: str, config_dir: str, modules_dir: str, prompts_dir: str,
-                 card_id: int, business_slug: str):
-    """Enqueue a production chain for a card. Runs in a background thread.
-    Card state: producing → asset_ready | production_failed."""
+def enqueue_writer_chain(db_path: str, config_dir: str, modules_dir: str, prompts_dir: str,
+                         card_id: int, business_slug: str):
+    """Enqueue the WRITER chain for a card: draft generation only.
+    Card state: writing → draft_ready | writer_failed."""
     chain = ProductionChain(
         db_path=db_path,
         config_dir=config_dir,
@@ -403,10 +419,39 @@ def enqueue_chain(db_path: str, config_dir: str, modules_dir: str, prompts_dir: 
         prompts_dir=prompts_dir,
     )
     thread = threading.Thread(
-        target=chain.run_chain,
+        target=chain.run_writer_chain,
         args=(card_id, business_slug),
         daemon=True,
-        name=f"produce_chain_{card_id}",
+        name=f"writer_chain_{card_id}",
     )
     thread.start()
     return thread
+
+
+def enqueue_assembler_chain(db_path: str, config_dir: str, modules_dir: str, prompts_dir: str,
+                            draft_id: int, card_id: int, business_slug: str):
+    """Enqueue the ASSEMBLER chain for a shipped draft: fan-out + assets.
+    Card state: assembling → asset_ready | assembly_failed."""
+    chain = ProductionChain(
+        db_path=db_path,
+        config_dir=config_dir,
+        modules_dir=modules_dir,
+        prompts_dir=prompts_dir,
+    )
+    thread = threading.Thread(
+        target=chain.run_assembler_chain,
+        args=(draft_id, card_id, business_slug),
+        daemon=True,
+        name=f"assembler_chain_{card_id}",
+    )
+    thread.start()
+    return thread
+
+
+# ── Legacy alias for backward compatibility (tests) ──
+
+def enqueue_chain(db_path: str, config_dir: str, modules_dir: str, prompts_dir: str,
+                 card_id: int, business_slug: str):
+    """Legacy alias — enqueue the writer chain. Tests reference this."""
+    return enqueue_writer_chain(db_path, config_dir, modules_dir, prompts_dir,
+                                card_id, business_slug)

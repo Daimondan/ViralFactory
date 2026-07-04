@@ -91,19 +91,22 @@
 </head>
 <body>
 <div class="container">
-    <h1>Ideas — {{ business_name }}</h1>
+    <h1>Researcher — {{ business_name }}</h1>
     <p class="subtle">Gate 1: approve / kill / park. The funnel kills most here — by design.</p>
     <div class="nav">
-        <a href="/">Dashboard</a>
+        <a href="/">Home</a>
+        <a href="/ideas" class="active">Researcher</a>
+        <a href="/create">Writer</a>
+        <a href="/create#assembler">Assembler</a>
+        <a href="/published">Analyst</a>
         <a href="/onboard">Onboard</a>
         <a href="/library">Library</a>
-        <a href="/ideas" class="active">Ideas</a>
-        <a href="/create">Create</a>
+        <a href="/materials">Materials</a>
+        <a href="/proposals">Gate Queue</a>
     </div>
 
     <div class="tabs">
         <button class="tab {{ 'active' if active_tab == 'queue' else '' }}" onclick="window.location.href='/ideas?tab=queue'">Queue ({{ counts.new }})</button>
-        <button class="tab {{ 'active' if active_tab == 'awaiting' else '' }}" onclick="window.location.href='/ideas?tab=awaiting'">Awaiting Capture ({{ counts.awaiting_capture }})</button>
         <button class="tab {{ 'active' if active_tab == 'approved' else '' }}" onclick="window.location.href='/ideas?tab=approved'">Approved ({{ counts.approved }})</button>
         <button class="tab {{ 'active' if active_tab == 'parked' else '' }}" onclick="window.location.href='/ideas?tab=parked'">Parked ({{ counts.parked }})</button>
         <button class="tab {{ 'active' if active_tab == 'killed' else '' }}" onclick="window.location.href='/ideas?tab=killed'">Killed ({{ counts.killed }})</button>
@@ -231,11 +234,15 @@
             </div>
             {% elif card.card_state == 'approved' or card.card_state == 'capture_fulfilled' %}
             <div class="card-actions">
-                <button class="btn btn-approve" onclick="window.location.href='/create/draft/{{ card.id }}'">Start draft →</button>
+                <button class="btn btn-approve" onclick="window.location.href='/create/draft/{{ card.id }}'">View in Writer →</button>
             </div>
-            {% elif card.card_state == 'drafting' or card.card_state == 'drafted' %}
+            {% elif card.card_state == 'writing' %}
             <div class="card-actions">
-                <button class="btn btn-secondary" onclick="window.location.href='/create/draft/{{ card.id }}'">View draft →</button>
+                <button class="btn btn-secondary" onclick="window.location.href='/create/draft/{{ card.id }}'">Writer working…</button>
+            </div>
+            {% elif card.card_state == 'draft_ready' or card.card_state == 'drafting' or card.card_state == 'drafted' %}
+            <div class="card-actions">
+                <button class="btn btn-approve" onclick="window.location.href='/create/draft/{{ card.id }}'">Review draft →</button>
             </div>
             {% elif card.card_state == 'parked' %}
             <div class="card-actions">

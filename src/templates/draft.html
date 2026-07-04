@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/vf.css">
-    <title>Draft — {{ business_name }}</title>
+    <title>Writer — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
     <style>
 
@@ -70,13 +70,19 @@
 <body>
 <div class="container" id="draft-container">
     <div class="nav">
-        <a href="/ideas">← Ideas</a>
-        <a href="/create" class="active">Create</a>
-        <a href="/">Dashboard</a>
+        <a href="/">Home</a>
+        <a href="/ideas">Researcher</a>
+        <a href="/create" class="active">Writer</a>
+        <a href="/create#assembler">Assembler</a>
+        <a href="/published">Analyst</a>
+        <a href="/onboard">Onboard</a>
+        <a href="/library">Library</a>
+        <a href="/materials">Materials</a>
+        <a href="/proposals">Gate Queue</a>
     </div>
 
-    <h1>Draft</h1>
-    <p class="subtle">AI produces in voice + visual direction. Human passes: react, edit, ship or kill.</p>
+    <h1>Writer — Draft Review</h1>
+    <p class="subtle">The Writer took your approved idea and wrote it out. Review the full text + visual direction, then ship to the Assembler or revise.</p>
 
     <div class="card-info">
         <div class="idea">{{ card.idea }}</div>
@@ -205,7 +211,7 @@
     </div>
 
     <div class="actions">
-        <button class="btn btn-ship" onclick="draftGate('ship')">Ship forward →</button>
+        <button class="btn btn-ship" onclick="draftGate('ship')">Send to Assembler →</button>
         <button class="btn btn-revise" onclick="draftGate('revise')">Revise</button>
         <button class="btn btn-kill" onclick="draftGate('kill')">Kill</button>
         <button class="btn btn-gen" onclick="regenerate()">Regenerate draft</button>
