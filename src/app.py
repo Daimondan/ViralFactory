@@ -6946,6 +6946,164 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             return "partial"
         return "pending"
 
+    # ── Onboarding Module Health ──
+
+    @app.route("/onboarding-health")
+    def onboarding_health():
+        """Module Health — shows completeness of onboarding inputs per module."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return "Business not configured", 500
+
+        from onboarding_completeness import check_completeness
+        results = check_completeness(
+            app.config["DB_PATH"],
+            app.config["PLAYBOOKS_DIR"],
+            business_slug,
+        )
+
+        total_inputs = sum(len(r["inputs"]) for r in results)
+        missing_count = sum(1 for r in results for i in r["inputs"] if i["status"] == "missing")
+        present_count = total_inputs - missing_count
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            business_name = config["business"]["business"]["name"]
+        except ConfigError:
+            business_name = "Not configured"
+
+        return render_template("onboarding_health.html",
+            business_name=business_name,
+            modules=results,
+            total_inputs=total_inputs,
+            missing_count=missing_count,
+            present_count=present_count,
+        )
+
+    @app.route("/api/onboarding/mine-sources", methods=["POST"])
+    def mine_sources():
+        """Mine existing data (materials, onboarding transcript, source bank) for a missing onboarding input."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        input_name = request.json.get("input_name", "")
+        source_playbook = request.json.get("source_playbook", "")
+        if not input_name:
+            return jsonify({"error": "No input name provided"}), 400
+
+        # Gather data sources
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        onboarding_run = None
+        for run in runner.list_runs():
+            if dict(run).get("playbook_name") == "onboarding":
+                onboarding_run = dict(run)
+                break
+
+        conversation_transcript = ""
+        if onboarding_run:
+            collected = json.loads(onboarding_run.get("collected_inputs") or "{}")
+            messages = collected.get("session_messages", "")
+            if isinstance(messages, str):
+                conversation_transcript = messages[:10000]
+            elif isinstance(messages, list):
+                conversation_transcript = "\n".join(str(m) for m in messages)[:10000]
+
+        from materials import MaterialsIntake
+        intake = MaterialsIntake(app.config["DB_PATH"])
+        materials = intake.list_materials()
+        materials_content = ""
+        for m in materials[:20]:
+            content = m.get("normalized_content") or m.get("raw_content") or ""
+            if content:
+                materials_content += f"--- Material {m['id']} ({m.get('filename','')}) ---\n{content[:800]}\n\n"
+        if not materials_content:
+            materials_content = "(no material content available)"
+
+        store = _get_pipeline_store()
+        active_sources = store.list_sources(business_slug, limit=30)
+        source_bank_entries = "\n".join(
+            f"[S{s['id']}] {s['title']} — {s.get('summary','')}"
+            for s in active_sources
+        ) if active_sources else "(no sources in bank)"
+
+        input_descriptions = {
+            "admired_examples": "Links to content the operator admires in their domain — creators, posts, videos they wish they'd made",
+            "operator_stories": "2-3 stories the operator tells often — about their business, life, or take on things",
+            "voice_summary": "Summary of the operator's voice characteristics — tone, vocabulary, style preferences",
+            "admired_links": "5-10 links to content the operator admires",
+            "anti_examples": "3-5 examples of content the operator considers slop they'd never make",
+            "voice_samples": "Voice samples — typed or spoken content showing the operator's natural voice",
+            "tone_redlines": "Topics or stances the operator never wants to take",
+        }
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+        except ConfigError as e:
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        from llm_adapter import LLMAdapter
+        adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
+
+        result = adapter.complete(
+            prompt_file="onboarding/mine_source_v1.md",
+            variables={
+                "input_name": input_name,
+                "source_playbook": source_playbook,
+                "input_description": input_descriptions.get(input_name, input_name),
+                "conversation_transcript": conversation_transcript,
+                "materials_content": materials_content[:8000],
+                "source_bank_entries": source_bank_entries,
+            },
+            backend="default",
+            context=f"Source mining for {input_name} ({source_playbook})",
+            business_slug=business_slug,
+        )
+
+        if result.get("found"):
+            onboarding_run_id = onboarding_run["id"] if onboarding_run else None
+            if onboarding_run_id:
+                collected = json.loads(onboarding_run.get("collected_inputs") or "{}")
+                collected[input_name] = result.get("extracted_content", "")
+                runner.update_run(onboarding_run_id, collected_inputs=json.dumps(collected))
+
+        return jsonify({
+            "status": "ok",
+            "found": result.get("found", False),
+            "extracted_content": result.get("extracted_content", ""),
+            "sources_found": result.get("sources_found", []),
+            "confidence": result.get("confidence", "low"),
+        })
+
+    @app.route("/api/onboarding/fill-input", methods=["POST"])
+    def fill_input():
+        """Manually fill a missing onboarding input."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        input_name = request.json.get("input_name", "")
+        value = request.json.get("value", "")
+        if not input_name or not value:
+            return jsonify({"error": "Both input_name and value are required"}), 400
+
+        runner = PlaybookRunner(app.config["DB_PATH"])
+        onboarding_run = None
+        for run in runner.list_runs():
+            if dict(run).get("playbook_name") == "onboarding":
+                onboarding_run = dict(run)
+                break
+
+        if not onboarding_run:
+            return jsonify({"error": "No onboarding run found"}), 404
+
+        collected = json.loads(onboarding_run.get("collected_inputs") or "{}")
+        collected[input_name] = value
+        runner.update_run(onboarding_run["id"], collected_inputs=json.dumps(collected))
+
+        return jsonify({"status": "ok", "input_name": input_name})
+
     # ── Source Bank surface ──
 
     @app.route("/sources")
