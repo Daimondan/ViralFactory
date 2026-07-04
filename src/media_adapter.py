@@ -136,14 +136,15 @@ class MediaAdapter:
         return media_dir
 
     def _log_provenance(self, model: str, prompt: str, cost_usd: float = None,
-                        context: str = "", business_slug: str = None):
+                        context: str = "", business_slug: str = None,
+                        provider: str = "openrouter"):
         """Log a media call to provenance."""
         self.provenance.log(
             input_hash=hashlib.sha256(prompt.encode()).hexdigest(),
             prompt_file="(media_adapter)",
             prompt_version="1.0",
             model=model,
-            provider="openrouter",
+            provider=provider,
             raw_output=f"cost: ${cost_usd or 0}",
             validated_output={"prompt": prompt[:500], "cost_usd": cost_usd},
             validator_verdict="valid",
@@ -334,37 +335,60 @@ class MediaAdapter:
         The caller is responsible for polling check_video_job() or the worker
         framework handles it via the jobs table.
         """
-        model = model or self.media_config.get("video_default", "google/veo-3.1-lite")
+        model = model or self.media_config.get("video_default", "grok-imagine-video")
 
-        if not self.api_key:
-            raise MediaAdapterError("OPENROUTER_API_KEY not set — cannot generate video")
+        # T9: Support xAI video provider (config-driven)
+        video_base_url = self.media_config.get("video_base_url", self.base_url)
+        video_provider = self.media_config.get("video_provider", "openrouter")
 
-        url = f"{self.base_url}/videos"
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "model": model,
-            "prompt": prompt,
-            "aspect_ratio": aspect_ratio,
-            "duration": duration,
-        }
+        if video_provider == "xai":
+            # xAI uses XAI_API_KEY and a different API format
+            api_key = os.environ.get("XAI_API_KEY", "")
+            if not api_key:
+                raise MediaAdapterError("XAI_API_KEY not set — cannot generate video with xAI")
+            url = f"{video_base_url}/v1/videos/generations"
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            }
+            payload = {
+                "model": model,
+                "prompt": prompt,
+                "aspect_ratio": aspect_ratio,
+                "duration": duration,
+            }
+        else:
+            if not self.api_key:
+                raise MediaAdapterError("OPENROUTER_API_KEY not set — cannot generate video")
+
+            url = f"{self.base_url}/videos"
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            }
+            payload = {
+                "model": model,
+                "prompt": prompt,
+                "aspect_ratio": aspect_ratio,
+                "duration": duration,
+            }
 
         try:
             response = requests.post(url, json=payload, headers=headers, timeout=60)
             response.raise_for_status()
         except requests.RequestException as e:
-            self._log_provenance(model, prompt, context=f"{context} (submit failed)", business_slug=business_slug)
+            self._log_provenance(model, prompt, context=f"{context} (submit failed)",
+                                 business_slug=business_slug, provider=video_provider)
             raise MediaAdapterError(f"Video API submit failed: {e}")
 
         data = response.json()
-        external_job_id = data.get("id") or data.get("job_id")
+        # xAI returns request_id, OpenRouter returns id/job_id
+        external_job_id = data.get("request_id") or data.get("id") or data.get("job_id")
         cost_usd = data.get("cost", 0)
 
         self._log_provenance(model, prompt, cost_usd=cost_usd,
                             context=f"{context} (submitted, ext_job={external_job_id})",
-                            business_slug=business_slug)
+                            business_slug=business_slug, provider=video_provider)
 
         return {
             "model": model,
@@ -379,11 +403,22 @@ class MediaAdapter:
         Poll a video generation job. Returns:
         {status: "processing"|"completed"|"failed", download_url, cost_usd}
         """
-        if not self.api_key:
-            raise MediaAdapterError("OPENROUTER_API_KEY not set")
+        # T9: Support xAI video provider
+        video_base_url = self.media_config.get("video_base_url", self.base_url)
+        video_provider = self.media_config.get("video_provider", "openrouter")
 
-        url = f"{self.base_url}/videos/{external_job_id}"
-        headers = {"Authorization": f"Bearer {self.api_key}"}
+        if video_provider == "xai":
+            api_key = os.environ.get("XAI_API_KEY", "")
+            if not api_key:
+                raise MediaAdapterError("XAI_API_KEY not set — cannot poll xAI video jobs")
+            url = f"{video_base_url}/v1/videos/{external_job_id}"
+            headers = {"Authorization": f"Bearer {api_key}"}
+        else:
+            if not self.api_key:
+                raise MediaAdapterError("OPENROUTER_API_KEY not set")
+
+            url = f"{self.base_url}/videos/{external_job_id}"
+            headers = {"Authorization": f"Bearer {self.api_key}"}
 
         try:
             response = requests.get(url, headers=headers, timeout=30)

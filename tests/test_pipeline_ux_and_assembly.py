@@ -274,6 +274,53 @@ class TestMediaAdapter:
         assert "video_default" in config["media"]
         assert "base_url" in config["media"]
 
+    def test_xai_video_submit_uses_xai_endpoint_and_request_id(self, tmp_path, monkeypatch):
+        """xAI video generation uses /v1/videos/generations and request_id."""
+        import media_adapter
+
+        calls = []
+
+        class FakeResponse:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"request_id": "xai_req_123"}
+
+        def fake_post(url, json, headers, timeout):
+            calls.append({"url": url, "json": json, "headers": headers, "timeout": timeout})
+            return FakeResponse()
+
+        monkeypatch.setenv("XAI_API_KEY", "test-xai-key")
+        monkeypatch.setattr(media_adapter.requests, "post", fake_post)
+
+        config = {"media": {
+            "video_provider": "xai",
+            "video_base_url": "https://api.x.ai",
+            "video_default": "grok-imagine-video",
+        }}
+        adapter = MediaAdapter(config, db_path=str(tmp_path / "test.db"))
+        result = adapter.submit_video("make a reel", asset_id=1, duration=5, aspect_ratio="9:16")
+
+        assert result["external_job_id"] == "xai_req_123"
+        assert calls[0]["url"] == "https://api.x.ai/v1/videos/generations"
+        assert calls[0]["json"]["model"] == "grok-imagine-video"
+        assert calls[0]["headers"]["Authorization"] == "Bearer test-xai-key"
+
+    def test_xai_video_without_key_raises_clear_error(self, tmp_path, monkeypatch):
+        """xAI video provider requires XAI_API_KEY, not OPENROUTER_API_KEY."""
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+        config = {"media": {
+            "video_provider": "xai",
+            "video_base_url": "https://api.x.ai",
+            "video_default": "grok-imagine-video",
+        }}
+        adapter = MediaAdapter(config, db_path=str(tmp_path / "test.db"))
+        with pytest.raises(MediaAdapterError) as exc_info:
+            adapter.submit_video("make a reel", asset_id=1)
+        assert "XAI_API_KEY" in str(exc_info.value)
+
     def test_asset_media_table_created(self, tmp_path):
         config = {"media": {}}
         adapter = MediaAdapter(config, db_path=str(tmp_path / "test.db"))

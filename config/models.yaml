@@ -87,7 +87,9 @@ voice_cloning:
 # Auth: OPENROUTER_API_KEY env var (single bearer token for both image + video).
 media:
   image_default: "google/gemini-3.1-flash-image"
-  video_default: "google/veo-3.1-lite"
+  video_default: "grok-imagine-video"
+  video_provider: "xai"
+  video_base_url: "https://api.x.ai"
   base_url: "https://openrouter.ai/api/v1"
 
 # ── Stock library (Final Assembly Part 1) ──

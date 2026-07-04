@@ -5565,6 +5565,20 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         # Provenance trail: idea → script → assets
         card = store.get_idea_card(draft["idea_card_id"])
+        display_card = dict(card) if card else None
+        if display_card:
+            try:
+                treatment_for_capture = json.loads(display_card.get("treatment") or "{}")
+            except (json.JSONDecodeError, TypeError):
+                treatment_for_capture = {}
+            capture_required = treatment_for_capture.get("capture_required") or []
+            if isinstance(capture_required, list):
+                display_card["capture_tasks_parsed"] = [
+                    item.get("task", item) if isinstance(item, dict) else item
+                    for item in capture_required
+                ]
+            else:
+                display_card["capture_tasks_parsed"] = []
         trail = []
         trail.append({"stage": "Idea", "state": "approved", "label": "Idea approved"})
         trail.append({"stage": "Script", "state": "approved", "label": "Script approved (shipped)"})
@@ -5580,9 +5594,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             trail.append({"stage": "Assets", "state": "pending", "label": "No assets generated yet"})
 
         return render_template("assets.html",
-            business_name=business_name, draft=draft,
+            business_name=business_name, draft=_parse_draft_for_display(draft),
             assets=enriched_assets, visual_direction=visual_direction,
-            platforms=platforms, trail=trail, idea_card=card)
+            platforms=platforms, trail=trail, idea_card=display_card)
 
     @app.route("/api/assets/<int:draft_id>/fan-out", methods=["POST"])
     def assets_fan_out(draft_id):

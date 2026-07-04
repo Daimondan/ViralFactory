@@ -32,7 +32,7 @@
         .pipeline-card.hidden { display: none; }
 
         .card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 8px; }
-        .card-title { font-size: 0.92rem; line-height: 1.5; color: #1A1A1A; flex: 1; }
+        .card-title { font-size: 0.92rem; line-height: 1.5; color: #1A1A1A; flex: 1; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
         .card-title a { color: inherit; text-decoration: none; }
         .card-title a:hover { color: #E54B2C; }
 
@@ -101,7 +101,7 @@
         <div class="pipeline-card" data-state="{{ card.display_state }}">
             <div class="card-header">
                 <div class="card-title">
-                    <a href="/create/assets/{{ card.draft.id }}">{{ card.idea_short }}{% if card.idea|length > 80 %}...{% endif %}</a>
+                    <a href="/create/assets/{{ card.draft.id }}">{{ card.idea }}</a>
                 </div>
                 <span class="state-badge st-{{ card.display_state }}">
                     {% if card.display_state == 'assembling' %}<span class="spinner"></span>{% endif %}

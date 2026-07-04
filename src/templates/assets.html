@@ -8,7 +8,7 @@
     <script src="/static/busy.js"></script>
     <style>
 
-        .asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 20px; }
+        .asset-grid { display: grid; grid-template-columns: minmax(380px, 760px); gap: 20px; justify-content: center; }
         .preview-card { background: #FFFFFF; border-radius: 12px; overflow: hidden; border: 1px solid #D8D4C8; }
         .preview-header { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #D8D4C8; }
         .preview-platform { font-size: 0.85rem; font-weight: 600; color: #4A6FA5; }
@@ -115,6 +115,16 @@
     <div class="card-info" style="background: #FFFFFF; border-radius: 10px; padding: 16px; border: 1px solid #D8D4C8; margin-bottom: 16px;">
         <div style="font-size: 0.85rem; color: #8A857C; margin-bottom: 6px;">Original idea:</div>
         <div style="font-size: 0.95rem; line-height: 1.5;">{{ idea_card.idea }}</div>
+        {% if idea_card.capture_tasks_parsed and idea_card.capture_tasks_parsed|length > 0 %}
+        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #F0EDE4;">
+            <div style="font-size: 0.82rem; color: #8A857C; margin-bottom: 6px;">Capture reminders:</div>
+            <ul style="margin: 0 0 0 18px; font-size: 0.86rem; line-height: 1.5;">
+            {% for task in idea_card.capture_tasks_parsed %}
+                <li>{{ task }}</li>
+            {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
     </div>
     {% endif %}
 
@@ -133,12 +143,29 @@
     {% endif %}
 
     {# ── Approved script (collapsible) ── #}
-    {% if draft and draft.draft_text %}
+    {% if draft and ((draft.platform_content_parsed and draft.platform_content_parsed|length > 0) or draft.draft_text) %}
     <details style="background: #FFFFFF; border-radius: 10px; padding: 14px 18px; border: 1px solid #D8D4C8; margin-bottom: 16px;">
         <summary style="cursor: pointer; font-size: 0.88rem; font-weight: 600; color: #4A6FA5; user-select: none;">
             Approved script {% if draft.format %}({{ draft.format }}){% endif %} — click to expand
         </summary>
-        <div style="margin-top: 12px; font-size: 0.92rem; line-height: 1.7; color: #1A1A1A; white-space: pre-wrap;">{{ draft.draft_text }}</div>
+        <div style="margin-top: 12px; font-size: 0.92rem; line-height: 1.7; color: #1A1A1A; white-space: pre-wrap;">
+            {% if draft.platform_content_parsed and draft.platform_content_parsed|length > 0 %}
+                {% for pc in draft.platform_content_parsed %}
+                    <div style="font-weight: 700; color: #E54B2C; margin-bottom: 6px;">{{ pc.platform }} · {{ pc.variant_type }}</div>
+                    {% if pc.posts and pc.posts|length > 0 %}
+                        {% for post in pc.posts %}
+                            {% if pc.posts|length > 1 %}<div style="font-weight: 600; color: #8A857C; margin-top: 10px;">{{ loop.index }}.</div>{% endif %}
+                            <div>{{ post }}</div>
+                        {% endfor %}
+                    {% else %}
+                        <div>{{ pc.content }}</div>
+                    {% endif %}
+                    {% if not loop.last %}<hr style="border: none; border-top: 1px solid #F0EDE4; margin: 14px 0;">{% endif %}
+                {% endfor %}
+            {% else %}
+                {{ draft.draft_text }}
+            {% endif %}
+        </div>
     </details>
     {% endif %}
 
@@ -155,6 +182,7 @@
         {% for asset in assets %}
         {% set is_thread = 'thread' in (asset.variant_type or '')|lower %}
         {% set is_carousel = 'carousel' in (asset.variant_type or '')|lower %}
+        {% set is_story_series = 'story' in (asset.variant_type or '')|lower %}
         {% set is_reel = 'reel' in (asset.variant_type or '')|lower or 'video' in (asset.variant_type or '')|lower %}
         {% set has_posts = asset.posts_parsed and asset.posts_parsed|length > 0 %}
         {% set has_images = asset.images and asset.images|length > 0 %}
@@ -198,8 +226,8 @@
                 {% endfor %}
             </div>
 
-            {% elif is_carousel and has_posts %}
-            {# INSTAGRAM CAROUSEL: show slides like a swipeable carousel #}
+            {% elif (is_carousel or is_story_series) and has_posts %}
+            {# INSTAGRAM CAROUSEL / STORY SERIES: show every slide/frame #}
             <div class="post-list">
                 {% for post in asset.posts_parsed %}
                 <div class="post-item">
@@ -209,9 +237,9 @@
                     </div>
                     {% set img_idx = loop.index0 %}
                     {% if asset.post_images and img_idx < asset.post_images|length and asset.post_images[img_idx] %}
-                    <img class="post-image" src="/media/{{ asset.post_images[img_idx].path }}" alt="Slide {{ loop.index }}" onclick="openLightbox(this.src, 'Slide {{ loop.index }} — {{ handle }}')">
+                    <img class="post-image" src="/media/{{ asset.post_images[img_idx].path }}" alt="{{ 'Frame' if is_story_series else 'Slide' }} {{ loop.index }}" onclick="openLightbox(this.src, '{{ 'Frame' if is_story_series else 'Slide' }} {{ loop.index }} — {{ handle }}')">
                     {% elif asset.image_prompts_parsed and img_idx < asset.image_prompts_parsed|length and asset.image_prompts_parsed[img_idx] != 'none' %}
-                    <div class="post-image-placeholder">slide</div>
+                    <div class="post-image-placeholder">{{ 'frame' if is_story_series else 'slide' }}</div>
                     {% endif %}
                 </div>
                 {% endfor %}
@@ -234,7 +262,9 @@
                 {% endif %}
             </div>
             <div style="padding: 12px 16px;">
-                <div class="post-text">{{ asset.content }}</div>
+                {% set reel_excerpt = asset.posts_parsed[0] if has_posts else asset.content %}
+                <div class="post-meta" style="margin-bottom: 4px;">Script excerpt</div>
+                <div class="post-text">{{ reel_excerpt[:300] }}{% if reel_excerpt|length > 300 %}…{% endif %}</div>
                 <div class="post-meta" style="margin-top: 4px;">
                     <span class="handle">{{ handle }}</span>
                 </div>
@@ -285,11 +315,11 @@
                 </div>
                 {% endif %}
 
-                {# Step 2: Video generation (only for reel/video formats) — one button #}
+                {# Video generation (only for reel/video formats) — one button #}
                 {% if is_reel %}
                 <div class="step">
                     <div class="step-label">
-                        <span class="step-num {{ 'done' if has_final else 'active' }}">{{ '✓' if has_final else '2' }}</span>
+                        <span class="step-num {{ 'done' if has_final else 'active' }}">{{ '✓' if has_final else '1' }}</span>
                         {% if has_final %}
                         Final cut rendered
                         {% else %}
@@ -322,7 +352,7 @@
                 {% if asset.asset_state in ('pending', 'fix') %}
                 <div class="gate-actions">
                     <button class="btn btn-approve" onclick="assetGate({{ asset.id }}, 'approve', this)">Approve ✓</button>
-                    <button class="btn btn-fix" onclick="assetGate({{ asset.id }}, 'fix', this)">Needs work</button>
+                    <button class="btn btn-fix" title="Sends this asset back as internal state: fix" onclick="assetGate({{ asset.id }}, 'fix', this)">Needs work</button>
                     <button class="btn btn-kill" onclick="assetGate({{ asset.id }}, 'kill', this)">Kill</button>
                 </div>
                 {% elif asset.asset_state == 'approved' %}

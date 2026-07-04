@@ -6,6 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-04 UX/FIX — Operator end-to-end UI review fixes for Writer/Assembler
+
+**What:** Fixed 15 operator-reported issues from the full UI walkthrough. Critical display fixes now render `platform_content` everywhere: single-post Reel scripts show the full beat-by-beat script on Draft review, Asset review reads approved scripts from `platform_content` instead of legacy `draft_text`, and `story_series` assets show every frame/image pair. Researcher Generate now has visible loading state, Writer/Assembler list titles use 3-line clamp instead of one-line manual ellipses, shipped drafts hide mutating self-audit controls, AI review notes no longer imply a replacement when no text changed, Reel video generation starts as step 1, asset cards show script excerpts instead of duplicating summary text, capture reminders show on Asset review, Gate 3 keeps the friendly "Needs work" label with `fix` mapping documented in the button title, and asset cards are centered/wider on laptop.
+
+**xAI video:** Media config now supports `video_provider: xai`, xAI endpoint shape (`/v1/videos/generations`), `request_id` job IDs, xAI polling endpoint, and clear `XAI_API_KEY` errors. Attempted to copy `XAI_API_KEY` from the default Hermes profile env (`/home/daimon/.hermes/.env`) into `/home/daimon/.viralfactory.env`, but the default env does not currently contain `XAI_API_KEY`; no secret was fabricated or written.
+
+**Rationale:** The walkthrough exposed stale template assumptions from the old `draft_text` schema and confusing controls on the redesigned Writer/Assembler boundary. These are operator-facing defects: the data was correct in SQLite, but the UI hid or duplicated the wrong fields.
+
+**Tests:** 758 passing. Added `tests/test_ui_review_display_fixes.py` (10 regression tests) and xAI media adapter tests. Full `pytest -q` passed; worker cleanup printed a non-fatal `no such table: materials` message after completion.
+
+---
+
 ### 2026-07-04 TECH — M9 implemented: Writer per-platform + Assembler media-only + AI review loop
 
 **T9.1:** Removed `_determine_variant_type` keyword heuristic and `_resolve_format_platforms` regex parser from `produce_chain.py` and `app.py` — both were Business Rule #2 violations. Replaced with `_get_platforms_from_format_entry` and `_get_variant_type_from_format_entry` — mechanical parsers of the Format Guide entry's structured `- **Platforms:**` and `- **Variant type:**` fields. No judgment in code.

@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-04
-**Current Phase:** UX FIX — six operator-reported workflow issues fixed. Nav shows real-time pipeline counts. Generate ideas button gives visible feedback. Writer hides unapproved cards (series children stay in Researcher). Writer/Assembler auto-refresh when background jobs finish. Manual "Generate per-platform variants" button replaced with auto-spinner (fan-out already fires on ship). Video pipeline collapsed to one button (plan+render chained, edit plan in collapsible after). 726 tests passing.
+**Current Phase:** UX FIX — full UI walkthrough issues fixed for Writer/Assembler. Critical `platform_content` display fixes landed (single Reel scripts, asset approved scripts, story-series frames), Researcher loading state, 3-line card titles, shipped-draft read-only controls, clearer AI review notes, Reel step numbering, capture reminders on Asset review, xAI media adapter wiring. 758 tests passing. Blocker: default Hermes env lacks `XAI_API_KEY`, so `/home/daimon/.viralfactory.env` still needs the real key before live xAI video generation works.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
@@ -299,3 +299,10 @@ Materials Library — editable source materials. DB migrations: `excluded` colum
 - All `CHARTER-v3.3` references updated to `CHARTER-v3.4`
 - DIVERGENCE-010 file renamed from DIVERGENCE-009-writer... to DIVERGENCE-010-writer...
 - **Tests:** 711 passing. 0 failures. Q: none — builder to implement M9 tasks
+
+### 2026-07-04 — Full UI review fixes (Writer/Assembler/platform_content)
+
+- Fixed 15 operator-reported UI walkthrough issues: full single-post Reel scripts display on Draft review; Asset review reads approved scripts from `platform_content`; Story Series shows all frames/images; Researcher Generate button shows loading state; Writer/Assembler cards use 3-line titles; AI review notes no longer imply replacements; shipped drafts hide mutating self-audit controls; Reel video step starts at 1; asset card uses script excerpt instead of duplicate summary; capture reminders show on Asset review; Gate 3 keeps "Needs work" label with internal `fix` mapping documented.
+- xAI media adapter wired for `video_provider: xai`, `/v1/videos/generations`, `request_id`, polling, and clear `XAI_API_KEY` errors.
+- Attempted key copy from default Hermes env → `/home/daimon/.viralfactory.env`; blocker: `/home/daimon/.hermes/.env` does not contain `XAI_API_KEY`, so no secret was written.
+- **Tests:** 758 passed via `pytest -q` (non-fatal worker cleanup message: `no such table: materials`) · Q: real `XAI_API_KEY` still needed in env for live xAI video.
