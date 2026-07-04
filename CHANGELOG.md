@@ -6,6 +6,26 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-04 OPS — Activity list capped to 10 rows + "Show more" toggle
+
+**What:** Home page (index.html) Recent Activity section now shows only the first 10 activity items by default, with a "Show more activity (N more)" button that reveals the remaining items. Button toggles to "Show less activity" when expanded. Backend cap (`all_cards[:15]`) removed so the full list is available client-side. Jinja `{% if loop.index > 10 %}style="display:none;"{% endif %}` hides extras; JS `toggleMoreActivity()` toggles visibility.
+
+**Why:** Operator: "Recent activity list just gets longer, cap it to ten rows with a more button to see more activity."
+
+**Rationale:** Pure UX — the activity feed grows unbounded as ideas/drafts/assets accumulate. Capping to 10 keeps the dashboard scannable. Toggle gives full access on demand.
+
+---
+
+### 2026-07-04 STRATEGIC — DIVERGENCE-006 filed: Researcher/Writer/Assembler/Analyst menu + workflow restructure
+
+**What:** Filed `docs/decisions/DIVERGENCE-006-researcher-writer-assembler-analyst-menu.md` — operator proposes four-role menu (Researcher/Ideas → Writer → Assembler → Analyst) and removal of the awaiting-capture blocking state. Four conflicts with the current charter identified: (1) awaiting-capture removal vs AMENDMENT-003, (2) Writer "continues not rewrites" as naming vs structural change, (3) menu restructure from stage-centric to role-centric, (4) Analyst owning publishing vs separate Publish gate.
+
+**Why:** Operator laid out a clear mental model of the pipeline as four roles. Some of it is labeling (maps to existing AI Profiles), some is structural (awaiting-capture removal, Analyst-owned publishing).
+
+**Rationale:** Awaiting-capture removal and Analyst-owned publishing are structural changes that conflict with AMENDMENT-003 and the charter's pipeline design. Builder does not decide design — filed for architect review. Consistent-nav fix and activity-list cap proceed as non-structural work. Builder recommends: approve four-role menu as relabel, make awaiting-capture non-blocking flag, defer Drafter split and Analyst-publishing to M3/M4.
+
+---
+
 ### 2026-07-03 STRUCTURE — T8.7: AI Profiles (P1)
 
 **What:** New `config/profiles.yaml` with three named profiles: Researcher (ideation + source scouting, generative temp), Drafter (produces final asset from approved idea, generative temp), Analyst (reads results, drives loops, judgment/temp-0 class). `LLMAdapter.complete()` gains `profile` parameter, passed through to all `ProvenanceLog.log()` calls. Provenance table gains `profile` column (idempotent migration). Pipeline LLM calls declare their profile: ideas_generate → "researcher", draft_generate → "drafter", produce_chain → "drafter".

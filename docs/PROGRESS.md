@@ -4,8 +4,8 @@
 > blocked, or changed. Any agent should be able to read this and know
 > exactly where we are.
 
-**Last Updated:** 2026-07-03
-**Current Phase:** M8 complete (source grounding + auto-production chain + AI profiles). All T8.1-T8.7 done. 650 tests passing. M3 checkpoint passed, M6 complete, all UI findings fixed. Buffer API live. Cream editorial design. Remaining: Drafter A/B (needs ab_candidate), T2.6-T2.8 audio (deferred).
+**Last Updated:** 2026-07-04
+**Current Phase:** M8 complete (source grounding + auto-production chain + AI profiles). All T8.1-T8.7 done. 650 tests passing. M3 checkpoint passed, M6 complete, all UI findings fixed. Buffer API live. Cream editorial design. Remaining: Drafter A/B (needs ab_candidate), T2.6-T2.8 audio (deferred). DIVERGENCE-006 filed (Researcher/Writer/Assembler/Analyst menu + awaiting-capture removal) — awaiting architect review.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 

@@ -82,13 +82,12 @@
             </div>
         </div>
         {% endif %}
-
+        {% if activity %}
         <h2>Recent Activity</h2>
         <div class="card">
-            {% if activity %}
             <ul style="list-style:none;padding:0;">
                 {% for item in activity %}
-                <li class="activity-item">
+                <li class="activity-item" id="activity-{{ loop.index }}" {% if loop.index > 10 %}style="display:none;"{% endif %}>
                     <div class="activity-icon icon-{{ item.type }}">{{ item.type[0] | upper }}</div>
                     <div class="activity-body">
                         <div class="activity-title">
@@ -119,12 +118,20 @@
                 </li>
                 {% endfor %}
             </ul>
-            {% else %}
-            <div class="empty-state">
-                <p>No activity yet. Start by <a href="/onboard">onboarding</a> or <a href="/ideas">generating ideas</a>.</p>
+            {% if activity|length > 10 %}
+            <div style="text-align:center; padding:10px 0 4px;">
+                <button class="btn btn-secondary" id="showMoreActivity" onclick="toggleMoreActivity()">Show more activity ({{ activity|length - 10 }} more)</button>
             </div>
             {% endif %}
         </div>
+        {% else %}
+        <h2>Recent Activity</h2>
+        <div class="card">
+            <div class="empty-state">
+                <p>No activity yet. Start by <a href="/onboard">onboarding</a> or <a href="/ideas">generating ideas</a>.</p>
+            </div>
+        </div>
+        {% endif %}
 
         <h2>Quick Actions</h2>
         <div class="flex gap-2">
@@ -136,5 +143,24 @@
             Private via Tailscale · Auto-publish disabled
         </div>
     </div>
+    <script>
+    function toggleMoreActivity() {
+        var btn = document.getElementById('showMoreActivity');
+        var hidden = document.querySelectorAll('.activity-item[style*="display:none"]');
+        var shown = document.querySelectorAll('.activity-item:not([style*="display:none"])');
+        if (btn.textContent.indexOf('Show more') !== -1) {
+            hidden.forEach(function(el) { el.style.display = 'grid'; });
+            btn.textContent = 'Show less activity';
+        } else {
+            // Hide items beyond 10
+            var items = document.querySelectorAll('.activity-item');
+            items.forEach(function(el, idx) {
+                if (idx >= 10) el.style.display = 'none';
+            });
+            btn.textContent = 'Show more activity ({{ activity|length - 10 }} more)';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    }
+    </script>
 </body>
 </html>

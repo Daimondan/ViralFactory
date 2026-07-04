@@ -168,7 +168,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             all_cards = store.list_idea_cards(business_slug)
             grouped = {}  # {idea_title: {type, state, title, link, time, sub_events: []}}
 
-            for card in all_cards[:15]:
+            for card in all_cards:
                 title = card["idea"][:100]  # longer truncation, CSS handles overflow
                 if title not in grouped:
                     grouped[title] = {
