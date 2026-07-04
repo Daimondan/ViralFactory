@@ -6,6 +6,21 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-04 FIX — FFmpeg concat crash on audio-only sources
+
+**What:**
+- FFmpeg render crashed with `concat failed` when edit plan segments referenced audio-only files (WhatsApp voice memos saved as `.mp4` with no video stream). The concat filter requires `[i:v]` and `[i:a]` from every input, but audio-only sources had no video track and video-only sources had no audio track.
+- `AssemblyRenderer` now probes each source with ffprobe before trimming:
+  - **Audio-only sources** → synthesizes a solid black video track at canvas resolution paired with the trimmed audio.
+  - **Video-only sources** → adds a silent audio track (`anullsrc`).
+  - **Image sources** → also gets silent audio added (was previously missing audio for concat).
+- New helpers: `_has_video_stream()`, `_has_audio_stream()`, `_stream_type_exists()`.
+- 4 new regression tests: audio-only detection, video detection, audio-only source render, video-only source render.
+
+**Rationale:** WhatsApp voice memos are a primary input source for StackPenni. They're saved as `.mp4` containers but contain only an audio stream. The renderer must handle real-world upload formats, not just standard video files.
+
+**Type:** FIX
+
 ### 2026-07-04 STRUCTURE — Source Bank page + seed source auto-extraction + DIVERGENCE-007
 
 **What:**

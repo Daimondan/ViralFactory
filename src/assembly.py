@@ -127,6 +127,42 @@ class AssemblyRenderer:
         else:
             raise AssemblyError(f"Unknown source kind: {kind}")
 
+    def _has_video_stream(self, file_path: str) -> bool:
+        """Check if a media file contains a video stream.
+
+        WhatsApp voice memos and audio recordings may be saved as .mp4
+        with only an audio track. The concat filter requires a video stream
+        from every input, so callers need to know when to synthesize one.
+        """
+        return self._stream_type_exists(file_path, "video")
+
+    def _has_audio_stream(self, file_path: str) -> bool:
+        """Check if a media file contains an audio stream.
+
+        Video-only clips (e.g. test sources, screen recordings without audio)
+        need a silent audio track added so the concat filter has [i:a] for
+        every input.
+        """
+        return self._stream_type_exists(file_path, "audio")
+
+    def _stream_type_exists(self, file_path: str, codec_type: str) -> bool:
+        """Check if a media file contains a stream of the given codec_type."""
+        try:
+            result = subprocess.run(
+                ["ffprobe", "-v", "quiet", "-print_format", "json",
+                 "-show_streams", file_path],
+                capture_output=True, text=True, timeout=30,
+            )
+            if result.returncode != 0:
+                return False
+            data = json.loads(result.stdout)
+            for stream in data.get("streams", []):
+                if stream.get("codec_type") == codec_type:
+                    return True
+            return False
+        except Exception:
+            return False
+
     def _get_duration(self, file_path: str) -> float:
         """Get media file duration in seconds via ffprobe."""
         try:
@@ -242,31 +278,77 @@ class AssemblyRenderer:
                 # Check if source is an image (images need different handling)
                 is_image = src_path.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
 
+                # Check if source is audio-only (no video stream)
+                # WhatsApp voice memos and audio recordings may be saved as .mp4
+                # with only an audio track — concat filter needs video from every input.
+                is_audio_only = not is_image and not self._has_video_stream(src_path)
+
                 seg_file = os.path.join(media_dir, f"seg_{i}.mp4")
 
                 if is_image:
                     # Create a video clip from the image with the specified duration
-                    cmd = [
-                        "ffmpeg", "-y", "-loop", "1", "-i", src_path,
-                        "-t", str(max(duration, 1)),
-                        "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2",
-                        "-c:v", "libx264", "-pix_fmt", "yuv420p",
-                        "-r", "30",
-                        seg_file,
-                    ]
-                else:
-                    # Trim the video clip
+                    # Add silent audio so concat has both streams from every segment.
                     cmd = [
                         "ffmpeg", "-y",
-                        "-ss", str(in_pt),
-                        "-i", src_path,
-                        "-t", str(duration),
+                        "-loop", "1", "-i", src_path,
+                        "-f", "lavfi", "-i", f"anullsrc=channel_layout=stereo:sample_rate=44100",
+                        "-t", str(max(duration, 1)),
                         "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2",
+                        "-map", "0:v:0", "-map", "1:a:0",
                         "-c:v", "libx264", "-pix_fmt", "yuv420p",
                         "-c:a", "aac",
                         "-r", "30",
+                        "-shortest",
                         seg_file,
                     ]
+                elif is_audio_only:
+                    # Audio-only source: generate a solid black video track at canvas
+                    # resolution paired with the trimmed audio, so concat has both streams.
+                    cmd = [
+                        "ffmpeg", "-y",
+                        "-f", "lavfi", "-i", f"color=c=black:s={width}x{height}:r=30:d={max(duration, 1)}",
+                        "-ss", str(in_pt),
+                        "-i", src_path,
+                        "-t", str(duration),
+                        "-map", "0:v:0", "-map", "1:a:0",
+                        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                        "-c:a", "aac",
+                        "-r", "30",
+                        "-shortest",
+                        seg_file,
+                    ]
+                else:
+                    # Video source — may or may not have audio.
+                    # Check if it has audio; if not, add silent audio for concat.
+                    has_audio = self._has_audio_stream(src_path)
+                    if has_audio:
+                        cmd = [
+                            "ffmpeg", "-y",
+                            "-ss", str(in_pt),
+                            "-i", src_path,
+                            "-t", str(duration),
+                            "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2",
+                            "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                            "-c:a", "aac",
+                            "-r", "30",
+                            seg_file,
+                        ]
+                    else:
+                        # Video-only (no audio): add silent audio track
+                        cmd = [
+                            "ffmpeg", "-y",
+                            "-ss", str(in_pt),
+                            "-i", src_path,
+                            "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+                            "-t", str(duration),
+                            "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2",
+                            "-map", "0:v:0", "-map", "1:a:0",
+                            "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                            "-c:a", "aac",
+                            "-r", "30",
+                            "-shortest",
+                            seg_file,
+                        ]
 
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
                 if result.returncode != 0:

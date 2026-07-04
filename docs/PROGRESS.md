@@ -257,3 +257,4 @@ Materials Library — editable source materials. DB migrations: `excluded` colum
 - DIVERGENCE-007 filed: source review gate (new sources need human approval?) + source neural network (connections between sources for ideation)
 - Source Bank nav link added across all 29 templates
 - **Tests:** 661 passing. 0 failures.
+- FIX: FFmpeg concat crash when source files are audio-only (WhatsApp voice memos saved as .mp4 with no video stream). Renderer now probes each source and synthesizes black video for audio-only sources, silent audio for video-only sources. 4 new regression tests. **Tests: 665 passing.**

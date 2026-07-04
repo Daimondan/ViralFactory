@@ -443,6 +443,138 @@ class TestAssemblyRenderer:
             renderer.render(plan, asset_id=1, draft_id=1)
         assert "not found" in str(exc_info.value).lower() or "missing" in str(exc_info.value).lower()
 
+    def test_has_video_stream_detects_audio_only(self, tmp_path):
+        """_has_video_stream returns False for audio-only files (WhatsApp voice memos)."""
+        import subprocess
+        renderer = AssemblyRenderer({}, db_path=str(tmp_path / "test.db"))
+        # Generate a 1s audio-only mp4 (no video stream)
+        audio_file = str(tmp_path / "audio_only.mp4")
+        subprocess.run(
+            ["ffmpeg", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=1",
+             "-c:a", "aac", audio_file],
+            capture_output=True, timeout=30,
+        )
+        assert os.path.exists(audio_file)
+        assert renderer._has_video_stream(audio_file) is False
+
+    def test_has_video_stream_detects_video(self, tmp_path):
+        """_has_video_stream returns True for files with a video track."""
+        import subprocess
+        renderer = AssemblyRenderer({}, db_path=str(tmp_path / "test.db"))
+        video_file = str(tmp_path / "video.mp4")
+        subprocess.run(
+            ["ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=duration=1:size=320x240:rate=30",
+             "-c:v", "libx264", "-pix_fmt", "yuv420p", video_file],
+            capture_output=True, timeout=30,
+        )
+        assert os.path.exists(video_file)
+        assert renderer._has_video_stream(video_file) is True
+
+    def test_render_audio_only_source_succeeds(self, tmp_path):
+        """Render should succeed when a segment source is audio-only (no video).
+
+        Regression: WhatsApp voice memos saved as .mp4 have only an audio stream.
+        The concat filter requires [i:v] from every input — the renderer must
+        synthesize a black video track for audio-only sources.
+        """
+        import subprocess
+        renderer = AssemblyRenderer({}, db_path=str(tmp_path / "test.db"))
+
+        # Create an audio-only file
+        audio_file = str(tmp_path / "voice_memo.mp4")
+        subprocess.run(
+            ["ffmpeg", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=2",
+             "-c:a", "aac", audio_file],
+            capture_output=True, timeout=30,
+        )
+
+        # Create a video file
+        video_file = str(tmp_path / "clip.mp4")
+        subprocess.run(
+            ["ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=duration=2:size=1080x1920:rate=30",
+             "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", video_file],
+            capture_output=True, timeout=30,
+        )
+
+        # Stub _resolve_source to return our test files
+        sources = [video_file, audio_file]
+        call_idx = [0]
+        original = renderer._resolve_source
+        def stub_resolve(ref, asset_id):
+            path = sources[call_idx[0]]
+            call_idx[0] += 1
+            return path
+        renderer._resolve_source = stub_resolve
+
+        plan = {
+            "segments": [
+                {"source": "upload:1", "in": 0, "out": 2, "transition_in": "cut"},
+                {"source": "upload:2", "in": 0, "out": 2, "transition_in": "cut"},
+            ],
+            "canvas": {"aspect_ratio": "9:16", "resolution": "1080x1920"},
+        }
+
+        # Override media_dir to tmp_path
+        os.makedirs(os.path.join("data", "media", "9999"), exist_ok=True)
+        result = renderer.render(plan, asset_id=9999, draft_id=1)
+        assert os.path.exists(result["path"])
+        assert result["duration"] > 0
+
+        # Cleanup
+        import shutil
+        shutil.rmtree(os.path.join("data", "media", "9999"), ignore_errors=True)
+
+    def test_render_video_only_source_succeeds(self, tmp_path):
+        """Render should succeed when a video source has no audio track.
+
+        The concat filter requires [i:a] from every input — the renderer must
+        synthesize a silent audio track for video-only sources.
+        """
+        import subprocess
+        renderer = AssemblyRenderer({}, db_path=str(tmp_path / "test.db"))
+
+        # Create a video-only file (no audio)
+        video_only = str(tmp_path / "video_only.mp4")
+        subprocess.run(
+            ["ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=duration=2:size=1080x1920:rate=30",
+             "-c:v", "libx264", "-pix_fmt", "yuv420p", video_only],
+            capture_output=True, timeout=30,
+        )
+
+        # Create a normal video+audio file
+        video_audio = str(tmp_path / "video_audio.mp4")
+        subprocess.run(
+            ["ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=duration=2:size=1080x1920:rate=30",
+             "-f", "lavfi", "-i", "sine=frequency=440:duration=2",
+             "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
+             "-shortest", video_audio],
+            capture_output=True, timeout=30,
+        )
+
+        sources = [video_audio, video_only]
+        call_idx = [0]
+        def stub_resolve(ref, asset_id):
+            path = sources[call_idx[0]]
+            call_idx[0] += 1
+            return path
+        renderer._resolve_source = stub_resolve
+
+        plan = {
+            "segments": [
+                {"source": "upload:1", "in": 0, "out": 2, "transition_in": "cut"},
+                {"source": "upload:2", "in": 0, "out": 2, "transition_in": "cut"},
+            ],
+            "canvas": {"aspect_ratio": "9:16", "resolution": "1080x1920"},
+        }
+
+        os.makedirs(os.path.join("data", "media", "9998"), exist_ok=True)
+        result = renderer.render(plan, asset_id=9998, draft_id=1)
+        assert os.path.exists(result["path"])
+        assert result["duration"] > 0
+
+        import shutil
+        shutil.rmtree(os.path.join("data", "media", "9998"), ignore_errors=True)
+
 
 # ── Integration: Flask app with new routes ──────────────────────────────────
 
