@@ -274,3 +274,10 @@ Materials Library — editable source materials. DB migrations: `excluded` colum
 **DIVERGENCE-007 Item 1: Source review gate** — RSS sources now enter the Source Bank with `status='new'` (not `active`). Only `status='active'` sources feed idea generation. Dedup check now looks at any status (prevents re-adding reviewed/removed sources). Source Bank page (`/sources`) has "New" filter button with count, `st-new` CSS class for new badge, and bulk actions bar ("Keep all new →" / "Remove all new") with `/api/sources/bulk-status` endpoint. Operator materials still enter as `active` (intentionally created).
 
 **Tests:** 711 passing (46 new). 0 failures. New test file: `tests/test_architect_corrections.py` (38 tests). Existing `test_t8_3_source_bank.py` updated for `status='new'` change.
+
+### 2026-07-04 — DIVERGENCE-009 filed: Writer/Assembler boundary redesign
+
+- Operator raised 5 design issues: (1) Assembler re-decides format/platforms already approved in treatment, (2) Writer should produce per-platform text in one pass, (3) Source Bank not loaded into draft prompt (confirmed no redundancy), (4) AI review loop before human Gate 2, (5) Assembler should only do media + assembly
+- DIVERGENCE-009 filed for architect decision
+- Charter violation identified: `_determine_variant_type` uses keyword heuristics (Business Rule #2 violation)
+- **Tests:** 711 passing. 0 failures. Q: none

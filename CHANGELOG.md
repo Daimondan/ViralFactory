@@ -6,6 +6,23 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-04 STRUCTURE — DIVERGENCE-009 filed: Writer/Assembler boundary redesign
+
+**What:** Operator raised five connected design issues with the Writer/Assembler pipeline:
+1. Assembler re-decides format/platforms already approved in the treatment (charter violation — keyword heuristic in `_determine_variant_type`)
+2. Writer should produce complete per-platform text in one pass, not one master draft + Assembler fan-out
+3. Source Bank is NOT loaded into the draft prompt (confirmed — no redundancy exists; grounding sources are separate from the 7 modules loaded for drafting)
+4. AI review loop (self-audit fix + second-AI alignment check, max 3 rounds) should run before human Gate 2 review
+5. Assembler should only gather/make media and stitch — no text LLM calls
+
+**Rationale:** The operator's mental model is simpler and more coherent: Researcher finds ideas + assigns treatment, Writer fully writes per-platform content with AI QA, Assembler only generates media + assembles. Eliminates fan-out LLM calls, format re-derivation, and unreviewed text reaching the human.
+
+**Status:** DIVERGENCE-009 filed for architect decision. The `_determine_variant_type` keyword heuristic is a confirmed Business Rule #2 violation (fixable regardless of architect decision on the structural changes).
+
+**TECH** — DIVERGENCE-009 filed; charter violation identified in `_determine_variant_type` (keyword heuristic violates "no judgment in code").
+
+---
+
 ### 2026-07-04 UX — six operator-reported workflow issues fixed
 
 **What:**
