@@ -6,6 +6,24 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-04 FIX — Writer/Assembler UX overhaul + render crash fix
+
+**What:** Eight issues fixed:
+1. **Render crash** — `_check_job_running()` didn't accept `stale_timeout_s` kwarg, causing TypeError on every "Render final cut" click. Fixed by forwarding the kwarg to `JobsStore.start_job()`.
+2. **Writer page redesigned** — replaced 6 scattered stage boxes with a single unified card list. Each card shows its state badge and a provenance trail (Idea → Script → Assets dots). Filter buttons at top with counts (All/Ready for review/Writing/Queued/Shipped/At Assembler/Failed/Killed).
+3. **Assembler page split** — new `/assemble` route with its own unified card list + filter buttons + counts. Only shows cards with shipped drafts or assets. Separate from Writer page.
+4. **Redundant "Proceed to Assets" button removed** — shipping a draft now auto-redirects to the Assembler assets page. Shipped state shows "✓ Script approved and shipped" confirmation + "Go to Assembler →" link.
+5. **Provenance trail on every card** — dots showing Idea → Script → Assets stage progression (green=done, red=active, grey=pending). Also on draft page and assets page.
+6. **Render UX improved** — background polling with status updates every 5s for up to 10min. Shows elapsed time. New `/api/assets/<id>/render-status` endpoint. No more silent blocking.
+7. **Nav links updated** — `/create#assembler` → `/assemble` across all 29 templates.
+8. **Similar ideas root cause identified** — source bank has only 2 junk sources (HTML page + manifest file), `feeds: []` in config, no seed sources provided to Sources Engine. LLM has nothing to ground ideas in so it generates variations on the same business subjects. Operational gap — operator needs to provide seed sources and configure RSS feeds.
+
+**Why:** Operator feedback: "three diff cards at writer... also assembler cards in there... i just need to see all the cards and it have what state its in... filter should be at each stage also... a count so person knows how many cards are at each stage... i click on a card at writer to send to assembler but then another button at the bottom appears... when i hit the final cut button a pop up showed it will take a while but then nothing to show... still no video showed up... why are the ideas so similar"
+
+**Rationale:** UX — operator needs a single unified view per stage with clear state + filter capability. The render crash was a code bug (unknown kwarg). The similar ideas issue is an operational gap (empty source bank) not a code bug.
+
+---
+
 ### 2026-07-04 OPS — Activity list capped to 10 rows + "Show more" toggle
 
 **What:** Home page (index.html) Recent Activity section now shows only the first 10 activity items by default, with a "Show more activity (N more)" button that reveals the remaining items. Button toggles to "Show less activity" when expanded. Backend cap (`all_cards[:15]`) removed so the full list is available client-side. Jinja `{% if loop.index > 10 %}style="display:none;"{% endif %}` hides extras; JS `toggleMoreActivity()` toggles visibility.

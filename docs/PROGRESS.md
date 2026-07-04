@@ -235,3 +235,15 @@ Materials Library — editable source materials. DB migrations: `excluded` colum
 - 13 new tests: profiles.yaml existence + structure, provenance profile column, log with/without profile, adapter signature, pipeline calls
 
 **Tests:** 650 passing (31 new across T8.5-T8.7). 0 failures.
+
+### 2026-07-04 — Writer/Assembler UX overhaul + render crash fix (UI-REVIEW-003)
+
+- Render crash fixed (_check_job_running stale_timeout_s forwarding)
+- Writer page redesigned: unified card list + filter buttons with counts + provenance trail
+- Assembler page split to /assemble route with its own unified list
+- Redundant "Proceed to Assets" button removed — auto-redirect on ship
+- Provenance trail (Idea → Script → Assets dots) on Writer, Assembler, draft, assets pages
+- Render UX: background polling with status updates + /api/assets/<id>/render-status endpoint
+- Nav links: /create#assembler → /assemble across all 29 templates
+- Similar ideas root cause: source bank empty (2 junk sources, feeds: [], no seed sources) — operational gap
+- **Tests:** 657 passing. 0 failures.
