@@ -6,6 +6,22 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-04 STRATEGIC — Architect review: DIVERGENCE-006 ratified, DIVERGENCE-007 designed, DIVERGENCE-008 filed, corrections issued
+
+**What:**
+1. **DIVERGENCE-006 RATIFIED** — AMENDMENT-006 filed: Writer/Assembler pipeline split + four-role nav (Researcher/Writer/Assembler/Analyst) + awaiting-capture as non-blocking flag. Formalizes what the builder already implemented.
+2. **DIVERGENCE-007 DESIGNED** — Source review gate: new sources enter with `status='new'`, soft gate, only `active` sources feed ideation, bulk Keep/Remove on Source Bank page. Source neural network DEFERRED to future architect pass.
+3. **DIVERGENCE-008 FILED** — Postiz→Buffer swap ratified. Operator confirmed: "yes we switched to buffer as its cheap to use now." The silent swap is now a filed divergence with conditions (delete dead postiz_adapter.py, update all docs).
+4. **CORRECTION-jargon-timestamps-cleanup-v1.0 issued** — P1: technical jargon in operator UI (`asset_ready`, `assembling` leaking through) + missing timestamps on pipeline pages. P2: hardcoded platform fallback in produce_chain.py, dead awaiting-capture code, dead Postiz code.
+
+**Why:** Architect deep review of repo state — read all core docs, traced code, ran test suite (673 passing), inspected live UI page by page, queried database. Found the Postiz→Buffer silent swap, unresolved divergences, jargon leaks, and missing timestamps.
+
+**Rationale:** The charter is the constitution. Silent overrides are breaches even when the decision is correct. The operator confirmed the Buffer swap — this filing makes it official. DIVERGENCE-006 was already implemented — this ratification makes it charter-aligned. The corrections address operator-facing quality issues found during the 10-dimension UI review.
+
+**Files:** docs/decisions/AMENDMENT-006-writer-assembler-split.md, docs/decisions/DIVERGENCE-008-postiz-to-buffer-swap.md, docs/reviews/DIVERGENCE-007-design-source-review-gate.md, docs/reviews/CORRECTION-jargon-timestamps-cleanup-v1.0.md
+
+---
+
 ### 2026-07-04 STRUCTURE — Flexible narrative patterns + onboarding completeness dashboard
 
 **Feature 1: Config-driven narrative patterns**

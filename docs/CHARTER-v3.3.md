@@ -67,7 +67,7 @@ Eight versioned markdown documents per business in `modules/{business}/` — the
    **GATE (the human pass, unchanged from v3.1):** react via chips + text and/or direct edits (authoritative, highest Feedback Log weight); AI revises; **ship-forward or kill.**
 4. **Assets** — for surviving drafts only: real images generated per the visual direction, captions rendered, the piece fanned out into per-platform variants (X thread, IG carousel/reel, …).
    **GATE (quick, per platform):** approve / fix / kill per variant, side by side.
-5. **Publish** — **every piece passes human approval before posting. No auto-publish, ever, at any trust level. Hard rule.** Go/hold + timing only; everything upstream is already approved. Approved pieces flow to Postiz for scheduling, posting, and metrics.
+5. **Publish** — **every piece passes human approval before posting. No auto-publish, ever, at any trust level. Hard rule.** Go/hold + timing only; everything upstream is already approved. Approved pieces flow to Buffer for scheduling, posting, and metrics. *(Postiz→Buffer swap per DIVERGENCE-008, operator confirmed.)*
 6. **Learn** — two loops (below)
 7. **Improve** — gate-approved proposals update modules; every future draft inherits them
 

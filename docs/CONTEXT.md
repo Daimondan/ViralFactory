@@ -12,8 +12,8 @@
 > **On change:** bump `updated_at` date, add/update a decision note in
 > `docs/decisions/` if the change is non-obvious.
 
-**Updated:** 2026-07-03 (source grounding + auto-production chain + AI profiles per CORRECTION-source-grounding-and-auto-production-v1.0)
-**Conforms to:** `docs/CHARTER-v3.3.md` (v3.3 — incorporates DIVERGENCE-001, DIVERGENCE-002, AMENDMENT-003 staged content pipeline, and AMENDMENT-004 treatment block on idea cards)
+**Updated:** 2026-07-04 (architect review: DIVERGENCE-006 ratified as AMENDMENT-006, DIVERGENCE-007 source review gate designed, DIVERGENCE-008 Postiz→Buffer swap ratified)
+**Conforms to:** `docs/CHARTER-v3.3.md` (v3.3 — incorporates DIVERGENCE-001, DIVERGENCE-002, AMENDMENT-003 staged content pipeline, AMENDMENT-004 treatment block, AMENDMENT-006 Writer/Assembler split + four-role nav)
 
 ---
 
@@ -247,7 +247,7 @@ Scheduled research of what works in the wild: monitors top accounts/hashtags/cha
 
 - **Python + Flask** console (new, not extending v2)
 - **SQLite** for provenance, cache, source bank, queues
-- **Postiz** (self-hosted or cloud) for publishing + analytics
+- **Buffer** (API) for publishing + analytics (replaced Postiz per DIVERGENCE-008 — operator confirmed cost-driven swap)
 - **LLM adapter:** one function, backend from config — swappable without code changes
 - **trafilatura** for content extraction
 - **systemd** on the VPS for deployment

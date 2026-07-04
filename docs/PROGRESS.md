@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-04
-**Current Phase:** M8 complete + DIVERGENCE-006 implemented (Writer/Assembler pipeline split + four-role menu). 657 tests passing. Production chain split: Writer (draft only, stops at draft_ready for Gate 2) + Assembler (fan-out, triggered on ship). Awaiting-capture blocking removed. Nav standardized across all 29 templates: Researcher/Writer/Assembler/Analyst. Remaining: Drafter A/B (needs ab_candidate), T2.6-T2.8 audio (deferred). DIVERGENCE-006 awaiting architect ratification.
+**Current Phase:** Architect review complete. DIVERGENCE-006 ratified (AMENDMENT-006), DIVERGENCE-007 designed (source review gate), DIVERGENCE-008 filed (Postiz→Buffer swap ratified). Corrections issued: jargon cleanup, timestamps, platform fallback, dead code cleanup. 673 tests passing. Builder to apply corrections from `docs/reviews/CORRECTION-jargon-timestamps-cleanup-v1.0.md`.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
