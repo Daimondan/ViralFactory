@@ -70,13 +70,13 @@ Builder works `BUILD_PLAN.md` top-down → commit per task (task ID in message) 
 
 ## Status
 
-Pre-M0. Foundation docs written. Charter v3 grilled and amended (5 divergences documented). Charter now at v3.3 (AMENDMENT-003 staged pipeline + AMENDMENT-004 treatment block). M0+M1 code complete, review-w1 corrections R1–R5 applied, M2 in progress.
+Charter now at v3.4 (AMENDMENT-003 staged pipeline + AMENDMENT-004 treatment block + AMENDMENT-006 Writer/Assembler split + AMENDMENT-007 Writer per-platform + Assembler media-only + AI review loop). M0-M8 complete. M9 (Writer/Assembler boundary redesign) tasked. 711 tests passing.
 
 ## Original architect docs (preserved for reference)
 
 The following files were written by Claude (architect) before the grill session. They contain the original Charter v3 design. The grill session identified 5 divergences (see `docs/decisions/DIVERGENCE-001-charter-amendments.md`), which are incorporated into `docs/CONTEXT.md` and `BUILD_PLAN.md`. The originals are preserved for audit trail:
 
-- `StackPenni-Build-Charter-v3_2.md` — original charter (superseded by v3.3)
+- `StackPenni-Build-Charter-v3_2.md` — original charter (superseded by v3.3 → v3.4)
 - `playbook-voice-profile-builder.md` — Voice Profile playbook (to be moved to `playbooks/`)
 - `playbooks-remaining-seven.md` — remaining 7 playbooks (to be split into `playbooks/`)
 - `UI-DIRECTION.md` — UI direction (laptop-first amendment in DIVERGENCE-001)

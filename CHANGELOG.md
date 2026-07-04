@@ -6,7 +6,25 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
-### 2026-07-04 STRUCTURE — DIVERGENCE-009 filed: Writer/Assembler boundary redesign
+### 2026-07-04 STRUCTURE — DIVERGENCE-010 ratified via AMENDMENT-007 (Charter v3.3 → v3.4)
+
+**What:** DIVERGENCE-010 (Writer/Assembler boundary redesign, originally filed as DIVERGENCE-009 but renamed due to numbering collision with the webhook DIVERGENCE-009) — architect APPROVED all 5 operator-raised design changes:
+
+1. **Format + platforms locked from treatment** — removes `_determine_variant_type` keyword heuristic and `_resolve_format_platforms` regex parser (both Business Rule #2 violations). Format and platform set come from the treatment + Format Guide entry metadata.
+2. **Writer produces complete per-platform text** — DRAFT_SCHEMA changes from single `draft_text` to `platform_content` array. The Writer writes all platform variants in one pass. The format and platforms come from the locked treatment.
+3. **Source Bank not loaded into draft** — confirmed no redundancy exists. Grounding sources are separate from the 7 modules. No change needed.
+4. **AI review loop before Gate 2** — self-audit auto-fix + second-AI alignment check, max 3 rounds. The human is still the final gate. Self-audit flags + fixes shown for transparency.
+5. **Assembler is media-only** — zero LLM text calls. `fan_out_v2.md` and `structure_v1.md` retired from Assembler path. The Assembler reads `platform_content` from the approved draft and produces media + assembles.
+
+**Rationale:** The operator's mental model is simpler and more coherent: Researcher finds ideas + assigns treatment, Writer fully writes per-platform content with AI QA, Assembler only generates media + assembles. Eliminates fan-out LLM calls, format re-derivation, keyword heuristics, and unreviewed text reaching the human. The AI review loop catches issues before the human sees the draft, but does not replace the human gate.
+
+**Status:** APPROVED. AMENDMENT-007 filed. Charter v3.3 → v3.4. BUILD_PLAN v1.5 → v1.6 (M9 tasks T9.1-T9.6 added). CONTEXT.md updated (core loop diagram, idea card definition, business rules 13-15). All CHARTER-v3.3 references updated to CHARTER-v3.4. Builder to implement M9 tasks.
+
+**STRUCTURE** — AMENDMENT-007 ratified; DIVERGENCE-010 approved; charter version bump v3.3 → v3.4; BUILD_PLAN M9 tasks added; `_determine_variant_type` and `_resolve_format_platforms` confirmed as charter violations to be removed.
+
+---
+
+### 2026-07-04 STRUCTURE — DIVERGENCE-010 filed (originally as DIVERGENCE-009): Writer/Assembler boundary redesign
 
 **What:** Operator raised five connected design issues with the Writer/Assembler pipeline:
 1. Assembler re-decides format/platforms already approved in the treatment (charter violation — keyword heuristic in `_determine_variant_type`)

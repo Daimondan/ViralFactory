@@ -1,6 +1,6 @@
 # BUILD_PLAN.md — ViralFactory
 
-*Instructions to the builder agent (Hermes). Read `docs/CHARTER-v3.3.md` and all of `playbooks/` before writing any code. This file is the single source of truth for what to build and in what order. v1.3 — 2026-07-02 — updated per AMENDMENT-004 (treatment block on idea cards: scope, format, capture_required, reuse, rationale; format experimentation mechanism; awaiting-capture state).*
+*Instructions to the builder agent (Hermes). Read `docs/CHARTER-v3.4.md` and all of `playbooks/` before writing any code. This file is the single source of truth for what to build and in what order. v1.3 — 2026-07-02 — updated per AMENDMENT-004 (treatment block on idea cards: scope, format, capture_required, reuse, rationale; format experimentation mechanism; awaiting-capture state). [Note: superseded by BUILD_PLAN.md v1.6 — this file kept for history.]*
 
 ## How to work (non-negotiable)
 

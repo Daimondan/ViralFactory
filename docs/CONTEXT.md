@@ -1,6 +1,6 @@
 # Context: ViralFactory
 
-> **This is an operational mirror of `docs/CHARTER-v3.3.md`.** It captures
+> **This is an operational mirror of `docs/CHARTER-v3.4.md`.** It captures
 > current shared language, workflows, and implementation state. It conforms
 > to the charter and BUILD_PLAN; where it conflicts, that conflict is a bug
 > or a new divergence to file — never a silent override.
@@ -12,8 +12,8 @@
 > **On change:** bump `updated_at` date, add/update a decision note in
 > `docs/decisions/` if the change is non-obvious.
 
-**Updated:** 2026-07-04 (architect corrections applied: jargon cleanup, relative timestamps, config-driven platform fallback, awaiting-capture deprecation, Postiz→Buffer cleanup, DIVERGENCE-007 source review gate implemented)
-**Conforms to:** `docs/CHARTER-v3.3.md` (v3.3 — incorporates DIVERGENCE-001, DIVERGENCE-002, AMENDMENT-003 staged content pipeline, AMENDMENT-004 treatment block, AMENDMENT-006 Writer/Assembler split + four-role nav, DIVERGENCE-008 Postiz→Buffer swap)
+**Updated:** 2026-07-04 (AMENDMENT-007 ratified: Writer produces per-platform content, Assembler is media-only, AI review loop before Gate 2. Prior: architect corrections applied: jargon cleanup, relative timestamps, config-driven platform fallback, awaiting-capture deprecation, Postiz→Buffer cleanup, DIVERGENCE-007 source review gate implemented)
+**Conforms to:** `docs/CHARTER-v3.4.md` (v3.4 — incorporates DIVERGENCE-001, DIVERGENCE-002, AMENDMENT-003 staged content pipeline, AMENDMENT-004 treatment block, AMENDMENT-005 process compositions, AMENDMENT-006 Writer/Assembler split + four-role nav, AMENDMENT-007 Writer per-platform + Assembler media-only + AI review loop, DIVERGENCE-008 Postiz→Buffer swap)
 
 ---
 
@@ -57,7 +57,7 @@ The first business using ViralFactory. All StackPenni-specific values (brand nam
 A spoken or typed idea/take/story from the user. In the staged pipeline, a seed becomes a **human-seeded** idea card (or a **human-seeded-ai-developed** card when the AI sharpens it). A seed can produce multiple pieces (different platforms/formats).
 
 ### Idea card
-The first artifact in the staged pipeline. Each card carries: the idea, hook/title options, a **treatment** (scope: one-off | series-of-N | pillar-with-derivatives; format from the Format Guide — including experimental formats debuting on the card; capture-required tasks; reuse links; rationale), origin tag (`ai-originated` | `human-seeded` | `human-seeded-ai-developed`), and **source_refs** (JSON list of `sources.id` — one or more Source Bank records that ground this idea). `evidence_links` is a derived display field resolved from the referenced source rows, not the grounding mechanism. Every idea cites at least one source by ID; one idea may compose multiple sources into a single story. Treatment is approved WITH the idea at Gate 1 — not developed after. Capture tasks are a **non-blocking flag** on the card (per AMENDMENT-006 — awaiting-capture is deprecated as a blocking state; cards with capture tasks flow through approved → Writer like any other). Gate 1 (rigorous: approve/kill/park) decides which cards proceed to production. **Gate 1 approval triggers production automatically through to asset review** — the chain: draft generation → per-platform fan-out → visual/asset previews, executed as a background job. Publishing is never automatic.
+The first artifact in the staged pipeline. Each card carries: the idea, hook/title options, a **treatment** (scope: one-off | series-of-N | pillar-with-derivatives; format from the Format Guide — including experimental formats debuting on the card; capture-required tasks; reuse links; rationale), origin tag (`ai-originated` | `human-seeded` | `human-seeded-ai-developed`), and **source_refs** (JSON list of `sources.id` — one or more Source Bank records that ground this idea). `evidence_links` is a derived display field resolved from the referenced source rows, not the grounding mechanism. Every idea cites at least one source by ID; one idea may compose multiple sources into a single story. Treatment is approved WITH the idea at Gate 1 — not developed after. **The format and platform set are locked from the treatment at Gate 1 — no code in the pipeline re-derives them** (AMENDMENT-007). Capture tasks are a **non-blocking flag** on the card (per AMENDMENT-006 — awaiting-capture is deprecated as a blocking state; cards with capture tasks flow through approved → Writer like any other). Gate 1 (rigorous: approve/kill/park) decides which cards proceed to production. **Gate 1 approval triggers the Writer chain automatically** — the Writer produces complete per-platform text, runs the AI review loop, and stops at `draft_ready` for Gate 2 human review. Publishing is never automatic.
 
 ### Treatment
 The decision of how an idea becomes a piece — scope, format, capture needs, reuse, and rationale. Lives ON the card, approved AT Gate 1. The human may edit any part at the gate (direct-edit authority). Compact treatment line (scope · format · capture flag) shown on cards for fast kills; full treatment expands on demand. Not a new stage or gate — it's a property of the card.
@@ -115,38 +115,45 @@ Every module has: a fixed schema, a version number, a provenance note, and an up
 GATHER (automated — configured by onboarding)
 Sources Engine scouts per the person's seed sources + anti-examples
 ingests + scores every item against Source Criteria
+new sources enter status='new' → operator review → status='active'
         │
         ▼
 IDEAS  ◄── living modules ground idea generation
 cards from 3 origins: ai-originated · human-seeded · human-seeded-ai-developed
 ai-originated = Source Bank × Viral/Audience/Story/Format modules
-each card: idea + hook options + format + origin tag + source_refs (cited sources by ID)
+each card: idea + hook options + treatment (format + platforms LOCKED here) + origin tag + source_refs
         │
         ▼
 ■ GATE 1 — RIGOROUS: approve / kill / park per card
   the funnel kills most here, by design — kill reasons → Feedback Log
-  APPROVAL = PRODUCTION TRIGGER (auto-chain: draft → fan-out → assets, no manual Generate clicks)
+  APPROVAL = PRODUCTION TRIGGER (Writer chain auto-starts)
+  format + platforms LOCKED from treatment — no code re-derives them
         │
         ▼
-DRAFT (auto-produced en route, internal versioned artifact)
-AI, all modules + grounding sources loaded, self-audits against Tells Checklist
-= full text in voice + LIGHT VISUAL DIRECTION (prompts, refs, format)
+WRITER CHAIN (auto-produced)
+AI, all modules + grounding sources loaded
+produces COMPLETE PER-PLATFORM TEXT in one pass (all platforms from treatment)
+self-audits against Tells Checklist → auto-fixes flagged items
+second-AI alignment check against approved idea (max 3 rounds)
+= per-platform content in voice + LIGHT VISUAL DIRECTION (prompts, refs, format)
   NO rendered images at this stage
         │
         ▼
 ■ GATE 2 — HUMAN PASS: chips + text + DIRECT EDITS (authoritative)
+  self-audit flags + fixes shown for transparency
   AI revises → ship-forward or kill · edits → Feedback Log (highest weight)
         │
         ▼
-ASSETS (survivors only)
-real images generated per Visual Style Guide · captions rendered
-fan-out to per-platform variants (X thread · IG carousel/reel · …)
+ASSEMBLER CHAIN (survivors only — MEDIA ONLY, no text LLM calls)
+real images/video generated per Visual Style Guide + visual direction
+media stitched with approved per-platform text from Writer
+NO fan-out LLM calls — text is already per-platform from Writer
         │
         ▼
 ■ GATE 3 — QUICK, PER PLATFORM: approve / fix / kill, side by side
         │
         ▼
-■ GATE 4 — PUBLISH: go / hold + timing only
+■ GATE 4 — PUBLISH: go/hold + timing only
   NO AUTO-PUBLISH, EVER, AT ANY TRUST LEVEL — HARD RULE
         │
         ▼
@@ -219,6 +226,9 @@ Scheduled research of what works in the wild: monitors top accounts/hashtags/cha
 10. **Deterministic where possible.** Temperature 0 for processing steps; cache by content hash — unchanged input is never re-judged.
 11. **Never invent module content.** Modules are built by playbooks from user materials and updated only via the gate.
 12. **Prompts carry procedures; modules carry knowledge.** Any domain taxonomy embedded in a prompt file (message types, format structures, platform mappings) is a defect: baked-in taxonomy cannot learn. Prompts describe how to reason; living modules supply what is currently believed, and the loops update the modules. (Per AMENDMENT-005 + CORRECTION-format-selection-living-v1.0)
+13. **Format and platforms are locked from the treatment at Gate 1.** No code in the pipeline re-derives them with keyword heuristics or regex parsing. The Writer reads them from the locked treatment; the Assembler reads them from the approved draft. (Per AMENDMENT-007)
+14. **The Writer produces all per-platform text; the Assembler does no text generation.** The Writer's draft schema contains a `platform_content` array — complete, platform-native content for every platform the treatment specifies. The Assembler receives this and produces media + assembles only. (Per AMENDMENT-007)
+15. **An AI review loop runs before Gate 2.** The Writer self-audits, auto-fixes flagged items, and a second-AI alignment check verifies the draft against the approved idea (max 3 rounds). The human is still the final gate. (Per AMENDMENT-007)
 
 ## Edge Cases
 
@@ -259,4 +269,4 @@ Scheduled research of what works in the wild: monitors top accounts/hashtags/cha
 
 ## System Diagram
 
-See `docs/diagrams/README.md` for the authoritative system overview (vertical-flow text + Mermaid + SVG), current as of Charter v3.3. The diagram reflects the staged pipeline: Gather → Ideas+Treatment (Gate 1, debut) → Awaiting-Capture → Draft (Gate 2) → Assets (Gate 3) → Publish (Gate 4) → Learn.
+See `docs/diagrams/README.md` for the authoritative system overview (vertical-flow text + Mermaid + SVG), current as of Charter v3.4. The diagram reflects the staged pipeline: Gather → Ideas+Treatment (Gate 1, format+platforms locked) → Writer Chain (per-platform text + AI review loop) → Gate 2 → Assembler Chain (media-only) → Gate 3 → Publish (Gate 4) → Learn.

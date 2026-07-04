@@ -275,9 +275,18 @@ Materials Library — editable source materials. DB migrations: `excluded` colum
 
 **Tests:** 711 passing (46 new). 0 failures. New test file: `tests/test_architect_corrections.py` (38 tests). Existing `test_t8_3_source_bank.py` updated for `status='new'` change.
 
-### 2026-07-04 — DIVERGENCE-009 filed: Writer/Assembler boundary redesign
+### 2026-07-04 — DIVERGENCE-010 ratified via AMENDMENT-007 (Charter v3.4)
 
-- Operator raised 5 design issues: (1) Assembler re-decides format/platforms already approved in treatment, (2) Writer should produce per-platform text in one pass, (3) Source Bank not loaded into draft prompt (confirmed no redundancy), (4) AI review loop before human Gate 2, (5) Assembler should only do media + assembly
-- DIVERGENCE-009 filed for architect decision
-- Charter violation identified: `_determine_variant_type` uses keyword heuristics (Business Rule #2 violation)
-- **Tests:** 711 passing. 0 failures. Q: none
+- DIVERGENCE-010 (originally filed as DIVERGENCE-009, renamed due to numbering collision with webhook DIVERGENCE-009) — architect APPROVED all 5 design changes:
+  1. Format + platforms locked from treatment — no code re-derives them (removes `_determine_variant_type` keyword heuristic + `_resolve_format_platforms` regex parser — both charter violations)
+  2. Writer produces complete per-platform text in one pass (DRAFT_SCHEMA gains `platform_content` array, replaces `draft_text`)
+  3. Source Bank not loaded into draft prompt — confirmed no redundancy, no change needed
+  4. AI review loop before Gate 2 — self-audit auto-fix + second-AI alignment check, max 3 rounds
+  5. Assembler is media-only — no LLM text calls, `fan_out_v2.md` and `structure_v1.md` retired from Assembler path
+- AMENDMENT-007 filed: `docs/decisions/AMENDMENT-007-writer-per-platform-assembler-media-only.md`
+- Charter v3.3 → v3.4: `docs/CHARTER-v3.4.md`
+- BUILD_PLAN v1.5 → v1.6: M9 tasks added (T9.1-T9.6)
+- CONTEXT.md updated: core loop diagram, idea card definition, business rules 13-15
+- All `CHARTER-v3.3` references updated to `CHARTER-v3.4`
+- DIVERGENCE-010 file renamed from DIVERGENCE-009-writer... to DIVERGENCE-010-writer...
+- **Tests:** 711 passing. 0 failures. Q: none — builder to implement M9 tasks

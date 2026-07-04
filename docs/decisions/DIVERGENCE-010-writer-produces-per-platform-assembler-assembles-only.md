@@ -1,6 +1,8 @@
-# DIVERGENCE-009 — Writer produces complete per-platform content; Assembler assembles media only
+# DIVERGENCE-010 — Writer produces complete per-platform content; Assembler assembles media only
 
-Proposed by operator (Daimon) · Filed by builder · 2026-07-04 · Status: **PENDING architect decision**
+Proposed by operator (Daimon) · Filed by builder · 2026-07-04 · Status: **APPROVED — ratified via AMENDMENT-007 (Charter v3.4)**
+
+> **Numbering note:** Originally filed as DIVERGENCE-009, but that number was already taken by the webhook notification loop divergence. Renamed to DIVERGENCE-010 by the architect during review. The webhook DIVERGENCE-009 remains as-is.
 
 ## What the operator asked for
 
