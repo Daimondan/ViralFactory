@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/vf.css">
-    <title>Writer — {{ business_name }}</title>
+    <title>Assembler — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
     <style>
         /* Filter bar — buttons with counts */
@@ -38,21 +38,12 @@
 
         /* State badge */
         .state-badge { font-size: 0.72rem; padding: 3px 10px; border-radius: 999px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
-        .st-queued { background: #D8D4C8; color: #8A857C; }
-        .st-writing { background: rgba(74, 111, 165, 0.12); color: #4A6FA5; }
         .st-ready_review { background: rgba(229, 75, 44, 0.12); color: #E54B2C; font-weight: 700; }
-        .st-shipped { background: rgba(74, 124, 58, 0.12); color: #4A7C3A; }
         .st-assembling { background: rgba(74, 111, 165, 0.12); color: #4A6FA5; }
-        .st-asset_ready { background: rgba(74, 124, 58, 0.15); color: #4A7C3A; font-weight: 600; }
-        .st-failed { background: rgba(192, 57, 43, 0.12); color: #C0392B; }
-        .st-killed { background: rgba(192, 57, 43, 0.08); color: #A07070; }
-        .st-parked { background: #F0EDE4; color: #A8A399; }
         .st-no_assets { background: #D8D4C8; color: #8A857C; }
         .st-partial { background: rgba(212, 168, 67, 0.15); color: #8A6D20; }
         .st-all_approved { background: rgba(74, 124, 58, 0.15); color: #4A7C3A; }
         .st-pending { background: #D8D4C8; color: #8A857C; }
-
-        .state-label { font-size: 0.68rem; color: #8A857C; text-transform: none; }
 
         /* Provenance trail */
         .trail { display: flex; gap: 0; align-items: center; margin-top: 10px; }
@@ -61,7 +52,6 @@
         .trail-dot.done { background: #4A7C3A; }
         .trail-dot.active { background: #E54B2C; box-shadow: 0 0 0 3px rgba(229,75,44,0.15); }
         .trail-dot.pending { background: #D8D4C8; }
-        .trail-dot.failed { background: #C0392B; }
         .trail-label { font-size: 0.72rem; color: #8A857C; margin-right: 8px; }
         .trail-label.done { color: #4A7C3A; }
         .trail-label.active { color: #E54B2C; font-weight: 600; }
@@ -69,10 +59,7 @@
         .trail-connector.done { background: #4A7C3A; }
 
         .card-meta { font-size: 0.75rem; color: #8A857C; margin-top: 6px; }
-        .card-error { font-size: 0.75rem; color: #C0392B; margin-top: 4px; }
-        .retry-btn { font-size: 0.72rem; padding: 3px 8px; background: rgba(192, 57, 43, 0.1); color: #C0392B; border: 1px solid rgba(192, 57, 43, 0.3); border-radius: 4px; cursor: pointer; margin-top: 6px; }
-        .retry-btn:hover { background: rgba(192, 57, 43, 0.2); }
-
+        .asset-summary { font-size: 0.78rem; color: #8A857C; margin-top: 6px; }
         .empty { color: #A8A399; font-style: italic; padding: 30px; text-align: center; }
         .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(74,111,165,0.2); border-top-color: #4A6FA5; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 4px; vertical-align: middle; }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -83,8 +70,8 @@
     <div class="nav">
         <a href="/">Home</a>
         <a href="/ideas">Researcher (Ideas)</a>
-        <a href="/create" class="active">Writer (Script)</a>
-        <a href="/assemble">Assembler (Studio)</a>
+        <a href="/create">Writer (Script)</a>
+        <a href="/assemble" class="active">Assembler (Studio)</a>
         <a href="/published">Analyst (Learnings)</a>
         <a href="/onboard">Onboard</a>
         <a href="/library">Library</a>
@@ -92,79 +79,75 @@
         <a href="/proposals">Gate Queue</a>
     </div>
 
-    <h1>Writer — Script Review</h1>
-    <p class="subtle">Every idea card in one list. The state shows where it is. Filter to focus.</p>
+    <h1>Assembler — Asset Review</h1>
+    <p class="subtle">Shipped scripts arrive here. Generate per-platform variants, review them, approve.</p>
 
     <!-- Filter bar with counts -->
     <div class="filter-bar" id="filterBar">
         <button class="filter-btn active" data-filter="all" onclick="filterCards('all')">
-            All <span class="filter-count">{{ unified_cards|length }}</span>
+            All <span class="filter-count">{{ assembler_cards|length }}</span>
         </button>
         {% set labels = {
             'ready_review': 'Ready for review',
-            'writing': 'Writing',
-            'queued': 'Queued',
-            'shipped': 'Shipped to Assembler',
-            'asset_ready': 'At Assembler',
-            'failed': 'Failed',
-            'killed': 'Killed',
-            'parked': 'Parked'
+            'no_assets': 'No assets yet',
+            'pending': 'Assets pending',
+            'partial': 'Partially approved',
+            'all_approved': 'All approved',
+            'assembling': 'Assembling'
         } %}
         {% for state, count in state_counts.items() %}
-        {% if state != 'assembling' %}
         <button class="filter-btn" data-filter="{{ state }}" onclick="filterCards('{{ state }}')">
             {{ labels.get(state, state|replace('_',' ')) }}
             <span class="filter-count">{{ count }}</span>
         </button>
-        {% endif %}
         {% endfor %}
     </div>
 
     <!-- Unified card list -->
     <div class="card-list" id="cardList">
-        {% for card in unified_cards %}
+        {% for card in assembler_cards %}
         <div class="pipeline-card" data-state="{{ card.display_state }}">
             <div class="card-header">
                 <div class="card-title">
-                    <a href="/create/draft/{{ card.id }}">{{ card.idea_short }}{% if card.idea|length > 80 %}...{% endif %}</a>
+                    <a href="/create/assets/{{ card.draft.id }}">{{ card.idea_short }}{% if card.idea|length > 80 %}...{% endif %}</a>
                 </div>
                 <span class="state-badge st-{{ card.display_state }}">
-                    {% if card.display_state == 'writing' %}<span class="spinner"></span>{% endif %}
                     {% if card.display_state == 'assembling' %}<span class="spinner"></span>{% endif %}
                     {{ {
                         'ready_review': 'Ready for review',
-                        'writing': 'Writer working',
-                        'queued': 'Queued',
-                        'shipped': 'Shipped',
-                        'assembling': 'At Assembler',
-                        'asset_ready': 'At Assembler',
-                        'failed': 'Failed',
-                        'killed': 'Killed',
-                        'parked': 'Parked'
+                        'assembling': 'Assembling',
+                        'no_assets': 'No assets yet',
+                        'pending': 'Assets pending',
+                        'partial': 'Partially approved',
+                        'all_approved': 'All approved'
                     }.get(card.display_state, card.display_state|replace('_',' ')) }}
                 </span>
             </div>
+
+            <!-- Asset summary -->
+            {% if card.asset_count > 0 %}
+            <div class="asset-summary">
+                {{ card.asset_count }} asset{{ 's' if card.asset_count > 1 else '' }} ·
+                {{ card.approved_assets|length }} approved ·
+                {{ card.pending_assets|length }} pending
+            </div>
+            {% endif %}
 
             <!-- Provenance trail -->
             <div class="trail">
                 {% for step in card.trail %}
                 <div class="trail-step">
-                    <div class="trail-dot {{ 'done' if step.state in ('approved',) else 'active' if step.state in ('ready', 'writing', 'assembling') else 'failed' if step.state in ('killed',) else 'pending' }}"></div>
-                    <span class="trail-label {{ 'done' if step.state in ('approved',) else 'active' if step.state in ('ready', 'writing', 'assembling') else '' }}">{{ step.stage }}</span>
+                    <div class="trail-dot {{ 'done' if step.state in ('approved',) else 'active' if step.state in ('ready', 'assembling', 'partial') else 'pending' }}"></div>
+                    <span class="trail-label {{ 'done' if step.state in ('approved',) else 'active' if step.state in ('ready', 'assembling', 'partial') else '' }}">{{ step.stage }}</span>
                 </div>
                 {% if not loop.last %}
                 <div class="trail-connector {{ 'done' if step.state == 'approved' else '' }}"></div>
                 {% endif %}
                 {% endfor %}
             </div>
-
-            {% if card.production_error %}
-            <div class="card-error">{{ card.production_error }}</div>
-            <button class="retry-btn" onclick="retryProduction({{ card.id }})">Retry</button>
-            {% endif %}
         </div>
         {% else %}
-        <p class="empty">No idea cards yet. <a href="/ideas">Generate ideas →</a></p>
+        <p class="empty">No shipped scripts yet. <a href="/create">Ship a draft from Writer →</a></p>
         {% endfor %}
     </div>
 </div>
@@ -183,20 +166,6 @@ function filterCards(state) {
             c.classList.add('hidden');
         }
     });
-}
-
-function retryProduction(cardId) {
-    if (!confirm('Retry production from the failed step?')) return;
-    fetch('/api/ideas/' + cardId + '/retry-production', { method: 'POST' })
-        .then(r => r.json())
-        .then(data => {
-            if (data.status === 'ok') {
-                location.reload();
-            } else {
-                alert('Error: ' + (data.error || 'Unknown error'));
-            }
-        })
-        .catch(err => alert('Network error: ' + err));
 }
 </script>
 </body>

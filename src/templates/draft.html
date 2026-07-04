@@ -73,7 +73,7 @@
         <a href="/">Home</a>
         <a href="/ideas">Researcher (Ideas)</a>
         <a href="/create" class="active">Writer (Script)</a>
-        <a href="/create#assembler">Assembler (Studio)</a>
+        <a href="/assemble">Assembler (Studio)</a>
         <a href="/published">Analyst (Learnings)</a>
         <a href="/onboard">Onboard</a>
         <a href="/library">Library</a>
@@ -93,6 +93,20 @@
             Format: {{ treatment.format.format_name if treatment.format else '?' }} · Scope: {{ scope_labels.get(treatment.scope.type if treatment.scope else '?', treatment.scope.type if treatment.scope else '?') }}
         </div>
     </div>
+
+    {% if trail %}
+    <div class="trail" style="display: flex; gap: 0; align-items: center; margin-bottom: 16px;">
+        {% for step in trail %}
+        <div style="display: flex; align-items: center; gap: 4px;">
+            <div style="width: 10px; height: 10px; border-radius: 50%; background: {% if step.state == 'approved' %}#4A7C3A{% elif step.state in ('ready', 'writing') %}#E54B2C{% elif step.state == 'killed' %}#C0392B{% else %}#D8D4C8{% endif %};{% if step.state in ('ready', 'writing') %} box-shadow: 0 0 0 3px rgba(229,75,44,0.15);{% endif %}"></div>
+            <span style="font-size: 0.72rem; color: {% if step.state == 'approved' %}#4A7C3A{% elif step.state in ('ready', 'writing') %}#E54B2C{% elif step.state == 'killed' %}#C0392B{% else %}#8A857C{% endif %}; margin-right: 8px;{% if step.state in ('ready', 'writing') %} font-weight: 600;{% endif %}">{{ step.stage }}</span>
+        </div>
+        {% if not loop.last %}
+        <div style="width: 20px; height: 2px; background: {% if step.state == 'approved' %}#4A7C3A{% else %}#D8D4C8{% endif %}; margin: 0 4px;"></div>
+        {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
 
     {% if draft %}
     <div class="state-badge state-{{ draft.draft_state }}">
@@ -220,7 +234,8 @@
 
     {% if draft.draft_state == 'shipped' %}
     <div class="shipped-panel">
-        <button class="btn btn-ship" onclick="window.location.href='/create/assets/{{ draft.id }}'">Proceed to Assets →</button>
+        <p style="margin-bottom: 12px; color: #4A7C3A; font-size: 0.9rem;">✓ Script approved and shipped to the Assembler.</p>
+        <button class="btn btn-ship" onclick="window.location.href='/create/assets/{{ draft.id }}'">Go to Assembler →</button>
         <br>
         <button class="reopen-link" onclick="reopenForRevision()">Reopen for revision</button>
     </div>
@@ -340,6 +355,16 @@ function draftGate(action) {
             method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({action: action, kill_reason: reason}),
         }).then(r => r.json()).then(data => { if (data.status === 'ok') window.location.reload(); });
+    } else if (action === 'ship') {
+        fetch('/api/draft/{{ draft.id }}/gate', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action: action}),
+        }).then(r => r.json()).then(data => {
+            if (data.status === 'ok') {
+                // Auto-redirect to the Assembler — no extra "proceed" step needed
+                window.location.href = '/create/assets/{{ draft.id }}';
+            }
+        });
     } else {
         fetch('/api/draft/{{ draft.id }}/gate', {
             method: 'POST', headers: {'Content-Type': 'application/json'},

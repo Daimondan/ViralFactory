@@ -105,7 +105,7 @@
         <a href="/">Home</a>
         <a href="/ideas">Researcher (Ideas)</a>
         <a href="/create">Writer (Script)</a>
-        <a href="/create#assembler" class="active">Assembler (Studio)</a>
+        <a href="/assemble" class="active">Assembler (Studio)</a>
         <a href="/published">Analyst (Learnings)</a>
         <a href="/onboard">Onboard</a>
         <a href="/library">Library</a>
@@ -115,6 +115,27 @@
 
     <h1>Assembler — Asset Review</h1>
     <p class="subtle">The Assembler took your shipped draft and created per-platform media. Review each variant as it will appear, then approve or kill.</p>
+
+    {% if idea_card %}
+    <div class="card-info" style="background: #FFFFFF; border-radius: 10px; padding: 16px; border: 1px solid #D8D4C8; margin-bottom: 16px;">
+        <div style="font-size: 0.85rem; color: #8A857C; margin-bottom: 6px;">Original idea:</div>
+        <div style="font-size: 0.95rem; line-height: 1.5;">{{ idea_card.idea }}</div>
+    </div>
+    {% endif %}
+
+    {% if trail %}
+    <div class="trail" style="display: flex; gap: 0; align-items: center; margin-bottom: 16px;">
+        {% for step in trail %}
+        <div style="display: flex; align-items: center; gap: 4px;">
+            <div style="width: 10px; height: 10px; border-radius: 50%; background: {% if step.state == 'approved' %}#4A7C3A{% elif step.state in ('ready', 'partial') %}#E54B2C{% else %}#D8D4C8{% endif %};"></div>
+            <span style="font-size: 0.72rem; color: {% if step.state == 'approved' %}#4A7C3A{% elif step.state in ('ready', 'partial') %}#E54B2C{% else %}#8A857C{% endif %}; margin-right: 8px;{% if step.state in ('ready', 'partial') %} font-weight: 600;{% endif %}">{{ step.stage }}</span>
+        </div>
+        {% if not loop.last %}
+        <div style="width: 20px; height: 2px; background: {% if step.state == 'approved' %}#4A7C3A{% else %}#D8D4C8{% endif %}; margin: 0 4px;"></div>
+        {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
 
     {% if draft.draft_state == 'shipped' and not assets %}
     <div style="text-align: center; margin: 20px 0;">
@@ -420,14 +441,92 @@ function generateEditPlan(assetId, btn) {
 
 function renderFinalCut(assetId, planId, btn) {
     var statusElem = document.getElementById('render-status-' + assetId);
-    if (!confirm('Render the final cut? This may take several minutes.')) return;
-    busyAction(btn, '/api/assets/' + assetId + '/render', {
-        busyLabel: 'Rendering…',
-        statusElem: statusElem,
+    if (!confirm('Render the final cut? This may take several minutes. You can continue using other parts of the app while it works.')) return;
+    busyBtn(btn, 'Rendering…');
+    if (statusElem) {
+        statusElem.style.display = 'block';
+        statusElem.style.color = '#4A6FA5';
+        statusElem.textContent = 'Rendering in background… this may take a few minutes.';
+    }
+    fetch('/api/assets/' + assetId + '/render', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({plan_id: planId}),
-        reloadOnSuccess: true,
-        onError: function(msg) { statusElem.style.color = '#C0392B'; statusElem.textContent = msg; }
+    }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.status === 'ok') {
+            unbusyBtn(btn);
+            if (statusElem) {
+                statusElem.style.color = '#4A7C3A';
+                statusElem.textContent = '✓ Rendered! Loading…';
+            }
+            setTimeout(function() { window.location.reload(); }, 1000);
+        } else {
+            unbusyBtn(btn);
+            if (statusElem) {
+                statusElem.style.color = '#C0392B';
+                statusElem.textContent = data.error || 'Render failed';
+            }
+        }
+    }).catch(function(err) {
+        // Request likely timed out — start polling for render status
+        if (statusElem) {
+            statusElem.style.color = '#4A6FA5';
+            statusElem.textContent = 'Rendering in background… polling for completion.';
+        }
+        pollRenderStatus(assetId, btn, statusElem);
     });
+}
+
+// Poll render status every 5s for up to 10 minutes
+function pollRenderStatus(assetId, btn, statusElem) {
+    var maxPolls = 120; // 10 minutes at 5s intervals
+    var pollCount = 0;
+    function check() {
+        if (pollCount >= maxPolls) {
+            if (statusElem) {
+                statusElem.style.color = '#8A6D20';
+                statusElem.textContent = 'Render still running — refresh later to check.';
+            }
+            unbusyBtn(btn);
+            return;
+        }
+        pollCount++;
+        fetch('/api/assets/' + assetId + '/render-status')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.status === 'rendered') {
+                    if (statusElem) {
+                        statusElem.style.color = '#4A7C3A';
+                        statusElem.textContent = '✓ Rendered! Loading…';
+                    }
+                    unbusyBtn(btn);
+                    setTimeout(function() { window.location.reload(); }, 1000);
+                } else if (data.status === 'failed') {
+                    if (statusElem) {
+                        statusElem.style.color = '#C0392B';
+                        statusElem.textContent = 'Render failed: ' + (data.error || 'unknown');
+                    }
+                    unbusyBtn(btn);
+                } else if (data.status === 'rendering') {
+                    if (statusElem) {
+                        statusElem.style.color = '#4A6FA5';
+                        statusElem.textContent = 'Rendering… ' + (pollCount * 5) + 's elapsed.';
+                    }
+                    setTimeout(check, 5000);
+                } else {
+                    // idle or unknown — render may have finished before polling started
+                    if (statusElem) {
+                        statusElem.style.color = '#8A857C';
+                        statusElem.textContent = 'Render status unclear — refreshing.';
+                    }
+                    unbusyBtn(btn);
+                    setTimeout(function() { window.location.reload(); }, 2000);
+                }
+            })
+            .catch(function(err) {
+                setTimeout(check, 5000);
+            });
+    }
+    setTimeout(check, 5000);
 }
 
 // Video dialog (reel formats only)

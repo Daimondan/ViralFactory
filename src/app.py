@@ -3585,11 +3585,16 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         from jobs import JobsStore
         return JobsStore(app.config["DB_PATH"])
 
-    def _check_job_running(job_type, entity_id=None, input_hash=None):
+    def _check_job_running(job_type, entity_id=None, input_hash=None, stale_timeout_s=None):
         """F1: Check if a job is already running. Returns (is_running, job_info dict).
-        If a job is running, caller should return 409."""
+        If a job is running, caller should return 409.
+        stale_timeout_s: forwarded to JobsStore.start_job — jobs older than this are
+        treated as stale and a new job starts instead of returning 409."""
         store = _get_jobs_store()
-        result = store.start_job(job_type, entity_id, input_hash)
+        kwargs = {}
+        if stale_timeout_s:
+            kwargs["stale_timeout_s"] = stale_timeout_s
+        result = store.start_job(job_type, entity_id, input_hash, **kwargs)
         if result["status"] == "running":
             return True, result
         return False, result
@@ -4609,12 +4614,29 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             "pillar_with_derivatives": "Main + derivatives",
         }
 
+        # Provenance trail: idea → script (this page)
+        trail = []
+        trail.append({"stage": "Idea", "state": "approved", "label": "Idea approved"})
+        if existing_draft:
+            if existing_draft["draft_state"] in ("draft_ready", "revised"):
+                trail.append({"stage": "Script", "state": "ready", "label": "Script ready for review"})
+            elif existing_draft["draft_state"] == "drafting":
+                trail.append({"stage": "Script", "state": "writing", "label": "Writer working"})
+            elif existing_draft["draft_state"] == "shipped":
+                trail.append({"stage": "Script", "state": "approved", "label": "Script approved"})
+            elif existing_draft["draft_state"] == "killed":
+                trail.append({"stage": "Script", "state": "killed", "label": "Script killed"})
+            else:
+                trail.append({"stage": "Script", "state": "pending", "label": "Not started"})
+        else:
+            trail.append({"stage": "Script", "state": "pending", "label": "Not started"})
+
         return render_template("draft.html",
             business_name=business_name, card=card,
             treatment=treatment, hook_options=hook_options,
             draft=_parse_draft_for_display(existing_draft),
             draft_visuals=draft_visuals,
-            scope_labels=SCOPE_LABELS)
+            scope_labels=SCOPE_LABELS, trail=trail)
 
     def _parse_draft_for_display(draft):
         """Parse JSON fields on a draft for template display. Merges parsed fields into the draft dict."""
@@ -5212,10 +5234,26 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             a["edit_plans"] = store.list_edit_plans(asset["id"])
             enriched_assets.append(a)
 
+        # Provenance trail: idea → script → assets
+        card = store.get_idea_card(draft["idea_card_id"])
+        trail = []
+        trail.append({"stage": "Idea", "state": "approved", "label": "Idea approved"})
+        trail.append({"stage": "Script", "state": "approved", "label": "Script approved (shipped)"})
+        if card and card["card_state"] == "asset_ready":
+            trail.append({"stage": "Assets", "state": "ready", "label": "Assets ready for review"})
+        elif enriched_assets:
+            approved = [a for a in enriched_assets if a["asset_state"] == "approved"]
+            if approved and len(approved) == len(enriched_assets):
+                trail.append({"stage": "Assets", "state": "approved", "label": "All assets approved"})
+            else:
+                trail.append({"stage": "Assets", "state": "partial", "label": f"{len(approved)}/{len(enriched_assets)} assets approved"})
+        else:
+            trail.append({"stage": "Assets", "state": "pending", "label": "No assets generated yet"})
+
         return render_template("assets.html",
             business_name=business_name, draft=draft,
             assets=enriched_assets, visual_direction=visual_direction,
-            platforms=platforms)
+            platforms=platforms, trail=trail, idea_card=card)
 
     @app.route("/api/assets/<int:draft_id>/fan-out", methods=["POST"])
     def assets_fan_out(draft_id):
@@ -5923,6 +5961,57 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             store.update_edit_plan_status(plan_id, "failed", str(e)[:500])
             return jsonify({"error": str(e)}), 500
 
+    @app.route("/api/assets/<int:asset_id>/render-status", methods=["GET"])
+    def render_status(asset_id):
+        """Check render status for an asset — used for polling while rendering in background."""
+        store = _get_pipeline_store()
+        asset = store.get_asset(asset_id)
+        if not asset:
+            return jsonify({"error": "Asset not found"}), 404
+
+        # Check for final_cut media
+        from media_adapter import MediaAdapter
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+        except ConfigError:
+            models_config = {}
+        media_adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
+        media_list = media_adapter.list_asset_media(asset_id)
+        final_cuts = [m for m in media_list if m.get("kind") == "final_cut"]
+
+        # Check edit plan status
+        edit_plans = store.list_edit_plans(asset_id)
+        plan_status = None
+        if edit_plans:
+            plan_status = edit_plans[0].get("status")
+
+        # Check job status
+        jobs_store = _get_jobs_store()
+        conn = __import__("sqlite3").connect(app.config["DB_PATH"])
+        conn.row_factory = __import__("sqlite3").Row
+        job_row = conn.execute(
+            "SELECT * FROM jobs WHERE job_type = 'assembly_render' AND entity_id = ? ORDER BY id DESC LIMIT 1",
+            (asset_id,),
+        ).fetchone()
+        conn.close()
+        job_status = dict(job_row)["status"] if job_row else None
+
+        if final_cuts:
+            return jsonify({
+                "status": "rendered",
+                "path": final_cuts[-1]["path"],
+                "plan_status": plan_status,
+            })
+        if job_status == "running":
+            return jsonify({"status": "rendering", "plan_status": plan_status})
+        if job_status == "failed":
+            error = dict(job_row).get("error", "") if job_row else ""
+            return jsonify({"status": "failed", "error": error, "plan_status": plan_status})
+        if plan_status == "rendering":
+            return jsonify({"status": "rendering", "plan_status": plan_status})
+        return jsonify({"status": "idle", "plan_status": plan_status})
+
     @app.route("/api/stock/search", methods=["POST"])
     def search_stock():
         """Final Assembly: Search stock library (Pexels + Pixabay)."""
@@ -6532,20 +6621,19 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             business_name=business_name,
             published_items=published_items)
 
-    # ── Create surface (dashboard for the co-production loop) ──
+    # ── Create surface (Writer page — unified card list with state + provenance trail) ──
 
     @app.route("/create")
     def create_surface():
-        """Create surface — overview of drafts and assets in the pipeline."""
+        """Writer surface — unified list of all cards with their state in the pipeline,
+        filter buttons with counts, and provenance trail per card."""
         business_slug = _get_business_slug()
         if not business_slug:
             return "Business not configured", 500
 
         store = _get_pipeline_store()
-
-        # Get all drafts and their states
-        drafts = store.list_drafts(business_slug)
         idea_cards = store.list_idea_cards(business_slug)
+        drafts = store.list_drafts(business_slug)
 
         try:
             config = load_all(app.config["CONFIG_DIR"])
@@ -6553,22 +6641,36 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         except ConfigError:
             business_name = "Not configured"
 
-        # Categorize drafts
-        shipped = [d for d in drafts if d["draft_state"] == "shipped"]
-        ready = [d for d in drafts if d["draft_state"] == "draft_ready"]
-        drafting = [d for d in drafts if d["draft_state"] == "drafting"]
-        # UI-REVIEW-002 #6: Only show in-progress drafts in "Drafts" column (not shipped)
-        all_active_drafts = [d for d in drafts if d["draft_state"] in ("drafting", "draft_ready", "revised")]
+        # Build draft lookup by idea_card_id
+        draft_by_card = {}
+        for d in drafts:
+            draft_by_card[d["idea_card_id"]] = d
 
-        # UI-REVIEW-002 #5: Add idea text to drafts for descriptive titles
-        card_ideas = {c["id"]: c["idea"][:60] for c in idea_cards}
-        for d in all_active_drafts:
-            d["idea_text"] = card_ideas.get(d["idea_card_id"], "Unknown")
-        for d in shipped:
-            d["idea_text"] = card_ideas.get(d["idea_card_id"], "Unknown")
+        # Build unified card list with state + provenance trail
+        unified_cards = []
+        for card in idea_cards:
+            c = dict(card)
+            c["idea_short"] = card["idea"][:80]
+            c["draft"] = draft_by_card.get(card["id"])
 
-        # T8.6: Parse production_error for display on Create page
-        for c in idea_cards:
+            # Provenance trail: which stages are approved
+            trail = []
+            trail.append({"stage": "Idea", "state": "approved" if card["card_state"] not in ("new", "killed", "parked") else card["card_state"], "label": "Idea approved"})
+            draft = draft_by_card.get(card["id"])
+            if draft:
+                if draft["draft_state"] in ("draft_ready", "revised"):
+                    trail.append({"stage": "Script", "state": "ready", "label": "Script ready for review"})
+                elif draft["draft_state"] == "drafting":
+                    trail.append({"stage": "Script", "state": "writing", "label": "Writer working"})
+                elif draft["draft_state"] == "shipped":
+                    trail.append({"stage": "Script", "state": "approved", "label": "Script approved"})
+                elif draft["draft_state"] == "killed":
+                    trail.append({"stage": "Script", "state": "killed", "label": "Script killed"})
+            if card["card_state"] in ("asset_ready", "assembling"):
+                trail.append({"stage": "Assets", "state": "ready" if card["card_state"] == "asset_ready" else "assembling", "label": "Assets ready for review" if card["card_state"] == "asset_ready" else "Assembler working"})
+            c["trail"] = trail
+
+            # Parse production_error
             if c.get("production_error"):
                 try:
                     err = json.loads(c["production_error"])
@@ -6576,12 +6678,138 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 except Exception:
                     pass
 
+            # Determine display state for the card
+            c["display_state"] = _writer_display_state(card, draft_by_card.get(card["id"]))
+            unified_cards.append(c)
+
+        # Count cards per state for filter buttons
+        state_counts = {}
+        for c in unified_cards:
+            state_counts[c["display_state"]] = state_counts.get(c["display_state"], 0) + 1
+
         return render_template("create.html",
             business_name=business_name,
-            idea_cards=idea_cards,
-            drafts=drafts,
-            shipped=shipped, ready=ready, drafting=drafting,
-            all_active_drafts=all_active_drafts)
+            unified_cards=unified_cards,
+            state_counts=state_counts)
+
+    def _writer_display_state(card, draft):
+        """Map card_state + draft_state to a single display state for the Writer page."""
+        cs = card["card_state"]
+        if cs in ("new",):
+            return "queued"
+        if cs in ("writing", "drafting"):
+            return "writing"
+        if cs in ("draft_ready", "revised"):
+            return "ready_review"
+        if cs == "drafted":
+            if draft and draft["draft_state"] == "shipped":
+                return "shipped"
+            return "ready_review"
+        if cs == "assembling":
+            return "assembling"
+        if cs == "asset_ready":
+            return "asset_ready"
+        if cs in ("writer_failed", "assembly_failed", "production_failed"):
+            return "failed"
+        if cs == "shipped":
+            return "shipped"
+        if cs == "killed":
+            return "killed"
+        if cs == "parked":
+            return "parked"
+        if cs == "awaiting_capture":
+            return "queued"
+        return cs
+
+    @app.route("/assemble")
+    def assembler_surface():
+        """Assembler surface — unified list of all cards with assets in the pipeline,
+        filter buttons with counts, and provenance trail per card."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return "Business not configured", 500
+
+        store = _get_pipeline_store()
+        idea_cards = store.list_idea_cards(business_slug)
+        drafts = store.list_drafts(business_slug)
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            business_name = config["business"]["business"]["name"]
+        except ConfigError:
+            business_name = "Not configured"
+
+        # Build draft lookup by idea_card_id
+        draft_by_card = {}
+        for d in drafts:
+            draft_by_card[d["idea_card_id"]] = d
+
+        # Build unified card list — only cards that have shipped drafts or assets
+        assembler_cards = []
+        for card in idea_cards:
+            draft = draft_by_card.get(card["id"])
+            if not draft:
+                continue
+            # Only show cards that are at or past the assembler stage
+            if draft["draft_state"] != "shipped" and card["card_state"] not in ("assembling", "asset_ready", "approved", "published"):
+                continue
+
+            c = dict(card)
+            c["idea_short"] = card["idea"][:80]
+            c["draft"] = draft
+
+            # Load assets for this draft
+            assets = store.list_assets(draft["id"])
+            c["assets"] = assets
+            c["asset_count"] = len(assets)
+            c["approved_assets"] = [a for a in assets if a["asset_state"] == "approved"]
+            c["pending_assets"] = [a for a in assets if a["asset_state"] in ("pending", "fix")]
+
+            # Provenance trail
+            trail = []
+            trail.append({"stage": "Idea", "state": "approved", "label": "Idea approved"})
+            trail.append({"stage": "Script", "state": "approved", "label": "Script approved (shipped)"})
+            if card["card_state"] == "assembling":
+                trail.append({"stage": "Assets", "state": "assembling", "label": "Assembler working"})
+            elif card["card_state"] == "asset_ready":
+                trail.append({"stage": "Assets", "state": "ready", "label": "Assets ready for review"})
+            elif assets:
+                if c["approved_assets"] and len(c["approved_assets"]) == len(assets):
+                    trail.append({"stage": "Assets", "state": "approved", "label": "All assets approved"})
+                else:
+                    trail.append({"stage": "Assets", "state": "partial", "label": f"{len(c['approved_assets'])}/{len(assets)} assets approved"})
+            else:
+                trail.append({"stage": "Assets", "state": "pending", "label": "No assets generated yet"})
+            c["trail"] = trail
+
+            c["display_state"] = _assembler_display_state(card, draft, assets)
+            assembler_cards.append(c)
+
+        # Count cards per state for filter buttons
+        state_counts = {}
+        for c in assembler_cards:
+            state_counts[c["display_state"]] = state_counts.get(c["display_state"], 0) + 1
+
+        return render_template("assemble.html",
+            business_name=business_name,
+            assembler_cards=assembler_cards,
+            state_counts=state_counts)
+
+    def _assembler_display_state(card, draft, assets):
+        """Map card/draft/asset state to a single display state for the Assembler page."""
+        cs = card["card_state"]
+        if cs == "assembling":
+            return "assembling"
+        if cs == "asset_ready":
+            return "ready_review"
+        if not assets:
+            return "no_assets"
+        approved = [a for a in assets if a["asset_state"] == "approved"]
+        if len(approved) == len(assets):
+            return "all_approved"
+        if approved:
+            return "partial"
+        return "pending"
 
     @app.route("/health")
     def health():

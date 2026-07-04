@@ -442,7 +442,7 @@ class TestUIReview002DraftStateLock:
         html = resp.data.decode()
 
         assert "v1 · SHIPPED" in html
-        assert "Proceed to Assets →" in html
+        assert "Go to Assembler →" in html
         assert "Reopen for revision" in html
         assert 'id="editDraftBtn"' not in html
         assert '>Regenerate draft<' not in html

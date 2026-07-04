@@ -615,11 +615,11 @@ class TestFlaskDraftEndpoints:
         assert resp.status_code == 400
 
     def test_create_surface_loads(self, app):
-        """Create surface dashboard loads."""
+        """Writer surface dashboard loads."""
         client = app.test_client()
         resp = client.get("/create")
         assert resp.status_code == 200
-        assert b"Create" in resp.data
+        assert b"Writer" in resp.data
 
     def test_fan_out_requires_shipped(self, app, sample_treatment):
         """Fan-out only works on shipped drafts."""
