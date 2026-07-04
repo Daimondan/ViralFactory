@@ -149,7 +149,7 @@ IDEA_CARD_SCHEMA = {
             "type": "array",
             "items": {
                 "type": "object",
-                "required": ["idea", "hook_options", "treatment", "origin", "evidence_links"],
+                "required": ["idea", "hook_options", "treatment", "origin", "source_refs"],
                 "properties": {
                     "idea": {"type": "string"},
                     "hook_options": {
@@ -193,6 +193,21 @@ IDEA_CARD_SCHEMA = {
                         },
                     },
                     "origin": {"type": "string"},  # ai_originated | human_seeded | human_seeded_ai_developed
+                    "source_refs": {
+                        "type": "array",
+                        "items": {"type": "integer"},  # source IDs from the sources table
+                        "minItems": 1,  # at least one source required
+                    },
+                    "source_notes": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "source_id": {"type": "integer"},
+                                "note": {"type": "string"},
+                            },
+                        },
+                    },
                     "evidence_links": {
                         "type": "array",
                         "items": {

@@ -45,7 +45,14 @@
         .treatment-full dd { margin-left: 12px; margin-bottom: 4px; }
 
         .evidence-links { font-size: 0.75rem; color: #A8A399; margin-bottom: 10px; }
-        .evidence-links 
+        .evidence-links
+        .source-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600; text-transform: uppercase; margin-right: 2px; }
+        .source-type-rss_item { background: rgba(61, 107, 58, 0.15); color: #3D6B3A; }
+        .source-type-operator_material { background: rgba(229, 75, 44, 0.15); color: #E54B2C; }
+        .source-type-manual { background: rgba(229, 75, 44, 0.15); color: #E54B2C; }
+        .source-type-scraped_article { background: rgba(72, 101, 150, 0.15); color: #486596; }
+        .source-type-archival { background: rgba(138, 109, 32, 0.15); color: #8A6D20; }
+        .source-no-url { color: #A8A399; }
 
         .card-actions { display: flex; gap: 8px; }
         .btn { padding: 5px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.8rem; font-weight: 500; }
@@ -165,7 +172,22 @@
             <button class="btn btn-secondary" style="font-size: 0.72rem; padding: 3px 8px; margin-bottom: 8px;" onclick="toggleTreatment({{ card.id }})">Expand treatment</button>
             {% endif %}
 
-            {% if card.evidence_links %}
+            {% if card.resolved_sources %}
+            <div class="evidence-links">
+                <strong>Sources:</strong>
+                {% for src in card.resolved_sources %}
+                <span class="source-badge source-type-{{ src.source_type }}">
+                    {{ src.source_type }}
+                </span>
+                {% if src.url %}
+                <a href="{{ src.url }}" target="_blank">{{ src.title }}</a>
+                {% else %}
+                <span class="source-no-url">{{ src.title }}</span>
+                {% endif %}
+                {% if not loop.last %} · {% endif %}
+                {% endfor %}
+            </div>
+            {% elif card.evidence_links %}
             <div class="evidence-links">
                 {% for link in card.evidence_links %}
                 <a href="{{ link.url }}" target="_blank">{{ link.note or link.url }}</a>{% if not loop.last %} · {% endif %}

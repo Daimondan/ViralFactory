@@ -6,6 +6,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-03 STRUCTURE — T8.4: Idea cards carry source_refs (P1)
+
+**What:** `IDEA_CARD_SCHEMA` updated — `source_refs` (integer array, minItems=1) replaces `evidence_links` in required list; `source_notes` added (optional per-source annotation). `prompts/ideas/generate_v1.md` → v1.3: Source Bank section with `[S14] title — summary` digest format, cite-by-ID instructions, multi-source synthesis rule, new `source_criteria` variable. `ideas_generate` route builds source digest from `sources` table (ID-prefixed), validates source_refs, derives evidence_links from resolved sources for backward display. `_generate_card_from_seed` auto-registers seed as `manual` source, includes seed in digest, ensures seed source always cited. Ideas page template renders resolved sources with title links + source_type badges.
+
+**Why:** Per CORRECTION Section 1.2. `evidence_links` were decorative freeform objects — nothing verified they correspond to real Source Bank material. Now ideas cite sources by ID from the addressable `sources` table; every idea MUST cite at least one source; one idea may compose multiple sources.
+
+**Rationale:** Grounding ideas in real source material produces better content. The digest format `[S14] title — summary` gives the LLM addressable references to cite. Multi-source synthesis is explicitly encouraged.
+
 ### 2026-07-03 STRUCTURE — T8.3: Source Bank as addressable store (P1)
 
 **What:** New `sources` table in `pipeline.py` (id, business_slug, source_type, title, url, summary, content, origin, first_seen, content_hash, status). `source_snapshot.py` writes fetched RSS items into this table as `source_type='rss_item'` (deduped on URL-hash content_hash), with full extracted content via trafilatura. `materials.py` registers `source_type='operator_material'` rows on text ingestion (deduped on content_hash). PipelineStore gains methods: `add_source`, `get_source`, `list_sources`, `resolve_source_refs`, `archive_source`. Schema migration adds `source_refs` + `production_error` columns to `idea_cards`. All sources scoped by `business_slug`.

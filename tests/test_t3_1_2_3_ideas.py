@@ -395,7 +395,7 @@ class TestIdeaCardSchema:
                     "rationale": "Fits the timely take.",
                 },
                 "origin": "ai_originated",
-                "evidence_links": [{"url": "https://example.com", "note": "test"}],
+                "source_refs": [1, 2],
             }]
         })
         result = validate_llm_output(raw, IDEA_CARD_SCHEMA)
@@ -551,7 +551,7 @@ queries: []
         def mock_complete(self, prompt_file, variables, schema, **kwargs):
             captured_backend.append(kwargs.get("backend"))
             return {"cards": [
-                {"idea": "Test idea", "hook_options": ["h"], "treatment": {"scope": "one_off", "format": "X Thread", "capture_required": [], "rationale": "r"}, "origin": "ai_originated", "evidence_links": []}
+                {"idea": "Test idea", "hook_options": ["h"], "treatment": {"scope": "one_off", "format": "X Thread", "capture_required": [], "rationale": "r"}, "origin": "ai_originated", "source_refs": [1]}
             ]}
 
         with patch.object(LLMAdapter, "complete", mock_complete):
@@ -571,7 +571,7 @@ queries: []
         def mock_complete(self, prompt_file, variables, schema, **kwargs):
             captured_backend.append(kwargs.get("backend"))
             return {"cards": [
-                {"idea": "Seed idea", "hook_options": ["h"], "treatment": {"scope": "one_off", "format": "X Thread", "capture_required": [], "rationale": "r"}, "origin": "human_seeded", "evidence_links": []}
+                {"idea": "Seed idea", "hook_options": ["h"], "treatment": {"scope": "one_off", "format": "X Thread", "capture_required": [], "rationale": "r"}, "origin": "human_seeded", "source_refs": [1]}
             ]}
 
         with patch.object(LLMAdapter, "complete", mock_complete):
@@ -662,7 +662,7 @@ creative:
         def mock_complete(self, prompt_file, variables, schema, **kwargs):
             captured_vars.update(variables)
             return {"cards": [
-                {"idea": "New distinct idea", "hook_options": ["h"], "treatment": {"scope": "one_off", "format": "X Thread", "capture_required": [], "rationale": "r"}, "origin": "ai_originated", "evidence_links": []}
+                {"idea": "New distinct idea", "hook_options": ["h"], "treatment": {"scope": "one_off", "format": "X Thread", "capture_required": [], "rationale": "r"}, "origin": "ai_originated", "source_refs": [1]}
             ]}
 
         with patch.object(LLMAdapter, "complete", mock_complete):

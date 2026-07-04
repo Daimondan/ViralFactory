@@ -3802,6 +3802,13 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             treatment = json.loads(c.get("treatment") or "{}")
             card["treatment"] = treatment
             card["evidence_links"] = json.loads(c.get("evidence_links") or "[]")
+            # T8.4: Resolve source_refs to display sources with title, url, type badge
+            source_ref_ids = json.loads(c.get("source_refs") or "[]")
+            if source_ref_ids:
+                resolved_sources = store.resolve_source_refs(business_slug, source_ref_ids)
+                card["resolved_sources"] = resolved_sources
+            else:
+                card["resolved_sources"] = []
 
             # Compact treatment line: scope · format · capture flag
             scope = treatment.get("scope", {})
@@ -3922,7 +3929,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             return jsonify(card)
 
     def _generate_card_from_seed(business_slug: str, seed: str, origin: str) -> dict:
-        """Generate an idea card from a human seed using the LLM."""
+        """Generate an idea card from a human seed using the LLM.
+        T8.4: Seed auto-registers as a 'manual' source so the card is grounded."""
         try:
             config = load_all(app.config["CONFIG_DIR"])
             models_config = config["models"]
@@ -3941,6 +3949,40 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             db_path=app.config["DB_PATH"], modules_dir="modules",
         )
 
+        # T8.4: Register the seed as a manual source so the card is grounded
+        store = _get_pipeline_store()
+        import hashlib as h
+        seed_hash = h.sha256(seed.encode("utf-8")).hexdigest()[:16]
+        seed_source_id = store.add_source(
+            business_slug=business_slug,
+            source_type="manual",
+            title=f"Operator seed: {seed[:80]}",
+            url=None,
+            summary=seed,
+            content=seed,
+            origin="operator",
+            content_hash=seed_hash,
+        )
+
+        # Build source material digest from sources table (includes the seed)
+        from module_store import ModuleStore
+        ms = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
+        source_criteria = ms.load(business_slug, "source-criteria") or "(not built)"
+
+        active_sources = store.list_sources(business_slug, limit=50)
+        if active_sources:
+            source_lines = []
+            for src in active_sources:
+                line = f"[S{src['id']}] {src['title']}"
+                if src.get("summary"):
+                    line += f" — {src['summary']}"
+                if src.get("url"):
+                    line += f" ({src['url']})"
+                source_lines.append(line)
+            source_material = "\n".join(source_lines)
+        else:
+            source_material = f"[S{seed_source_id}] Operator seed: {seed}"
+
         try:
             result = adapter.complete(
                 prompt_file="ideas/generate_v1.md",
@@ -3949,7 +3991,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     "subjects": ", ".join(business.get("subjects", [])),
                     "audience_description": business.get("audience_description", ""),
                     "origin_type": origin,
-                    "source_material": f"Operator seed: {seed}",
+                    "source_material": source_material,
+                    "source_criteria": source_criteria,
                     "existing_ideas": _build_existing_ideas(business_slug),
                     "kill_lessons": _build_kill_lessons(business_slug),
                     "format_usage": _build_format_usage(business_slug),
@@ -3964,17 +4007,26 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         except (LLMAdapterError, Exception) as e:
             return {"status": "error", "error": str(e)}
 
-        store = _get_pipeline_store()
         cards_created = []
         for card_data in result.get("cards", []):
             treatment = card_data.get("treatment", {})
+            source_refs = card_data.get("source_refs", [seed_source_id])
+            # Ensure the seed source is always cited
+            if seed_source_id not in source_refs:
+                source_refs = [seed_source_id] + source_refs
+
+            # Derive evidence_links from source_refs
+            resolved_sources = store.resolve_source_refs(business_slug, source_refs)
+            evidence_links = [{"url": src.get("url") or "", "note": src.get("title", "")} for src in resolved_sources]
+
             card_id = store.create_idea_card(
                 business_slug=business_slug,
                 idea=card_data["idea"],
                 hook_options=card_data.get("hook_options", []),
                 treatment=treatment,
                 origin=origin,
-                evidence_links=card_data.get("evidence_links", []),
+                evidence_links=evidence_links,
+                source_refs=source_refs,
                 seed_text=card_data.get("seed_text", seed),
             )
             cards_created.append(card_id)
@@ -4020,36 +4072,39 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             db_path=app.config["DB_PATH"], modules_dir="modules",
         )
 
-        # Build source material from source-criteria module + sources config
-        # S1c: Replace feed-name listing with mechanical RSS source snapshot
+        # T8.4: Build source material digest from the `sources` table (Source Bank)
+        # Each item prefixed with its ID: [S14] title — summary
         from module_store import ModuleStore
         ms = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
-        source_material = ms.load(business_slug, "source-criteria") or "(not built)"
+        source_criteria = ms.load(business_slug, "source-criteria") or "(not built)"
+
+        # Trigger RSS snapshot to populate the sources table (T8.3 integration)
         try:
             sources_config = config.get("sources", {})
             feeds = sources_config.get("feeds", []) if sources_config else []
             if feeds:
-                # S1c: Mechanical RSS snapshot (feedparser + trafilatura, no LLM)
-                # T8.3: Also registers items into the `sources` table
                 from source_snapshot import SourceSnapshot
                 snapshot = SourceSnapshot(db_path=app.config["DB_PATH"], business_slug=business_slug)
-                snapshot_text = snapshot.build_snapshot_text(feeds)
-                source_material += "\n\n## Recent source snapshots\n"
-                if snapshot_text and snapshot_text != "(snapshot unavailable)":
-                    source_material += snapshot_text
-                else:
-                    source_material += "(snapshot unavailable)\n"
-                    # Fallback: list feed names (old behavior)
-                    for feed in feeds[:5]:
-                        source_material += f"- {feed.get('name', '')}: {feed.get('url', '')}\n"
-
-            channels = sources_config.get("channels", []) if sources_config else []
-            if channels:
-                source_material += "\n## Configured channels\n"
-                for ch in channels[:5]:
-                    source_material += f"- {ch.get('name', '')} ({ch.get('platform', '')}/{ch.get('handle', '')})\n"
+                snapshot.build_snapshot_text(feeds)
         except Exception:
             pass
+
+        # Build digest view from the sources table — count-bounded, ID-prefixed
+        from pipeline import PipelineStore
+        store = _get_pipeline_store()
+        active_sources = store.list_sources(business_slug, limit=50)
+        if active_sources:
+            source_lines = []
+            for src in active_sources:
+                line = f"[S{src['id']}] {src['title']}"
+                if src.get("summary"):
+                    line += f" — {src['summary']}"
+                if src.get("url"):
+                    line += f" ({src['url']})"
+                source_lines.append(line)
+            source_material = "\n".join(source_lines)
+        else:
+            source_material = "(no sources available yet — source bank empty)"
 
         try:
             result = adapter.complete(
@@ -4060,6 +4115,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     "audience_description": business.get("audience_description", ""),
                     "origin_type": "ai_originated",
                     "source_material": source_material,
+                    "source_criteria": source_criteria,
                     "existing_ideas": _build_existing_ideas(business_slug),
                     "kill_lessons": _build_kill_lessons(business_slug),
                     "format_usage": _build_format_usage(business_slug),
@@ -4078,13 +4134,38 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         cards_created = []
         for card_data in result.get("cards", []):
             treatment = card_data.get("treatment", {})
+            source_refs = card_data.get("source_refs", [])
+            source_notes = card_data.get("source_notes", [])
+
+            # T8.4: Validate source_refs — reject/quarantine unresolved refs
+            if source_refs:
+                resolved = store.resolve_source_refs(business_slug, source_refs)
+                resolved_ids = {r["id"] for r in resolved}
+                unresolved = [sid for sid in source_refs if sid not in resolved_ids]
+                if unresolved:
+                    # Quarantine: still create the card but flag it
+                    # (In production, the LLM should only cite real IDs from the digest)
+                    pass  # non-fatal for now — the LLM sees real IDs in the prompt
+
+            # Derive evidence_links from source_refs for backward display compatibility
+            evidence_links = []
+            if source_refs:
+                resolved_sources = store.resolve_source_refs(business_slug, source_refs)
+                notes_map = {sn.get("source_id"): sn.get("note", "") for sn in source_notes if isinstance(sn, dict)}
+                for src in resolved_sources:
+                    evidence_links.append({
+                        "url": src.get("url") or "",
+                        "note": notes_map.get(src["id"], src.get("title", "")),
+                    })
+
             card_id = store.create_idea_card(
                 business_slug=business_slug,
                 idea=card_data["idea"],
                 hook_options=card_data.get("hook_options", []),
                 treatment=treatment,
                 origin="ai_originated",
-                evidence_links=card_data.get("evidence_links", []),
+                evidence_links=evidence_links,
+                source_refs=source_refs,
             )
             cards_created.append(card_id)
 

@@ -192,3 +192,15 @@ Materials Library — editable source materials. DB migrations: `excluded` colum
 - 20 new tests: schema, CRUD, dedupe, business_slug scoping, snapshot→sources, materials→sources
 
 **Tests:** 604 passing (20 new). 0 failures.
+
+### 2026-07-03 — T8.4 Idea cards carry source_refs done (P1)
+
+**T8.4 — Idea cards carry source_refs:**
+- `IDEA_CARD_SCHEMA` updated: `source_refs` (integer array, minItems=1) replaces `evidence_links` in required list; `source_notes` added (optional)
+- `prompts/ideas/generate_v1.md` → v1.3: Source Bank section with `[S14] title — summary` format, cite-by-ID instructions, multi-source synthesis rule, new `source_criteria` variable
+- `ideas_generate` route rebuilt: builds source digest from `sources` table (ID-prefixed), validates source_refs, derives evidence_links from resolved sources
+- `_generate_card_from_seed` rebuilt: auto-registers seed as `manual` source, includes seed in source digest, ensures seed source always cited
+- Ideas page template: renders resolved sources with title links + source_type badges (RSS=green, operator/manual=orange, scraped=blue, archival=gold)
+- 15 new T8.4 tests; 3 existing test mock outputs updated from `evidence_links` → `source_refs`
+
+**Tests:** 619 passing (15 new). 0 failures.

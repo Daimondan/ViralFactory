@@ -1,4 +1,4 @@
-<!-- version: 1.2 -->
+<!-- version: 1.3 -->
 # Idea Card Generation
 
 You are generating idea cards for a content co-creation system. Each card is the first artifact in the staged pipeline — it carries the idea, hook options, and a full treatment block.
@@ -9,9 +9,15 @@ You are generating idea cards for a content co-creation system. Each card is the
 - Audience: {audience_description}
 - Origin type: {origin_type}
 
-## Source material (from the Source Bank and living modules)
+## Source Bank (addressable sources — cite by ID)
+
+The following sources are available. Each is prefixed with its ID in brackets, e.g. [S14]. You MUST cite at least one source by ID in every card's `source_refs`. Ideas that synthesize two or more sources into a single story are encouraged — when multiple sources together reveal a pattern, contrast, or arc that no single source shows, that composition is itself the idea. State in the rationale what each cited source contributes.
 
 {source_material}
+
+## Source Criteria (rules for evaluating sources)
+
+{source_criteria}
 
 ## Available modules (consult these to ground ideas and treatments)
 
@@ -62,17 +68,22 @@ Generate {num_cards} idea card(s) as JSON. Each card MUST include:
    - **capture_required**: list of human capture tasks (e.g. "Record 15s of street footage in Bridgetown"). Empty list if none.
    - **reuse.derived_from**: (optional) parent card ID if this is a derivative
    - **reuse.reuse_notes**: (optional) how this piece can be reused
-   - **rationale**: why this scope + format for this idea and audience, citing the modules consulted. If choosing a heavily-used format, the rationale must say why this idea demands it specifically.
+   - **rationale**: why this scope + format for this idea and audience, citing the modules consulted. If choosing a heavily-used format, the rationale must say why this idea demands it specifically. State what each cited source contributes.
 
 4. **origin** — must be "{origin_type}"
 
-5. **evidence_links** — list of {url, note} objects linking to the source material that grounds this idea
+5. **source_refs** — list of source IDs (integers) from the Source Bank above, e.g. [14, 22]. Every idea MUST cite at least one source by ID. One idea may cite multiple sources when they compose into a single story. Each ID must correspond to a real source listed above.
 
-6. **seed_text** — (only for human_seeded or human_seeded_ai_developed) the original seed from the person
+6. **source_notes** — (optional) list of {source_id, note} objects giving a short per-source annotation explaining what that source contributes to this idea.
+
+7. **seed_text** — (only for human_seeded or human_seeded_ai_developed) the original seed from the person
 
 ## Rules
 
 - Ideas must be grounded in the source material and modules — never generic
+- Every idea MUST cite at least one source by ID from the Source Bank — no exceptions
+- Ideas that synthesize two or more sources into a single story are encouraged — when multiple sources together reveal a pattern, contrast, or arc that no single source shows, that composition is itself the idea
+- State in the rationale what each cited source contributes to the idea
 - Every idea MUST be materially distinct from the existing ideas listed above — different angle, not synonym-swapped
 - Do not repeat patterns that led to killed cards (see kill lessons above)
 - The treatment's format MUST come from the Format Guide (existing entry) OR be a new experimental format (experimental=true with full spec)
@@ -81,7 +92,6 @@ Generate {num_cards} idea card(s) as JSON. Each card MUST include:
 - For ai_originated: cross-reference Source Bank items with Viral Patterns, Audience Insights, Story Frameworks, and Format Guide
 - For human_seeded: the idea IS the person's seed; don't change it — build the treatment around it
 - For human_seeded_ai_developed: sharpen the seed — propose angle variants, attach supporting Source Bank material. The seed_text is the original; the idea is the sharpened version.
-- Do not invent evidence links — use the URLs from the source material
 - Each hook option must be different in approach (not just reworded)
 - If the source material cannot support {num_cards} distinct ideas, return fewer cards rather than padding with near-duplicates
 
@@ -114,8 +124,9 @@ Respond with ONLY valid JSON:
         "rationale": "string"
       },
       "origin": "ai_originated|human_seeded|human_seeded_ai_developed",
-      "evidence_links": [
-        {"url": "string", "note": "string"}
+      "source_refs": [14, 22],
+      "source_notes": [
+        {"source_id": 14, "note": "string"}
       ],
       "seed_text": "string"
     }
