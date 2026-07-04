@@ -46,10 +46,10 @@
 
         <div class="nav">
         <a href="/" class="active">Home</a>
-        <a href="/ideas">Researcher</a>
-        <a href="/create">Writer</a>
-        <a href="/create#assembler">Assembler</a>
-        <a href="/published">Analyst</a>
+        <a href="/ideas">Researcher (Ideas)</a>
+        <a href="/create">Writer (Script)</a>
+        <a href="/create#assembler">Assembler (Studio)</a>
+        <a href="/published">Analyst (Learnings)</a>
         <a href="/onboard">Onboard</a>
         <a href="/library">Library</a>
         <a href="/materials">Materials</a>
@@ -65,19 +65,19 @@
         <div class="cycle-flow">
             <div class="cycle-step">
                 <div class="cycle-step-num">{{ activity | selectattr('type', 'equalto', 'idea') | list | length }}</div>
-                <div class="cycle-step-label">Researcher</div>
+                <div class="cycle-step-label">Researcher (Ideas)</div>
             </div>
             <div class="cycle-step">
                 <div class="cycle-step-num">{{ activity | selectattr('type', 'equalto', 'draft') | list | length }}</div>
-                <div class="cycle-step-label">Writer</div>
+                <div class="cycle-step-label">Writer (Script)</div>
             </div>
             <div class="cycle-step">
                 <div class="cycle-step-num">{{ activity | selectattr('type', 'equalto', 'asset') | list | length }}</div>
-                <div class="cycle-step-label">Assembler</div>
+                <div class="cycle-step-label">Assembler (Studio)</div>
             </div>
             <div class="cycle-step cycle-step-final">
                 <div class="cycle-step-num">{{ activity | selectattr('type', 'equalto', 'published') | list | length }}</div>
-                <div class="cycle-step-label">Analyst</div>
+                <div class="cycle-step-label">Analyst (Learnings)</div>
             </div>
         </div>
         {% endif %}

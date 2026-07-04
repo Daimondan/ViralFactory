@@ -4206,9 +4206,12 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
             # F3 (CORRECTION-feedback-plumbing): Series spawning via LLM breakdown
             # Children enter state 'new' (not 'approved') — "AI proposes, humans gate everything"
+            # Idempotency: skip spawn if children already exist (prevents duplicates on re-approval)
             spawn_warning = None
             scope = treatment.get("scope", {})
-            if scope.get("type") == "series_of_n" and not card.get("parent_id"):
+            existing_children = [c for c in store.list_idea_cards(business_slug)
+                                 if c.get("parent_id") == card_id]
+            if scope.get("type") == "series_of_n" and not card.get("parent_id") and not existing_children:
                 n = scope.get("n", 1)
                 cadence = scope.get("cadence", "")
                 try:
