@@ -781,7 +781,13 @@ class TestFanOutIdempotency:
             origin="test",
             format_name="Instagram Reel Script",
         )
-        store.save_draft_content(draft_id, "Test draft text", "{}", "[]")
+        # T9.4: Save draft with platform_content
+        platform_content = [
+            {"platform": "Instagram", "variant_type": "reel", "content": "Test draft text", "posts": ["Test draft text"], "image_prompts": []}
+        ]
+        store.save_draft_content(draft_id, "Test draft text",
+                                 {"image_prompts": [], "reference_notes": [], "shot_format_choices": []}, [],
+                                 platform_content=platform_content)
         store.update_draft_state(draft_id, "shipped")
 
         # Create an existing asset for Instagram

@@ -151,8 +151,10 @@ def sample_treatment():
     }
 
 
-def _make_shipped_draft(store, sample_treatment, draft_text, format_name="X Single Post"):
-    """Helper: create a card + shipped draft for fan-out tests."""
+def _make_shipped_draft(store, sample_treatment, draft_text, format_name="X Single Post",
+                          platform_content=None):
+    """Helper: create a card + shipped draft for fan-out tests.
+    T9.4: platform_content is required for the media-only Assembler."""
     treatment = dict(sample_treatment)
     treatment["format"] = {"format_name": format_name, "experimental": False}
     card_id = store.create_idea_card(
@@ -160,7 +162,13 @@ def _make_shipped_draft(store, sample_treatment, draft_text, format_name="X Sing
         hook_options=["h"], treatment=treatment, origin="ai_originated",
     )
     draft_id = store.create_draft("testbiz", card_id, "ai_originated", format_name, "one_off")
-    store.save_draft_content(draft_id, draft_text, {"image_prompts": [], "reference_notes": [], "shot_format_choices": []}, [])
+    # T9.4: If no platform_content provided, derive a default from draft_text
+    if platform_content is None:
+        platform_content = [
+            {"platform": "X", "variant_type": "single_post", "content": draft_text, "posts": [draft_text], "image_prompts": []}
+        ]
+    store.save_draft_content(draft_id, draft_text, {"image_prompts": [], "reference_notes": [], "shot_format_choices": []}, [],
+                             platform_content=platform_content)
     store.update_draft_state(draft_id, "shipped")
     return card_id, draft_id
 
@@ -205,99 +213,83 @@ class TestS3FanOutFidelity:
         assert asset["native"] == 1
 
     def test_native_thread_structured_via_llm(self, app_with_format_guide, sample_treatment):
-        """AC: Thread-format fixture → posts[] from structure_v1.md prompt, not fan_out."""
+        """T9.4: Thread-format → asset posts from platform_content, no LLM call."""
         from pipeline import PipelineStore
-        from unittest.mock import patch
-        from llm_adapter import LLMAdapter
+        import json as _json
 
         store = PipelineStore(db_path=app_with_format_guide.config["DB_PATH"])
-        draft_text = "This is the approved thread text. It has multiple sentences. Each should become a tweet."
-        card_id, draft_id = _make_shipped_draft(store, sample_treatment, draft_text, "X Thread")
+        draft_text = "Thread summary"
+        platform_content = [
+            {"platform": "X", "variant_type": "thread", "content": draft_text,
+             "posts": ["1/3 This is the approved thread text.", "2/3 It has multiple sentences.", "3/3 Each should become a tweet."],
+             "image_prompts": ["none", "none", "none"]}
+        ]
+        card_id, draft_id = _make_shipped_draft(store, sample_treatment, draft_text, "X Thread",
+                                                  platform_content=platform_content)
 
-        captured_prompts = []
-        def mock_complete(self, prompt_file, variables, schema, **kwargs):
-            captured_prompts.append(prompt_file)
-            if "structure_v1" in prompt_file:
-                return {
-                    "content": "Thread summary",
-                    "variant_type": "thread",
-                    "posts": ["1/3 This is the approved thread text.", "2/3 It has multiple sentences.", "3/3 Each should become a tweet."],
-                    "image_prompts": ["none", "none", "none"],
-                }
-            return {"content": "adapted", "variant_type": "thread", "posts": ["adapted"], "image_prompts": []}
-
-        with patch.object(LLMAdapter, "complete", mock_complete):
-            client = app_with_format_guide.test_client()
-            resp = client.post(f"/api/assets/{draft_id}/fan-out", json={})
+        client = app_with_format_guide.test_client()
+        resp = client.post(f"/api/assets/{draft_id}/fan-out", json={})
 
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["count"] == 1
         assert data["assets"][0]["platform"] == "X"
         assert data["assets"][0]["native"] is True
-        # Should have used structure_v1.md, not fan_out_v2.md
-        assert any("structure_v1" in p for p in captured_prompts)
-        assert not any("fan_out" in p for p in captured_prompts)
+
+        asset = store.get_asset(data["assets"][0]["id"])
+        assert asset["variant_type"] == "thread"
+        posts = _json.loads(asset["posts"])
+        assert len(posts) == 3
+        assert posts[0] == "1/3 This is the approved thread text."
 
     def test_override_to_instagram_only(self, app_with_format_guide, sample_treatment):
-        """AC: Override body platforms: ["Instagram"] → IG asset only, adapted path, native=0."""
+        """T9.4: Fan-out reads platform_content — override no longer needed (Writer writes all platforms)."""
         from pipeline import PipelineStore
-        from unittest.mock import patch
-        from llm_adapter import LLMAdapter
 
         store = PipelineStore(db_path=app_with_format_guide.config["DB_PATH"])
         draft_text = "This is the approved draft text for override test."
-        card_id, draft_id = _make_shipped_draft(store, sample_treatment, draft_text, "X Single Post")
+        # T9.4: Writer produces all platforms — platform_content has both X and Instagram
+        platform_content = [
+            {"platform": "X", "variant_type": "single_post", "content": draft_text, "posts": [draft_text], "image_prompts": []},
+            {"platform": "Instagram", "variant_type": "single_post", "content": "IG adapted content", "posts": ["IG adapted content"], "image_prompts": []},
+        ]
+        card_id, draft_id = _make_shipped_draft(store, sample_treatment, draft_text, "X Single Post",
+                                                  platform_content=platform_content)
 
-        captured_prompts = []
-        def mock_complete(self, prompt_file, variables, schema, **kwargs):
-            captured_prompts.append(prompt_file)
-            return {"content": "IG adapted content", "variant_type": "single_post", "posts": ["IG adapted content"], "image_prompts": []}
-
-        with patch.object(LLMAdapter, "complete", mock_complete):
-            client = app_with_format_guide.test_client()
-            resp = client.post(f"/api/assets/{draft_id}/fan-out", json={"platforms": ["Instagram"]})
+        client = app_with_format_guide.test_client()
+        resp = client.post(f"/api/assets/{draft_id}/fan-out", json={})
 
         assert resp.status_code == 200
         data = resp.get_json()
-        assert data["count"] == 1
-        assert data["assets"][0]["platform"] == "Instagram"
-        assert data["assets"][0]["native"] is False
-        # Should have used fan_out prompt (adaptation path)
-        assert any("fan_out" in p for p in captured_prompts)
-
-        asset = store.get_asset(data["assets"][0]["id"])
-        assert asset["native"] == 0
-        # Content should NOT be byte-identical (it was adapted)
-        assert asset["content"] != draft_text
+        assert data["count"] == 2  # Both X and Instagram
+        platforms = [a["platform"] for a in data["assets"]]
+        assert "X" in platforms
+        assert "Instagram" in platforms
 
     def test_unresolvable_format_falls_back_with_warning(self, app_with_format_guide, sample_treatment):
-        """AC: Unresolvable format → configured platforms + warning key in response."""
+        """T9.4: Fan-out reads platform_content — format resolution no longer needed."""
         from pipeline import PipelineStore
-        from unittest.mock import patch
-        from llm_adapter import LLMAdapter
 
         store = PipelineStore(db_path=app_with_format_guide.config["DB_PATH"])
         draft_text = "Draft with unknown format."
-        card_id, draft_id = _make_shipped_draft(store, sample_treatment, draft_text, "Unknown Format")
+        # T9.4: Writer produces platform_content regardless of format name
+        platform_content = [
+            {"platform": "X", "variant_type": "single_post", "content": draft_text, "posts": [draft_text], "image_prompts": []},
+            {"platform": "Instagram", "variant_type": "single_post", "content": "IG version", "posts": ["IG version"], "image_prompts": []},
+        ]
+        card_id, draft_id = _make_shipped_draft(store, sample_treatment, draft_text, "Unknown Format",
+                                                  platform_content=platform_content)
 
-        def mock_complete(self, prompt_file, variables, schema, **kwargs):
-            return {"content": "adapted", "variant_type": "single_post", "posts": ["adapted"], "image_prompts": []}
-
-        with patch.object(LLMAdapter, "complete", mock_complete):
-            client = app_with_format_guide.test_client()
-            resp = client.post(f"/api/assets/{draft_id}/fan-out", json={})
+        client = app_with_format_guide.test_client()
+        resp = client.post(f"/api/assets/{draft_id}/fan-out", json={})
 
         assert resp.status_code == 200
         data = resp.get_json()
-        # Should fall back to all configured platforms (X + Instagram)
+        # T9.4: Both platforms from platform_content
         assert data["count"] == 2
-        # Warning key present
-        assert "warning" in data
-        assert "Unknown Format" in data["warning"]
-        # None should be native (format not found)
-        for asset_info in data["assets"]:
-            assert asset_info["native"] is False
+        platforms = [a["platform"] for a in data["assets"]]
+        assert "X" in platforms
+        assert "Instagram" in platforms
 
     def test_native_column_migration_idempotent(self, app_with_format_guide, sample_treatment):
         """The native column migration is idempotent — creating assets after migration works."""
@@ -324,13 +316,18 @@ class TestS3FanOutFidelity:
         assert asset2["native"] == 0
 
     def test_carousel_format_produces_native_carousel(self, app_with_format_guide, sample_treatment):
-        """Carousel format on Instagram → native, structured via structure_v1.md."""
+        """T9.4: Carousel format → asset from platform_content, no LLM call."""
         from pipeline import PipelineStore
-        from unittest.mock import patch
-        from llm_adapter import LLMAdapter
+        import json as _json
 
         store = PipelineStore(db_path=app_with_format_guide.config["DB_PATH"])
         draft_text = "Carousel content with multiple points to make across slides."
+        # T9.4: Writer produces platform_content with carousel slides
+        platform_content = [
+            {"platform": "Instagram", "variant_type": "carousel", "content": draft_text,
+             "posts": ["Slide 1: Cover", "Slide 2: Context", "Slide 3: CTA"],
+             "image_prompts": ["cover img", "context img", "cta img"]}
+        ]
         treatment = dict(sample_treatment)
         treatment["format"] = {"format_name": "Instagram Carousel", "experimental": False}
         card_id = store.create_idea_card(
@@ -338,29 +335,22 @@ class TestS3FanOutFidelity:
             hook_options=["h"], treatment=treatment, origin="ai_originated",
         )
         draft_id = store.create_draft("testbiz", card_id, "ai_originated", "Instagram Carousel", "one_off")
-        store.save_draft_content(draft_id, draft_text, {"image_prompts": [], "reference_notes": [], "shot_format_choices": []}, [])
+        store.save_draft_content(draft_id, draft_text, {"image_prompts": [], "reference_notes": [], "shot_format_choices": []}, [],
+                                 platform_content=platform_content)
         store.update_draft_state(draft_id, "shipped")
 
-        captured_prompts = []
-        def mock_complete(self, prompt_file, variables, schema, **kwargs):
-            captured_prompts.append(prompt_file)
-            if "structure_v1" in prompt_file:
-                return {
-                    "content": "Carousel summary",
-                    "variant_type": "carousel",
-                    "posts": ["Slide 1 (cover): Carousel content", "Slide 2: with multiple points", "Slide 3: to make across slides."],
-                    "image_prompts": ["cover prompt", "prompt2", "prompt3"],
-                }
-            return {"content": "adapted", "variant_type": "carousel", "posts": ["adapted"], "image_prompts": []}
-
-        with patch.object(LLMAdapter, "complete", mock_complete):
-            client = app_with_format_guide.test_client()
-            resp = client.post(f"/api/assets/{draft_id}/fan-out", json={})
+        # T9.4: Fan-out reads platform_content — no LLM call
+        client = app_with_format_guide.test_client()
+        resp = client.post(f"/api/assets/{draft_id}/fan-out", json={})
 
         assert resp.status_code == 200
         data = resp.get_json()
-        # Only Instagram (native platform for carousel)
+        # Only Instagram (from platform_content)
         assert data["count"] == 1
         assert data["assets"][0]["platform"] == "Instagram"
         assert data["assets"][0]["native"] is True
-        assert any("structure_v1" in p for p in captured_prompts)
+
+        asset = store.get_asset(data["assets"][0]["id"])
+        assert asset["variant_type"] == "carousel"
+        posts = _json.loads(asset["posts"])
+        assert len(posts) == 3

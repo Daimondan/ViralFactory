@@ -127,8 +127,10 @@ def sample_treatment():
     }
 
 
-def _make_shipped_draft(store, treatment, draft_text, format_name="X Single Post", image_prompts=None):
-    """Helper: create a card + shipped draft."""
+def _make_shipped_draft(store, treatment, draft_text, format_name="X Single Post", image_prompts=None,
+                          platform_content=None):
+    """Helper: create a card + shipped draft.
+    T9.4: platform_content is required for the media-only Assembler."""
     t = dict(treatment)
     t["format"] = {"format_name": format_name, "experimental": False}
     card_id = store.create_idea_card(
@@ -137,7 +139,13 @@ def _make_shipped_draft(store, treatment, draft_text, format_name="X Single Post
     )
     draft_id = store.create_draft("testbiz", card_id, "ai_originated", format_name, "one_off")
     vd = {"image_prompts": image_prompts or [], "reference_notes": [], "shot_format_choices": []}
-    store.save_draft_content(draft_id, draft_text, vd, [])
+    # T9.4: If no platform_content provided, derive a default
+    if platform_content is None:
+        platform_content = [
+            {"platform": "X", "variant_type": "single_post", "content": draft_text, "posts": [draft_text],
+             "image_prompts": image_prompts or []}
+        ]
+    store.save_draft_content(draft_id, draft_text, vd, [], platform_content=platform_content)
     store.update_draft_state(draft_id, "shipped")
     return card_id, draft_id
 
@@ -399,24 +407,22 @@ class TestPostImagesMapping:
         even if images exist in the asset media list."""
         from pipeline import PipelineStore
         from media_adapter import MediaAdapter
-        from unittest.mock import patch
-        from llm_adapter import LLMAdapter
 
         store = PipelineStore(db_path=app_with_format_guide.config["DB_PATH"])
         draft_text = "Test draft text"
+        # T9.4: platform_content with image_prompts including "none"
+        platform_content = [
+            {"platform": "X", "variant_type": "thread", "content": "thread test",
+             "posts": ["tweet 1 text", "tweet 2 text", "tweet 3 text"],
+             "image_prompts": ["img prompt 1", "none", "img prompt 3"]}
+        ]
         card_id, draft_id = _make_shipped_draft(store, sample_treatment, draft_text,
-                                                  format_name="X Thread")
+                                                  format_name="X Thread",
+                                                  platform_content=platform_content)
 
-        # Fan out with mocked LLM that returns a thread with 3 posts,
-        # image_prompts = ["img prompt 1", "none", "img prompt 3"]
-        with patch.object(LLMAdapter, "complete", return_value={
-            "content": "thread test",
-            "variant_type": "thread",
-            "posts": ["tweet 1 text", "tweet 2 text", "tweet 3 text"],
-            "image_prompts": ["img prompt 1", "none", "img prompt 3"],
-        }):
-            client = app_with_format_guide.test_client()
-            resp = client.post(f"/api/assets/{draft_id}/fan-out", json={})
+        # T9.4: Fan-out reads platform_content — no LLM call
+        client = app_with_format_guide.test_client()
+        resp = client.post(f"/api/assets/{draft_id}/fan-out", json={})
 
         assert resp.status_code == 200
         asset_id = resp.get_json()["assets"][0]["id"]
@@ -447,22 +453,22 @@ class TestPostImagesMapping:
         """If all image_prompts are 'none', no images should be shown on any post."""
         from pipeline import PipelineStore
         from media_adapter import MediaAdapter
-        from unittest.mock import patch
-        from llm_adapter import LLMAdapter
 
         store = PipelineStore(db_path=app_with_format_guide.config["DB_PATH"])
         draft_text = "Test draft text"
+        # T9.4: platform_content with all "none" image_prompts
+        platform_content = [
+            {"platform": "X", "variant_type": "thread", "content": "thread test",
+             "posts": ["tweet 1", "tweet 2", "tweet 3"],
+             "image_prompts": ["none", "none", "none"]}
+        ]
         card_id, draft_id = _make_shipped_draft(store, sample_treatment, draft_text,
-                                                  format_name="X Thread")
+                                                  format_name="X Thread",
+                                                  platform_content=platform_content)
 
-        with patch.object(LLMAdapter, "complete", return_value={
-            "content": "thread test",
-            "variant_type": "thread",
-            "posts": ["tweet 1", "tweet 2", "tweet 3"],
-            "image_prompts": ["none", "none", "none"],
-        }):
-            client = app_with_format_guide.test_client()
-            resp = client.post(f"/api/assets/{draft_id}/fan-out", json={})
+        # T9.4: Fan-out reads platform_content — no LLM call
+        client = app_with_format_guide.test_client()
+        resp = client.post(f"/api/assets/{draft_id}/fan-out", json={})
 
         asset_id = resp.get_json()["assets"][0]["id"]
 

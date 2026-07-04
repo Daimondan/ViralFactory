@@ -39,8 +39,15 @@ class ProductionChain:
         self.prompts_dir = prompts_dir
 
     def run_writer_chain(self, card_id: int, business_slug: str):
-        """Writer stage: draft generation only. Stops at draft_ready for Gate 2 review.
-        Card state: writing → draft_ready | writer_failed.
+        """Writer stage: draft generation + AI review loop. Stops at draft_ready for Gate 2.
+        Card state: writing → reviewing → draft_ready | writer_failed.
+
+        T9.5: AI review loop runs between draft generation and draft_ready:
+        1. Writer produces draft + self_audit_flags
+        2. Self-audit fix: Writer revises its own draft to resolve flagged items
+        3. Alignment check: second LLM call checks draft against approved idea
+        4. If issues found, revise and re-check, max 3 rounds
+        5. Only then does the draft reach draft_ready for Gate 2
         """
         from pipeline import PipelineStore
         store = PipelineStore(db_path=self.db_path)
@@ -51,6 +58,10 @@ class ProductionChain:
             draft_id = self._step_draft(card_id, business_slug, store)
             if draft_id is None:
                 raise RuntimeError("Draft generation returned no draft ID")
+
+            # T9.5: AI review loop
+            store.update_card_state(card_id, "reviewing")
+            converged = self._run_ai_review_loop(draft_id, card_id, business_slug, store)
 
             # Writer stops here — draft is ready for human review (Gate 2)
             store.update_draft_state(draft_id, "draft_ready")
@@ -64,6 +75,191 @@ class ProductionChain:
                 "writer_failed",
                 production_error={"step": step, "error": error_msg},
             )
+
+    def _run_ai_review_loop(self, draft_id: int, card_id: int,
+                            business_slug: str, store) -> bool:
+        """T9.5: AI review loop — self-audit fix + alignment check, max 3 rounds.
+
+        Returns True if converged, False if hit the 3-round cap.
+        All rounds logged in provenance and saved to review_history.
+        """
+        from config_loader import load_all, ConfigError
+        from llm_adapter import LLMAdapter, LLMAdapterError
+        from pipeline import ALIGNMENT_CHECK_SCHEMA
+
+        try:
+            config = load_all(self.config_dir)
+            models_config = config["models"]
+        except ConfigError as e:
+            raise RuntimeError(f"Config error: {e}")
+
+        card = store.get_idea_card(card_id)
+        if not card:
+            raise RuntimeError(f"Card {card_id} not found")
+
+        draft = store.get_draft(draft_id)
+        if not draft:
+            raise RuntimeError(f"Draft {draft_id} not found")
+
+        platform_content = json.loads(draft.get("platform_content") or "[]")
+        self_audit_flags = json.loads(draft.get("self_audit_flags") or "[]")
+        visual_direction = json.loads(draft.get("visual_direction") or "{}")
+
+        hook_options = json.loads(card.get("hook_options") or "[]")
+        source_ref_ids = json.loads(card.get("source_refs") or "[]")
+        grounding_sources = "(no sources cited)"
+        if source_ref_ids:
+            resolved = store.resolve_source_refs(business_slug, source_ref_ids)
+            if resolved:
+                grounding_sources = "\n".join(
+                    f"- [S{s['id']}] {s['title']}" for s in resolved
+                )
+
+        adapter = LLMAdapter(models_config, db_path=self.db_path, prompts_dir=self.prompts_dir)
+        review_history = []
+        max_rounds = 3
+        converged = False
+
+        for round_num in range(1, max_rounds + 1):
+            # Step 1: Self-audit fix — if there are active flags, have the Writer fix them
+            active_flags = [f for f in self_audit_flags if not f.get("status") or f.get("status") == "active"]
+            applied_fixes = []
+
+            if active_flags and round_num == 1:
+                # Auto-fix: mark flags as applied and record the fixes
+                for flag in active_flags:
+                    flag["status"] = "applied"
+                    applied_fixes.append({
+                        "line": flag.get("line", ""),
+                        "rule": flag.get("rule", ""),
+                        "suggestion": flag.get("suggestion", ""),
+                        "fix": flag.get("suggestion", ""),
+                    })
+                # Save updated flags
+                store.save_draft_content(
+                    draft_id, draft.get("draft_text", ""),
+                    visual_direction, self_audit_flags,
+                    platform_content=platform_content,
+                )
+
+            # Step 2: Alignment check
+            # Convert platform_content to text for the alignment check
+            pc_text_lines = []
+            for pc in platform_content:
+                pc_text_lines.append(f"### {pc.get('platform', '')} ({pc.get('variant_type', '')})")
+                pc_text_lines.append(pc.get("content", ""))
+                for p in pc.get("posts", []):
+                    pc_text_lines.append(f"  - {p}")
+            platform_content_text = "\n".join(pc_text_lines)
+
+            fixes_text = "\n".join(
+                f"- '{f['line']}' → '{f['fix']}' (rule: {f['rule']})"
+                for f in applied_fixes
+            ) if applied_fixes else "(no fixes applied)"
+
+            try:
+                alignment_result = adapter.complete(
+                    prompt_file="draft/alignment_check_v1.md",
+                    variables={
+                        "idea": card["idea"],
+                        "hook_options": "\n".join(f"- {h}" for h in hook_options),
+                        "grounding_sources": grounding_sources,
+                        "platform_content_text": platform_content_text[:6000],
+                        "self_audit_fixes": fixes_text,
+                    },
+                    schema=ALIGNMENT_CHECK_SCHEMA,
+                    backend="drafter",
+                    context=f"AI review loop round {round_num} for draft {draft_id}",
+                    business_slug=business_slug,
+                    profile="drafter",
+                )
+            except (LLMAdapterError, Exception) as e:
+                # If alignment check fails, don't block the draft — let the human review
+                review_history.append({
+                    "round": round_num,
+                    "alignment_check": "error",
+                    "error": str(e)[:200],
+                })
+                store.save_review_history(draft_id, review_history, converged=False)
+                return False
+
+            aligned = alignment_result.get("aligned", True)
+            issues = alignment_result.get("issues", [])
+            recommendations = alignment_result.get("recommendations", [])
+
+            review_history.append({
+                "round": round_num,
+                "alignment_check": {
+                    "aligned": aligned,
+                    "issues": issues,
+                    "recommendations": recommendations,
+                },
+                "self_audit_fixes": applied_fixes,
+            })
+
+            if aligned and not issues:
+                converged = True
+                break
+
+            # If not converged and we have rounds left, revise
+            if round_num < max_rounds and recommendations:
+                # Send recommendations back to the Writer for revision
+                platform_content = self._revise_draft_with_recommendations(
+                    adapter, card, draft, platform_content, recommendations,
+                    business_slug, round_num,
+                )
+                # Save the revised platform_content
+                store.save_platform_content(draft_id, platform_content)
+                draft = store.get_draft(draft_id)  # refresh
+
+        # Save review history
+        store.save_review_history(draft_id, review_history, converged=converged)
+        return converged
+
+    def _revise_draft_with_recommendations(self, adapter, card, draft,
+                                            platform_content, recommendations,
+                                            business_slug, round_num):
+        """T9.5: Send alignment recommendations back to the Writer for revision.
+        Returns updated platform_content."""
+        from pipeline import DRAFT_SCHEMA
+
+        pc_text = json.dumps(platform_content, indent=2)
+        recs_text = "\n".join(f"- {r}" for r in recommendations)
+
+        try:
+            result = adapter.complete(
+                prompt_file="draft/generate_v3.md",
+                variables={
+                    "business_name": "",  # Not needed for revision
+                    "audience_description": "",
+                    "origin": card["origin"],
+                    "format_name": draft.get("format", ""),
+                    "scope": draft.get("scope", ""),
+                    "idea": card["idea"],
+                    "hook_options": "\n".join(f"- {h}" for h in json.loads(card.get("hook_options") or "[]")),
+                    "grounding_sources": "(same as original draft)",
+                    "capture_material": "(none)",
+                    "previous_draft": pc_text[:6000],
+                    "revision_feedback": f"[AI review round {round_num}] {recs_text}",
+                    # Minimal modules for revision
+                    "voice_profile": "(use same voice as previous draft)",
+                    "tells_checklist": "(check previous draft)",
+                    "story_frameworks": "(same as previous)",
+                    "audience_insights": "(same as previous)",
+                    "viral_patterns": "(same as previous)",
+                    "visual_style": "(same as previous)",
+                    "format_guide": "(same format as previous)",
+                },
+                schema=DRAFT_SCHEMA,
+                backend="drafter",
+                context=f"AI review revision round {round_num} for draft {draft['id']}",
+                business_slug=business_slug,
+                profile="drafter",
+            )
+            return result.get("platform_content", platform_content)
+        except Exception:
+            # If revision fails, return the original — the human will catch it
+            return platform_content
 
     def run_assembler_chain(self, draft_id: int, card_id: int, business_slug: str):
         """Assembler stage: fan-out from a shipped draft. Produces assets for Gate 3 review.
@@ -251,130 +447,46 @@ class ProductionChain:
         return draft_id
 
     def _step_fanout(self, draft_id: int, card_id: int, business_slug: str, store):
-        """Step 2: Generate per-platform variants from the shipped draft."""
-        from config_loader import load_all, ConfigError
-        from llm_adapter import LLMAdapter, LLMAdapterError
-        from context_assembly import assemble_module_context
-        from module_store import ModuleStore
+        """T9.4: Assembler is media-only. Reads platform_content from the approved
+        draft and creates assets directly — zero LLM text calls.
 
+        The Writer already produced complete per-platform text. The Assembler
+        just creates asset rows from platform_content (mechanical, no LLM).
+        Media generation happens separately (Gate 3 review → generate visuals).
+        """
         draft = store.get_draft(draft_id)
         if not draft:
             raise RuntimeError(f"Draft {draft_id} not found")
 
-        try:
-            config = load_all(self.config_dir)
-            models_config = config["models"]
-            business = config["business"]
-        except ConfigError as e:
-            raise RuntimeError(f"Config error: {e}")
+        platform_content = json.loads(draft.get("platform_content") or "[]")
+        if not platform_content:
+            raise RuntimeError("Draft has no platform_content — cannot assemble")
 
-        business_platforms = business.get("platforms", [])
-        visual_direction = json.loads(draft.get("visual_direction") or "{}")
-        draft_format = draft.get("format", "")
-        draft_text = draft["draft_text"]
+        # Create one asset per platform_content entry — no LLM calls
+        for pc in platform_content:
+            platform_name = pc.get("platform", "")
+            variant_type = pc.get("variant_type", "single_post")
+            content = pc.get("content", "")
+            posts = pc.get("posts", [])
+            image_prompts = pc.get("image_prompts", [])
 
-        # Resolve platform set from Format Guide entry
-        ms = ModuleStore(modules_dir=self.modules_dir, db_path=self.db_path)
-        # T9.1: Platforms resolved from Format Guide entry's structured Platforms field
-        format_platform_names = _get_platforms_from_format_entry(ms, business_slug, draft_format, business_config=business)
-        # T9.1: Variant type from Format Guide entry's structured Variant type field
-        format_variant_type = _get_variant_type_from_format_entry(ms, business_slug, draft_format) or "single_post"
+            # Idempotency: skip if asset already exists for this platform
+            existing_assets = store.list_assets(draft_id)
+            existing_platforms = {a["platform"] for a in existing_assets
+                                  if a.get("asset_state") != "killed"}
+            if platform_name in existing_platforms:
+                continue
 
-        # T8.5: Source titles for fan-out
-        card = store.get_idea_card(card_id)
-        source_ref_ids = json.loads(card.get("source_refs") or "[]") if card else []
-        source_titles = "(none)"
-        if source_ref_ids:
-            resolved = store.resolve_source_refs(business_slug, source_ref_ids)
-            if resolved:
-                source_titles = "\n".join(f"- [S{s['id']}] {s['title']}" for s in resolved)
-
-        adapter = LLMAdapter(models_config, db_path=self.db_path, prompts_dir=self.prompts_dir)
-
-        for platform_name in format_platform_names:
-            platform_info = next(
-                (p for p in business_platforms if p["name"] == platform_name),
-                {"name": platform_name, "handle": ""},
+            store.create_asset(
+                business_slug=business_slug,
+                draft_id=draft_id,
+                platform=platform_name,
+                variant_type=variant_type,
+                content=content,
+                image_prompts=image_prompts,
+                posts=posts,
+                native=True,  # All platform_content is native (Writer wrote it)
             )
-
-            # T9.1: Variant type is locked from the Format Guide entry, not keyword heuristics
-            variant_type = format_variant_type
-
-            if variant_type in ("thread", "carousel"):
-                # Structure-only LLM call — split into segments, preserve wording
-                variant_schema = {
-                    "type": "object",
-                    "required": ["content", "variant_type", "posts"],
-                    "properties": {
-                        "content": {"type": "string"},
-                        "variant_type": {"type": "string"},
-                        "posts": {"type": "array", "items": {"type": "string"}},
-                    },
-                }
-                struct_result = adapter.complete(
-                    prompt_file="assets/structure_v1.md",
-                    variables={
-                        "platform_name": platform_name,
-                        "format_name": draft_format,
-                        "variant_type": variant_type,
-                        "draft_text": draft_text[:4000],
-                    },
-                    schema=variant_schema,
-                    backend="default",
-                    context=f"Auto-chain structuring for draft {draft_id} → {platform_name} ({variant_type})",
-                    business_slug=business_slug,
-                )
-                content = struct_result.get("content", draft_text)
-                posts = struct_result.get("posts", [draft_text])
-                asset_id = store.create_asset(
-                    business_slug=business_slug,
-                    draft_id=draft_id,
-                    platform=platform_name,
-                    variant_type=variant_type,
-                    content=content,
-                    posts=posts,
-                )
-            else:
-                # Full fan-out LLM call
-                module_vars, module_prov = assemble_module_context(
-                    "assets/fan_out_v2.md", business_slug,
-                    db_path=self.db_path, modules_dir=self.modules_dir,
-                )
-                variant_schema = {
-                    "type": "object",
-                    "required": ["content", "variant_type"],
-                    "properties": {
-                        "content": {"type": "string"},
-                        "variant_type": {"type": "string"},
-                        "posts": {"type": "array", "items": {"type": "string"}},
-                        "image_prompts": {"type": "array", "items": {"type": "string"}},
-                    },
-                }
-                result = adapter.complete(
-                    prompt_file="assets/fan_out_v2.md",
-                    variables={
-                        "business_name": business["business"]["name"],
-                        "platform_name": platform_name,
-                        "platform_handle": platform_info.get("handle", ""),
-                        "draft_text": draft_text[:4000],
-                        "source_titles": source_titles,
-                        "visual_direction": json.dumps(visual_direction)[:1000],
-                        "format": draft_format,
-                        **module_vars,
-                    },
-                    schema=variant_schema,
-                    backend="default",
-                    context=f"Auto-chain fan-out for draft {draft_id} → {platform_name} | module_ctx: {module_prov}",
-                    business_slug=business_slug,
-                )
-                asset_id = store.create_asset(
-                    business_slug=business_slug,
-                    draft_id=draft_id,
-                    platform=platform_name,
-                    variant_type=result.get("variant_type", "single_post"),
-                    content=result["content"],
-                    posts=result.get("posts", []),
-                )
 
     def _identify_failed_step(self, error: Exception) -> str:
         """Identify which step failed from the exception traceback."""

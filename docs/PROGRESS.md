@@ -285,6 +285,15 @@ Materials Library — editable source materials. DB migrations: `excluded` colum
   5. Assembler is media-only — no LLM text calls, `fan_out_v2.md` and `structure_v1.md` retired from Assembler path
 - AMENDMENT-007 filed: `docs/decisions/AMENDMENT-007-writer-per-platform-assembler-media-only.md`
 - Charter v3.3 → v3.4: `docs/CHARTER-v3.4.md`
+
+### 2026-07-04 — M9 implemented (T9.1–T9.6)
+
+- T9.1: Removed `_determine_variant_type` keyword heuristic + `_resolve_format_platforms` regex parser from `produce_chain.py` and `app.py`. Replaced with mechanical parsers of Format Guide entry's structured `- **Platforms:**` and `- **Variant type:**` fields · Q: none
+- T9.2: Added `variant_type` field to FORMAT_GUIDE_SCHEMA, `format_guide_to_markdown` converter, `analyze_v2.md` prompt (v2.1), and all 8 entries in `modules/stackpenni/format-guide.md` · Q: none
+- T9.3: Writer produces per-platform content — DRAFT_SCHEMA replaces `draft_text` with `platform_content` array. New prompt `generate_v3.md`. Drafts table gains `platform_content`, `review_history`, `review_converged` columns. `draft.html` shows per-platform content · Q: none
+- T9.4: Assembler is media-only — `_step_fanout` and `assets_fan_out` route rewritten to read `platform_content` directly and create assets with zero LLM text calls. `fan_out_v2.md` and `structure_v1.md` retired from Assembler path (files kept for provenance) · Q: none
+- T9.5: AI review loop — new `alignment_check_v1.md` prompt + `ALIGNMENT_CHECK_SCHEMA`. Loop logic in `run_writer_chain`: self-audit auto-fix → alignment check → revise if issues, max 3 rounds. Card state: `writing → reviewing → draft_ready`. Review history shown in `draft.html` with convergence status · Q: none
+- T9.6: All tests updated — 746 passed (726 baseline + 20 new) · Q: none
 - BUILD_PLAN v1.5 → v1.6: M9 tasks added (T9.1-T9.6)
 - CONTEXT.md updated: core loop diagram, idea card definition, business rules 13-15
 - All `CHARTER-v3.3` references updated to `CHARTER-v3.4`

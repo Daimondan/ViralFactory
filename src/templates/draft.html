@@ -181,6 +181,53 @@
     </div>
     {% endif %}
 
+    {# T9.5: AI review loop history (transparency — shows what the AI caught and changed) #}
+    {% if draft.review_history_parsed and draft.review_history_parsed|length > 0 %}
+    <h2>AI review loop</h2>
+    <div class="review-history" style="margin-bottom: 20px;">
+        {% if draft.review_converged == 'false' %}
+        <div style="padding: 8px 12px; background: #FFF3CD; border: 1px solid #FFD93D; border-radius: 8px; margin-bottom: 12px; font-size: 0.88rem;">
+            ⚠️ AI review did not converge in 3 rounds — please review carefully.
+        </div>
+        {% elif draft.review_converged == 'true' %}
+        <div style="padding: 8px 12px; background: #D4EDDA; border: 1px solid #4A7C3A; border-radius: 8px; margin-bottom: 12px; font-size: 0.88rem;">
+            ✓ AI review converged — alignment check passed.
+        </div>
+        {% endif %}
+        {% for round in draft.review_history_parsed %}
+        <div class="review-round" style="padding: 12px; border: 1px solid #D8D4C8; border-radius: 8px; margin-bottom: 8px;">
+            <strong style="font-size: 0.85rem; color: #E54B2C;">Round {{ round.round }}</strong>
+            {% if round.alignment_check and round.alignment_check != 'error' %}
+            {% if round.alignment_check.aligned %}
+            <span style="font-size: 0.78rem; color: #4A7C3A;">Aligned</span>
+            {% else %}
+            <span style="font-size: 0.78rem; color: #E54B2C;">Issues found</span>
+            {% endif %}
+            {% if round.alignment_check.issues and round.alignment_check.issues|length > 0 %}
+            <ul style="margin: 8px 0 0 20px; font-size: 0.85rem;">
+                {% for issue in round.alignment_check.issues %}
+                <li><strong>{{ issue.type }}</strong> ({{ issue.severity }}): {{ issue.description }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+            {% if round.self_audit_fixes and round.self_audit_fixes|length > 0 %}
+            <div style="margin-top: 8px; font-size: 0.82rem; color: #555;">
+                <strong>Self-audit fixes applied:</strong>
+                <ul style="margin: 4px 0 0 20px;">
+                {% for fix in round.self_audit_fixes %}
+                <li>'{{ fix.line }}' → '{{ fix.fix }}' (rule: {{ fix.rule }})</li>
+                {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            {% elif round.alignment_check == 'error' %}
+            <span style="font-size: 0.78rem; color: #8A857C;">Check error: {{ round.error }}</span>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     {# F3: Visual direction always renders, even if empty #}
     <h2>Visual direction</h2>
     <div class="visual-dir">

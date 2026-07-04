@@ -297,6 +297,33 @@ DRAFT_SCHEMA = {
 }
 
 
+# ─── AI Review Loop Schema (T9.5) ────────────────────────────────────────────
+
+ALIGNMENT_CHECK_SCHEMA = {
+    "type": "object",
+    "required": ["aligned", "issues", "recommendations"],
+    "properties": {
+        "aligned": {"type": "boolean"},
+        "issues": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["type", "description", "severity"],
+                "properties": {
+                    "type": {"type": "string"},  # drift | unapproved_claim | logical_error | missing_element | added_element
+                    "description": {"type": "string"},
+                    "severity": {"type": "string"},  # high | medium | low
+                },
+            },
+        },
+        "recommendations": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+    },
+}
+
+
 # ─── Edit Plan Schema (Final Assembly) ─────────────────────────────────────
 
 EDIT_PLAN_SCHEMA = {

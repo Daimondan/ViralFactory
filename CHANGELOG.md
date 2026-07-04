@@ -6,6 +6,22 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-04 TECH — M9 implemented: Writer per-platform + Assembler media-only + AI review loop
+
+**T9.1:** Removed `_determine_variant_type` keyword heuristic and `_resolve_format_platforms` regex parser from `produce_chain.py` and `app.py` — both were Business Rule #2 violations. Replaced with `_get_platforms_from_format_entry` and `_get_variant_type_from_format_entry` — mechanical parsers of the Format Guide entry's structured `- **Platforms:**` and `- **Variant type:**` fields. No judgment in code.
+
+**T9.2:** Added `variant_type` field to `FORMAT_GUIDE_SCHEMA` (required), `format_guide_to_markdown` converter, `prompts/format_guide/analyze_v2.md` (v2.0 → v2.1), and all 8 entries in the production `modules/stackpenni/format-guide.md`. The Writer and Assembler now read variant_type from the module, not from code heuristics.
+
+**T9.3:** DRAFT_SCHEMA restructured — `draft_text` replaced by `platform_content` array (platform, variant_type, content, posts, image_prompts per entry). New prompt `prompts/draft/generate_v3.md` instructs Writer to produce complete per-platform text for every platform the treatment specifies. Drafts table gains `platform_content`, `review_history`, `review_converged` columns. `draft_text` kept as backward-compat summary field.
+
+**T9.4:** Assembler rewritten to media-only. `_step_fanout` in `produce_chain.py` and `assets_fan_out` route in `app.py` both read `platform_content` from the approved draft and create assets directly — zero LLM text calls. `fan_out_v2.md` and `structure_v1.md` files kept for provenance history but no longer called.
+
+**T9.5:** AI review loop added to `run_writer_chain`. New `prompts/draft/alignment_check_v1.md` prompt + `ALIGNMENT_CHECK_SCHEMA` (`{aligned, issues, recommendations}`). Loop: (1) self-audit auto-fix, (2) alignment check, (3) revise if issues, max 3 rounds. Card state: `writing → reviewing → draft_ready | writer_failed`. Review history + convergence status saved to draft and shown in `draft.html` with transparency — operator sees what the AI caught and changed.
+
+**T9.6:** All tests updated. 746 passed (726 baseline + 20 new tests). Tests verify: zero LLM text calls in Assembler path, `platform_content` schema validation, alignment check schema, max-3-rounds behavior, non-convergence flagging.
+
+---
+
 ### 2026-07-04 STRUCTURE — DIVERGENCE-010 ratified via AMENDMENT-007 (Charter v3.3 → v3.4)
 
 **What:** DIVERGENCE-010 (Writer/Assembler boundary redesign, originally filed as DIVERGENCE-009 but renamed due to numbering collision with the webhook DIVERGENCE-009) — architect APPROVED all 5 operator-raised design changes:

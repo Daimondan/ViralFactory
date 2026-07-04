@@ -5586,9 +5586,13 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     @app.route("/api/assets/<int:draft_id>/fan-out", methods=["POST"])
     def assets_fan_out(draft_id):
-        """T3.7: Generate per-platform variants from a shipped draft.
-        S3: Platform set resolved from treatment format's Format Guide entry,
-        not blanket business config loop. Native platform packaged verbatim."""
+        """T9.4: Assembler is media-only. Reads platform_content from the approved
+        draft and creates assets directly — zero LLM text calls.
+
+        The Writer already produced complete per-platform text. This route
+        creates asset rows from platform_content (mechanical, no LLM).
+        Media generation happens separately (Gate 3 review → generate visuals).
+        """
         business_slug = _get_business_slug()
         if not business_slug:
             return jsonify({"error": "Business not configured"}), 500
@@ -5612,199 +5616,41 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             _get_jobs_store().fail_job(fan_job_id, f"Draft state is '{draft['draft_state']}'")
             return jsonify({"error": f"Draft state is '{draft['draft_state']}' — must be 'shipped' to fan out"}), 400
 
-        try:
-            config = load_all(app.config["CONFIG_DIR"])
-            models_config = config["models"]
-            business = config["business"]
-        except ConfigError as e:
-            return jsonify({"error": f"Config error: {e}"}), 500
+        # T9.4: Read platform_content from the draft — no LLM calls
+        platform_content = json.loads(draft.get("platform_content") or "[]")
+        if not platform_content:
+            _get_jobs_store().fail_job(fan_job_id, "Draft has no platform_content")
+            return jsonify({"error": "Draft has no platform_content — cannot assemble"}), 400
 
-        business_platforms = business.get("platforms", [])
-        visual_direction = json.loads(draft.get("visual_direction") or "{}")
-        draft_format = draft.get("format", "")
-
-        # T8.5: Resolve source titles for fan-out context (titles only, not full content)
-        card = store.get_idea_card(draft["idea_card_id"])
-        source_ref_ids = json.loads(card.get("source_refs") or "[]") if card else []
-        source_titles = "(none)"
-        if source_ref_ids:
-            resolved = store.resolve_source_refs(business_slug, source_ref_ids)
-            if resolved:
-                source_titles = "\n".join(f"- [S{s['id']}] {s['title']}" for s in resolved)
-
-        # S3: Resolve platform set from the treatment format's Format Guide entry
-        from module_store import ModuleStore
-        modules_dir = app.config.get("MODULES_DIR", "modules")
-        ms = ModuleStore(modules_dir=modules_dir, db_path=app.config["DB_PATH"])
-        format_platform_names = _get_platforms_from_format_entry(ms, business_slug, draft_format)
-        # T9.1: Variant type is locked from the Format Guide entry, not keyword heuristics
-        format_variant_type = _get_variant_type_from_format_entry(ms, business_slug, draft_format) or "single_post"
-        business_platform_names = [p["name"] for p in business_platforms]
-
-        # S3: Override support — request body may pass explicit platforms
-        try:
-            req_body = request.get_json(silent=True) or {}
-        except Exception:
-            req_body = {}
-        override_platforms = req_body.get("platforms") if req_body else None
-
-        if override_platforms is not None:
-            # Operator override: use exactly what they specified
-            target_platform_names = [p for p in override_platforms if p in business_platform_names]
-            fallback_warning = None
-        elif format_platform_names:
-            # Intersect format platforms with configured business platforms
-            target_platform_names = [p for p in format_platform_names if p in business_platform_names]
-            fallback_warning = None
-        else:
-            # Unresolvable format → fall back to configured platforms with warning
-            target_platform_names = business_platform_names
-            fallback_warning = f"Format '{draft_format}' has no platforms declared in Format Guide — falling back to all configured platforms"
-
-        # Build platform metadata lookup
-        platform_meta = {p["name"]: p for p in business_platforms}
-
-        # Idempotency: skip platforms that already have an asset for this draft.
-        # Without this, clicking "Generate per-platform variants" again creates
-        # duplicate cards (e.g. two Instagram reels) — confusing and wasteful.
+        # Idempotency: skip platforms that already have an asset for this draft
         existing_assets = store.list_assets(draft_id)
-        existing_platforms = {a["platform"] for a in existing_assets if a.get("asset_state") != "killed"}
-        skipped_platforms = []
-        if existing_platforms:
-            target_platform_names = [p for p in target_platform_names
-                                     if p not in existing_platforms]
-            skipped_platforms = [p for p in existing_platforms
-                                 if p in business_platform_names]
-
-        # S3: Determine the native platform (first in the format's platform list)
-        native_platform = None
-        if format_platform_names and not override_platforms:
-            for fp in format_platform_names:
-                if fp in business_platform_names:
-                    native_platform = fp
-                    break
-
-        # Load visual style module via context assembly (CORRECTION-module-context-assembly)
-        from context_assembly import assemble_module_context
-        from llm_adapter import LLMAdapter, LLMAdapterError
-
-        module_vars, module_prov = assemble_module_context(
-            "assets/fan_out_v2.md", business_slug,
-            db_path=app.config["DB_PATH"], modules_dir="modules",
-        )
-
-        adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
-
-        variant_schema = {
-            "type": "object",
-            "required": ["content", "variant_type"],
-            "properties": {
-                "content": {"type": "string"},
-                "variant_type": {"type": "string"},
-                "posts": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                },
-                "image_prompts": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                },
-            },
-        }
+        existing_platforms = {a["platform"] for a in existing_assets
+                              if a.get("asset_state") != "killed"}
+        skipped_platforms = list(existing_platforms)
 
         assets_created = []
-        for platform_name in target_platform_names:
-            platform_info = platform_meta.get(platform_name, {})
-            is_native = (platform_name == native_platform)
+        for pc in platform_content:
+            platform_name = pc.get("platform", "")
+            if platform_name in existing_platforms:
+                continue
 
-            if is_native:
-                # S3: Native platform — package verbatim, no adaptation LLM call
-                # Determine if segmentation is needed (thread/carousel vs single post)
-                # T9.1: Variant type is locked from the Format Guide entry, not keyword heuristics
-                variant_type = format_variant_type
-                if variant_type in ("thread", "carousel"):
-                    # Structure-only LLM call: split into segments, preserve wording
-                    try:
-                        struct_result = adapter.complete(
-                            prompt_file="assets/structure_v1.md",
-                            variables={
-                                "platform_name": platform_name,
-                                "format_name": draft_format,
-                                "variant_type": variant_type,
-                                "draft_text": draft["draft_text"][:4000],
-                            },
-                            schema=variant_schema,
-                            backend="default",
-                            context=f"Native structuring for draft {draft_id} → {platform_name} ({variant_type}) | module_ctx: {module_prov}",
-                            business_slug=business_slug,
-                        )
-                        content = struct_result.get("content", draft["draft_text"][:280])
-                        posts = struct_result.get("posts", [draft["draft_text"]])
-                        image_prompts = struct_result.get("image_prompts", [])
-                    except (LLMAdapterError, Exception) as e:
-                        assets_created.append({"platform": platform_name, "error": str(e)[:200]})
-                        continue
-                else:
-                    # Single post: no LLM call at all — content = draft_text verbatim
-                    content = draft["draft_text"]
-                    posts = [draft["draft_text"]]
-                    image_prompts = visual_direction.get("image_prompts", []) if visual_direction else []
-
-                asset_id = store.create_asset(
-                    business_slug=business_slug,
-                    draft_id=draft_id,
-                    platform=platform_name,
-                    variant_type=variant_type,
-                    content=content,
-                    image_prompts=image_prompts,
-                    posts=posts,
-                    native=True,
-                )
-                _carry_draft_media(app.config["DB_PATH"], draft_id, asset_id)
-                assets_created.append({"id": asset_id, "platform": platform_name, "native": True})
-            else:
-                # Non-native platform — adaptation LLM call (fan_out_v2.1 with preserve-wording)
-                try:
-                    result = adapter.complete(
-                        prompt_file="assets/fan_out_v2.md",
-                        variables={
-                            "business_name": business["business"]["name"],
-                            "platform_name": platform_name,
-                            "platform_handle": platform_info.get("handle", ""),
-                            "draft_text": draft["draft_text"][:4000],
-                            "source_titles": source_titles,
-                            "visual_direction": json.dumps(visual_direction)[:1000],
-                            "format": draft_format,
-                            **module_vars,
-                        },
-                        schema=variant_schema,
-                        backend="default",
-                        context=f"Asset fan-out for draft {draft_id} → {platform_name} (adapted) | module_ctx: {module_prov}",
-                        business_slug=business_slug,
-                    )
-                except (LLMAdapterError, Exception) as e:
-                    assets_created.append({"platform": platform_name, "error": str(e)[:200]})
-                    continue
-
-                asset_id = store.create_asset(
-                    business_slug=business_slug,
-                    draft_id=draft_id,
-                    platform=platform_name,
-                    variant_type=result.get("variant_type", "post"),
-                    content=result["content"],
-                    image_prompts=result.get("image_prompts", []),
-                    posts=result.get("posts", []),
-                    native=False,
-                )
-                _carry_draft_media(app.config["DB_PATH"], draft_id, asset_id)
-                assets_created.append({"id": asset_id, "platform": platform_name, "native": False})
+            asset_id = store.create_asset(
+                business_slug=business_slug,
+                draft_id=draft_id,
+                platform=platform_name,
+                variant_type=pc.get("variant_type", "single_post"),
+                content=pc.get("content", ""),
+                image_prompts=pc.get("image_prompts", []),
+                posts=pc.get("posts", []),
+                native=True,  # All platform_content is native (Writer wrote it)
+            )
+            _carry_draft_media(app.config["DB_PATH"], draft_id, asset_id)
+            assets_created.append({"id": asset_id, "platform": platform_name, "native": True})
 
         # F1: Mark job as done
         _get_jobs_store().complete_job(fan_job_id, f"assets:{len(assets_created)}")
 
         response = {"status": "ok", "assets": assets_created, "count": len(assets_created)}
-        if fallback_warning:
-            response["warning"] = fallback_warning
         if skipped_platforms:
             response["skipped"] = skipped_platforms
             response["message"] = (
