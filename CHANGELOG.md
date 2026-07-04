@@ -6,6 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-04 OPS — DIVERGENCE-009 filed: Architect↔Builder webhook notification loop
+
+**What:** Designed (but not activated) a GitHub webhook → Hermes webhook pipeline that automatically triggers the other agent when one pushes to the repo. Two routes: `architect-pushed` (triggers builder) and `builder-pushed` (triggers architect). Uses Hermes multi-profile multiplexing (`/p/<profile>/webhooks/<route>`). HMAC-SHA256 signature validation, rate limiting, idempotency. Agent responses can be delivered to WhatsApp.
+
+**Why:** Eliminates manual relay between architect and builder. Neither profile has a live messaging channel — the operator had to manually say "go check the repo" to each one. The webhook loop makes the handoff automatic.
+
+**Status:** Design filed at `docs/decisions/DIVERGENCE-009-webhook-notification-loop.md`. Webhook platform configured on default profile (port 8644) but both routes disabled (`enabled: false`). Awaiting operator review before activation (Tailscale Funnel, GitHub webhook setup, route enable).
+
+**Rationale:** OPS tag — infrastructure for agent-to-agent communication. Config-driven (routes, prompts, secrets in config.yaml). No code changes to ViralFactory. No hardcoded business values. Agent does judgment work (charter compliance review, correction application).
+
+---
+
 ### 2026-07-04 FIX — Architect corrections applied: jargon cleanup, relative timestamps, config-driven platform fallback, awaiting-capture deprecation, Postiz dead code removed, source review gate
 
 **What:**
