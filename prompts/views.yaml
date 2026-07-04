@@ -6,6 +6,8 @@
 # change — update this view map in the same commit.
 
 ideas/generate_v1.md:
+  voice_profile:      {module: voice-profile,    mode: section, heading: "Identity line", budget: 2000,
+                       fallback: full}
   viral_patterns:     {module: viral-patterns,   mode: full,  budget: 6000}
   audience_insights:  {module: audience-insights, mode: full, budget: 4000}
   story_frameworks:   {module: story-frameworks, mode: full,  budget: 4000}
@@ -14,6 +16,7 @@ ideas/generate_v1.md:
 draft/generate_v3.md:
   voice_profile:      {module: voice-profile,    mode: full,  budget: 8000}
   tells_checklist:    {module: voice-profile,    mode: section, heading: Tells Checklist, budget: 2000}
+  ai_tells:           {file: shared/ai_tells_v1.md, budget: 8000}
   story_frameworks:   {module: story-frameworks, mode: full,  budget: 5000}
   audience_insights:  {module: audience-insights, mode: full, budget: 4000}
   viral_patterns:     {module: viral-patterns,   mode: full,  budget: 5000}

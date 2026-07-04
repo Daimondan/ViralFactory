@@ -1,6 +1,6 @@
 # Playbook: Voice Profile Builder
 
-*Repo location: `playbooks/voice-profile-builder.md` · Executed by the system's AI during onboarding, through the console. v1.0*
+*Repo location: `playbooks/voice-profile-builder.md` · Executed by the system's AI during onboarding, through the console. v1.1*
 
 <!-- run_order: 2 -->
 <!-- display_label: Voice Profile -->
@@ -31,7 +31,7 @@ Run a guided spoken interview through the console (voice preferred, text accepte
 Keep only the user's own words: strip other parties' messages, quoted/forwarded text, boilerplate signatures. Tag each retained sample with its channel. Never "correct" grammar, spelling, or dialect — variance is signal.
 
 ### Step 3 — Analyze (with evidence)
-Analyze the corpus across these dimensions. Every finding MUST cite 1–3 verbatim examples from the corpus as evidence. No finding without evidence.
+Analyze the corpus across expression dimensions (how the person writes/speaks) and cognitive dimensions (how the person thinks). Every finding MUST cite 1–3 verbatim examples from the corpus as evidence. No finding without evidence.
 
 - **Lexicon**: recurring words/phrases, characteristic verbs, intensity words, filler habits
 - **Rhythm**: sentence-length mix, use of fragments, where the point lands (front-loaded vs built-to)
@@ -41,9 +41,14 @@ Analyze the corpus across these dimensions. Every finding MUST cite 1–3 verbat
 - **Dialect & register**: dialect features and code-switching patterns (e.g., Caribbean English features) — these go on a **do-not-sanitize list**, preserved verbatim in output
 - **Channel shifts**: how voice differs by audience/channel (note, don't average away)
 - **Negative space**: what this person never does (words, structures, tones absent from the corpus)
+- **Mental models**: how this person connects ideas (for example: family systems before individual hustle; receipts before abstractions; island constraints before generic business advice)
+- **Obsessions**: themes, angles, questions, and tensions this person returns to across topics
+- **Contrarian takes**: where this person consistently disagrees with consensus in their domain
+- **Story instincts**: what this person naturally finds interesting — not what a generic format guide says is interesting
+- **Frame**: the worldview lens this person applies before they generate an idea
 
 ### Step 4 — Draft the profile (fixed schema below)
-Write the Voice Profile using the output schema. Include the **Tells Checklist**: the global AI-tell list (uniform sentence length, state-then-restate, announced transitions, puffery, generic conclusions) PLUS user-specific anti-patterns discovered in Step 3 (things that would ring false for THIS person).
+Write the Voice Profile using the output schema. Include the **Tells Checklist**: the global AI-tell catalog (versioned in `prompts/shared/ai_tells_v1.md`) PLUS user-specific anti-patterns discovered in Step 3 (things that would ring false for THIS person). The checklist must include confidence levels: HIGH tells auto-fix in the Writer loop, MEDIUM tells are context-dependent, LOW tells are transparency-only.
 
 ### Step 5 — Calibration gate (mandatory — the profile is a proposal until this passes)
 1. Generate **3 short pieces (~100 words each) on the same topic** from the user's domain, each using the candidate profile with slightly different emphasis.
@@ -64,6 +69,7 @@ The inward loop mines the **Feedback Log** (the user's plain-words reactions to 
 ## Identity line          (one sentence: who is speaking, to whom, from what experience)
 ## Audience               (who the reader/viewer is, in plain language)
 ## Positive patterns      (8–12 entries: pattern → 1–2 verbatim examples from corpus)
+## Cognitive patterns     (mental models, obsessions, contrarian takes, story instincts, frame — each with evidence)
 ## Dialect & register     (features to preserve verbatim; code-switch rules; do-not-sanitize list)
 ## Channel notes          (how voice shifts per platform, if evidenced)
 ## Anti-patterns          (what this person never does — with evidence of absence)

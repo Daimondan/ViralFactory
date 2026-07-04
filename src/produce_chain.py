@@ -126,18 +126,14 @@ class ProductionChain:
             applied_fixes = []
 
             if active_flags and round_num == 1:
-                # Auto-fix: mark flags as applied and record the fixes
-                for flag in active_flags:
-                    flag["status"] = "applied"
-                    applied_fixes.append({
-                        "line": flag.get("line", ""),
-                        "rule": flag.get("rule", ""),
-                        "suggestion": flag.get("suggestion", ""),
-                        "fix": flag.get("suggestion", ""),
-                    })
-                # Save updated flags
+                # Auto-fix: apply actual Writer-provided revised text. Do not
+                # mark a flag applied unless platform_content changed.
+                platform_content, applied_fixes = self._apply_self_audit_fixes(
+                    platform_content, active_flags
+                )
+                draft_text_summary = platform_content[0].get("content", "") if platform_content else draft.get("draft_text", "")
                 store.save_draft_content(
-                    draft_id, draft.get("draft_text", ""),
+                    draft_id, draft_text_summary,
                     visual_direction, self_audit_flags,
                     platform_content=platform_content,
                 )
@@ -216,22 +212,83 @@ class ProductionChain:
         store.save_review_history(draft_id, review_history, converged=converged)
         return converged
 
+    def _apply_self_audit_fixes(self, platform_content: list, active_flags: list) -> tuple[list, list]:
+        """Apply self-audit fixes to platform_content.
+
+        T9.5 requires the Writer to revise its own draft before Gate 2. The
+        prompt supplies `fix_applied` for HIGH-confidence tells. This method is
+        mechanical: replace the exact flagged line wherever it appears in the
+        content/posts arrays. If no concrete fix is provided, keep the flag
+        active so the alignment check/human can see it.
+        """
+        applied_fixes = []
+
+        for flag in active_flags:
+            original = (flag.get("line") or "").strip()
+            fix = (flag.get("fix_applied") or "").strip()
+            if not original or not fix:
+                continue
+
+            changed = False
+            for pc in platform_content:
+                content = pc.get("content", "")
+                if original in content:
+                    pc["content"] = content.replace(original, fix)
+                    changed = True
+
+                posts = pc.get("posts") or []
+                revised_posts = []
+                for post in posts:
+                    if isinstance(post, str) and original in post:
+                        revised_posts.append(post.replace(original, fix))
+                        changed = True
+                    else:
+                        revised_posts.append(post)
+                pc["posts"] = revised_posts
+
+            if changed:
+                flag["status"] = "applied"
+                applied_fixes.append({
+                    "line": original,
+                    "rule": flag.get("rule", ""),
+                    "confidence": flag.get("confidence", ""),
+                    "suggestion": flag.get("suggestion", ""),
+                    "fix": fix,
+                })
+
+        return platform_content, applied_fixes
+
     def _revise_draft_with_recommendations(self, adapter, card, draft,
                                             platform_content, recommendations,
                                             business_slug, round_num):
         """T9.5: Send alignment recommendations back to the Writer for revision.
         Returns updated platform_content."""
         from pipeline import DRAFT_SCHEMA
+        from config_loader import load_all, ConfigError
+        from context_assembly import assemble_module_context
 
         pc_text = json.dumps(platform_content, indent=2)
         recs_text = "\n".join(f"- {r}" for r in recommendations)
 
         try:
+            config = load_all(self.config_dir)
+            business = config["business"]
+        except ConfigError:
+            business = {"business": {"name": ""}, "audience_description": ""}
+
+        module_vars, _module_prov = assemble_module_context(
+            "draft/generate_v3.md", business_slug,
+            dynamic={"treatment.format_name": draft.get("format", "")},
+            db_path=self.db_path, modules_dir=self.modules_dir,
+            prompts_dir=self.prompts_dir,
+        )
+
+        try:
             result = adapter.complete(
                 prompt_file="draft/generate_v3.md",
                 variables={
-                    "business_name": "",  # Not needed for revision
-                    "audience_description": "",
+                    "business_name": business.get("business", {}).get("name", ""),
+                    "audience_description": business.get("audience_description", ""),
                     "origin": card["origin"],
                     "format_name": draft.get("format", ""),
                     "scope": draft.get("scope", ""),
@@ -241,14 +298,7 @@ class ProductionChain:
                     "capture_material": "(none)",
                     "previous_draft": pc_text[:6000],
                     "revision_feedback": f"[AI review round {round_num}] {recs_text}",
-                    # Minimal modules for revision
-                    "voice_profile": "(use same voice as previous draft)",
-                    "tells_checklist": "(check previous draft)",
-                    "story_frameworks": "(same as previous)",
-                    "audience_insights": "(same as previous)",
-                    "viral_patterns": "(same as previous)",
-                    "visual_style": "(same as previous)",
-                    "format_guide": "(same format as previous)",
+                    **module_vars,
                 },
                 schema=DRAFT_SCHEMA,
                 backend="drafter",

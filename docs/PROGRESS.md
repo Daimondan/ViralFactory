@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-04
-**Current Phase:** UX FIX — full UI walkthrough issues fixed for Writer/Assembler. Critical `platform_content` display fixes landed (single Reel scripts, asset approved scripts, story-series frames), Researcher loading state, 3-line card titles, shipped-draft read-only controls, clearer AI review notes, Reel step numbering, capture reminders on Asset review, xAI media adapter wiring. 758 tests passing. Blocker: default Hermes env lacks `XAI_API_KEY`, so `/home/daimon/.viralfactory.env` still needs the real key before live xAI video generation works.
+**Current Phase:** AI TELLS + VOICE DEEPENING — M9 Writer/Assembler redesign is implemented and green. Follow-up correction applied: voice-first ideation, shared AI-tells catalog with confidence levels, concrete self-audit fix application, alignment-check second pass for surviving HIGH-confidence tells, cognitive Voice Profile dimensions, and shared prompt-file context loading. 761 tests passing. Blocker remains: default Hermes env lacks `XAI_API_KEY`, so `/home/daimon/.viralfactory.env` still needs the real key before live xAI video generation works.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
@@ -25,6 +25,7 @@
 | 7. Generalization proof | ⬜ | Real near-term but not blocking v1. |
 
 ## What's Done
+- [x] 2026-07-04: AI tells + voice deepening correction applied. Added `prompts/shared/ai_tells_v1.md`, loaded into `draft/generate_v3.md`, moved voice upstream into `ideas/generate_v1.md`, added cognitive Voice Profile dimensions to prompt + playbook, fixed T9.5 self-audit no-op so `fix_applied` changes real `platform_content`, restored full module context during AI-review revisions, and added 3 regression tests. 761 tests passing.
 - [x] Repo created: https://github.com/Daimondan/ViralFactory (public — deliberate, so architect can read without auth)
 - [x] Charter v3 grilled and amended (5 divergences → DIVERGENCE-001)
 - [x] Claude architect reviewed all 5 divergences — all APPROVED

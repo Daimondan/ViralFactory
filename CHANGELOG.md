@@ -6,6 +6,22 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-04 LOGIC/FIX — AI tells + voice deepening correction applied
+
+**What:** Applied `docs/reviews/CORRECTION-ai-tells-and-voice-deepening-v1.md` after operator challenged the system to avoid AI writing at the thinking stage, not by post-hoc humanizing. Added `prompts/shared/ai_tells_v1.md`, a sourced 53-tell catalog with HIGH/MEDIUM/LOW confidence levels (including the operator-called-out “it’s not X, it’s Y” negative-parallelism tell). `draft/generate_v3.md` now loads the catalog and performs a specific 6-category self-audit. `alignment_check_v1.md` v1.1 now performs a second pass for surviving HIGH-confidence tells via `ai_tell_survived` issues.
+
+**Voice-first ideation:** `ideas/generate_v1.md` v1.4 now loads Voice Profile context before source crossing and instructs ideas to be born in the person’s mental shape, not mechanically generated then humanized.
+
+**Cognitive voice:** `voice_profile/analyze_v2.md` v2.1 and `playbooks/voice-profile-builder.md` v1.1 now extract cognitive patterns: mental models, obsessions, contrarian takes, story instincts, and worldview frame, each with evidence. These feed idea generation, not just draft style.
+
+**T9.5 fixes:** Fixed the AI review loop’s self-audit no-op: flags with concrete `fix_applied` text now change real `platform_content` before Gate 2, and flags without concrete revised text remain active. AI-review revision rounds now load the same module context as first draft generation instead of placeholders like “same as previous.” Added shared-file support in `context_assembly.py` so `prompts/views.yaml` can load `prompts/shared/ai_tells_v1.md` with provenance.
+
+**Rationale:** Humanness must be built in, not sprayed on. The Writer and reviewer should auto-handle high-confidence AI tells before the operator sees the draft, while medium/low-confidence tells remain context-dependent. Voice must shape ideation itself, not only the final wording.
+
+**Tests:** 761 passing. Added regression coverage for shared prompt-file context loading and real self-audit fix application.
+
+---
+
 ### 2026-07-04 UX/FIX — Operator end-to-end UI review fixes for Writer/Assembler
 
 **What:** Fixed 15 operator-reported issues from the full UI walkthrough. Critical display fixes now render `platform_content` everywhere: single-post Reel scripts show the full beat-by-beat script on Draft review, Asset review reads approved scripts from `platform_content` instead of legacy `draft_text`, and `story_series` assets show every frame/image pair. Researcher Generate now has visible loading state, Writer/Assembler list titles use 3-line clamp instead of one-line manual ellipses, shipped drafts hide mutating self-audit controls, AI review notes no longer imply a replacement when no text changed, Reel video generation starts as step 1, asset cards show script excerpts instead of duplicating summary text, capture reminders show on Asset review, Gate 3 keeps the friendly "Needs work" label with `fix` mapping documented in the button title, and asset cards are centered/wider on laptop.

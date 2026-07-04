@@ -198,7 +198,7 @@ class TestPromptSourceDigestFormat:
         assert "{source_criteria}" in content
 
     def test_prompt_version_bumped(self):
-        """Prompt version is 1.3 (bumped from 1.2 for T8.4)."""
+        """Prompt version is 1.4 (bumped from 1.3 for voice + AI tells integration)."""
         with open(os.path.join(os.path.dirname(__file__), "..", "prompts", "ideas", "generate_v1.md")) as f:
             first_line = f.readline().strip()
-        assert "1.3" in first_line
+        assert "1.4" in first_line

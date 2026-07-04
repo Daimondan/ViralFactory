@@ -302,6 +302,9 @@ VIEWS_MAP = {
     "test/empty_module.md": {
         "empty_mod":        {"module": "nonexistent-module", "mode": "full", "budget": 2000},
     },
+    "test/file_ref.md": {
+        "ai_tells":         {"file": "shared/ai_tells_v1.md", "budget": 2000},
+    },
 }
 
 
@@ -343,6 +346,26 @@ def test_assembler_resolves_full(temp_modules_dir):
     )
     assert "Identity line" in variables["voice_profile"]
     assert "voice-profile:full" in provenance
+
+
+def test_assembler_resolves_shared_file_reference(temp_modules_dir):
+    """Assembler resolves raw shared prompt files from views.yaml."""
+    tmpdir, slug = temp_modules_dir
+    prompts_dir = tempfile.mkdtemp()
+    try:
+        os.makedirs(os.path.join(prompts_dir, "shared"))
+        with open(os.path.join(prompts_dir, "shared", "ai_tells_v1.md"), "w") as f:
+            f.write("# AI Writing Tells\n\n- Negative parallelism")
+
+        variables, provenance = assemble_module_context(
+            "test/file_ref.md", slug,
+            modules_dir=tmpdir, prompts_dir=prompts_dir, view_map=VIEWS_MAP
+        )
+
+        assert "Negative parallelism" in variables["ai_tells"]
+        assert "shared/ai_tells_v1.md:file" in provenance
+    finally:
+        shutil.rmtree(prompts_dir)
 
 
 def test_assembler_fallback_to_index(temp_modules_dir):

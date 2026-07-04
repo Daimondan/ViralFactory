@@ -12,7 +12,7 @@
 > **On change:** bump `updated_at` date, add/update a decision note in
 > `docs/decisions/` if the change is non-obvious.
 
-**Updated:** 2026-07-04 (AMENDMENT-007 ratified: Writer produces per-platform content, Assembler is media-only, AI review loop before Gate 2. Prior: architect corrections applied: jargon cleanup, relative timestamps, config-driven platform fallback, awaiting-capture deprecation, Postiz→Buffer cleanup, DIVERGENCE-007 source review gate implemented)
+**Updated:** 2026-07-04 (AI tells + voice deepening correction applied: voice-first ideation, shared AI-tells catalog with confidence levels, cognitive Voice Profile dimensions, and real self-audit fix application in the T9.5 AI review loop. Prior: AMENDMENT-007 ratified: Writer produces per-platform content, Assembler is media-only, AI review loop before Gate 2.)
 **Conforms to:** `docs/CHARTER-v3.4.md` (v3.4 — incorporates DIVERGENCE-001, DIVERGENCE-002, AMENDMENT-003 staged content pipeline, AMENDMENT-004 treatment block, AMENDMENT-005 process compositions, AMENDMENT-006 Writer/Assembler split + four-role nav, AMENDMENT-007 Writer per-platform + Assembler media-only + AI review loop, DIVERGENCE-008 Postiz→Buffer swap)
 
 ---
@@ -95,7 +95,7 @@ AI work runs under **named profiles** — Researcher (ideation, source scouting,
 
 Every business has 8 versioned knowledge documents, stored as markdown in `modules/{business}/`, loaded into every draft, updated only through the human gate:
 
-1. **Voice Profile** (incl. Tells Checklist) — how this person sounds
+1. **Voice Profile** (incl. Tells Checklist + cognitive patterns) — how this person sounds and thinks: expression patterns, dialect/register, mental models, obsessions, contrarian takes, story instincts, frame, and user-specific AI tells
 2. **Viral Patterns Playbook** — what works in this domain (hypotheses, not facts)
 3. **Story Frameworks** — how to tell a story per subject type
 4. **Format Guide** — which format fits which message on which platform
@@ -133,8 +133,8 @@ each card: idea + hook options + treatment (format + platforms LOCKED here) + or
 WRITER CHAIN (auto-produced)
 AI, all modules + grounding sources loaded
 produces COMPLETE PER-PLATFORM TEXT in one pass (all platforms from treatment)
-self-audits against Tells Checklist → auto-fixes flagged items
-second-AI alignment check against approved idea (max 3 rounds)
+self-audits against Voice Profile + shared AI Tells Catalog → auto-fixes HIGH-confidence tells with concrete revised text
+second-AI alignment check against approved idea + surviving HIGH-confidence AI tells (max 3 rounds)
 = per-platform content in voice + LIGHT VISUAL DIRECTION (prompts, refs, format)
   NO rendered images at this stage
         │

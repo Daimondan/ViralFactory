@@ -28,9 +28,13 @@ The following sources ground this idea. Facts, quotes, dates, statistics, and sp
 
 {voice_profile}
 
-## Tells Checklist (self-audit against these — flag any lines that violate)
+## Tells Checklist (self-audit against these — the full catalog is loaded below)
 
 {tells_checklist}
+
+## AI Writing Tells Catalog (the complete reference — scan every line against this)
+
+{ai_tells}
 
 ## Story framework (if applicable)
 
@@ -94,8 +98,30 @@ A cross-platform master set of visual direction, written against the approved Vi
 
 Do NOT leave these empty. If the format calls for images, produce image prompts. If it's a talking-head video, produce shot/beat direction. If it's a carousel, produce per-slide visual prompts.
 
-### 3. Self-audit flags
-After writing, check your draft against the Tells Checklist. Flag any lines that might be an AI tell (rhythm, structure, word choice). Each flag: the line, which tell rule it might violate, and a suggestion for fixing it.
+### 3. Self-audit flags (MANDATORY — scan every line against the AI Tells Catalog)
+
+After writing all platform_content, scan EVERY line against the AI Writing Tells Catalog loaded above. For each category, check:
+
+**1. Word choice** — Did you use any word from the vocabulary blocklist? (delve, tapestry, landscape, robust, streamline, leverage, harness, crucial, pivotal, vital, underscore, enhance, foster, testament, vibrant, nestled, groundbreaking, quietly, fundamentally, meticulous, serves as, stands as, boasts, features, offers). Scan every word.
+
+**2. Sentence structure** — Did you use negative parallelism ("it's not X, it's Y")? More than once? Did you use the rule of three in more than one paragraph? Did you start a sentence with "It's worth noting" or "Importantly"? Did you tack a "-ing" phrase onto the end of a sentence for shallow analysis?
+
+**3. Paragraph rhythm** — Are all your paragraphs the same length? Are they all one sentence? Are they all three? Is there natural variation?
+
+**4. Tone** — Did you use false suspense ("Here's the kicker")? Patronizing analogies ("Think of it as...")? Grandiose stakes? Vague attributions ("experts argue")? Invented concept labels? The "despite challenges" formula? Promotional tone?
+
+**5. Formatting** — How many em dashes did you use? If more than 3, flag it. Did you bold every bullet? Did you use emoji as decoration? Did you use curly quotes when the person writes straight quotes?
+
+**6. Composition** — Did you signpost your conclusion ("In summary")? Did you restate your thesis? Did you use the "despite challenges" formula? Are you repeating the same metaphor?
+
+For each flag, include:
+- **line**: the specific line flagged
+- **rule**: which tell category and rule (e.g., "1.9 copulative avoidance: serves as instead of is")
+- **confidence**: HIGH, MEDIUM, or LOW (from the catalog)
+- **suggestion**: the fix — what the human version should be
+- **fix_applied**: for HIGH confidence tells, you MUST fix the line before returning. Write the revised text here. For MEDIUM/LOW, leave the original and flag for review.
+
+**HIGH confidence tells must be fixed before the draft reaches the alignment check.** You are the first pass — the alignment check is the second. Do not pass HIGH tells through.
 
 ## Rules
 
@@ -134,8 +160,10 @@ Respond with ONLY valid JSON:
   "self_audit_flags": [
     {
       "line": "string — the specific line flagged",
-      "rule": "string — which Tells Checklist rule this might violate",
-      "suggestion": "string — what to do about it"
+      "rule": "string — which AI Tells Catalog rule (category + rule number)",
+      "confidence": "HIGH | MEDIUM | LOW",
+      "suggestion": "string — what the human version should be",
+      "fix_applied": "string — for HIGH confidence: the revised text. For MEDIUM/LOW: empty or null"
     }
   ]
 }

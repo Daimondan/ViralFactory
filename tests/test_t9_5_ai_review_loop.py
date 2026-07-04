@@ -75,7 +75,7 @@ class TestAlignmentCheckPrompt:
         assert os.path.exists(prompt_path)
         with open(prompt_path) as f:
             content = f.read()
-        assert "version: 1.0" in content
+        assert "version: 1.1" in content
         assert "aligned" in content
         assert "issues" in content
         assert "recommendations" in content
@@ -166,6 +166,66 @@ class TestReviewHistoryStorage:
         parsed = json.loads(draft["platform_content"])
         assert len(parsed) == 1
         assert parsed[0]["content"] == "revised content"
+
+
+class TestSelfAuditFixApplication:
+    """Regression tests for T9.5 self-audit fixes."""
+
+    def test_self_audit_fix_changes_platform_content(self, tmp_path):
+        """A self-audit flag with fix_applied must revise the actual text."""
+        from produce_chain import ProductionChain
+
+        chain = ProductionChain(
+            db_path=str(tmp_path / "test.db"),
+            config_dir="config",
+            modules_dir="modules",
+            prompts_dir="prompts",
+        )
+        platform_content = [
+            {
+                "platform": "X",
+                "variant_type": "thread",
+                "content": "This serves as a reminder.",
+                "posts": ["This serves as a reminder.", "Keep this line."],
+            }
+        ]
+        flags = [
+            {
+                "line": "serves as",
+                "rule": "1.9 copulative avoidance",
+                "confidence": "HIGH",
+                "suggestion": "Use is.",
+                "fix_applied": "is",
+            }
+        ]
+
+        revised, applied = chain._apply_self_audit_fixes(platform_content, flags)
+
+        assert revised[0]["content"] == "This is a reminder."
+        assert revised[0]["posts"][0] == "This is a reminder."
+        assert flags[0]["status"] == "applied"
+        assert applied[0]["fix"] == "is"
+
+    def test_self_audit_flag_without_fix_stays_active(self, tmp_path):
+        """Do not mark a flag applied when no concrete revised text exists."""
+        from produce_chain import ProductionChain
+
+        chain = ProductionChain(
+            db_path=str(tmp_path / "test.db"),
+            config_dir="config",
+            modules_dir="modules",
+            prompts_dir="prompts",
+        )
+        platform_content = [
+            {"platform": "X", "variant_type": "thread", "content": "Line", "posts": ["Line"]}
+        ]
+        flags = [{"line": "Line", "rule": "test", "suggestion": "Make it better"}]
+
+        revised, applied = chain._apply_self_audit_fixes(platform_content, flags)
+
+        assert revised[0]["content"] == "Line"
+        assert "status" not in flags[0]
+        assert applied == []
 
 
 class TestAIReviewLoopMaxRounds:

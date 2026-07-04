@@ -1,4 +1,4 @@
-<!-- version: 1.3 -->
+<!-- version: 1.4 -->
 # Idea Card Generation
 
 You are generating idea cards for a content co-creation system. Each card is the first artifact in the staged pipeline — it carries the idea, hook options, and a full treatment block.
@@ -8,6 +8,16 @@ You are generating idea cards for a content co-creation system. Each card is the
 - Subjects: {subjects}
 - Audience: {audience_description}
 - Origin type: {origin_type}
+
+## The person's voice (read this BEFORE generating ideas — ideas must be born in this person's mental shape)
+
+{voice_profile}
+
+Before generating ideas, read this person's Voice Profile above. Ideas should come from angles THIS person would take. If the voice profile shows they connect money to family history, generate ideas that make that connection. If they're contrarian about hustle culture, generate ideas that challenge it. If they tell stories through specific people and receipts, generate ideas grounded in specifics, not abstractions.
+
+The idea is the first creative act. It should be born in the person's mental shape, not mechanically crossed from sources. Sources are material — the person's voice is the frame. If a source suggests an angle this person would never take, don't generate that idea. If a viral pattern suggests a structure that doesn't fit this person's stance, skip it.
+
+Write idea descriptions in this person's voice — not in AI voice. Avoid: negative parallelism ("it's not X, it's Y"), grandiose stakes ("this will reshape everything"), promotional tone ("vibrant", "rich tapestry"), vague attributions ("experts argue"), and all other AI tells listed in the catalog. The idea description should sound like something this person would say to a friend, not something an AI would generate.
 
 ## Source Bank (addressable sources — cite by ID)
 

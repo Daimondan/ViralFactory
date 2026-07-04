@@ -130,40 +130,56 @@ def assemble_module_context(
 
     for var_name, spec in prompt_views.items():
         module_name = spec.get("module")
+        file_ref = spec.get("file")
         mode = spec.get("mode", "full")
         budget = spec.get("budget", 10000)
         fallback = spec.get("fallback")
 
-        # Resolve the projection
-        text, mode_tag, extra = _resolve_projection(
-            store, business_slug, module_name, spec, dynamic
-        )
+        # Handle raw file references (e.g. shared/ai_tells_v1.md)
+        if file_ref and not module_name:
+            file_path = os.path.join(prompts_dir, file_ref)
+            try:
+                with open(file_path) as f:
+                    text = f.read()
+                mode_tag = "file"
+                extra = file_ref
+            except (IOError, OSError):
+                text = f"(file '{file_ref}' not found)"
+                mode_tag = "FILE_NOT_FOUND"
+                extra = None
+                logger.warning("Context assembly: file '%s' not found for %s", file_ref, prompt_file)
+        else:
+            # Resolve the projection from modules
+            text, mode_tag, extra = _resolve_projection(
+                store, business_slug, module_name, spec, dynamic
+            )
 
-        if text is None:
-            # Module or section missing — apply fallback
-            if fallback == "index":
-                text, mode_tag = _get_index_fallback(store, business_slug, module_name, spec)
-            elif fallback == "full":
-                content = store.load(business_slug, module_name)
-                text = content if content else f"(module '{module_name}' not built)"
-                mode_tag = "full-fallback"
-            else:
-                heading_desc = spec.get("heading") or spec.get("parent", "")
-                text = f"(section '{heading_desc}' not found in module '{module_name}')"
-                mode_tag = "NOT_FOUND"
-                logger.warning("Context assembly: %s not found in %s for %s",
-                               heading_desc, module_name, prompt_file)
+            if text is None:
+                # Module or section missing — apply fallback
+                if fallback == "index":
+                    text, mode_tag = _get_index_fallback(store, business_slug, module_name, spec)
+                elif fallback == "full":
+                    content = store.load(business_slug, module_name)
+                    text = content if content else f"(module '{module_name}' not built)"
+                    mode_tag = "full-fallback"
+                else:
+                    heading_desc = spec.get("heading") or spec.get("parent", "")
+                    text = f"(section '{heading_desc}' not found in module '{module_name}')"
+                    mode_tag = "NOT_FOUND"
+                    logger.warning("Context assembly: %s not found in %s for %s",
+                                   heading_desc, module_name, prompt_file)
 
         # Apply budget
         text, was_truncated = _apply_budget(text, budget)
         if was_truncated:
             mode_tag = mode_tag + ",TRUNCATED"
             logger.warning("Context assembly: %s truncated for %s (budget %d)",
-                            module_name, prompt_file, budget)
+                            module_name or file_ref, prompt_file, budget)
 
         variables[var_name] = text
         char_count = len(text)
-        label = f"{module_name}:{mode_tag}({extra or char_count})" if extra else f"{module_name}:{mode_tag}({char_count})"
+        source_name = module_name or file_ref
+        label = f"{source_name}:{mode_tag}({extra or char_count})" if extra else f"{source_name}:{mode_tag}({char_count})"
         provenance_parts.append(label)
 
     provenance_summary = " | ".join(provenance_parts)

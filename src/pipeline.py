@@ -86,7 +86,7 @@ CREATE TABLE IF NOT EXISTS drafts (
     draft_text TEXT NOT NULL DEFAULT '', -- backward compat: summary text for legacy views
     platform_content TEXT,               -- JSON array of {platform, variant_type, content, posts, image_prompts}
     visual_direction TEXT,               -- JSON: {image_prompts, reference_notes, shot_format_choices}
-    self_audit_flags TEXT,               -- JSON array of {line, rule, suggestion, status}
+    self_audit_flags TEXT,               -- JSON array of {line, rule, confidence, suggestion, fix_applied, status}
     review_history TEXT,                 -- JSON array of AI review loop rounds (T9.5)
     review_converged TEXT,               -- 'true' | 'false' | null (T9.5)
     draft_version INTEGER NOT NULL DEFAULT 1,
@@ -288,7 +288,9 @@ DRAFT_SCHEMA = {
                 "properties": {
                     "line": {"type": "string"},
                     "rule": {"type": "string"},
+                    "confidence": {"type": "string"},  # HIGH | MEDIUM | LOW
                     "suggestion": {"type": "string"},
+                    "fix_applied": {"type": "string"},  # concrete revised text for auto-fix
                     "status": {"type": "string"},  # applied | dismissed | active (for F2 persistence)
                 },
             },

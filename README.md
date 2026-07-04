@@ -70,7 +70,7 @@ Builder works `BUILD_PLAN.md` top-down → commit per task (task ID in message) 
 
 ## Status
 
-Charter now at v3.4 (AMENDMENT-003 staged pipeline + AMENDMENT-004 treatment block + AMENDMENT-006 Writer/Assembler split + AMENDMENT-007 Writer per-platform + Assembler media-only + AI review loop). M0-M8 complete. M9 (Writer/Assembler boundary redesign) tasked. 711 tests passing.
+Charter now at v3.4 (AMENDMENT-003 staged pipeline + AMENDMENT-004 treatment block + AMENDMENT-006 Writer/Assembler split + AMENDMENT-007 Writer per-platform + Assembler media-only + AI review loop). M0-M8 complete. M9 (Writer/Assembler boundary redesign) implemented. AI tells + voice-deepening correction applied: voice-first ideation, shared AI-tells catalog, cognitive Voice Profile dimensions, and real self-audit fix application. 761 tests passing.
 
 ## Original architect docs (preserved for reference)
 
