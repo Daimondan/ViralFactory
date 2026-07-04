@@ -138,6 +138,16 @@
     </div>
     {% endif %}
 
+    {# ── Approved script (collapsible) ── #}
+    {% if draft and draft.draft_text %}
+    <details style="background: #FFFFFF; border-radius: 10px; padding: 14px 18px; border: 1px solid #D8D4C8; margin-bottom: 16px;">
+        <summary style="cursor: pointer; font-size: 0.88rem; font-weight: 600; color: #4A6FA5; user-select: none;">
+            Approved script {% if draft.format %}({{ draft.format }}){% endif %} — click to expand
+        </summary>
+        <div style="margin-top: 12px; font-size: 0.92rem; line-height: 1.7; color: #1A1A1A; white-space: pre-wrap;">{{ draft.draft_text }}</div>
+    </details>
+    {% endif %}
+
     {% if draft.draft_state == 'shipped' and not assets %}
     <div style="text-align: center; margin: 20px 0;">
         <button class="btn btn-primary" id="fanOutBtn" onclick="fanOut()">Generate per-platform variants</button>
