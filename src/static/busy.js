@@ -88,8 +88,11 @@ function busyAction(btn, url, options) {
             });
         }
         return r.json().then(function(data) {
-            if (data.status === 'ok') {
+            if (data.status === 'ok' || data.status === 'already_exists') {
                 unbusyBtn(btn);
+                if (data.message && statusElem) {
+                    setStatusLine(statusElem, data.message, false);
+                }
                 if (reloadOnSuccess) {
                     window.location.reload();
                 } else if (onSuccess) {

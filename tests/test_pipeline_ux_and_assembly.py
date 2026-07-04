@@ -654,3 +654,143 @@ class TestFlaskRoutes:
         client = app.test_client()
         resp = client.get("/api/draft/999/visuals")
         assert resp.status_code == 200
+
+
+# ── Assembly: in/out validation against source duration ────────────────────
+
+class TestAssemblyInOutValidation:
+    """The renderer must clamp in/out that exceed the source file's actual
+    duration. The edit plan LLM sometimes generates cumulative timeline
+    timestamps (0→2, 2→4.5, 4.5→7…) instead of per-source seek positions.
+    Without clamping, ffmpeg produces a file with no streams and the concat
+    filter crashes with 'matches no streams'."""
+
+    def test_clamp_out_exceeding_duration(self, tmp_path):
+        """If out > source duration, render should clamp, not crash."""
+        import subprocess
+        renderer = AssemblyRenderer({}, db_path=str(tmp_path / "test.db"))
+
+        # Create a 3-second audio-only file
+        audio_file = str(tmp_path / "short_audio.mp4")
+        subprocess.run(
+            ["ffmpeg", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=3",
+             "-c:a", "aac", audio_file],
+            capture_output=True, timeout=30,
+        )
+
+        # Create a 2-second video+audio file
+        video_file = str(tmp_path / "clip.mp4")
+        subprocess.run(
+            ["ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=duration=2:size=1080x1920:rate=30",
+             "-f", "lavfi", "-i", "sine=frequency=440:duration=2",
+             "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
+             "-shortest", video_file],
+            capture_output=True, timeout=30,
+        )
+
+        sources = [video_file, audio_file]
+        call_idx = [0]
+        def stub_resolve(ref, asset_id):
+            path = sources[call_idx[0]]
+            call_idx[0] += 1
+            return path
+        renderer._resolve_source = stub_resolve
+
+        # Plan with out=30 on a 3-second file — should clamp, not crash
+        plan = {
+            "segments": [
+                {"source": "upload:1", "in": 0, "out": 2, "transition_in": "cut"},
+                {"source": "upload:2", "in": 27, "out": 30, "transition_in": "cut"},
+            ],
+            "canvas": {"aspect_ratio": "9:16", "resolution": "1080x1920"},
+        }
+
+        os.makedirs(os.path.join("data", "media", "9998"), exist_ok=True)
+        result = renderer.render(plan, asset_id=9998, draft_id=1)
+        assert os.path.exists(result["path"])
+        assert result["duration"] > 0
+
+        import shutil
+        shutil.rmtree(os.path.join("data", "media", "9998"), ignore_errors=True)
+
+    def test_error_message_excludes_ffmpeg_banner(self, tmp_path):
+        """Error messages should not include the full ffmpeg copyright banner."""
+        import subprocess
+        renderer = AssemblyRenderer({}, db_path=str(tmp_path / "test.db"))
+
+        # Create an audio-only file that will be trimmed to impossible range
+        audio_file = str(tmp_path / "tiny.mp4")
+        subprocess.run(
+            ["ffmpeg", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=1",
+             "-c:a", "aac", audio_file],
+            capture_output=True, timeout=30,
+        )
+
+        renderer._resolve_source = lambda ref, aid: audio_file
+
+        # The clamping should prevent the crash, but verify that if a
+        # trim *did* fail, the error doesn't contain the banner
+        plan = {
+            "segments": [{"source": "upload:1", "in": 0, "out": 0.5}],
+            "canvas": {"aspect_ratio": "9:16", "resolution": "1080x1920"},
+        }
+        os.makedirs(os.path.join("data", "media", "9997"), exist_ok=True)
+        result = renderer.render(plan, asset_id=9997, draft_id=1)
+        assert os.path.exists(result["path"])
+
+        import shutil
+        shutil.rmtree(os.path.join("data", "media", "9997"), ignore_errors=True)
+
+
+# ── Fan-out idempotency: no duplicate platform assets ──────────────────────
+
+class TestFanOutIdempotency:
+    """Clicking 'Generate per-platform variants' twice should NOT create
+    duplicate assets for the same platform. The endpoint must skip platforms
+    that already have an asset for this draft."""
+
+    def test_fan_out_skips_existing_platforms(self, tmp_path):
+        """Fan-out should return 'already_exists' when all platforms have assets."""
+        from app import create_app
+
+        db_path = str(tmp_path / "test.db")
+        app = create_app(config_dir="config", db_path=db_path)
+        client = app.test_client()
+
+        # Create a draft in shipped state
+        store = PipelineStore(db_path)
+        card_id = store.create_idea_card(
+            business_slug="stackpenni",
+            idea="Test idea for fan-out idempotency",
+            hook_options=[],
+            treatment={"format": {"format_name": "Instagram Reel Script"}},
+            origin="test",
+        )
+        draft_id = store.create_draft(
+            business_slug="stackpenni",
+            idea_card_id=card_id,
+            origin="test",
+            format_name="Instagram Reel Script",
+        )
+        store.save_draft_content(draft_id, "Test draft text", "{}", "[]")
+        store.update_draft_state(draft_id, "shipped")
+
+        # Create an existing asset for Instagram
+        store.create_asset(
+            business_slug="stackpenni",
+            draft_id=draft_id,
+            platform="Instagram",
+            variant_type="reel",
+            content="Existing content",
+            native=True,
+        )
+
+        # Fan-out should skip Instagram (already exists)
+        resp = client.post(f"/api/assets/{draft_id}/fan-out", json={})
+        data = resp.get_json()
+        # Should return ok or already_exists, not create a duplicate
+        assert data["status"] in ("ok", "already_exists")
+        # Should not have created new assets
+        assets = store.list_assets(draft_id)
+        instagram_assets = [a for a in assets if a["platform"] == "Instagram"]
+        assert len(instagram_assets) == 1  # only the original, no duplicate

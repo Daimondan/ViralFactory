@@ -5556,6 +5556,18 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         # Build platform metadata lookup
         platform_meta = {p["name"]: p for p in business_platforms}
 
+        # Idempotency: skip platforms that already have an asset for this draft.
+        # Without this, clicking "Generate per-platform variants" again creates
+        # duplicate cards (e.g. two Instagram reels) — confusing and wasteful.
+        existing_assets = store.list_assets(draft_id)
+        existing_platforms = {a["platform"] for a in existing_assets if a.get("asset_state") != "killed"}
+        skipped_platforms = []
+        if existing_platforms:
+            target_platform_names = [p for p in target_platform_names
+                                     if p not in existing_platforms]
+            skipped_platforms = [p for p in existing_platforms
+                                 if p in business_platform_names]
+
         # S3: Determine the native platform (first in the format's platform list)
         native_platform = None
         if format_platform_names and not override_platforms:
@@ -5684,6 +5696,18 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         response = {"status": "ok", "assets": assets_created, "count": len(assets_created)}
         if fallback_warning:
             response["warning"] = fallback_warning
+        if skipped_platforms:
+            response["skipped"] = skipped_platforms
+            response["message"] = (
+                f"Skipped {len(skipped_platforms)} platform(s) that already have assets: "
+                f"{', '.join(skipped_platforms)}. Kill the existing variant first if you want a new one."
+            )
+        if not assets_created and skipped_platforms:
+            response["status"] = "already_exists"
+            response["message"] = (
+                f"All platform variants already exist for this draft: {', '.join(skipped_platforms)}. "
+                f"Kill the ones you want to regenerate, then click again."
+            )
         return jsonify(response)
 
     @app.route("/api/assets/<int:asset_id>/gate", methods=["POST"])

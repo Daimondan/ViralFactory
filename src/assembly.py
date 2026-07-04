@@ -251,17 +251,42 @@ class AssemblyRenderer:
         # Generate cut list for operator review
         cut_list = self._build_cut_list(plan)
 
-        # Resolve all source files
+        # Pre-flight: resolve sources AND validate in/out against real durations
+        # The edit plan uses cumulative timeline timestamps (0→2, 2→4.5…) but
+        # ffmpeg -ss seeks *within the source file*. If in/out exceed the
+        # source's actual duration, ffmpeg produces a file with no streams,
+        # which crashes the concat filter with "matches no streams".
         source_files = []
+        segment_warnings = []
         for seg in segments:
             try:
                 path = self._resolve_source(seg["source"], asset_id)
                 source_files.append(path)
             except AssemblyError as e:
-                # Log and raise — render fails honestly
                 self._log_render(asset_id, draft_id, f"Source resolution failed: {e}",
                                  business_slug, "failed")
                 raise
+
+            # Validate in/out against the source file's actual duration
+            in_pt = seg.get("in", 0)
+            out_pt = seg.get("out", 0)
+            is_image = path.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
+            if not is_image:
+                actual_dur = self._get_duration(path)
+                if actual_dur > 0 and out_pt > actual_dur:
+                    segment_warnings.append(
+                        f"Segment source {seg['source']} is {actual_dur:.1f}s but plan "
+                        f"requests out={out_pt:.1f}s — clamping"
+                    )
+                    seg["out"] = min(out_pt, actual_dur)
+                    if seg.get("in", 0) >= actual_dur:
+                        seg["in"] = 0.0
+                        seg["out"] = actual_dur
+
+        # Log validation warnings to provenance (non-fatal)
+        for w in segment_warnings:
+            self._log_render(asset_id, draft_id, f"Plan validation: {w}",
+                             business_slug, "done")
 
         # Build ffmpeg command
         # Strategy: concatenate segments with trims, apply transitions, burn in captions
@@ -352,7 +377,11 @@ class AssemblyRenderer:
 
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
                 if result.returncode != 0:
-                    raise AssemblyError(f"ffmpeg trim failed for segment {i}: {result.stderr[:500]}")
+                    # Extract only the error portion — not the full ffmpeg banner
+                    stderr_lines = result.stderr.strip().split("\n")
+                    error_lines = [l for l in stderr_lines if l.startswith(("Error", "[error", "Conversion"))]
+                    error_msg = "\n".join(error_lines[-3:]) if error_lines else result.stderr[-500:]
+                    raise AssemblyError(f"ffmpeg trim failed for segment {i}: {error_msg}")
 
                 temp_files.append(seg_file)
 
@@ -391,7 +420,11 @@ class AssemblyRenderer:
 
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
             if result.returncode != 0:
-                raise AssemblyError(f"ffmpeg concat failed: {result.stderr[:500]}")
+                # Extract only the error portion — not the full ffmpeg banner
+                stderr_lines = result.stderr.strip().split("\n")
+                error_lines = [l for l in stderr_lines if l.startswith(("Error", "[error", "Conversion"))]
+                error_msg = "\n".join(error_lines[-3:]) if error_lines else result.stderr[-500:]
+                raise AssemblyError(f"ffmpeg concat failed: {error_msg}")
 
             # Get final duration
             final_duration = self._get_duration(output_file)

@@ -48,6 +48,7 @@ Produce ONE Edit Plan as valid JSON. The plan is a timeline of ordered segments 
 4. End-card/CTA per the format's convention — every piece ends with a call to action.
 5. Use only the transition vocabulary the renderer supports: cut, crossfade, slide, whip.
 6. Source references must match ingredient ids exactly: generated:&lt;media_id&gt;, upload:&lt;material_id&gt;, stock:&lt;stock_id&gt;.
+7. **"in" and "out" are seek positions WITHIN the source file** — NOT cumulative timeline timestamps. Each segment's in/out refers to the position inside that specific ingredient. Example: if ingredient upload:42 is 10s long, valid in/out for that segment is 0→3.5, NOT 27→30. The final timeline is assembled by concatenating segments in order.
 
 ## Output format
 

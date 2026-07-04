@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-04
-**Current Phase:** Architect corrections applied (CORRECTION-jargon-timestamps-cleanup-v1.0 + DIVERGENCE-007 Item 1 + DIVERGENCE-008 cleanup). P1-1 jargon cleanup, P1-2 relative timestamps, P2-1 config-driven platform fallback, P2-2 awaiting-capture deprecation, P2-3 Postiz dead code removed, DIVERGENCE-007 source review gate implemented. 711 tests passing. All docs updated (CHANGELOG, CONTEXT, PROGRESS, CHARTER verified).
+**Current Phase:** FIX — ffmpeg concat crash + fan-out duplicate platform assets fixed. Assembly renderer now validates in/out against source duration (clamps impossible seeks). Edit plan prompt clarifies in/out are per-source positions. Fan-out endpoint skips platforms with existing assets (no more duplicate IG cards). Error messages strip ffmpeg banner. 722 tests passing.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 

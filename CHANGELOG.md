@@ -6,6 +6,24 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-04 FIX — ffmpeg concat crash + fan-out duplicate platform assets
+
+**What:** Three fixes for the Assembler page:
+
+1. **ffmpeg concat "matches no streams" crash** (assembly.py): The edit plan LLM generated cumulative timeline timestamps (0→2, 2→4.5, 4.5→7…) for segment in/out, but the renderer uses these as seek positions *within each source file*. When segment 11 asked for in=27, out=30 on material_70 (a 3-second audio-only file), ffmpeg produced a file with no streams, crashing the concat filter. Fix: pre-flight validation clamps in/out against the source file's actual probed duration before trimming. Non-fatal warnings logged to provenance.
+
+2. **Edit plan prompt ambiguity** (prompts/assembly/edit_plan_v1.md): Added standing order #7 explicitly stating that "in" and "out" are seek positions within the source file, not cumulative timeline timestamps. The LLM was confusing "where in the final video this segment appears" with "where in the source file to seek."
+
+3. **Duplicate platform assets on re-click** (app.py fan-out endpoint): Clicking "Generate per-platform variants" twice created duplicate Instagram reel cards. Fix: idempotency guard checks `list_assets(draft_id)` and skips platforms that already have non-killed assets. Returns `already_exists` status with message when all platforms are covered. busy.js updated to treat `already_exists` as a reload-triggering success.
+
+4. **Error message readability** (assembly.py): ffmpeg errors now extract only the actual error lines, not the full copyright banner. Previously the operator saw 500 chars of ffmpeg build flags instead of the actual failure reason.
+
+**Rationale:** The operator hit both bugs on https://vf.glenbeu.com/create/assets/3 — the render failed with an unreadable ffmpeg banner, and the page showed two identical Instagram cards. The workflow requires too many manual steps (generate → plan → render) because the format is a Reel which needs the full assembly chain; that's by design for video formats, but the bugs made it worse.
+
+**Tests:** +3 tests (TestAssemblyInOutValidation: 2, TestFanOutIdempotency: 1). 722 total, all green.
+
+---
+
 ### 2026-07-04 OPS — DIVERGENCE-009 implemented: Architect↔Builder webhook notification loop (configured, OFF)
 
 **What:** Implemented and configured (but set to OFF) the asymmetric webhook notification loop:
