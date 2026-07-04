@@ -296,7 +296,7 @@ class ProductionChain:
                     platform=platform_name,
                     variant_type=variant_type,
                     content=content,
-                    posts=json.dumps(posts),
+                    posts=posts,
                 )
             else:
                 # Full fan-out LLM call
@@ -337,7 +337,7 @@ class ProductionChain:
                     platform=platform_name,
                     variant_type=result.get("variant_type", "single_post"),
                     content=result["content"],
-                    posts=json.dumps(result.get("posts", [])) if result.get("posts") else None,
+                    posts=result.get("posts", []),
                 )
 
     def _identify_failed_step(self, error: Exception) -> str:
@@ -354,23 +354,21 @@ class ProductionChain:
 # ── Helper functions (mirror those in app.py) ──
 
 def _resolve_format_platforms(ms, business_slug: str, format_name: str) -> list:
-    """Resolve the platform set for a format from the Format Guide entry."""
+    """Resolve the platform set for a format from the Format Guide entry.
+    Uses the same ModuleStore.get_entry API as the app.py version."""
+    if not format_name:
+        return []
     try:
-        md = ms.load(business_slug, "format-guide")
-        if not md:
+        entry = ms.get_entry(business_slug, "format-guide", "Formats", format_name)
+        if not entry:
             return []
-        # Parse format entries to find the one matching format_name
+        # Parse platforms from the entry text
         import re
-        # Look for ### Format: <name> or ## <name> headers
-        pattern = rf"(?:###?\s*Format:?\s*{re.escape(format_name)}|###?\s*{re.escape(format_name)})\s*$(.*?)(?=\n###?\s|\Z)"
-        match = re.search(pattern, md, re.MULTILINE | re.DOTALL | re.IGNORECASE)
-        if not match:
-            return []
-        section = match.group(1)
-        # Look for platforms line
-        plat_match = re.search(r"platforms?\s*[:\-]\s*(.+)", section, re.IGNORECASE)
+        plat_match = re.search(r"platforms?\s*[:\-]\s*(.+)", entry, re.IGNORECASE)
         if plat_match:
             plats_str = plat_match.group(1).strip()
+            # Strip markdown formatting (**, *, backticks)
+            plats_str = re.sub(r"\*+", "", plats_str).strip()
             # Parse comma or slash separated list
             plats = [p.strip() for p in re.split(r"[,/]", plats_str) if p.strip()]
             return plats
