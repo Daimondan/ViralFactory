@@ -79,9 +79,9 @@
         <div class="idea">{{ card.idea }}</div>
         <div class="meta">
             <span class="origin-badge origin-{{ {'ai_originated': 'ai', 'human_seeded': 'human', 'human_seeded_ai_developed': 'developed'}.get(card.origin, 'ai') }}">
-                {{ {'ai_originated': 'AI', 'human_seeded': 'Human', 'human_seeded_ai_developed': 'Human+AI'}.get(card.origin, card.origin) }}
+                Origin: {{ {'ai_originated': 'AI', 'human_seeded': 'Human', 'human_seeded_ai_developed': 'Human+AI'}.get(card.origin, card.origin) }}
             </span>
-            Format: {{ treatment.format.format_name if treatment.format else '?' }} · Scope: {{ scope_labels.get(treatment.scope.type if treatment.scope else '?', treatment.scope.type if treatment.scope else '?') }}
+            · Format: {{ treatment.format.format_name if treatment.format else '?' }} · Scope: {{ scope_labels.get(treatment.scope.type if treatment.scope else '?', treatment.scope.type if treatment.scope else '?') }}
         </div>
     </div>
 
