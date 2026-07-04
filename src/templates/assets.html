@@ -21,10 +21,10 @@
         .post-number { font-size: 0.75rem; color: #555; min-width: 20px; padding-top: 2px; }
         .post-body { flex: 1; }
         .post-text { font-size: 0.88rem; line-height: 1.5; white-space: pre-wrap; }
-        .post-met
-        .post-image { width: 60px; height: 60px; border-radius: 6px; object-fit: cover; background: #F0EDE4; flex-shrink: 0; cursor: pointer; transition: transform 0.1s; }
-        .post-image:hover { transform: scale(1.08); }
-        .post-image-placeholder { width: 60px; height: 60px; border-radius: 6px; background: #F0EDE4; display: flex; align-items: center; justify-content: center; color: #444; font-size: 0.7rem; flex-shrink: 0; }
+        .post-meta { font-size: 0.72rem; color: #8A857C; margin-top: 4px; display: flex; gap: 8px; align-items: center; }
+        .post-image { width: 120px; height: 120px; border-radius: 8px; object-fit: cover; background: #F0EDE4; flex-shrink: 0; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; border: 2px solid transparent; }
+        .post-image:hover { transform: scale(1.05); border-color: #E54B2C; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+        .post-image-placeholder { width: 120px; height: 120px; border-radius: 8px; background: #F0EDE4; display: flex; align-items: center; justify-content: center; color: #444; font-size: 0.7rem; flex-shrink: 0; }
         .media-frame img, .media-frame video { max-width: 100%; max-height: 100%; object-fit: contain; cursor: pointer; }
 
         /* Media frame for single visual preview */
@@ -215,9 +215,9 @@
                     </div>
                     {% set img_idx = loop.index0 %}
                     {% if has_images and img_idx < asset.images|length %}
-                    <img class="post-image" style="width: 80px; height: 80px;" src="/media/{{ asset.images[img_idx].path }}" alt="Slide {{ loop.index }}" onclick="openLightbox(this.src, 'Slide {{ loop.index }} — {{ handle }}')">
+                    <img class="post-image" src="/media/{{ asset.images[img_idx].path }}" alt="Slide {{ loop.index }}" onclick="openLightbox(this.src, 'Slide {{ loop.index }} — {{ handle }}')">
                     {% elif asset.image_prompts_parsed and img_idx < asset.image_prompts_parsed|length and asset.image_prompts_parsed[img_idx] != 'none' %}
-                    <div class="post-image-placeholder" style="width: 80px; height: 80px;">slide</div>
+                    <div class="post-image-placeholder">slide</div>
                     {% endif %}
                 </div>
                 {% endfor %}
