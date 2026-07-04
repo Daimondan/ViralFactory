@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/vf.css">
+    <title>Source Bank — {{ business_name }}</title>
+    <script src="/static/busy.js"></script>
+    <style>
+        .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
+        .filter-btn {
+            padding: 6px 14px; border-radius: 999px; border: 1px solid #D8D4C8;
+            background: #FFFFFF; color: #8A857C; font-size: 0.82rem; cursor: pointer;
+            display: flex; align-items: center; gap: 6px; transition: all 0.15s;
+        }
+        .filter-btn:hover { border-color: #E54B2C; }
+        .filter-btn.active { background: #E54B2C; color: #FFFFFF; border-color: #E54B2C; }
+        .filter-count { font-size: 0.72rem; padding: 1px 7px; border-radius: 10px; background: #F0EDE4; color: #8A857C; font-weight: 600; }
+        .filter-btn.active .filter-count { background: rgba(255,255,255,0.25); color: #FFFFFF; }
+
+        .source-list { display: flex; flex-direction: column; gap: 10px; }
+        .source-card {
+            background: #FFFFFF; border-radius: 10px; padding: 14px 18px;
+            border: 1px solid #D8D4C8; transition: border-color 0.15s;
+        }
+        .source-card:hover { border-color: #B5B0A4; }
+        .source-card.hidden { display: none; }
+        .source-card.removed { opacity: 0.5; }
+        .source-card.parked { opacity: 0.7; }
+
+        .source-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+        .source-title { font-size: 0.9rem; line-height: 1.5; color: #1A1A1A; flex: 1; }
+        .source-title a { color: inherit; text-decoration: none; }
+        .source-title a:hover { color: #E54B2C; }
+
+        .source-meta { font-size: 0.75rem; color: #8A857C; margin-top: 4px; }
+        .source-summary { font-size: 0.82rem; color: #8A857C; margin-top: 6px; line-height: 1.5; }
+        .source-id { font-size: 0.72rem; color: #A8A399; font-weight: 600; }
+
+        .status-badge { font-size: 0.68rem; padding: 2px 8px; border-radius: 8px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+        .st-active { background: rgba(74, 124, 58, 0.12); color: #4A7C3A; }
+        .st-parked { background: rgba(212, 168, 67, 0.15); color: #8A6D20; }
+        .st-removed { background: rgba(192, 57, 43, 0.12); color: #C0392B; }
+
+        .source-actions { display: flex; gap: 6px; margin-top: 8px; }
+        .btn { padding: 4px 12px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.78rem; font-weight: 500; }
+        .btn-keep { background: rgba(74, 124, 58, 0.15); color: #4A7C3A; }
+        .btn-park { background: rgba(212, 168, 67, 0.15); color: #8A6D20; }
+        .btn-remove { background: rgba(192, 57, 43, 0.12); color: #C0392B; }
+        .btn:disabled { opacity: 0.4; cursor: default; }
+
+        .empty { color: #A8A399; font-style: italic; padding: 30px; text-align: center; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="nav">
+        <a href="/">Home</a>
+        <a href="/ideas">Researcher (Ideas)</a>
+        <a href="/create">Writer (Script)</a>
+        <a href="/assemble">Assembler (Studio)</a>
+        <a href="/published">Analyst (Learnings)</a>
+        <a href="/sources" class="active">Source Bank</a>
+        <a href="/onboard">Onboard</a>
+        <a href="/library">Library</a>
+        <a href="/materials">Materials</a>
+    </div>
+
+    <h1>Source Bank — {{ business_name }}</h1>
+    <p class="subtle">Every source the system has ingested. Review new items, park irrelevant ones, remove junk. Sources feed idea generation.</p>
+
+    <!-- Filter bar with counts -->
+    <div class="filter-bar" id="filterBar">
+        <button class="filter-btn active" data-filter="all" onclick="filterSources('all')">
+            All <span class="filter-count">{{ sources|length }}</span>
+        </button>
+        {% for status, count in status_counts.items() %}
+        <button class="filter-btn" data-filter="{{ status }}" onclick="filterSources('{{ status }}')">
+            {{ status|capitalize }} <span class="filter-count">{{ count }}</span>
+        </button>
+        {% endfor %}
+    </div>
+
+    <!-- Source list -->
+    <div class="source-list" id="sourceList">
+        {% for source in sources %}
+        <div class="source-card {{ source.display_status }}" data-status="{{ source.display_status }}" id="source-{{ source.id }}">
+            <div class="source-header">
+                <div class="source-title">
+                    <span class="source-id">[S{{ source.id }}]</span>
+                    {% if source.url %}
+                    <a href="{{ source.url }}" target="_blank">{{ source.title[:100] }}{% if source.title|length > 100 %}...{% endif %}</a>
+                    {% else %}
+                    {{ source.title[:100] }}{% if source.title|length > 100 %}...{% endif %}
+                    {% endif %}
+                </div>
+                <span class="status-badge st-{{ source.display_status }}">{{ source.display_status }}</span>
+            </div>
+            {% if source.summary %}
+            <div class="source-summary">{{ source.summary[:300] }}{% if source.summary|length > 300 %}...{% endif %}</div>
+            {% endif %}
+            <div class="source-meta">
+                {{ source.source_type or 'unknown' }} · first seen {{ source.first_seen[:10] if source.first_seen else '—' }}
+            </div>
+            <div class="source-actions">
+                {% if source.display_status != 'active' %}
+                <button class="btn btn-keep" onclick="updateSource({{ source.id }}, 'active')">Keep</button>
+                {% endif %}
+                {% if source.display_status != 'parked' %}
+                <button class="btn btn-park" onclick="updateSource({{ source.id }}, 'parked')">Park</button>
+                {% endif %}
+                {% if source.display_status != 'removed' %}
+                <button class="btn btn-remove" onclick="updateSource({{ source.id }}, 'removed')">Remove</button>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <p class="empty">No sources in the bank yet. RSS feeds and search queries will populate this as they run.</p>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+function filterSources(status) {
+    var cards = document.querySelectorAll('.source-card');
+    var btns = document.querySelectorAll('.filter-btn');
+    btns.forEach(function(b) { b.classList.remove('active'); });
+    event.target.closest('.filter-btn').classList.add('active');
+
+    cards.forEach(function(c) {
+        if (status === 'all' || c.dataset.status === status) {
+            c.classList.remove('hidden');
+        } else {
+            c.classList.add('hidden');
+        }
+    });
+}
+
+function updateSource(sourceId, newStatus) {
+    fetch('/api/sources/' + sourceId + '/status', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({status: newStatus}),
+    }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.status === 'ok') {
+            // Update the card in place
+            var card = document.getElementById('source-' + sourceId);
+            card.className = 'source-card ' + newStatus;
+            card.dataset.status = newStatus;
+            var badge = card.querySelector('.status-badge');
+            badge.className = 'status-badge st-' + newStatus;
+            badge.textContent = newStatus;
+            // Update action buttons
+            var actions = card.querySelector('.source-actions');
+            var keepBtn = '<button class="btn btn-keep" onclick="updateSource(' + sourceId + ', \'active\')">Keep</button>';
+            var parkBtn = '<button class="btn btn-park" onclick="updateSource(' + sourceId + ', \'parked\')">Park</button>';
+            var removeBtn = '<button class="btn btn-remove" onclick="updateSource(' + sourceId + ', \'removed\')">Remove</button>';
+            actions.innerHTML = '';
+            if (newStatus !== 'active') actions.innerHTML += keepBtn;
+            if (newStatus !== 'parked') actions.innerHTML += parkBtn;
+            if (newStatus !== 'removed') actions.innerHTML += removeBtn;
+        }
+    });
+}
+</script>
+</body>
+</html>

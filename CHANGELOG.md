@@ -6,6 +6,20 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-04 STRUCTURE — Source Bank page + seed source auto-extraction + DIVERGENCE-007
+
+**What:**
+1. **Source Bank page** (`/sources`) — view all sources in the bank with filter buttons (All/Active/Parked/Removed) and per-source Keep/Park/Remove actions. Nav link added across all 29 templates.
+2. **Source status API** (`/api/sources/<id>/status`) — update source status (active/parked/removed) for human review.
+3. **Seed source auto-extraction** — `_extract_seed_sources_from_materials()` scans uploaded CSV/JSON files for source-like entries and auto-populates `seed_sources` before Sources Engine analysis. Fixes the root cause of empty source criteria during onboarding.
+4. **DIVERGENCE-007 filed** — architect design needed for: (a) new source review gate (should new sources require human approval before feeding ideation?), (b) source neural network (connections between sources for cross-source synthesis during ideation).
+
+**Why:** Operator: "is there a button for the sources bank i can see? also when analyst pulls new sources, it is still important to have a section where humans can review what was newly added and decide if it should be removed. we also need to set up a neural network between sources so research can easily see connected sources which would help with ideation."
+
+**Rationale:** The source bank page is a direct build (mechanical). The review gate and source network need architect design — they involve gate semantics (hard vs soft) and judgment work (how connections between sources are determined). DIVERGENCE-007 filed with proposed approaches and open questions.
+
+---
+
 ### 2026-07-04 FIX — Writer/Assembler UX overhaul + render crash fix
 
 **What:** Eight issues fixed:

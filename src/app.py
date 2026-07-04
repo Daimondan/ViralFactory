@@ -6913,6 +6913,65 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             return "partial"
         return "pending"
 
+    # ── Source Bank surface ──
+
+    @app.route("/sources")
+    def source_bank_page():
+        """Source Bank — view all sources, review new items, remove junk."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return "Business not configured", 500
+
+        store = _get_pipeline_store()
+        # List all statuses — the page has filters
+        conn = __import__("sqlite3").connect(app.config["DB_PATH"])
+        conn.row_factory = __import__("sqlite3").Row
+        rows = conn.execute(
+            "SELECT * FROM sources WHERE business_slug = ? ORDER BY first_seen DESC LIMIT 500",
+            (business_slug,),
+        ).fetchall()
+        conn.close()
+        sources = [dict(r) for r in rows]
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            business_name = config["business"]["business"]["name"]
+        except ConfigError:
+            business_name = "Not configured"
+
+        # Categorize sources by status
+        status_counts = {}
+        for s in sources:
+            st = s.get("status") or "active"
+            s["display_status"] = st
+            status_counts[st] = status_counts.get(st, 0) + 1
+
+        return render_template("source_bank.html",
+            business_name=business_name,
+            sources=sources,
+            status_counts=status_counts)
+
+    @app.route("/api/sources/<int:source_id>/status", methods=["POST"])
+    def update_source_status(source_id):
+        """Update a source's status (active/parked/removed) — human review of source bank."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        new_status = request.json.get("status", "")
+        if new_status not in ("active", "parked", "removed"):
+            return jsonify({"error": "Invalid status. Use active, parked, or removed."}), 400
+
+        conn = __import__("sqlite3").connect(app.config["DB_PATH"])
+        conn.execute(
+            "UPDATE sources SET status = ? WHERE id = ? AND business_slug = ?",
+            (new_status, source_id, business_slug),
+        )
+        conn.commit()
+        conn.close()
+
+        return jsonify({"status": "ok", "source_id": source_id, "new_status": new_status})
+
     @app.route("/health")
     def health():
         """Health check endpoint."""

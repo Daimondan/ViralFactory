@@ -247,3 +247,13 @@ Materials Library — editable source materials. DB migrations: `excluded` colum
 - Nav links: /create#assembler → /assemble across all 29 templates
 - Similar ideas root cause: source bank empty (2 junk sources, feeds: [], no seed sources) — operational gap
 - **Tests:** 657 passing. 0 failures.
+
+### 2026-07-04 — Source Bank page + seed source auto-extraction + DIVERGENCE-007
+
+- Source Bank page (/sources) — filter buttons with counts, Keep/Park/Remove per source
+- Source status API (/api/sources/<id>/status)
+- Seed source auto-extraction from uploaded CSV/JSON materials (_extract_seed_sources_from_materials)
+- Fixes root cause: Obsidian source uploads during onboarding now auto-populate seed_sources
+- DIVERGENCE-007 filed: source review gate (new sources need human approval?) + source neural network (connections between sources for ideation)
+- Source Bank nav link added across all 29 templates
+- **Tests:** 661 passing. 0 failures.
