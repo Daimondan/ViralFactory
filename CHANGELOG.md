@@ -6,6 +6,22 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-04 UX — six operator-reported workflow issues fixed
+
+**What:**
+1. **UX-1 (UI):** Nav menu now shows real-time pipeline counts via Flask context processor. Shared `_nav.html` include replaces hardcoded nav in all 33 templates. Researcher shows new count, Writer shows ready-for-review count, Assembler shows asset-ready count.
+2. **UX-2 (FIX):** Generate ideas button was passing `null` to `busyAction` — no button disable, no visible status. Fixed: button gets `id="genBtn"`, passed to `busyAction`, status span shown explicitly before call.
+3. **UX-3 (LOGIC):** Writer page was showing all cards including `new`-state series children. Fixed: Writer only shows cards in approved+ states (`approved`, `writing`, `draft_ready`, `drafted`, `shipped`, `assembling`, `asset_ready`, `awaiting_capture`, `capture_fulfilled`, failure states). New/killed/parked cards stay in Researcher.
+4. **UX-4 (FIX):** Writer/Assembler spinners never stopped because pages are server-rendered with no auto-refresh. Added JS auto-refresh (10s poll) when any card is in `writing` or `assembling` state.
+5. **UX-5 (UI):** Manual "Generate per-platform variants" button was redundant — the assembler chain already auto-fires on ship. Replaced with spinner + "Assembler working" message + auto-refresh.
+6. **UX-6 (UI):** Video pipeline had 3 buttons (plan, render, final render). Collapsed to one "Generate video" button that chains plan→render automatically. Edit plan shown in collapsible `<details>` after render completes.
+
+**Rationale:** Operator reported six concrete UX issues during workflow testing. Each was a real friction point: no feedback on clicks, wrong cards in wrong sections, spinners that never stopped, unnecessary manual steps for automated processes. All fixes reduce operator friction and align the UI with the actual background processing model.
+
+**Tests:** 726 passing. Updated `test_t3_5_to_12_pipeline.py` (fan-out button assertion → spinner assertion), `test_template_css_validate.py` (exempt `_` prefixed include fragments).
+
+---
+
 ### 2026-07-04 FIX — operator materials removed from source bank; seed sources persisted
 
 **What:**

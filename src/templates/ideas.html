@@ -95,19 +95,8 @@
 <div class="container">
     <h1>Researcher — {{ business_name }}</h1>
     <p class="subtle">Gate 1: approve / kill / park. The funnel kills most here — by design.</p>
-    <div class="nav">
-        <a href="/">Home</a>
-        <a href="/ideas" class="active">Researcher (Ideas)</a>
-        <a href="/create">Writer (Script)</a>
-        <a href="/assemble">Assembler (Studio)</a>
-        <a href="/published">Analyst (Learnings)</a>
-        <a href="/onboard">Onboard</a>
-        <a href="/onboarding-health">Module Health</a>
-        <a href="/library">Library</a>
-        <a href="/materials">Materials</a>
-        <a href="/sources">Source Bank</a>
-        <a href="/proposals">Gate Queue</a>
-    </div>
+    {% set active_page = "ideas" %}
+        {% include "_nav.html" %}
 
     <div class="tabs">
         <button class="tab {{ 'active' if active_tab == 'queue' else '' }}" onclick="window.location.href='/ideas?tab=queue'">Queue ({{ counts.new }})</button>
@@ -152,7 +141,7 @@
         <p class="subtle" style="margin-bottom: 10px;">AI-originated ideas from Source Bank × living modules.</p>
         <div class="gen-form">
             <label>Count: <input type="number" id="genCount" value="3" min="1" max="10"></label>
-            <button class="btn btn-secondary" onclick="generateAI()">Generate</button>
+            <button class="btn btn-secondary" id="genBtn" onclick="generateAI()">Generate</button>
             <span id="genStatus" class="loading" style="display: none;">Generating...</span>
         </div>
     </div>
@@ -338,9 +327,12 @@ function submitSeed(originType) {
 }
 
 function generateAI() {
+    var btn = document.getElementById('genBtn');
     var count = document.getElementById('genCount').value;
     var status = document.getElementById('genStatus');
-    busyAction(null, '/api/ideas/generate', {
+    status.style.display = 'inline';
+    status.textContent = 'Generating…';
+    busyAction(btn, '/api/ideas/generate', {
         busyLabel: 'Generating…',
         statusElem: status,
         body: JSON.stringify({count: parseInt(count)}),

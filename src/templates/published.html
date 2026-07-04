@@ -38,19 +38,8 @@
 </head>
 <body>
 <div class="container">
-    <div class="nav">
-        <a href="/">Home</a>
-        <a href="/ideas">Researcher (Ideas)</a>
-        <a href="/create">Writer (Script)</a>
-        <a href="/assemble">Assembler (Studio)</a>
-        <a href="/published" class="active">Analyst (Learnings)</a>
-        <a href="/onboard">Onboard</a>
-        <a href="/onboarding-health">Module Health</a>
-        <a href="/library">Library</a>
-        <a href="/materials">Materials</a>
-        <a href="/sources">Source Bank</a>
-        <a href="/proposals">Gate Queue</a>
-    </div>
+    {% set active_page = "published" %}
+        {% include "_nav.html" %}
 
     <h1>Analyst — Published & Scheduled</h1>
     <p class="subtle">Pieces you've approved for posting. The Analyst tracks performance and feeds learnings back into the source banks.</p>

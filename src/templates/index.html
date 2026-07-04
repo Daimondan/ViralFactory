@@ -44,19 +44,8 @@
             <p class="subtle">{{ business_name }}</p>
         </div>
 
-        <div class="nav">
-        <a href="/" class="active">Home</a>
-        <a href="/ideas">Researcher (Ideas)</a>
-        <a href="/create">Writer (Script)</a>
-        <a href="/assemble">Assembler (Studio)</a>
-        <a href="/published">Analyst (Learnings)</a>
-        <a href="/onboard">Onboard</a>
-        <a href="/onboarding-health">Module Health</a>
-        <a href="/library">Library</a>
-        <a href="/materials">Materials</a>
-        <a href="/sources">Source Bank</a>
-        <a href="/proposals">Gate Queue</a>
-    </div>
+        {% set active_page = "home" %}
+        {% include "_nav.html" %}
 
         <h2>Decision Desk</h2>
         <p class="greeting">Good {{ greeting_period }}, Daimon. <span class="accent">{{ pending_count }}</span> {{ "call" if pending_count == 1 else "calls" }} waiting on your hand.</p>

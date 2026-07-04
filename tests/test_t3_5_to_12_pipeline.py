@@ -502,7 +502,8 @@ class TestFlaskDraftEndpoints:
         client = app.test_client()
         resp = client.get(f"/create/assets/{draft_id}")
         assert resp.status_code == 200
-        assert b"Generate per-platform" in resp.data
+        # UX-5: fan-out is now automatic — page shows spinner, not a button
+        assert b"Assembler working" in resp.data or b"assembling" in resp.data.lower()
 
     def test_asset_gate_approve(self, app, sample_treatment):
         """Approving an asset works."""

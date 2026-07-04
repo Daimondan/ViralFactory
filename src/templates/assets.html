@@ -97,23 +97,16 @@
         .plan-status.rendering { background: rgba(123, 91, 166, 0.12); color: #7B5BA6; }
         .plan-status.rendered { background: rgba(74, 124, 58, 0.12); color: #4A7C3A; }
         .plan-status.failed { background: rgba(192, 57, 43, 0.12); color: #C0392B; }
+
+        /* Spinner */
+        .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(74,111,165,0.2); border-top-color: #4A6FA5; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 4px; vertical-align: middle; }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 <div class="container" id="assets-container">
-    <div class="nav">
-        <a href="/">Home</a>
-        <a href="/ideas">Researcher (Ideas)</a>
-        <a href="/create">Writer (Script)</a>
-        <a href="/assemble" class="active">Assembler (Studio)</a>
-        <a href="/published">Analyst (Learnings)</a>
-        <a href="/onboard">Onboard</a>
-        <a href="/onboarding-health">Module Health</a>
-        <a href="/library">Library</a>
-        <a href="/materials">Materials</a>
-        <a href="/sources">Source Bank</a>
-        <a href="/proposals">Gate Queue</a>
-    </div>
+    {% set active_page = "assembler" %}
+        {% include "_nav.html" %}
 
     <h1>Assembler — Asset Review</h1>
     <p class="subtle">The Assembler took your shipped draft and created per-platform media. Review each variant as it will appear, then approve or kill.</p>
@@ -151,9 +144,10 @@
 
     {% if draft.draft_state == 'shipped' and not assets %}
     <div style="text-align: center; margin: 20px 0;">
-        <button class="btn btn-primary" id="fanOutBtn" onclick="fanOut()">Generate per-platform variants</button>
-        <div id="fanStatus" class="status-line" style="display: none;"></div>
+        <p class="subtle" style="margin-bottom: 8px;"><span class="spinner"></span> Assembler working — generating per-platform variants…</p>
+        <p class="subtle" style="font-size: 0.78rem;">This happens automatically when you ship a draft. No action needed.</p>
     </div>
+    <script>setTimeout(function() { window.location.reload(); }, 10000);</script>
     {% endif %}
 
     {% if assets %}
@@ -291,37 +285,36 @@
                 </div>
                 {% endif %}
 
-                {# Step 2: Final assembly (only for reel/video formats) #}
+                {# Step 2: Video generation (only for reel/video formats) — one button #}
                 {% if is_reel %}
                 <div class="step">
                     <div class="step-label">
                         <span class="step-num {{ 'done' if has_final else 'active' }}">{{ '✓' if has_final else '2' }}</span>
                         {% if has_final %}
                         Final cut rendered
-                        {% elif asset.edit_plans and asset.edit_plans|length > 0 %}
-                        Edit plan ready — render it
                         {% else %}
-                        Create edit plan + render
+                        Generate video
                         {% endif %}
                     </div>
                     {% if not has_final %}
-                    {% if not asset.edit_plans or asset.edit_plans|length == 0 %}
-                    <button class="btn btn-render" onclick="generateEditPlan({{ asset.id }}, this)">Plan & render video</button>
-                    {% elif asset.edit_plans[0].status != 'rendered' %}
-                    <div class="cut-list">{{ asset.edit_plans[0].feedback or 'Plan ready — click to render.' }}</div>
-                    <button class="btn btn-render" onclick="renderFinalCut({{ asset.id }}, {{ asset.edit_plans[0].id }}, this)">Render final cut</button>
-                    {% endif %}
+                    <button class="btn btn-render" onclick="generateVideoOneClick({{ asset.id }}, this)">Generate video</button>
                     <div class="status-line" id="render-status-{{ asset.id }}" style="display: none;"></div>
                     {% endif %}
                 </div>
 
-                {# Final cut player #}
+                {# Final cut player + collapsible edit plan #}
                 {% if has_final %}
                 <div class="final-cut-section">
                     <video controls preload="metadata">
                         <source src="/media/{{ asset.final_cuts[-1].path }}" type="video/mp4">
                     </video>
                 </div>
+                {% if asset.edit_plans and asset.edit_plans|length > 0 %}
+                <details style="margin-top: 8px;">
+                    <summary style="cursor: pointer; font-size: 0.78rem; color: #8A857C;">View edit plan</summary>
+                    <div class="cut-list">{{ asset.edit_plans[0].feedback or 'No plan details available.' }}</div>
+                </details>
+                {% endif %}
                 {% endif %}
                 {% endif %}
 
@@ -437,6 +430,80 @@ function generateVisuals(assetId, btn) {
         body: '{}',
         reloadOnSuccess: true,
         onError: function(msg) { statusElem.style.color = '#C0392B'; statusElem.textContent = msg; }
+    });
+}
+
+// UX-6: One-click video generation — chains plan → render automatically.
+function generateVideoOneClick(assetId, btn) {
+    var statusElem = document.getElementById('render-status-' + assetId);
+    if (!confirm('Generate video? This creates an edit plan and renders it. May take several minutes.')) return;
+    busyBtn(btn, 'Planning…');
+    if (statusElem) {
+        statusElem.style.display = 'block';
+        statusElem.style.color = '#4A6FA5';
+        statusElem.textContent = 'Creating edit plan…';
+    }
+    // Step 1: Generate edit plan
+    fetch('/api/assets/' + assetId + '/edit-plan', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: '{}',
+    }).then(function(r) { return r.json(); }).then(function(planData) {
+        if (planData.status !== 'ok') {
+            unbusyBtn(btn);
+            if (statusElem) {
+                statusElem.style.color = '#C0392B';
+                statusElem.textContent = planData.error || 'Plan failed';
+            }
+            return;
+        }
+        // Step 2: Auto-trigger render
+        var planId = planData.plan_id || (planData.plan && planData.plan.id);
+        if (!planId) {
+            // Plan created but no ID returned — reload to show plan state
+            if (statusElem) {
+                statusElem.style.color = '#4A7C3A';
+                statusElem.textContent = 'Plan ready — loading…';
+            }
+            setTimeout(function() { window.location.reload(); }, 1000);
+            return;
+        }
+        busyBtn(btn, 'Rendering…');
+        if (statusElem) {
+            statusElem.style.color = '#4A6FA5';
+            statusElem.textContent = 'Rendering video… this may take a few minutes.';
+        }
+        fetch('/api/assets/' + assetId + '/render', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({plan_id: planId}),
+        }).then(function(r) { return r.json(); }).then(function(renderData) {
+            if (renderData.status === 'ok') {
+                unbusyBtn(btn);
+                if (statusElem) {
+                    statusElem.style.color = '#4A7C3A';
+                    statusElem.textContent = '✓ Video rendered! Loading…';
+                }
+                setTimeout(function() { window.location.reload(); }, 1000);
+            } else {
+                unbusyBtn(btn);
+                if (statusElem) {
+                    statusElem.style.color = '#C0392B';
+                    statusElem.textContent = renderData.error || 'Render failed';
+                }
+            }
+        }).catch(function(err) {
+            // Request likely timed out — start polling
+            if (statusElem) {
+                statusElem.style.color = '#4A6FA5';
+                statusElem.textContent = 'Rendering in background… polling for completion.';
+            }
+            pollRenderStatus(assetId, btn, statusElem);
+        });
+    }).catch(function(err) {
+        unbusyBtn(btn);
+        if (statusElem) {
+            statusElem.style.color = '#C0392B';
+            statusElem.textContent = 'Network error: ' + err;
+        }
     });
 }
 

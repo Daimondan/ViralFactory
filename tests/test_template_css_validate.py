@@ -144,6 +144,9 @@ def test_all_templates_have_style_blocks_or_no_css():
     from vf.css — which is fine, this test just documents the pattern."""
     templates = sorted(TEMPLATE_DIR.glob("*.html"))
     for template_path in templates:
+        # Skip include fragments — they're partials included by full pages
+        if template_path.name.startswith("_"):
+            continue
         html = template_path.read_text()
         has_style = '<style' in html
         has_css_class = 'class="' in html

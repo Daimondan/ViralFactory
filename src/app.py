@@ -156,6 +156,44 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             response.headers['Expires'] = '0'
         return response
 
+    # UX-1: Context processor — inject nav_counts into every template
+    @app.context_processor
+    def inject_nav_counts():
+        """Count cards in each pipeline stage so the nav menu shows real-time counts."""
+        try:
+            config = load_all(config_dir)
+            business_slug = config["business"]["business"]["slug"]
+        except ConfigError:
+            business_slug = None
+        if not business_slug:
+            return dict(nav_counts={})
+        try:
+            from pipeline import PipelineStore
+            store = PipelineStore(db_path=db_path)
+            all_cards = store.list_idea_cards(business_slug)
+            all_drafts = store.list_drafts(business_slug)
+            draft_by_card = {d["idea_card_id"]: d for d in all_drafts}
+            counts = {"new": 0, "ready_review": 0, "asset_ready": 0}
+            for card in all_cards:
+                cs = card["card_state"]
+                if cs == "new":
+                    counts["new"] += 1
+                elif cs in ("writing", "draft_ready", "drafted"):
+                    counts["ready_review"] += 1
+                elif cs in ("asset_ready", "assembling"):
+                    counts["asset_ready"] += 1
+                elif cs == "approved":
+                    draft = draft_by_card.get(card["id"])
+                    if draft and draft["draft_state"] in ("draft_ready", "revised", "drafted"):
+                        counts["ready_review"] += 1
+                    elif draft and draft["draft_state"] == "shipped":
+                        counts["asset_ready"] += 1
+                    else:
+                        counts["ready_review"] += 1
+            return dict(nav_counts=counts)
+        except Exception:
+            return dict(nav_counts={})
+
     # --- Routes ---
 
     def _greeting_period() -> str:
@@ -6934,8 +6972,18 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             draft_by_card[d["idea_card_id"]] = d
 
         # Build unified card list with state + provenance trail
+        # UX-3: Writer only shows cards that have been approved (not new/killed/parked).
+        # New cards belong in Researcher; killed/parked are terminal states.
+        writer_eligible_states = {
+            "approved", "writing", "drafting", "draft_ready", "drafted",
+            "shipped", "assembling", "asset_ready",
+            "writer_failed", "assembly_failed", "production_failed",
+            "awaiting_capture", "capture_fulfilled",
+        }
         unified_cards = []
         for card in idea_cards:
+            if card["card_state"] not in writer_eligible_states:
+                continue
             c = dict(card)
             c["idea_short"] = card["idea"][:80]
             c["draft"] = draft_by_card.get(card["id"])

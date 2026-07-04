@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-04
-**Current Phase:** FIX — operator materials removed from source bank; 50 seed sources backfilled. Materials intake no longer inserts operator_material rows into the sources table (operator materials feed playbooks→modules, not the source bank). Sources Engine gate approval now persists seed_sources into the sources table as seed_reference type. Live DB cleaned: 2 operator_material rows deleted, 50 seed_reference rows backfilled from Obsidian export. 726 tests passing.
+**Current Phase:** UX FIX — six operator-reported workflow issues fixed. Nav shows real-time pipeline counts. Generate ideas button gives visible feedback. Writer hides unapproved cards (series children stay in Researcher). Writer/Assembler auto-refresh when background jobs finish. Manual "Generate per-platform variants" button replaced with auto-spinner (fan-out already fires on ship). Video pipeline collapsed to one button (plan+render chained, edit plan in collapsible after). 726 tests passing.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 

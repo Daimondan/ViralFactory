@@ -136,6 +136,19 @@ code { font-family: var(--font-mono); font-size: 0.85em; background: var(--surfa
 }
 .nav a:hover { color: var(--text); }
 .nav a.active { color: var(--accent); font-weight: 600; }
+.nav-count {
+    display: inline-block;
+    min-width: 16px;
+    padding: 0 5px;
+    border-radius: 8px;
+    background: var(--accent-tint);
+    color: var(--accent);
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-align: center;
+    line-height: 16px;
+    margin-left: 2px;
+}
 
 /* ── Cards ────────────────────────────────────────────────────────────── */
 .card {

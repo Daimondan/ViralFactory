@@ -68,19 +68,8 @@
 </head>
 <body>
 <div class="container">
-    <div class="nav">
-        <a href="/">Home</a>
-        <a href="/ideas">Researcher (Ideas)</a>
-        <a href="/create">Writer (Script)</a>
-        <a href="/assemble" class="active">Assembler (Studio)</a>
-        <a href="/published">Analyst (Learnings)</a>
-        <a href="/onboard">Onboard</a>
-        <a href="/onboarding-health">Module Health</a>
-        <a href="/library">Library</a>
-        <a href="/materials">Materials</a>
-        <a href="/sources">Source Bank</a>
-        <a href="/proposals">Gate Queue</a>
-    </div>
+    {% set active_page = "assembler" %}
+        {% include "_nav.html" %}
 
     <h1>Assembler — Asset Review</h1>
     <p class="subtle">Shipped scripts arrive here. Generate per-platform variants, review them, approve.</p>
@@ -174,6 +163,14 @@ function filterCards(state) {
         }
     });
 }
+
+// UX-4: Auto-refresh when any card is in assembling state.
+(function() {
+    var spinning = document.querySelectorAll('.pipeline-card[data-state="assembling"]');
+    if (spinning.length > 0) {
+        setTimeout(function() { window.location.reload(); }, 10000);
+    }
+})();
 </script>
 </body>
 </html>
