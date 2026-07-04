@@ -174,7 +174,7 @@ class TestVisualDirection:
 
     def test_draft_schema_rejects_empty_image_prompts(self):
         bad_output = json.dumps({
-            "draft_text": "Some text",
+            "platform_content": [{"platform": "X", "variant_type": "thread", "content": "test", "posts": ["test"]}],
             "visual_direction": {
                 "image_prompts": [],
                 "reference_notes": [],
@@ -188,7 +188,7 @@ class TestVisualDirection:
 
     def test_draft_schema_rejects_empty_shot_format_choices(self):
         bad_output = json.dumps({
-            "draft_text": "Some text",
+            "platform_content": [{"platform": "X", "variant_type": "thread", "content": "test", "posts": ["test"]}],
             "visual_direction": {
                 "image_prompts": ["a prompt"],
                 "reference_notes": [],
@@ -202,7 +202,7 @@ class TestVisualDirection:
 
     def test_draft_schema_accepts_valid_visual_direction(self):
         good_output = json.dumps({
-            "draft_text": "Some text",
+            "platform_content": [{"platform": "X", "variant_type": "thread", "content": "Some text", "posts": ["Some text"]}],
             "visual_direction": {
                 "image_prompts": ["sunset over ocean, 9:16, warm tones"],
                 "reference_notes": [],
@@ -220,6 +220,15 @@ class TestVisualDirection:
             content = f.read()
         assert "version: 2.3" in content
         assert "REQUIRED" in content.upper()
+
+    def test_draft_prompt_v3_exists(self):
+        """T9.3: The v3 prompt (per-platform content) exists."""
+        prompt_path = os.path.join(os.path.dirname(__file__), "..", "prompts", "draft", "generate_v3.md")
+        assert os.path.exists(prompt_path)
+        with open(prompt_path) as f:
+            content = f.read()
+        assert "version: 3.0" in content
+        assert "platform_content" in content
 
     def test_validator_minitems_support(self):
         schema = {

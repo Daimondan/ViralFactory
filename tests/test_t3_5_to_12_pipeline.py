@@ -308,7 +308,9 @@ class TestDraftSchema:
         from validator import validate_llm_output
 
         raw = json.dumps({
-            "draft_text": "This is the full draft.",
+            "platform_content": [
+                {"platform": "X", "variant_type": "thread", "content": "This is the full draft.", "posts": ["tweet 1", "tweet 2"]}
+            ],
             "visual_direction": {
                 "image_prompts": ["prompt"],
                 "reference_notes": ["ref"],
@@ -317,17 +319,34 @@ class TestDraftSchema:
             "self_audit_flags": [],
         })
         result = validate_llm_output(raw, DRAFT_SCHEMA)
-        assert result["draft_text"] == "This is the full draft."
+        assert len(result["platform_content"]) == 1
+        assert result["platform_content"][0]["platform"] == "X"
 
     def test_missing_visual_direction_fails(self):
         from pipeline import DRAFT_SCHEMA
         from validator import validate_llm_output, ValidationError
 
         raw = json.dumps({
-            "draft_text": "Draft text",
+            "platform_content": [{"platform": "X", "variant_type": "thread", "content": "text", "posts": ["text"]}],
             "self_audit_flags": [],
         })
         with pytest.raises(ValidationError):
+            validate_llm_output(raw, DRAFT_SCHEMA)
+
+    def test_missing_platform_content_fails(self):
+        """T9.3: platform_content is required."""
+        from pipeline import DRAFT_SCHEMA
+        from validator import validate_llm_output, ValidationError
+
+        raw = json.dumps({
+            "visual_direction": {
+                "image_prompts": ["prompt"],
+                "reference_notes": [],
+                "shot_format_choices": ["shot"],
+            },
+            "self_audit_flags": [],
+        })
+        with pytest.raises(ValidationError, match="platform_content"):
             validate_llm_output(raw, DRAFT_SCHEMA)
 
 

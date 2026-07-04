@@ -83,11 +83,14 @@ CREATE TABLE IF NOT EXISTS drafts (
     origin TEXT NOT NULL,                -- carried from idea card
     format TEXT,                         -- carried from treatment
     scope TEXT,                          -- carried from treatment
-    draft_text TEXT NOT NULL,            -- full text in voice
+    draft_text TEXT NOT NULL DEFAULT '', -- backward compat: summary text for legacy views
+    platform_content TEXT,               -- JSON array of {platform, variant_type, content, posts, image_prompts}
     visual_direction TEXT,               -- JSON: {image_prompts, reference_notes, shot_format_choices}
-    self_audit_flags TEXT,               -- JSON array of {line, rule, suggestion}
+    self_audit_flags TEXT,               -- JSON array of {line, rule, suggestion, status}
+    review_history TEXT,                 -- JSON array of AI review loop rounds (T9.5)
+    review_converged TEXT,               -- 'true' | 'false' | null (T9.5)
     draft_version INTEGER NOT NULL DEFAULT 1,
-    draft_state TEXT NOT NULL DEFAULT 'drafting',  -- drafting | draft_ready | human_pass | shipped | killed | revised
+    draft_state TEXT NOT NULL DEFAULT 'drafting',  -- drafting | draft_ready | human_pass | shipped | killed | revised | reviewing
     human_edits TEXT,                    -- JSON: direct edits (authoritative text)
     feedback_entries TEXT,               -- JSON array of feedback log entry IDs
     created_at TEXT NOT NULL,
@@ -234,9 +237,29 @@ IDEA_CARD_SCHEMA = {
 
 DRAFT_SCHEMA = {
     "type": "object",
-    "required": ["draft_text", "visual_direction", "self_audit_flags"],
+    "required": ["platform_content", "visual_direction", "self_audit_flags"],
     "properties": {
-        "draft_text": {"type": "string"},
+        "platform_content": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": ["platform", "variant_type", "content", "posts"],
+                "properties": {
+                    "platform": {"type": "string"},
+                    "variant_type": {"type": "string"},
+                    "content": {"type": "string"},
+                    "posts": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                    "image_prompts": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+            },
+        },
         "visual_direction": {
             "type": "object",
             "required": ["image_prompts", "reference_notes", "shot_format_choices"],
@@ -374,6 +397,14 @@ class PipelineStore:
             conn.execute("ALTER TABLE idea_cards ADD COLUMN source_refs TEXT")
         if "production_error" not in cols:
             conn.execute("ALTER TABLE idea_cards ADD COLUMN production_error TEXT")
+        # T9.3: add platform_content, review_history, review_converged to drafts
+        draft_cols = [r[1] for r in conn.execute("PRAGMA table_info(drafts)").fetchall()]
+        if "platform_content" not in draft_cols:
+            conn.execute("ALTER TABLE drafts ADD COLUMN platform_content TEXT")
+        if "review_history" not in draft_cols:
+            conn.execute("ALTER TABLE drafts ADD COLUMN review_history TEXT")
+        if "review_converged" not in draft_cols:
+            conn.execute("ALTER TABLE drafts ADD COLUMN review_converged TEXT")
         conn.commit()
         conn.close()
 
@@ -556,10 +587,12 @@ class PipelineStore:
         cursor = conn.execute(
             """INSERT INTO drafts
                (business_slug, idea_card_id, origin, format, scope,
-                draft_text, visual_direction, self_audit_flags,
+                draft_text, platform_content, visual_direction, self_audit_flags,
+                review_history, review_converged,
                 draft_version, draft_state, human_edits, feedback_entries,
                 created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, '', '{}', '[]', 1, 'drafting', '{}', '[]', ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, '', '[]', '{}', '[]', '[]', NULL,
+                       1, 'drafting', '{}', '[]', ?, ?)""",
             (business_slug, idea_card_id, origin, format_name, scope, ts, ts),
         )
         draft_id = cursor.lastrowid
@@ -585,16 +618,27 @@ class PipelineStore:
         draft_text: str,
         visual_direction: dict,
         self_audit_flags: list[dict],
+        platform_content: list[dict] = None,
     ) -> dict:
-        """Save the LLM-generated draft content and transition to draft_ready."""
+        """Save the LLM-generated draft content and transition to draft_ready.
+
+        T9.3: platform_content is the per-platform text array (the primary
+        artifact). draft_text is kept as a backward-compat summary field —
+        derived from the first platform_content entry's content for legacy
+        views that still read draft_text.
+        """
         conn = sqlite3.connect(self.db_path)
         ts = self._now()
+        # If platform_content provided but draft_text is empty, derive a summary
+        if platform_content and not draft_text:
+            draft_text = platform_content[0].get("content", "") if platform_content else ""
         conn.execute(
             """UPDATE drafts SET
-               draft_text = ?, visual_direction = ?, self_audit_flags = ?,
-               draft_state = 'draft_ready', updated_at = ?
+               draft_text = ?, platform_content = ?, visual_direction = ?,
+               self_audit_flags = ?, draft_state = 'draft_ready', updated_at = ?
                WHERE id = ?""",
-            (draft_text, json.dumps(visual_direction),
+            (draft_text, json.dumps(platform_content or []),
+             json.dumps(visual_direction),
              json.dumps(self_audit_flags), ts, draft_id),
         )
         conn.commit()
@@ -608,6 +652,33 @@ class PipelineStore:
         conn.execute(
             "UPDATE drafts SET draft_state = ?, updated_at = ? WHERE id = ?",
             (state, ts, draft_id),
+        )
+        conn.commit()
+        conn.close()
+        return self.get_draft(draft_id)
+
+    def save_review_history(self, draft_id: int, review_history: list[dict],
+                            converged: bool) -> dict:
+        """T9.5: Save the AI review loop history and convergence status."""
+        conn = sqlite3.connect(self.db_path)
+        ts = self._now()
+        conn.execute(
+            "UPDATE drafts SET review_history = ?, review_converged = ?, updated_at = ? WHERE id = ?",
+            (json.dumps(review_history), "true" if converged else "false", ts, draft_id),
+        )
+        conn.commit()
+        conn.close()
+        return self.get_draft(draft_id)
+
+    def save_platform_content(self, draft_id: int, platform_content: list[dict]) -> dict:
+        """T9.3: Save updated platform_content (e.g. after AI review loop fix)."""
+        conn = sqlite3.connect(self.db_path)
+        ts = self._now()
+        # Also update draft_text summary from first entry
+        draft_text = platform_content[0].get("content", "") if platform_content else ""
+        conn.execute(
+            "UPDATE drafts SET platform_content = ?, draft_text = ?, updated_at = ? WHERE id = ?",
+            (json.dumps(platform_content), draft_text, ts, draft_id),
         )
         conn.commit()
         conn.close()

@@ -90,7 +90,8 @@ class ProductionChain:
             )
 
     def _step_draft(self, card_id: int, business_slug: str, store) -> int:
-        """Step 1: Generate draft from the approved card. Returns draft_id."""
+        """Step 1: Generate draft from the approved card. Returns draft_id.
+        T9.3: Uses generate_v3.md prompt — Writer produces per-platform content."""
         from config_loader import load_all, ConfigError
         from llm_adapter import LLMAdapter, LLMAdapterError
         from pipeline import DRAFT_SCHEMA
@@ -113,9 +114,9 @@ class ProductionChain:
         except ConfigError as e:
             raise RuntimeError(f"Config error: {e}")
 
-        # Load modules
+        # T9.3: Load modules for the v3 prompt (per-platform content)
         module_vars, module_prov = assemble_module_context(
-            "draft/generate_v2.md", business_slug,
+            "draft/generate_v3.md", business_slug,
             dynamic={"treatment.format_name": format_name},
             db_path=self.db_path, modules_dir=self.modules_dir,
         )
@@ -163,7 +164,18 @@ class ProductionChain:
                 break
 
         if existing:
-            previous_draft = existing["draft_text"] or ""
+            # T9.3: For revision context, show previous platform_content as text
+            prev_pc = json.loads(existing.get("platform_content") or "[]")
+            if prev_pc:
+                prev_lines = []
+                for pc in prev_pc:
+                    prev_lines.append(f"### {pc.get('platform', '')} ({pc.get('variant_type', '')})")
+                    prev_lines.append(pc.get("content", ""))
+                    for p in pc.get("posts", []):
+                        prev_lines.append(f"  - {p}")
+                previous_draft = "\n".join(prev_lines)
+            else:
+                previous_draft = existing["draft_text"] or ""
             if len(previous_draft) > 6000:
                 cut = previous_draft.rfind('\n\n', 0, 6000)
                 if cut > 3000:
@@ -182,7 +194,7 @@ class ProductionChain:
         adapter = LLMAdapter(models_config, db_path=self.db_path, prompts_dir=self.prompts_dir)
 
         result = adapter.complete(
-            prompt_file="draft/generate_v2.md",
+            prompt_file="draft/generate_v3.md",
             variables={
                 "business_name": business["business"]["name"],
                 "audience_description": business.get("audience_description", ""),
@@ -204,13 +216,17 @@ class ProductionChain:
             profile="drafter",
         )
 
-        # Save draft
+        # T9.3: Save draft with platform_content
+        platform_content = result.get("platform_content", [])
+        draft_text_summary = platform_content[0].get("content", "") if platform_content else ""
+
         if existing:
             store.save_draft_content(
                 existing["id"],
-                result["draft_text"],
+                draft_text_summary,
                 result["visual_direction"],
                 result["self_audit_flags"],
+                platform_content=platform_content,
             )
             draft_id = existing["id"]
         else:
@@ -223,9 +239,10 @@ class ProductionChain:
             )
             store.save_draft_content(
                 draft_id,
-                result["draft_text"],
+                draft_text_summary,
                 result["visual_direction"],
                 result["self_audit_flags"],
+                platform_content=platform_content,
             )
 
         # Draft is saved — writer chain stops here for Gate 2 review.

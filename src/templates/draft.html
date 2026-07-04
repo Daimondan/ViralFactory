@@ -105,12 +105,41 @@
     </div>
     {% endif %}
 
-    {% if draft and draft.draft_text %}
+    {% if draft %}
+    {# T9.3: Show per-platform content if available, fall back to draft_text for legacy drafts #}
+    {% if draft.platform_content_parsed and draft.platform_content_parsed|length > 0 %}
+    <h2>Per-platform content</h2>
+    <div class="platform-content-list" id="draft-text">
+        {% for pc in draft.platform_content_parsed %}
+        <div class="platform-content-entry" style="margin-bottom: 20px; border: 1px solid #D8D4C8; border-radius: 8px; overflow: hidden;">
+            <div style="padding: 8px 16px; background: #F0EDE4; border-bottom: 1px solid #D8D4C8; display: flex; justify-content: space-between; align-items: center;">
+                <strong style="font-size: 0.9rem; color: #E54B2C;">{{ pc.platform }}</strong>
+                <span style="font-size: 0.78rem; color: #8A857C;">{{ pc.variant_type }}</span>
+            </div>
+            <div style="padding: 12px 16px;">
+                {% if pc.posts and pc.posts|length > 1 %}
+                <div class="post-list" style="margin: 0;">
+                    {% for post in pc.posts %}
+                    <div class="post-item" style="padding: 8px 0; border-bottom: 1px solid #F0EDE4; {% if loop.last %}border-bottom: none;{% endif %}">
+                        <span style="font-size: 0.75rem; color: #555; min-width: 24px; display: inline-block;">{{ loop.index }}.</span>
+                        <span style="white-space: pre-wrap; font-size: 0.92rem; line-height: 1.7; color: #1A1A1A;">{{ post }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div style="white-space: pre-wrap; font-size: 0.92rem; line-height: 1.7; color: #1A1A1A;">{{ pc.content }}</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% elif draft.draft_text %}
     <h2>Draft text</h2>
     <div class="draft-text" id="draft-text">{{ draft.draft_text }}</div>
+    {% endif %}
 
     {# F1: Edit draft toggle — direct edits write draft_text directly #}
-    {% if draft.draft_state != 'shipped' %}
+    {% if draft.draft_state != 'shipped' and draft.draft_text %}
     <div id="edit-draft-area" style="display:none; margin-bottom: 16px;">
         <textarea id="editDraftTextarea" style="width:100%; min-height:300px; padding:12px; border-radius:8px; border:1px solid #D8D4C8; background:#F0EDE4; color:#1A1A1A; font-size:0.95rem; line-height:1.7; resize:vertical; font-family:inherit;">{{ draft.draft_text }}</textarea>
         <div style="display:flex; gap:8px; margin-top:8px;">

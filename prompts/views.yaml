@@ -11,6 +11,17 @@ ideas/generate_v1.md:
   story_frameworks:   {module: story-frameworks, mode: full,  budget: 4000}
   format_guide:       {module: format-guide,     mode: index, parent: Formats, budget: 3000}
 
+draft/generate_v3.md:
+  voice_profile:      {module: voice-profile,    mode: full,  budget: 8000}
+  tells_checklist:    {module: voice-profile,    mode: section, heading: Tells Checklist, budget: 2000}
+  story_frameworks:   {module: story-frameworks, mode: full,  budget: 5000}
+  audience_insights:  {module: audience-insights, mode: full, budget: 4000}
+  viral_patterns:     {module: viral-patterns,   mode: full,  budget: 5000}
+  visual_style:       {module: visual-style,     mode: full,  budget: 5000}
+  format_guide:       {module: format-guide,     mode: entry, parent: Formats,
+                       key: "{treatment.format_name}", budget: 4000,
+                       fallback: index}
+
 draft/generate_v2.md:
   voice_profile:      {module: voice-profile,    mode: full,  budget: 8000}
   tells_checklist:    {module: voice-profile,    mode: section, heading: Tells Checklist, budget: 2000}

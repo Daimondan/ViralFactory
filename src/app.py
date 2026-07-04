@@ -4927,6 +4927,14 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             d["visual_direction_parsed"] = json.loads(draft.get("visual_direction") or "{}")
         except (json.JSONDecodeError, TypeError):
             d["visual_direction_parsed"] = {}
+        try:
+            d["platform_content_parsed"] = json.loads(draft.get("platform_content") or "[]")
+        except (json.JSONDecodeError, TypeError):
+            d["platform_content_parsed"] = []
+        try:
+            d["review_history_parsed"] = json.loads(draft.get("review_history") or "[]")
+        except (json.JSONDecodeError, TypeError):
+            d["review_history_parsed"] = []
         return d
 
     @app.route("/api/draft/<int:card_id>/generate", methods=["POST"])
@@ -4985,8 +4993,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         except ConfigError as e:
             return jsonify({"error": f"Config error: {e}"}), 500
 
+        # T9.3: Load modules for the v3 prompt (per-platform content)
         module_vars, module_prov = assemble_module_context(
-            "draft/generate_v2.md", business_slug,
+            "draft/generate_v3.md", business_slug,
             dynamic={"treatment.format_name": format_name},
             db_path=app.config["DB_PATH"], modules_dir="modules",
         )
@@ -4999,7 +5008,18 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 break
 
         if existing:
-            previous_draft = existing["draft_text"] or ""
+            # T9.3: For revision context, show previous platform_content as text
+            prev_pc = json.loads(existing.get("platform_content") or "[]")
+            if prev_pc:
+                prev_lines = []
+                for pc in prev_pc:
+                    prev_lines.append(f"### {pc.get('platform', '')} ({pc.get('variant_type', '')})")
+                    prev_lines.append(pc.get("content", ""))
+                    for p in pc.get("posts", []):
+                        prev_lines.append(f"  - {p}")
+                previous_draft = "\n".join(prev_lines)
+            else:
+                previous_draft = existing["draft_text"] or ""
             # Truncate at paragraph boundary near 6000 chars
             if len(previous_draft) > 6000:
                 cut = previous_draft.rfind('\n\n', 0, 6000)
@@ -5072,7 +5092,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         try:
             result = adapter.complete(
-                prompt_file="draft/generate_v2.md",
+                prompt_file="draft/generate_v3.md",
                 variables={
                     "business_name": business["business"]["name"],
                     "audience_description": business.get("audience_description", ""),
@@ -5097,13 +5117,18 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             _get_jobs_store().fail_job(job_id, str(e)[:200])
             return jsonify({"error": str(e)}), 500
 
+        # T9.3: Save draft with platform_content
+        platform_content = result.get("platform_content", [])
+        draft_text_summary = platform_content[0].get("content", "") if platform_content else ""
+
         # existing was found above for F2 revision context; reuse it for save
         if existing:
             store.save_draft_content(
                 existing["id"],
-                result["draft_text"],
+                draft_text_summary,
                 result["visual_direction"],
                 result["self_audit_flags"],
+                platform_content=platform_content,
             )
             draft_id = existing["id"]
         else:
@@ -5116,9 +5141,10 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             )
             store.save_draft_content(
                 draft_id,
-                result["draft_text"],
+                draft_text_summary,
                 result["visual_direction"],
                 result["self_audit_flags"],
+                platform_content=platform_content,
             )
 
         # Update card state to 'drafted'
@@ -5130,7 +5156,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         return jsonify({
             "status": "ok",
             "draft_id": draft_id,
-            "draft_text": result["draft_text"],
+            "platform_content": platform_content,
+            "draft_text": draft_text_summary,
             "visual_direction": result["visual_direction"],
             "self_audit_flags": result["self_audit_flags"],
         })
