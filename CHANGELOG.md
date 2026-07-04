@@ -6,6 +6,33 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-04 STRUCTURE — Flexible narrative patterns + onboarding completeness dashboard
+
+**Feature 1: Config-driven narrative patterns**
+- Replaced hardcoded entry_point/tension/turn/landing with config-driven patterns
+- New `config/narrative_patterns.yaml` with 8 default patterns (dramatic_arc, myth_buster, how_to, hot_take, listicle, before_after, receipt_card, pattern_breaker)
+- LLM selects best pattern per subject type, or proposes custom
+- Schema updated to flexible structure_name + beats[{name, content}]
+- Story frameworks prompt v3 with pattern selection
+- Backward compatible — old v1 modules still readable by drafter
+- Files: config/narrative_patterns.yaml, src/module_store.py, prompts/story_frameworks/analyze_v3.md, src/app.py, tests/test_narrative_patterns.py, tests/test_t2_3_playbooks.py
+
+**Feature 2: Onboarding completeness dashboard**
+- New `/onboarding-health` page showing missing inputs per module
+- Machine-readable `required_inputs` frontmatter added to all 7 playbooks
+- `check_completeness()` function in `src/onboarding_completeness.py`
+- Source mining API (`POST /api/onboarding/mine-sources`): AI extracts missing inputs from uploaded materials, onboarding transcript, source bank
+- Manual fill API (`POST /api/onboarding/fill-input`): operator types missing values directly
+- Makes onboarding gaps visible and fillable without re-running entire onboarding
+- Files: src/onboarding_completeness.py, src/templates/onboarding_health.html, prompts/onboarding/mine_source_v1.md, src/app.py, src/playbook_runner.py, playbooks/*.md, tests/test_playbook_required_inputs.py
+- Module Health link added to nav across 31 templates
+
+**Architect docs:**
+- Implementation plan: docs/plans/2026-07-04-flexible-narrative-patterns-and-onboarding-completeness.md
+- Architect brief: docs/architect/2026-07-04-flexible-narrative-patterns-and-onboarding-completeness.md
+
+---
+
 ### 2026-07-04 FIX — FFmpeg concat crash on audio-only sources
 
 **What:**
