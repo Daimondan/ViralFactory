@@ -1105,6 +1105,15 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         # which was the legacy path that always resolved to "(none)")
         platforms_text = ", ".join(f"{p['name']} ({p.get('handle', '')})" for p in business.get("platforms", []))
         if playbook_name == "sources-engine":
+            # Auto-extract seed sources from uploaded materials if seed_sources is empty.
+            # This catches the case where the operator uploads a source list (CSV/JSON/MD)
+            # during onboarding but the orchestrator never routed it into seed_sources.
+            if not collected.get("seed_sources"):
+                extracted = _extract_seed_sources_from_materials(run_id)
+                if extracted:
+                    collected["seed_sources"] = extracted
+                    runner = PlaybookRunner(app.config["DB_PATH"])
+                    runner.update_run(run_id, collected_inputs=json.dumps(collected))
             variables["seed_sources"] = _format_seed_sources(collected)
             variables["anti_examples"] = _format_anti_examples(collected)
             variables["business_region"] = business.get("business", {}).get("region", "global")
@@ -1464,6 +1473,13 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         # Add playbook-specific variables from collected inputs
         platforms_text = ", ".join(f"{p['name']} ({p.get('handle', '')})" for p in business.get("platforms", []))
         if pb_name == "sources-engine":
+            # Auto-extract seed sources from uploaded materials if seed_sources is empty
+            if not collected.get("seed_sources"):
+                extracted = _extract_seed_sources_from_materials(run_id)
+                if extracted:
+                    collected["seed_sources"] = extracted
+                    runner = PlaybookRunner(app.config["DB_PATH"])
+                    runner.update_run(run_id, collected_inputs=json.dumps(collected))
             variables["seed_sources"] = _format_seed_sources(collected)
             variables["anti_examples"] = _format_anti_examples(collected)
             variables["business_region"] = business.get("business", {}).get("region", "global")
@@ -1515,6 +1531,92 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         for i, s in enumerate(seeds, 1):
             lines.append(f"  {i}. {s.get('name', '')} — {s.get('url', '')} ({s.get('type', 'rss')})")
         return "\n".join(lines)
+
+    def _extract_seed_sources_from_materials(run_id):
+        """Auto-extract seed sources from uploaded materials that look like source lists.
+        Detects CSV files with source entries (rank/title/url columns) and JSON files
+        with source arrays. Returns a list of seed source dicts, or None if nothing found.
+        This catches the case where the operator uploads a source export (e.g. Obsidian
+        Strongest Sources) during onboarding but the orchestrator never routes it into
+        the seed_sources list."""
+        import csv as csv_module
+        import io as io_module
+        from materials import MaterialsIntake
+        intake = MaterialsIntake(app.config["DB_PATH"])
+        materials = intake.list_materials(run_id=run_id)
+        if not materials:
+            return None
+
+        extracted = []
+        for m in materials:
+            filename = (m.get("filename") or "").lower()
+            content = m.get("normalized_content") or m.get("raw_content") or ""
+            if not content or len(content) < 50:
+                continue
+
+            # CSV files with source-like columns
+            if filename.endswith(".csv") or ("rank" in content[:200].lower() and "title" in content[:200].lower()):
+                try:
+                    reader = csv_module.DictReader(io_module.StringIO(content))
+                    if reader.fieldnames and any(
+                        col in [f.lower() for f in reader.fieldnames]
+                        for col in ["rank", "title", "name", "url", "source", "score"]
+                    ):
+                        for row in reader:
+                            title = (row.get("title") or row.get("name") or "").strip().strip('"')
+                            if not title or len(title) < 2:
+                                continue
+                            rank = row.get("rank", "")
+                            score = row.get("score", "")
+                            url = row.get("url") or row.get("feed_url") or ""
+                            source_type = "csv_export"
+                            if url:
+                                source_type = "rss" if "feed" in url.lower() or "rss" in url.lower() else "web"
+                            extracted.append({
+                                "name": title,
+                                "url": url or f"(source rank {rank}, score {score})",
+                                "type": source_type,
+                                "auto_extracted": True,
+                            })
+                except Exception:
+                    pass
+
+            # JSON files with source arrays
+            elif filename.endswith(".json"):
+                try:
+                    data = json.loads(content)
+                    if isinstance(data, list):
+                        for item in data:
+                            if not isinstance(item, dict):
+                                continue
+                            title = (item.get("title") or item.get("name") or "").strip()
+                            if not title or len(title) < 2:
+                                continue
+                            url = item.get("url") or item.get("feed_url") or ""
+                            rank = item.get("rank", "")
+                            score = item.get("score", "")
+                            source_type = "json_export"
+                            if url:
+                                source_type = "rss" if "feed" in url.lower() or "rss" in url.lower() else "web"
+                            extracted.append({
+                                "name": title,
+                                "url": url or f"(source rank {rank}, score {score})",
+                                "type": source_type,
+                                "auto_extracted": True,
+                            })
+                except Exception:
+                    pass
+
+        # Deduplicate by name
+        seen = set()
+        unique = []
+        for s in extracted:
+            name_lower = s["name"].lower()
+            if name_lower not in seen:
+                seen.add(name_lower)
+                unique.append(s)
+
+        return unique if unique else None
 
     def _format_anti_examples(collected):
         anti = collected.get("anti_examples", [])
