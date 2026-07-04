@@ -1,0 +1,39 @@
+# Narrative Patterns — config-driven story structure options
+# Each pattern defines a set of beats the LLM fills per subject type.
+# The LLM selects the best-fitting pattern per subject, or proposes a custom one.
+
+patterns:
+  - name: dramatic_arc
+    description: "Classic tension-driven story — hook, conflict, revelation, resolution"
+    beats: [entry_point, tension, turn, landing]
+
+  - name: myth_buster
+    description: "Bust a common misconception — state the myth, reveal reality, prove it, deliver takeaway"
+    beats: [myth, reality, proof, takeaway]
+
+  - name: how_to
+    description: "Practical tutorial — problem, steps, result"
+    beats: [problem, steps, result]
+
+  - name: hot_take
+    description: "Contrarian opinion with evidence — claim, evidence, counter-argument, verdict"
+    beats: [claim, evidence, counter, verdict]
+
+  - name: listicle
+    description: "Numbered insights — hook, items, summary"
+    beats: [hook, items, summary]
+
+  - name: before_after
+    description: "Transformation story — before state, catalyst, after state, lesson"
+    beats: [before, catalyst, after, lesson]
+
+  - name: receipt_card
+    description: "Evidence-first — claim, source, meaning, move"
+    beats: [claim, source, meaning, move]
+
+  - name: pattern_breaker
+    description: "Same background, different decision — setup, fork, divergence, lesson"
+    beats: [setup, fork, divergence, lesson]
+
+# Allow the LLM to propose custom patterns when none fit
+allow_custom: true
