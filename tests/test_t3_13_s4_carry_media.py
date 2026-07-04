@@ -70,6 +70,7 @@ Test format guide.
 
 ### X Single Post
 - **Platforms:** X
+- **Variant type:** single_post
 - **Best for:** hot takes
 - **Length:** 1 tweet
 - **Effort level:** low
@@ -85,6 +86,7 @@ Test format guide.
 
 ### X Thread
 - **Platforms:** X
+- **Variant type:** thread
 - **Best for:** analysis, storytelling
 - **Length:** 5-10 tweets
 - **Effort level:** medium

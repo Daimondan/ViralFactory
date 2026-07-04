@@ -3873,12 +3873,15 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         except ConfigError:
             return None
 
-    # ── S3: Fan-out fidelity helpers ──
+    # ── T9.1: Format Guide metadata parsers (mechanical, no keyword heuristics) ──
+    # These replace the charter-violating _resolve_format_platforms (regex parser)
+    # and _determine_variant_type (keyword heuristic). Per AMENDMENT-007, the
+    # format + platform set are locked from the treatment at Gate 1 — no code
+    # re-derives them with keyword matching or regex parsing.
 
-    def _resolve_format_platforms(ms: "ModuleStore", business_slug: str, format_name: str) -> list[str]:
-        """S3: Resolve which platforms a format is native to, from the Format Guide module.
-
-        Reads the format's Platforms field from its Format Guide entry.
+    def _get_platforms_from_format_entry(ms: "ModuleStore", business_slug: str, format_name: str) -> list[str]:
+        """T9.1: Resolve which platforms a format is native to, from the Format Guide
+        entry's structured '- **Platforms:**' field.
         Returns a list of platform names (e.g. ['X', 'Instagram']).
         Returns empty list if the format or its platforms field is not found.
         """
@@ -3888,36 +3891,34 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             entry = ms.get_entry(business_slug, "format-guide", "Formats", format_name)
             if not entry:
                 return []
-            # Parse the Platforms line from the entry
             for line in entry.split("\n"):
-                line = line.strip()
-                if line.startswith("- **Platforms:**"):
-                    # Extract platform names after the colon
-                    raw = line.split("**Platforms:**", 1)[1].strip()
-                    # Split on comma, strip whitespace
-                    platforms = [p.strip() for p in raw.split(",") if p.strip()]
-                    return platforms
+                stripped = line.strip()
+                if stripped.startswith("- **Platforms:**"):
+                    raw = stripped.split("**Platforms:**", 1)[1].strip()
+                    return [p.strip() for p in raw.split(",") if p.strip()]
             return []
         except Exception:
             return []
 
-    def _determine_variant_type(format_name: str, platform_name: str) -> str:
-        """S3: Determine the variant_type for a native platform from the format name.
-
-        Maps format names to their structural variant type:
-        - Thread formats → 'thread'
-        - Carousel formats → 'carousel'
-        - Reel formats → 'reel'
-        - Everything else → 'single_post'
+    def _get_variant_type_from_format_entry(ms: "ModuleStore", business_slug: str, format_name: str) -> str | None:
+        """T9.1: Resolve variant_type from the Format Guide entry's structured
+        '- **Variant type:**' field. Returns None if the field is not present
+        (T9.2 adds this field to the Format Guide schema). The caller falls back
+        to 'single_post' when None.
         """
-        format_lower = (format_name or "").lower()
-        if "thread" in format_lower:
-            return "thread"
-        if "carousel" in format_lower:
-            return "carousel"
-        if "reel" in format_lower:
-            return "reel"
-        return "single_post"
+        if not format_name:
+            return None
+        try:
+            entry = ms.get_entry(business_slug, "format-guide", "Formats", format_name)
+            if not entry:
+                return None
+            for line in entry.split("\n"):
+                stripped = line.strip()
+                if stripped.startswith("- **Variant type:**"):
+                    return stripped.split("**Variant type:**", 1)[1].strip()
+            return None
+        except Exception:
+            return None
 
     def _carry_draft_media(db_path: str, draft_id: int, asset_id: int):
         """S4: Copy draft media rows into a spawned asset (link, don't re-render).
@@ -5608,7 +5609,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         from module_store import ModuleStore
         modules_dir = app.config.get("MODULES_DIR", "modules")
         ms = ModuleStore(modules_dir=modules_dir, db_path=app.config["DB_PATH"])
-        format_platform_names = _resolve_format_platforms(ms, business_slug, draft_format)
+        format_platform_names = _get_platforms_from_format_entry(ms, business_slug, draft_format)
+        # T9.1: Variant type is locked from the Format Guide entry, not keyword heuristics
+        format_variant_type = _get_variant_type_from_format_entry(ms, business_slug, draft_format) or "single_post"
         business_platform_names = [p["name"] for p in business_platforms]
 
         # S3: Override support — request body may pass explicit platforms
@@ -5690,7 +5693,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             if is_native:
                 # S3: Native platform — package verbatim, no adaptation LLM call
                 # Determine if segmentation is needed (thread/carousel vs single post)
-                variant_type = _determine_variant_type(draft_format, platform_name)
+                # T9.1: Variant type is locked from the Format Guide entry, not keyword heuristics
+                variant_type = format_variant_type
                 if variant_type in ("thread", "carousel"):
                     # Structure-only LLM call: split into segments, preserve wording
                     try:

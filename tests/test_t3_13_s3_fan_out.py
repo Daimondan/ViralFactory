@@ -75,6 +75,7 @@ Test format guide.
 
 ### X Single Post
 - **Platforms:** X
+- **Variant type:** single_post
 - **Best for:** hot takes
 - **Length:** 1 tweet
 - **Effort level:** low
@@ -90,6 +91,7 @@ Test format guide.
 
 ### X Thread
 - **Platforms:** X
+- **Variant type:** thread
 - **Best for:** deep explainers
 - **Length:** 5-12 tweets
 - **Effort level:** medium
@@ -106,6 +108,7 @@ Tweet 2 (context): [context]
 
 ### Instagram Carousel
 - **Platforms:** Instagram
+- **Variant type:** carousel
 - **Best for:** guides
 - **Length:** 6-10 slides
 - **Effort level:** medium

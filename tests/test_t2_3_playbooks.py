@@ -153,6 +153,7 @@ def valid_format_guide():
             {
                 "format_name": "X Thread",
                 "platforms": ["X"],
+                "variant_type": "thread",
                 "best_for": ["contrarian takes", "data drops"],
                 "length": "5-15 tweets",
                 "structure_notes": "Hook tweet → body tweets → CTA tweet",
@@ -167,6 +168,7 @@ def valid_format_guide():
             {
                 "format_name": "IG Reel with Footage",
                 "platforms": ["Instagram"],
+                "variant_type": "reel",
                 "best_for": ["cultural observations", "on-the-ground content"],
                 "length": "15-30 seconds",
                 "structure_notes": "Text overlay on real footage",
@@ -455,6 +457,12 @@ class TestFormatGuideSchema:
         with pytest.raises(ValidationError, match="best_for"):
             validate_llm_output(json.dumps(valid_format_guide), FORMAT_GUIDE_SCHEMA, context="test")
 
+    def test_variant_type_present(self, valid_format_guide):
+        """T9.2: Format Guide must have variant_type field per entry."""
+        del valid_format_guide["formats"][0]["variant_type"]
+        with pytest.raises(ValidationError, match="variant_type"):
+            validate_llm_output(json.dumps(valid_format_guide), FORMAT_GUIDE_SCHEMA, context="test")
+
 
 class TestFormatGuideConverter:
 
@@ -476,6 +484,10 @@ class TestFormatGuideConverter:
         assert "Reuse pathways" in md
         assert "Status" in md
         assert "Provenance" in md
+        # T9.2: Variant type field present
+        assert "Variant type" in md
+        assert "thread" in md
+        assert "reel" in md
         # Check values
         assert "none" in md
         assert "required" in md

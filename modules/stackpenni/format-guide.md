@@ -7,6 +7,7 @@ This Format Guide maps StackPenni's content across X and Instagram using seven f
 
 ### X Thread
 - **Platforms:** X
+- **Variant type:** thread
 - **Best for:** deep-dive explainers, contrarian takes, step-by-step frameworks, story-driven lessons, financial literacy breakdowns
 - **Length:** 5-12 tweets, ~200-280 chars each
 - **Effort level:** medium
@@ -31,6 +32,7 @@ Tweet 9 (CTA): [Follow @StackPenni for more on {topic}. What's your take?]
 
 ### X Single Post
 - **Platforms:** X
+- **Variant type:** single_post
 - **Best for:** hot takes, quick tips, stat drops, announcements, cultural commentary, one-liner wisdom
 - **Length:** 1 tweet, ~100-280 chars
 - **Effort level:** low
@@ -49,6 +51,7 @@ Tweet 9 (CTA): [Follow @StackPenni for more on {topic}. What's your take?]
 
 ### Instagram Carousel
 - **Platforms:** Instagram
+- **Variant type:** carousel
 - **Best for:** step-by-step guides, listicles, frameworks, before/after comparisons, financial literacy explainers, AI tool breakdowns
 - **Length:** 6-10 slides
 - **Effort level:** medium
@@ -76,6 +79,7 @@ Slide 10 (CTA): [Follow @stackpenni. Save this for later. Share with a founder f
 
 ### Instagram Reel Script
 - **Platforms:** Instagram
+- **Variant type:** reel
 - **Best for:** trend commentary, quick tips, cultural observations, behind-the-scenes, motivational messages, tool demos
 - **Length:** 15-60 seconds, ~40-120 words spoken
 - **Effort level:** high
@@ -99,6 +103,7 @@ Slide 10 (CTA): [Follow @stackpenni. Save this for later. Share with a founder f
 
 ### Instagram Single Image Post
 - **Platforms:** Instagram
+- **Variant type:** single_post
 - **Best for:** quotes, announcements, stat highlights, cultural pride posts, simple tips
 - **Length:** 1 image + caption (50-200 words)
 - **Effort level:** low
@@ -120,6 +125,7 @@ Caption CTA: [Follow @stackpenni. Comment your thoughts. Save this.]
 
 ### Instagram Story Series
 - **Platforms:** Instagram
+- **Variant type:** story_series
 - **Best for:** behind-the-scenes, daily tips, event coverage, quick polls, time-sensitive commentary
 - **Length:** 3-7 story frames, each 5-15 seconds
 - **Effort level:** low
@@ -143,6 +149,7 @@ Frame 5 (CTA): [Text: 'Follow @stackpenni for daily {topic} tips'; link sticker 
 
 ### X Poll Post
 - **Platforms:** X
+- **Variant type:** poll
 - **Best for:** audience research, engagement bait, contrarian framing, cultural questions, market validation
 - **Length:** 1 tweet with poll, question + 2-4 options, ~100-200 chars
 - **Effort level:** low
@@ -164,6 +171,7 @@ Frame 5 (CTA): [Text: 'Follow @stackpenni for daily {topic} tips'; link sticker 
 
 ### Newsletter Section
 - **Platforms:** X, Instagram
+- **Variant type:** newsletter
 - **Best for:** weekly roundups, deep analysis, curated links, long-form thought leadership, financial literacy courses
 - **Length:** 500-1500 words per section; full issue 1500-3000 words
 - **Effort level:** high

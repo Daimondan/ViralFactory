@@ -197,22 +197,46 @@ class TestPlatformFallback:
         assert '"X", "Instagram"' not in content
         assert '# fallback' not in content or 'business_config' in content
 
-    def test_resolve_format_platforms_uses_business_config(self):
-        """_resolve_format_platforms falls back to business config platforms."""
-        from produce_chain import _resolve_format_platforms
+    def test_get_platforms_from_format_entry_uses_business_config(self):
+        """_get_platforms_from_format_entry falls back to business config platforms."""
+        from produce_chain import _get_platforms_from_format_entry
         ms = MagicMock()
         ms.get_entry.return_value = None  # no Format Guide entry
         business_config = {"platforms": [{"name": "TikTok"}, {"name": "YouTube"}]}
-        result = _resolve_format_platforms(ms, "test-slug", "some_format", business_config=business_config)
+        result = _get_platforms_from_format_entry(ms, "test-slug", "some_format", business_config=business_config)
         assert result == ["TikTok", "YouTube"]
 
-    def test_resolve_format_platforms_no_config_returns_empty(self):
-        """_resolve_format_platforms returns empty list when no config and no entry."""
-        from produce_chain import _resolve_format_platforms
+    def test_get_platforms_from_format_entry_no_config_returns_empty(self):
+        """_get_platforms_from_format_entry returns empty list when no config and no entry."""
+        from produce_chain import _get_platforms_from_format_entry
         ms = MagicMock()
         ms.get_entry.return_value = None
-        result = _resolve_format_platforms(ms, "test-slug", "some_format", business_config=None)
+        result = _get_platforms_from_format_entry(ms, "test-slug", "some_format", business_config=None)
         assert result == []
+
+    def test_get_platforms_from_format_entry_parses_structured_line(self):
+        """T9.1: Platforms parsed from '- **Platforms:**' structured field, not regex."""
+        from produce_chain import _get_platforms_from_format_entry
+        ms = MagicMock()
+        ms.get_entry.return_value = "### X Thread\n- **Platforms:** X, Instagram\n- **Status:** proven\n"
+        result = _get_platforms_from_format_entry(ms, "test-slug", "X Thread")
+        assert result == ["X", "Instagram"]
+
+    def test_get_variant_type_from_format_entry_parses_structured_line(self):
+        """T9.1: variant_type parsed from '- **Variant type:**' structured field."""
+        from produce_chain import _get_variant_type_from_format_entry
+        ms = MagicMock()
+        ms.get_entry.return_value = "### X Thread\n- **Platforms:** X\n- **Variant type:** thread\n"
+        result = _get_variant_type_from_format_entry(ms, "test-slug", "X Thread")
+        assert result == "thread"
+
+    def test_get_variant_type_returns_none_when_field_missing(self):
+        """T9.1: variant_type returns None when the field is not present."""
+        from produce_chain import _get_variant_type_from_format_entry
+        ms = MagicMock()
+        ms.get_entry.return_value = "### Some Format\n- **Platforms:** X\n"
+        result = _get_variant_type_from_format_entry(ms, "test-slug", "Some Format")
+        assert result is None
 
 
 # ── P2-2: Awaiting-capture cleanup tests ──

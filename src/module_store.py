@@ -1129,13 +1129,14 @@ FORMAT_GUIDE_SCHEMA = {
             "type": "array",
             "items": {
                 "type": "object",
-                "required": ["format_name", "platforms", "best_for", "length",
+                "required": ["format_name", "platforms", "variant_type", "best_for", "length",
                              "structure_notes", "skeleton", "requires_human_capture",
                              "capture_tasks", "effort_level", "reuse_pathways",
                              "status", "provenance"],
                 "properties": {
                     "format_name": {"type": "string"},
                     "platforms": {"type": "array", "items": {"type": "string"}},
+                    "variant_type": {"type": "string"},
                     "best_for": {"type": "array", "items": {"type": "string"}},
                     "length": {"type": "string"},
                     "structure_notes": {"type": "string"},
@@ -1177,6 +1178,7 @@ def format_guide_to_markdown(data: dict, version: str = "1.0") -> str:
     for f in data.get("formats", []):
         lines.append(f"\n### {f['format_name']}")
         lines.append(f"- **Platforms:** {', '.join(f.get('platforms', []))}")
+        lines.append(f"- **Variant type:** {f.get('variant_type', 'single_post')}")
         lines.append(f"- **Best for:** {', '.join(f.get('best_for', []))}")
         lines.append(f"- **Length:** {f.get('length', '')}")
         lines.append(f"- **Effort level:** {f.get('effort_level', '')}")

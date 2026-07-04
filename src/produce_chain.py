@@ -258,8 +258,10 @@ class ProductionChain:
 
         # Resolve platform set from Format Guide entry
         ms = ModuleStore(modules_dir=self.modules_dir, db_path=self.db_path)
-        # P2-1: Pass business config for config-driven platform fallback
-        format_platform_names = _resolve_format_platforms(ms, business_slug, draft_format, business_config=business)
+        # T9.1: Platforms resolved from Format Guide entry's structured Platforms field
+        format_platform_names = _get_platforms_from_format_entry(ms, business_slug, draft_format, business_config=business)
+        # T9.1: Variant type from Format Guide entry's structured Variant type field
+        format_variant_type = _get_variant_type_from_format_entry(ms, business_slug, draft_format) or "single_post"
 
         # T8.5: Source titles for fan-out
         card = store.get_idea_card(card_id)
@@ -278,8 +280,8 @@ class ProductionChain:
                 {"name": platform_name, "handle": ""},
             )
 
-            # Determine variant type
-            variant_type = _determine_variant_type(draft_format, platform_name)
+            # T9.1: Variant type is locked from the Format Guide entry, not keyword heuristics
+            variant_type = format_variant_type
 
             if variant_type in ("thread", "carousel"):
                 # Structure-only LLM call — split into segments, preserve wording
@@ -368,55 +370,63 @@ class ProductionChain:
             return "unknown"
 
 
-# ── Helper functions (mirror those in app.py) ──
+# ── T9.1: Format Guide metadata parsers (mechanical, no keyword heuristics) ──
+# These replace the charter-violating _resolve_format_platforms (regex parser)
+# and _determine_variant_type (keyword heuristic). Per AMENDMENT-007, the
+# format + platform set are locked from the treatment at Gate 1 — no code
+# re-derives them with keyword matching or regex parsing. These functions
+# parse the Format Guide entry's STRUCTURED metadata fields (e.g.
+# "- **Platforms:** X, Instagram") mechanically, the same way you'd parse a
+# YAML field — no judgment, no pattern matching on content.
 
-def _resolve_format_platforms(ms, business_slug: str, format_name: str, business_config: dict = None) -> list:
-    """Resolve the platform set for a format from the Format Guide entry.
-    Uses the same ModuleStore.get_entry API as the app.py version.
-    Falls back to the business config's platform list (config-driven, not hardcoded)."""
+
+def _get_platforms_from_format_entry(ms, business_slug: str, format_name: str,
+                                     business_config: dict = None) -> list:
+    """Resolve platforms for a format from the Format Guide entry's structured
+    '- **Platforms:**' field. Falls back to business config platforms (config-driven)
+    if the entry or line is not found.
+    """
     if not format_name:
         return []
     try:
         entry = ms.get_entry(business_slug, "format-guide", "Formats", format_name)
         if not entry:
-            # P2-1: Fall back to business config platforms, not hardcoded names
             if business_config:
                 return [p["name"] for p in business_config.get("platforms", [])]
             return []
-        # Parse platforms from the entry text
-        import re
-        plat_match = re.search(r"platforms?\s*[:\-]\s*(.+)", entry, re.IGNORECASE)
-        if plat_match:
-            plats_str = plat_match.group(1).strip()
-            # Strip markdown formatting (**, *, backticks)
-            plats_str = re.sub(r"\*+", "", plats_str).strip()
-            # Parse comma or slash separated list
-            plats = [p.strip() for p in re.split(r"[,/]", plats_str) if p.strip()]
-            return plats
-        # No platforms line found — fall back to business config
+        for line in entry.split("\n"):
+            stripped = line.strip()
+            if stripped.startswith("- **Platforms:**"):
+                raw = stripped.split("**Platforms:**", 1)[1].strip()
+                return [p.strip() for p in raw.split(",") if p.strip()]
         if business_config:
             return [p["name"] for p in business_config.get("platforms", [])]
         return []
     except Exception:
-        # P2-1: Fall back to business config platforms, not hardcoded names
         if business_config:
             return [p["name"] for p in business_config.get("platforms", [])]
         return []
 
 
-def _determine_variant_type(format_name: str, platform_name: str) -> str:
-    """Determine the variant type based on format and platform."""
-    platform_lower = platform_name.lower()
-    format_lower = (format_name or "").lower()
-
-    if "thread" in format_lower or platform_lower == "x":
-        return "thread"
-    elif "carousel" in format_lower or "carousel" in platform_lower:
-        return "carousel"
-    elif "reel" in format_lower or "video" in format_lower or "reel" in platform_lower:
-        return "reel"
-    else:
-        return "single_post"
+def _get_variant_type_from_format_entry(ms, business_slug: str, format_name: str) -> str | None:
+    """Resolve variant_type for a format from the Format Guide entry's structured
+    '- **Variant type:**' field. Returns None if the field is not present
+    (T9.2 adds this field to the Format Guide schema). The caller falls back
+    to 'single_post' when None.
+    """
+    if not format_name:
+        return None
+    try:
+        entry = ms.get_entry(business_slug, "format-guide", "Formats", format_name)
+        if not entry:
+            return None
+        for line in entry.split("\n"):
+            stripped = line.strip()
+            if stripped.startswith("- **Variant type:**"):
+                return stripped.split("**Variant type:**", 1)[1].strip()
+        return None
+    except Exception:
+        return None
 
 
 def enqueue_writer_chain(db_path: str, config_dir: str, modules_dir: str, prompts_dir: str,

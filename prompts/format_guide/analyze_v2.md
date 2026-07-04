@@ -1,4 +1,4 @@
-<!-- version: 2.0 -->
+<!-- version: 2.1 -->
 # Format Guide Analysis
 
 You are building a Format Guide module for a content co-creation system — which output format fits which message on which platform.
@@ -34,21 +34,23 @@ Produce a Format Guide as JSON. This is a decision table: message type × platfo
 
 1. **format_name** — the format (thread, single post, reel script, carousel, long-form video, newsletter, etc.)
 2. **platforms** — which platforms this format works on
-3. **best_for** — what message types or subject types this format suits
-4. **length** — target length (words, seconds, or slides)
-5. **structure_notes** — how to structure content in this format
-6. **skeleton** — a fill-in-the-blank template the drafter follows
-7. **requires_human_capture** — does this format require the operator to capture real footage/photos/audio? (none | optional | required) — if required, list capture tasks
-8. **capture_tasks** — list of specific capture tasks if requires_human_capture is not "none" (e.g., "Record 15s of street footage in Bridgetown", "Photograph receipt close-up")
-9. **effort_level** — low | medium | high (how much production effort per piece in this format)
-10. **reuse_pathways** — can this format be reused across platforms or as part of a series? How?
-11. **status** — proven | experimental | retired (defaults to "proven" for established formats, "experimental" for new ones the operator wants to try)
-12. **provenance** — how was this format entry established? (e.g., "Derived from Viral Patterns analysis", "Operator request", "Experiment debut via idea card")
+3. **variant_type** — the structural variant type for asset production: `thread` (multi-post text), `carousel` (multi-slide image), `reel` (short video), `single_post` (one post/image), `story_series` (ephemeral frames), `poll` (poll post), `newsletter` (long-form), or a new type for experimental formats
+4. **best_for** — what message types or subject types this format suits
+5. **length** — target length (words, seconds, or slides)
+6. **structure_notes** — how to structure content in this format
+7. **skeleton** — a fill-in-the-blank template the drafter follows
+8. **requires_human_capture** — does this format require the operator to capture real footage/photos/audio? (none | optional | required) — if required, list capture tasks
+9. **capture_tasks** — list of specific capture tasks if requires_human_capture is not "none" (e.g., "Record 15s of street footage in Bridgetown", "Photograph receipt close-up")
+10. **effort_level** — low | medium | high (how much production effort per piece in this format)
+11. **reuse_pathways** — can this format be reused across platforms or as part of a series? How?
+12. **status** — proven | experimental | retired (defaults to "proven" for established formats, "experimental" for new ones the operator wants to try)
+13. **provenance** — how was this format entry established? (e.g., "Derived from Viral Patterns analysis", "Operator request", "Experiment debut via idea card")
 
 ## Rules
 
 - Cover all platforms the business publishes on
 - Skeletons must be specific enough for a drafter to follow mechanically
+- variant_type is a structural classification, not a format name — it tells the Assembler how to package the content (thread = multi-post, carousel = multi-slide, reel = video, single_post = one post). If unsure, use "single_post"
 - requires_human_capture: "required" means the format CANNOT be produced without the operator capturing something real
 - capture_tasks must be specific and actionable when present
 - reuse_pathways: think about how one piece in this format can spawn derivatives
@@ -67,6 +69,7 @@ Respond with ONLY valid JSON:
     {
       "format_name": "string",
       "platforms": ["string"],
+      "variant_type": "string — thread | carousel | reel | single_post | story_series | poll | newsletter",
       "best_for": ["string — message types"],
       "length": "string",
       "structure_notes": "string",
