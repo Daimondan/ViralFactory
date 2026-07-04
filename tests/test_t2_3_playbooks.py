@@ -129,10 +129,13 @@ def valid_story_frameworks():
         "frameworks": [
             {
                 "subject_type": "AI",
-                "entry_point": "Start with a contrarian claim about AI",
-                "tension": "The gap between AI hype and practical ROI",
-                "turn": "Show a specific real-world example",
-                "landing": "Practical takeaway the reader can use",
+                "structure_name": "dramatic_arc",
+                "beats": [
+                    {"name": "entry_point", "content": "Start with a contrarian claim about AI"},
+                    {"name": "tension", "content": "The gap between AI hype and practical ROI"},
+                    {"name": "turn", "content": "Show a specific real-world example"},
+                    {"name": "landing", "content": "Practical takeaway the reader can use"},
+                ],
                 "grounded_in_example": "https://example.com/ai-thread",
                 "grounded_in_story": "The time I saw a startup waste $50k on AI tools",
                 "voice_compatible": True,
@@ -340,9 +343,9 @@ class TestStoryFrameworksSchema:
         with pytest.raises(ValidationError, match="frameworks"):
             validate_llm_output(json.dumps(valid_story_frameworks), STORY_FRAMEWORKS_SCHEMA, context="test")
 
-    def test_missing_entry_point_fails(self, valid_story_frameworks):
-        del valid_story_frameworks["frameworks"][0]["entry_point"]
-        with pytest.raises(ValidationError, match="entry_point"):
+    def test_missing_structure_name_fails(self, valid_story_frameworks):
+        del valid_story_frameworks["frameworks"][0]["structure_name"]
+        with pytest.raises(ValidationError, match="structure_name"):
             validate_llm_output(json.dumps(valid_story_frameworks), STORY_FRAMEWORKS_SCHEMA, context="test")
 
     def test_voice_compatible_must_be_boolean(self, valid_story_frameworks):
@@ -358,12 +361,13 @@ class TestStoryFrameworksConverter:
         assert "# Story Frameworks — v1.0" in md
         assert "## Frameworks" in md
         assert "### AI" in md
-        assert "Entry point" in md
+        assert "Structure:" in md
+        assert "Entry Point" in md
         assert "Tension" in md
         assert "Turn" in md
         assert "Landing" in md
         assert "Voice compatible" in md
-        assert "story_frameworks_v1" in md
+        assert "story_frameworks_v2" in md
 
 
 class TestStoryFrameworksGateEnforcement:

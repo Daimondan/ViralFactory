@@ -1063,15 +1063,23 @@ STORY_FRAMEWORKS_SCHEMA = {
             "type": "array",
             "items": {
                 "type": "object",
-                "required": ["subject_type", "entry_point", "tension", "turn",
-                             "landing", "grounded_in_example", "grounded_in_story",
+                "required": ["subject_type", "structure_name", "beats",
+                             "grounded_in_example", "grounded_in_story",
                              "voice_compatible", "voice_note"],
                 "properties": {
                     "subject_type": {"type": "string"},
-                    "entry_point": {"type": "string"},
-                    "tension": {"type": "string"},
-                    "turn": {"type": "string"},
-                    "landing": {"type": "string"},
+                    "structure_name": {"type": "string"},
+                    "beats": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": ["name", "content"],
+                            "properties": {
+                                "name": {"type": "string"},
+                                "content": {"type": "string"},
+                            },
+                        },
+                    },
                     "grounded_in_example": {"type": "string"},
                     "grounded_in_story": {"type": "string"},
                     "voice_compatible": {"type": "boolean"},
@@ -1085,7 +1093,8 @@ STORY_FRAMEWORKS_SCHEMA = {
 
 
 def story_frameworks_to_markdown(data: dict, version: str = "1.0") -> str:
-    """Convert validated Story Frameworks JSON into the module markdown."""
+    """Convert validated Story Frameworks JSON into the module markdown.
+    Renders flexible beats — any structure_name + beats array."""
     lines = [f"# Story Frameworks — v{version}"]
 
     lines.append(f"\n## Summary\n{data.get('summary', '')}")
@@ -1093,10 +1102,9 @@ def story_frameworks_to_markdown(data: dict, version: str = "1.0") -> str:
     lines.append("\n## Frameworks")
     for f in data.get("frameworks", []):
         lines.append(f"\n### {f['subject_type']}")
-        lines.append(f"- **Entry point:** {f['entry_point']}")
-        lines.append(f"- **Tension:** {f['tension']}")
-        lines.append(f"- **Turn:** {f['turn']}")
-        lines.append(f"- **Landing:** {f['landing']}")
+        lines.append(f"- **Structure:** {f['structure_name']}")
+        for beat in f.get("beats", []):
+            lines.append(f"- **{beat['name'].replace('_', ' ').title()}:** {beat['content']}")
         lines.append(f"- **Grounded in example:** {f['grounded_in_example']}")
         lines.append(f"- **Grounded in story:** {f['grounded_in_story']}")
         vc = "✓" if f.get("voice_compatible") else "✗"
@@ -1106,7 +1114,7 @@ def story_frameworks_to_markdown(data: dict, version: str = "1.0") -> str:
 
     lines.append(f"\n## Provenance\n- Version: {version}")
     lines.append(f"- Generated: {datetime.now(timezone.utc).isoformat()}")
-    lines.append(f"- Schema: story_frameworks_v1")
+    lines.append(f"- Schema: story_frameworks_v2")
 
     return "\n".join(lines)
 
