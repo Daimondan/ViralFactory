@@ -6,15 +6,26 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
-### 2026-07-04 OPS — DIVERGENCE-009 filed: Architect↔Builder webhook notification loop
+### 2026-07-04 OPS — DIVERGENCE-009 implemented: Architect↔Builder webhook notification loop ACTIVATED
 
-**What:** Designed (but not activated) a GitHub webhook → Hermes webhook pipeline that automatically triggers the other agent when one pushes to the repo. Two routes: `architect-pushed` (triggers builder) and `builder-pushed` (triggers architect). Uses Hermes multi-profile multiplexing (`/p/<profile>/webhooks/<route>`). HMAC-SHA256 signature validation, rate limiting, idempotency. Agent responses can be delivered to WhatsApp.
+**What:** Implemented and activated the asymmetric webhook notification loop:
+1. **Architect → Builder (webhook):** GitHub webhook on push events → `https://vf.glenbeu.com/p/viralfactory/webhooks/architect-pushed` → Hermes webhook adapter → builder profile wakes up, does git pull, checks inbox/reviews/decisions, applies corrections. Response delivered to Daimon's WhatsApp.
+2. **Builder → Architect (cron, every 2h):** Cron job runs significance-filter script → if builder pushed significant changes (feat:/fix:/refactor:/src/*.py/divergences) → architect profile wakes up, reviews diff for charter compliance, writes findings. Response delivered to WhatsApp. Minor changes pile up.
 
-**Why:** Eliminates manual relay between architect and builder. Neither profile has a live messaging channel — the operator had to manually say "go check the repo" to each one. The webhook loop makes the handoff automatic.
+**Infrastructure:**
+- Traefik route added: `vf.glenbeu.com/webhooks/` and `/p/` → port 8644 (no basic auth, HMAC-validated)
+- GitHub webhook created on Daimondan/ViralFactory (ID: 649343246, push events, HMAC secret)
+- Hermes webhook platform: port 8644, two routes, multiplex_profiles=true
+- Cron job: `vf-builder-review-trigger` (every 2h, script filters for significance)
+- WhatsApp delivery: both routes deliver agent responses to Daimon's WhatsApp
 
-**Status:** Design filed at `docs/decisions/DIVERGENCE-009-webhook-notification-loop.md`. Webhook platform configured on default profile (port 8644) but both routes disabled (`enabled: false`). Awaiting operator review before activation (Tailscale Funnel, GitHub webhook setup, route enable).
+**How to disable:**
+- Architect→Builder: set `enabled: false` on `architect-pushed` route in config.yaml + restart gateway
+- Builder→Architect: `hermes cron pause 5ada489bfb4c` (resume with `hermes cron resume`)
+- Both: remove `WEBHOOK_ENABLED` from .env + restart gateway
+- Nuclear: delete GitHub webhook (repo Settings → Webhooks) or `tailscale funnel reset`
 
-**Rationale:** OPS tag — infrastructure for agent-to-agent communication. Config-driven (routes, prompts, secrets in config.yaml). No code changes to ViralFactory. No hardcoded business values. Agent does judgment work (charter compliance review, correction application).
+**Rationale:** OPS tag — eliminates manual relay between architect and builder. Asymmetric design prevents infinite loops. Config-driven (routes, prompts, secrets in config.yaml). No code changes to ViralFactory.
 
 ---
 
