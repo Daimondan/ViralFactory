@@ -1077,7 +1077,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             "sources-engine": ("sources_engine/analyze_v2.md", SOURCE_CRITERIA_SCHEMA, "sources_engine"),
             "viral-patterns-starter": ("viral_patterns/analyze_v2.md", VIRAL_PATTERNS_SCHEMA, "viral_patterns_starter"),
             "audience-insights-builder": ("audience_insights/analyze_v2.md", AUDIENCE_INSIGHTS_SCHEMA, "audience_insights_builder"),
-            "story-frameworks-starter": ("story_frameworks/analyze_v2.md", STORY_FRAMEWORKS_SCHEMA, "story_frameworks_starter"),
+            "story-frameworks-starter": ("story_frameworks/analyze_v3.md", STORY_FRAMEWORKS_SCHEMA, "story_frameworks_starter"),
             "format-guide-starter": ("format_guide/analyze_v2.md", FORMAT_GUIDE_SCHEMA, "format_guide_starter"),
             "visual-style-intake": ("visual_style/analyze_v2.md", VISUAL_STYLE_SCHEMA, "visual_style_intake"),
         }
@@ -1440,7 +1440,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             "sources-engine": ("sources_engine/analyze_v2.md", SOURCE_CRITERIA_SCHEMA, "criteria"),
             "viral-patterns-starter": ("viral_patterns/analyze_v2.md", VIRAL_PATTERNS_SCHEMA, "patterns"),
             "audience-insights-builder": ("audience_insights/analyze_v2.md", AUDIENCE_INSIGHTS_SCHEMA, "insights"),
-            "story-frameworks-starter": ("story_frameworks/analyze_v2.md", STORY_FRAMEWORKS_SCHEMA, "frameworks"),
+            "story-frameworks-starter": ("story_frameworks/analyze_v3.md", STORY_FRAMEWORKS_SCHEMA, "frameworks"),
             "format-guide-starter": ("format_guide/analyze_v2.md", FORMAT_GUIDE_SCHEMA, "guide"),
             "visual-style-intake": ("visual_style/analyze_v2.md", VISUAL_STYLE_SCHEMA, "style_guide"),
         }
@@ -1494,6 +1494,20 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             variables["admired_examples"] = collected.get("story_admired_refs", "(none)")
             variables["operator_stories"] = collected.get("operator_stories", "")
             variables["voice_summary"] = collected.get("voice_summary", "(not available)")
+            # Load narrative patterns config for v3 prompt
+            import yaml as _yaml
+            _patterns_path = os.path.join(app.config["CONFIG_DIR"], "narrative_patterns.yaml")
+            try:
+                with open(_patterns_path) as f:
+                    _patterns_data = _yaml.safe_load(f)
+                variables["narrative_patterns"] = "\n".join(
+                    f"- **{p['name']}**: {p['description']}\n  Beats: {', '.join(p['beats'])}"
+                    for p in _patterns_data["patterns"]
+                )
+                if _patterns_data.get("allow_custom"):
+                    variables["narrative_patterns"] += "\n\nYou may also propose a custom pattern if none of the above fit."
+            except Exception:
+                variables["narrative_patterns"] = "(narrative patterns config not available)"
         elif pb_name == "format-guide-starter":
             variables["platforms"] = platforms_text
             variables["format_observations"] = collected.get("format_observations", "(none)")
@@ -3207,13 +3221,32 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
 
+        # Load narrative patterns config
+        import yaml as _yaml
+        patterns_path = os.path.join(app.config["CONFIG_DIR"], "narrative_patterns.yaml")
+        try:
+            with open(patterns_path) as f:
+                patterns_data = _yaml.safe_load(f)
+            patterns_text = "\n".join(
+                f"- **{p['name']}**: {p['description']}\n  Beats: {', '.join(p['beats'])}"
+                for p in patterns_data["patterns"]
+            )
+            if patterns_data.get("allow_custom"):
+                patterns_text += "\n\nYou may also propose a custom pattern if none of the above fit."
+        except Exception:
+            patterns_text = "(narrative patterns config not available)"
+
         try:
             result = adapter.complete(
-                prompt_file="story_frameworks/analyze_v1.md",
+                prompt_file="story_frameworks/analyze_v3.md",
                 variables={
                     "business_name": business["business"]["name"],
                     "subjects": ", ".join(business.get("subjects", [])),
                     "audience_description": business.get("audience_description", ""),
+                    "narrative_patterns": patterns_text,
+                    "routed_seeds": "(none)",
+                    "conversation_transcript": "(none)",
+                    "materials_content": "(none)",
                     "admired_examples": collected.get("story_admired_refs", "(none provided)"),
                     "operator_stories": operator_stories,
                     "voice_summary": collected.get("voice_summary", "(not yet available)"),
