@@ -1,0 +1,839 @@
+{
+  "experiment": "random_source_chunks_generate_ranked_ideas",
+  "ran_at": "2026-07-05T00:36:52.295060+00:00",
+  "random_seed": 1783211764,
+  "source_count_active": 61,
+  "chunk_size": 10,
+  "chunk_count": 7,
+  "chunk_sizes": [
+    10,
+    10,
+    10,
+    10,
+    10,
+    10,
+    1
+  ],
+  "selected_chunk_indexes": [
+    5,
+    4,
+    3
+  ],
+  "calls": [
+    {
+      "call_no": 1,
+      "chunk_index": 5,
+      "chunk_size": 10,
+      "source_ids": [
+        6,
+        10,
+        20,
+        24,
+        46,
+        48,
+        53,
+        54,
+        55,
+        63
+      ],
+      "attempts": 1,
+      "model": "glm-5.2",
+      "backend": "ollama_glm52_creative",
+      "provider": "ollama_cloud",
+      "temperature": 0.9,
+      "usage": {
+        "latency_ms": 17684,
+        "prompt_eval_count": 11322,
+        "eval_count": 3954,
+        "total_duration_ns": 17495046016,
+        "load_duration_ns": null,
+        "prompt_eval_duration_ns": null,
+        "eval_duration_ns": null
+      },
+      "input_hash": "af198c2a2a73ef9f8ceba3710cc2859e08cfe812f81134b22545327be9118a2d",
+      "verdict": "valid"
+    },
+    {
+      "call_no": 2,
+      "chunk_index": 4,
+      "chunk_size": 10,
+      "source_ids": [
+        15,
+        18,
+        29,
+        38,
+        39,
+        40,
+        41,
+        47,
+        56,
+        61
+      ],
+      "attempts": 1,
+      "model": "glm-5.2",
+      "backend": "ollama_glm52_creative",
+      "provider": "ollama_cloud",
+      "temperature": 0.9,
+      "usage": {
+        "latency_ms": 14980,
+        "prompt_eval_count": 7988,
+        "eval_count": 3722,
+        "total_duration_ns": 14807663301,
+        "load_duration_ns": null,
+        "prompt_eval_duration_ns": null,
+        "eval_duration_ns": null
+      },
+      "input_hash": "f1500768a881f5eebfc5f49bf3b027d2e504e6415ff16168295f72ec864bb40f",
+      "verdict": "valid"
+    },
+    {
+      "call_no": 3,
+      "chunk_index": 3,
+      "chunk_size": 10,
+      "source_ids": [
+        13,
+        25,
+        26,
+        28,
+        34,
+        36,
+        43,
+        44,
+        51,
+        59
+      ],
+      "attempts": 1,
+      "model": "glm-5.2",
+      "backend": "ollama_glm52_creative",
+      "provider": "ollama_cloud",
+      "temperature": 0.9,
+      "usage": {
+        "latency_ms": 15092,
+        "prompt_eval_count": 8027,
+        "eval_count": 3730,
+        "total_duration_ns": 14942973084,
+        "load_duration_ns": null,
+        "prompt_eval_duration_ns": null,
+        "eval_duration_ns": null
+      },
+      "input_hash": "4b3f1c5ca3d351b95da1ee66016e3aa06e5ef5a88bc282708884a922613a1b72",
+      "verdict": "valid"
+    }
+  ],
+  "token_totals": {
+    "prompt_tokens": 27337,
+    "completion_tokens": 11406,
+    "total_tokens": 38743,
+    "exact_from_provider": true
+  },
+  "results": [
+    {
+      "call": {
+        "call_no": 1,
+        "chunk_index": 5,
+        "chunk_size": 10,
+        "source_ids": [
+          6,
+          10,
+          20,
+          24,
+          46,
+          48,
+          53,
+          54,
+          55,
+          63
+        ],
+        "attempts": 1,
+        "model": "glm-5.2",
+        "backend": "ollama_glm52_creative",
+        "provider": "ollama_cloud",
+        "temperature": 0.9,
+        "usage": {
+          "latency_ms": 17684,
+          "prompt_eval_count": 11322,
+          "eval_count": 3954,
+          "total_duration_ns": 17495046016,
+          "load_duration_ns": null,
+          "prompt_eval_duration_ns": null,
+          "eval_duration_ns": null
+        },
+        "input_hash": "af198c2a2a73ef9f8ceba3710cc2859e08cfe812f81134b22545327be9118a2d",
+        "verdict": "valid"
+      },
+      "ideas": [
+        {
+          "rank": 1,
+          "idea": "Caribbean tourism is surging at record rates \u2014 Anguilla up 24.6%, St. Vincent up 12.8%, the Dominican Republic pulling 2.6M visitors in a single quarter \u2014 yet most Caribbean entrepreneurs aren't positioned to capture that spend. The playbook already exists: automated short-term rental arbitrage lets locals turn property into passive income systems, but the gap is in who owns the infrastructure vs. who services it.",
+          "hook_options": [
+            "Anguilla grew tourism 24.6% in one quarter. Guess who's capturing that revenue? Not Anguillians.",
+            "2.6 million people visited the Dominican Republic this quarter. How much of that money stayed local?",
+            "The Caribbean tourism boom is real. The wealth capture is broken. Here's the system that fixes it."
+          ],
+          "source_refs": [
+            6,
+            20
+          ],
+          "source_notes": [
+            {
+              "source_id": 6,
+              "facts_used": "Q1 2026 CTO data: Anguilla +24.6% stayover growth (46,691 visitors), St. Vincent +12.8% (34,959), USVI +12.5% (306,601), Dominican Republic +12.2% (2,603,647), Grenada +12.0% (54,565). Growth attributed to improved airlift, new hotels, and sustained demand.",
+              "take_built_on_facts": "The tourism revenue surge is factual. The opinion is that Caribbean entrepreneurs are undercapturing this spend because they lack the digital property-management systems and ownership strategies that foreign investors use \u2014 framing the Airbnb automation model as a locally applicable solution."
+            },
+            {
+              "source_id": 20,
+              "facts_used": "Airbnb automation strategy scaling from 1 to 150 properties through arbitrage and passive income systems.",
+              "take_built_on_facts": "The automation framework exists as a factual concept from the source. The opinion is that this model is especially relevant for Caribbean markets where tourism demand is proven but local property ownership and digital management adoption lag."
+            }
+          ],
+          "scores": {
+            "virality": 9,
+            "factual_grounding": 8,
+            "opinion_rooted_in_facts": 8,
+            "audience_relevance": 10,
+            "business_fit": 9,
+            "overall": 88
+          },
+          "ranking_reason": "Combines hard tourism data (S6) with a concrete wealth-building system (S20) \u2014 directly hits StackPenni's core intersection of Caribbean economic opportunity, entrepreneurship, and financial literacy. The tension between tourism growth and local wealth capture is inherently shareable and provokes debate. Both sources provide strong factual grounding while the opinion flows naturally from the gap between the two datasets.",
+          "treatment_hint": "X Thread (9 tweets): Open with the tourism growth stat, pivot to who captures the revenue, then break down the property arbitrage framework with Caribbean-specific application. End with a call to audit one property or space you control."
+        },
+        {
+          "rank": 2,
+          "idea": "Caribbean wealth attitudes are shaped by an inherited financial code \u2014 patterns of saving, risk avoidance, and property ownership passed down through generations shaped by colonial history and racial stigma. Before you can build wealth differently, you have to understand the cultural operating system you're running on.",
+          "hook_options": [
+            "Your grandparents' saving habits aren't just habits \u2014 they're an inherited financial code. And it might be costing you.",
+            "Why do Caribbean families save diligently but stay broke? The answer is older than you think.",
+            "You didn't choose your money mindset. Colonial history chose it for you. Here's how to rewrite it."
+          ],
+          "source_refs": [
+            24,
+            53,
+            63
+          ],
+          "source_notes": [
+            {
+              "source_id": 24,
+              "facts_used": "Explores the cultural origin of saving behavior \u2014 how saving patterns are culturally transmitted rather than purely individual choices.",
+              "take_built_on_facts": "The factual basis is that saving behavior has cultural origins. The opinion is that Caribbean-specific saving behaviors trace back to colonial economic structures and that recognizing this is prerequisite to changing wealth-building strategies."
+            },
+            {
+              "source_id": 53,
+              "facts_used": "Examines racial stigma and its consequences on economic behavior and wealth accumulation.",
+              "take_built_on_facts": "Racial stigma's documented consequences on economic outcomes is the fact. The opinion is that these consequences manifest in the Caribbean as inherited financial caution that limits wealth-building to saving rather than investing."
+            },
+            {
+              "source_id": 63,
+              "facts_used": "Concept of 'Inherited Financial Code' as part of Caribbean Wealth Attitudes \u2014 Four Forces Theory framework.",
+              "take_built_on_facts": "The framework exists as a conceptual model. The opinion is that this inherited code is the root cause of the gap between Caribbean earning potential and actual wealth accumulation, and that awareness is the first intervention."
+            }
+          ],
+          "scores": {
+            "virality": 8,
+            "factual_grounding": 7,
+            "opinion_rooted_in_facts": 8,
+            "audience_relevance": 9,
+            "business_fit": 9,
+            "overall": 82
+          },
+          "ranking_reason": "Deeply relevant to StackPenni's financial literacy and Caribbean culture pillars. The inherited financial code concept is provocative and novel for this audience, and it connects historical context to present-day wealth-building \u2014 a narrative that resonates with Caribbean professionals who sense cultural patterns in money behavior but lack the framework to articulate them. Slightly less viral than #1 because the concepts are more abstract.",
+          "treatment_hint": "Instagram Carousel (8 slides): Slide 1 hook about inherited money mindset, slides 2-5 break down the cultural origin of saving behavior and colonial influence, slide 6 introduces the Four Forces framework, slides 7-8 offer the rewrite \u2014 modern financial literacy concepts. CTA to learn one new financial concept."
+        },
+        {
+          "rank": 3,
+          "idea": "Caribbean journalists are grappling with AI's impact on press freedom and content production at the same moment the region's media landscape faces a content boom. The real question isn't whether AI will replace Caribbean journalists \u2014 it's whether Caribbean media will use AI to scale authentic regional storytelling or let generic AI content erase Caribbean voice entirely.",
+          "hook_options": [
+            "Caribbean media has a choice: use AI to amplify our stories, or let AI erase them.",
+            "AI won't kill Caribbean journalism. Caribbean journalism that ignores AI will kill itself.",
+            "The biggest threat to Caribbean press freedom isn't censorship. It's generic AI content with no Caribbean soul."
+          ],
+          "source_refs": [
+            54,
+            48,
+            55
+          ],
+          "source_notes": [
+            {
+              "source_id": 54,
+              "facts_used": "Posits the question of whether Caribbean media is ready for the AI content boom, with concepts of AI-assisted Caribbean journalism and youth strain/status malware.",
+              "take_built_on_facts": "The source frames AI as both opportunity and challenge for Caribbean media. The opinion is that the existential risk is cultural homogenization through generic AI content rather than job displacement, and that Caribbean outlets must adopt AI strategically to preserve rather than dilute regional voice."
+            },
+            {
+              "source_id": 48,
+              "facts_used": "World Press Freedom Day context highlighting new challenges Caribbean media faces in the age of AI.",
+              "take_built_on_facts": "Press freedom challenges in the AI era are the factual backdrop. The opinion is that these challenges are compounded in the Caribbean by smaller media markets and less institutional resilience."
+            },
+            {
+              "source_id": 55,
+              "facts_used": "Caribbean journalists reflecting on AI's impact on their work and press freedom in the digital age.",
+              "take_built_on_facts": "Journalists' reflections on AI impact are the fact. The opinion is that these reflections reveal a pattern of reactive fear rather than proactive strategy, and that Caribbean media needs an offensive \u2014 not defensive \u2014 AI adoption plan."
+            }
+          ],
+          "scores": {
+            "virality": 7,
+            "factual_grounding": 7,
+            "opinion_rooted_in_facts": 8,
+            "audience_relevance": 8,
+            "business_fit": 8,
+            "overall": 76
+          },
+          "ranking_reason": "Strongly aligned with StackPenni's AI and Caribbean culture intersection. Three sources provide convergent evidence on the media-AI tension. Less viral than #1 and #2 because media/journalism is narrower than tourism or personal wealth, but the cultural preservation angle gives it strong audience resonance. The contrarian framing (AI won't replace you \u2014 ignoring AI will) follows the AI story framework well.",
+          "treatment_hint": "X Thread (7 tweets): Hook with the contrarian framing, cite the press freedom context, pivot to the strategic opportunity for Caribbean media entrepreneurs to use AI for scaling authentic regional content. End with CTA to follow @StackPenni for AI + Caribbean content."
+        },
+        {
+          "rank": 4,
+          "idea": "Sandals is reinvesting in Jamaica \u2014 not building new resorts, but reimagining three existing properties including the 1981 original that launched the brand. There's a lesson here for Caribbean entrepreneurs: sometimes the highest-ROI move isn't starting something new \u2014 it's upgrading the asset that already has history, location, and brand equity.",
+          "hook_options": [
+            "Sandals just bet big on Jamaica \u2014 not by building new, but by rebuilding old. There's a wealth lesson in that.",
+            "The resort that launched Sandals in 1981 is getting a full redesign. The business lesson? Don't abandon your best asset \u2014 upgrade it.",
+            "Sandals is pouring millions into renovating Jamaica resorts instead of expanding elsewhere. Caribbean entrepreneurs should take notes."
+          ],
+          "source_refs": [
+            10
+          ],
+          "source_notes": [
+            {
+              "source_id": 10,
+              "facts_used": "Sandals is reopening three Jamaica resorts after extensive renovations: Sandals South Coast (Nov 18), Sandals Montego Bay (Dec 18), and Sandals Caribbean Cay (formerly Royal Caribbean, Dec 18). Sandals Montego Bay is the original 1981 property where the brand launched. Renovations include redesigned pools, new dining concepts, upgraded accommodations. Sandals chose reinvestment over new builds. Prices range from $5,606 to $9,879 per week.",
+              "take_built_on_facts": "The reinvestment-over-new-build strategy and the 40+ year history are factual. The opinion is that this mirrors a wealth-building principle for Caribbean entrepreneurs: the highest-leverage move is often upgrading existing assets with proven market fit rather than chasing new ventures, especially in resource-constrained environments."
+            }
+          ],
+          "scores": {
+            "virality": 6,
+            "factual_grounding": 9,
+            "opinion_rooted_in_facts": 7,
+            "audience_relevance": 7,
+            "business_fit": 7,
+            "overall": 72
+          },
+          "ranking_reason": "Solid factual grounding from a single detailed source. The entrepreneurial lesson \u2014 reinvest in proven assets rather than chasing new \u2014 is a genuine business insight applicable to Caribbean entrepreneurs. Ranked lower because it's more of a business analogy than a data-driven argument, and the tourism-specific context is narrower than the top ideas. Still strong for the entrepreneurship pillar.",
+          "treatment_hint": "Instagram Single Image Post: Image with bold text 'Don't build new. Rebuild proven.' Caption expands the Sandals reinvestment story as a business lesson for Caribbean entrepreneurs, ending with a question about which asset in their business deserves reinvestment."
+        },
+        {
+          "rank": 5,
+          "idea": "The Barbados Landship \u2014 a centuries-old cultural institution now up for UNESCO recognition \u2014 was originally a form of community financial infrastructure: a mutual aid network where members pooled resources for mutual support. As Caribbean communities lose maintainers of these traditional systems, there's an opportunity to study how they worked and reinvent them for the digital age.",
+          "hook_options": [
+            "Before there were banks in the Caribbean, there was the Landship. It was financial infrastructure.",
+            "Barbados is nominating the Landship for UNESCO status. What most people miss is that it was a wealth-building system.",
+            "The Caribbean's oldest financial institution isn't a bank. It's a cultural tradition. And it's disappearing."
+          ],
+          "source_refs": [
+            46,
+            63
+          ],
+          "source_notes": [
+            {
+              "source_id": 46,
+              "facts_used": "UNESCO nomination materials for Landships in Barbados \u2014 a cultural institution with historical significance being submitted for international recognition.",
+              "take_built_on_facts": "The Landship's existence, cultural significance, and UNESCO nomination are factual. The opinion is that the Landship functioned as community financial infrastructure (mutual aid, resource pooling) and that this model holds lessons for modern collective economics in the Caribbean."
+            },
+            {
+              "source_id": 63,
+              "facts_used": "Concept of 'Lost Maintainers' within the Caribbean Wealth Attitudes framework \u2014 referring to the loss of people and systems that maintained traditional community structures.",
+              "take_built_on_facts": "The concept of lost maintainers is the factual framework element. The opinion is that the Landship represents exactly the kind of traditional financial infrastructure being lost, and that digital tools could revive collective economics models inspired by it."
+            }
+          ],
+          "scores": {
+            "virality": 6,
+            "factual_grounding": 6,
+            "opinion_rooted_in_facts": 7,
+            "audience_relevance": 7,
+            "business_fit": 7,
+            "overall": 66
+          },
+          "ranking_reason": "Unique cultural angle that connects Caribbean heritage to financial infrastructure \u2014 directly on-brand for StackPenni's Caribbean culture + financial literacy + digital transformation intersection. Ranked last because the sources provide less concrete detail (S46 and S63 are seed concepts without full content), making the factual grounding thinner and the opinion more speculative. Still a compelling narrative if developed with additional research.",
+          "treatment_hint": "Instagram Carousel (7 slides): Cover slide with the hook, slides 2-4 on the Landship's history and UNESCO nomination, slide 5 on the lost maintainers concept, slides 6-7 on what modern digital mutual aid could look like. CTA to follow @stackpenni for Caribbean wealth + culture content."
+        }
+      ]
+    },
+    {
+      "call": {
+        "call_no": 2,
+        "chunk_index": 4,
+        "chunk_size": 10,
+        "source_ids": [
+          15,
+          18,
+          29,
+          38,
+          39,
+          40,
+          41,
+          47,
+          56,
+          61
+        ],
+        "attempts": 1,
+        "model": "glm-5.2",
+        "backend": "ollama_glm52_creative",
+        "provider": "ollama_cloud",
+        "temperature": 0.9,
+        "usage": {
+          "latency_ms": 14980,
+          "prompt_eval_count": 7988,
+          "eval_count": 3722,
+          "total_duration_ns": 14807663301,
+          "load_duration_ns": null,
+          "prompt_eval_duration_ns": null,
+          "eval_duration_ns": null
+        },
+        "input_hash": "f1500768a881f5eebfc5f49bf3b027d2e504e6415ff16168295f72ec864bb40f",
+        "verdict": "valid"
+      },
+      "ideas": [
+        {
+          "rank": 1,
+          "idea": "The Caribbean 'Sou-Sou' (ROSCA) is a brilliant community tool, but relying on it as a primary wealth-building strategy reflects an 'Inherited Financial Code' that keeps us out of capital markets. We need to evolve from saving circles to scalable digital investments.",
+          "hook_options": [
+            "The Sou-Sou built our community. But it won't build our generational wealth.",
+            "Why our favorite Caribbean savings tradition is quietly keeping us out of the stock market.",
+            "Sou-Sou vs. S&P 500: The Inherited Financial Code holding back Caribbean wealth."
+          ],
+          "source_refs": [
+            47,
+            15,
+            38
+          ],
+          "source_notes": [
+            {
+              "source_id": 47,
+              "facts_used": "Black Women as Co-operators highlights Rotating Savings and Credit Associations (ROSCAs) as a cultural staple, categorized under 'Lost Maintainers' and 'Meeting Turn Sou-Sou and ROSCAs'.",
+              "take_built_on_facts": "While ROSCAs are culturally significant, relying on them exclusively represents a 'Lost Maintainer' mindset that misses out on scalable, compounding wealth from capital markets."
+            },
+            {
+              "source_id": 38,
+              "facts_used": "The Central Bank of Barbados launched a MoneySmart program to address the 'Ownership Gap and Capital Markets' and 'Attitude Gap' in the region.",
+              "take_built_on_facts": "Institutional programs are recognizing the ownership gap; Caribbean entrepreneurs must take personal agency to bridge the gap between traditional ROSCAs and modern digital investing."
+            },
+            {
+              "source_id": 15,
+              "facts_used": "Maps of Meaning discusses 'Inherited Financial Code' and 'Lost Maintainers' in the context of Caribbean Wealth Attitudes.",
+              "take_built_on_facts": "The Sou-Sou is part of our inherited financial code; we don't need to abandon it, but we must update it with modern financial literacy and digital tools."
+            }
+          ],
+          "scores": {
+            "virality": 9,
+            "factual_grounding": 8,
+            "opinion_rooted_in_facts": 9,
+            "audience_relevance": 10,
+            "business_fit": 10,
+            "overall": 92
+          },
+          "ranking_reason": "This idea strikes at the heart of Caribbean cultural identity (Sou-Sou) while challenging the audience to level up their wealth-building strategies using tech and global markets. It perfectly blends cultural pride with a sharp, actionable financial critique.",
+          "treatment_hint": "Instagram Carousel: Slide 1: 'Sou-Sou vs. The Stock Market'. Slide 2: The cultural importance of ROSCAs. Slide 3: The Ownership Gap. Slide 4: How to use digital tools to invest what you'd put in a Sou-Sou. Slide 5: CTA."
+        },
+        {
+          "rank": 2,
+          "idea": "Alex Karp's claim that successful people lack a great social life at 20 forces a reckoning with Caribbean 'liming' culture. Overcoming the 'Attitude Gap' might require sacrificing some social comfort to build the personal agency needed for generational wealth.",
+          "hook_options": [
+            "Alex Karp says you can't be rich and popular at 20. Is Caribbean 'liming' culture costing us wealth?",
+            "The hard truth about success: your Friday night lime might be holding back your net worth.",
+            "Balancing Caribbean culture and the grind: why building wealth requires an Attitude Gap adjustment."
+          ],
+          "source_refs": [
+            29,
+            61,
+            41
+          ],
+          "source_notes": [
+            {
+              "source_id": 29,
+              "facts_used": "Alex Karp, CEO of Palantir, stated he's never met someone really successful with a great social life at 20.",
+              "take_built_on_facts": "This challenges the Caribbean cultural norm of constant socializing (liming), suggesting that extreme success requires a temporary sacrifice of social life to build foundational wealth."
+            },
+            {
+              "source_id": 61,
+              "facts_used": "Jordan Peterson's concept of facing the things that bother you to build confidence, linked to the 'Attitude Gap' and 'Personal Agency'.",
+              "take_built_on_facts": "Facing the discomfort of stepping back from social norms to focus on building systems requires immense personal agency."
+            },
+            {
+              "source_id": 41,
+              "facts_used": "Joe Rogan discusses breaking free from 'quiet desperation', tied to the 'Attitude Gap' and 'Money Scripts'.",
+              "take_built_on_facts": "Accepting the status quo of working a standard job and just liming on weekends is a form of quiet desperation; breaking free requires changing our money scripts."
+            }
+          ],
+          "scores": {
+            "virality": 10,
+            "factual_grounding": 7,
+            "opinion_rooted_in_facts": 8,
+            "audience_relevance": 9,
+            "business_fit": 9,
+            "overall": 88
+          },
+          "ranking_reason": "High virality due to the provocative contrast between a Silicon Valley CEO's advice and Caribbean lifestyle. It directly challenges a beloved cultural norm in a way that sparks debate, which is perfect for engagement.",
+          "treatment_hint": "X Single Post: A bold, contrarian take combining Karp's quote with a question about Caribbean 'liming' culture. High potential for quote-tweets and replies."
+        },
+        {
+          "rank": 3,
+          "idea": "Wealth-building in the Caribbean isn't just about earning more; it's about rewriting our 'Money Scripts.' The financial behaviors we inherited from our parents are an 'Inherited Financial Code' that must be consciously debugged to achieve financial literacy.",
+          "hook_options": [
+            "You inherited your parents' money habits. It's time to debug your financial code.",
+            "Your wealth is dictated by 'Money Scripts' you didn't even write.",
+            "Why Caribbean financial literacy starts with facing our Inherited Financial Code."
+          ],
+          "source_refs": [
+            40,
+            56,
+            18
+          ],
+          "source_notes": [
+            {
+              "source_id": 40,
+              "facts_used": "Research shows that clients' 'Money Scripts' predict their financial behaviors, linked to the 'Attitude Gap'.",
+              "take_built_on_facts": "If our subconscious money scripts dictate our behavior, we must actively identify and rewrite them to close the attitude gap."
+            },
+            {
+              "source_id": 56,
+              "facts_used": "A framework for identifying and understanding clients' money scripts to improve personal agency.",
+              "take_built_on_facts": "We can use established frameworks to audit our own inherited financial beliefs and replace them with wealth-building scripts."
+            },
+            {
+              "source_id": 18,
+              "facts_used": "12 Rules for Life context applied to 'Caribbean Wealth Attitudes' and 'Inherited Financial Code'.",
+              "take_built_on_facts": "Just as we need rules to navigate chaos, we need structured financial rules to navigate the chaos of inherited, outdated financial attitudes."
+            }
+          ],
+          "scores": {
+            "virality": 7,
+            "factual_grounding": 9,
+            "opinion_rooted_in_facts": 9,
+            "audience_relevance": 8,
+            "business_fit": 9,
+            "overall": 84
+          },
+          "ranking_reason": "A strong, educational deep-dive that introduces psychological frameworks (Money Scripts) to a financial literacy context. Less viral than the cultural hot-takes, but highly valuable and saveable for the audience.",
+          "treatment_hint": "X Thread: A step-by-step guide to identifying your inherited money scripts, explaining the Attitude Gap, and providing actionable steps to rewrite your financial code."
+        },
+        {
+          "rank": 4,
+          "idea": "The Central Bank of Barbados launching a MoneySmart program is a step in the right direction, but institutional financial literacy only goes so far. True wealth-building requires the personal agency to face your own financial blind spots and take ownership of your capital market participation.",
+          "hook_options": [
+            "The Central Bank of Barbados wants to make you MoneySmart. But are you ready to take ownership?",
+            "Institutional financial literacy programs are great. Personal agency is better.",
+            "Why the Caribbean's Ownership Gap can't be solved by governments alone."
+          ],
+          "source_refs": [
+            38,
+            61,
+            29
+          ],
+          "source_notes": [
+            {
+              "source_id": 38,
+              "facts_used": "The Central Bank of Barbados launched a MoneySmart Financial Literacy Programme to address the 'Ownership Gap and Capital Markets'.",
+              "take_built_on_facts": "Government programs are a catalyst, but they only work if individuals take the personal agency to apply the knowledge and invest."
+            },
+            {
+              "source_id": 61,
+              "facts_used": "Facing the things that bother you builds confidence and personal agency.",
+              "take_built_on_facts": "Facing our financial ignorance or fear of markets is the first step to building the agency needed to benefit from financial literacy programs."
+            },
+            {
+              "source_id": 29,
+              "facts_used": "Alex Karp's observation on success links to 'Ownership Gap and Capital Markets' and 'Personal Agency'.",
+              "take_built_on_facts": "Closing the ownership gap requires the kind of intense personal agency and focus that leads to real success."
+            }
+          ],
+          "scores": {
+            "virality": 6,
+            "factual_grounding": 8,
+            "opinion_rooted_in_facts": 8,
+            "audience_relevance": 8,
+            "business_fit": 8,
+            "overall": 78
+          },
+          "ranking_reason": "Grounded in a specific, current regional event (Barbados Central Bank) which makes it highly relevant to the audience. It bridges institutional action with individual responsibility.",
+          "treatment_hint": "Instagram Single Image Post: A stat or highlight about the MoneySmart program, with a caption challenging the audience to take personal agency over their financial education."
+        },
+        {
+          "rank": 5,
+          "idea": "Richard Feynman's deep personal agency and emotional resilience, as seen in his love letters, holds a lesson for Caribbean entrepreneurs: building wealth isn't just about math, it's about having the psychological fortitude to rewrite your money scripts and step into the unknown.",
+          "hook_options": [
+            "What Richard Feynman's love letters teach us about Caribbean wealth building.",
+            "Financial literacy isn't just math. It's emotional resilience.",
+            "The psychological fortitude needed to rewrite your financial code."
+          ],
+          "source_refs": [
+            39,
+            56,
+            18
+          ],
+          "source_notes": [
+            {
+              "source_id": 39,
+              "facts_used": "Richard Feynman's love letter to his wife demonstrates profound emotional resilience and personal agency.",
+              "take_built_on_facts": "This emotional resilience is the exact psychological trait needed to overcome financial fears and rewrite outdated money scripts."
+            },
+            {
+              "source_id": 56,
+              "facts_used": "Framework for understanding money scripts and increasing personal agency.",
+              "take_built_on_facts": "Understanding your money scripts requires the courage to look inward, a form of emotional resilience akin to Feynman's focus."
+            },
+            {
+              "source_id": 18,
+              "facts_used": "12 Rules for Life applied to 'Inherited Financial Code' and 'Caribbean Wealth Attitudes'.",
+              "take_built_on_facts": "Discipline and resilience are needed to break the chaos of inherited financial codes and build structured wealth."
+            }
+          ],
+          "scores": {
+            "virality": 6,
+            "factual_grounding": 7,
+            "opinion_rooted_in_facts": 7,
+            "audience_relevance": 7,
+            "business_fit": 8,
+            "overall": 72
+          },
+          "ranking_reason": "A more abstract, philosophical connection between a historical figure's emotional life and financial psychology. It's a unique angle that might appeal to the more introspective professionals in the audience.",
+          "treatment_hint": "Newsletter Section: A reflective piece tying emotional resilience (Feynman) to financial psychology (Money Scripts), suitable for a Sunday newsletter or deep-dive thought leadership."
+        }
+      ]
+    },
+    {
+      "call": {
+        "call_no": 3,
+        "chunk_index": 3,
+        "chunk_size": 10,
+        "source_ids": [
+          13,
+          25,
+          26,
+          28,
+          34,
+          36,
+          43,
+          44,
+          51,
+          59
+        ],
+        "attempts": 1,
+        "model": "glm-5.2",
+        "backend": "ollama_glm52_creative",
+        "provider": "ollama_cloud",
+        "temperature": 0.9,
+        "usage": {
+          "latency_ms": 15092,
+          "prompt_eval_count": 8027,
+          "eval_count": 3730,
+          "total_duration_ns": 14942973084,
+          "load_duration_ns": null,
+          "prompt_eval_duration_ns": null,
+          "eval_duration_ns": null
+        },
+        "input_hash": "4b3f1c5ca3d351b95da1ee66016e3aa06e5ef5a88bc282708884a922613a1b72",
+        "verdict": "valid"
+      },
+      "ideas": [
+        {
+          "rank": 1,
+          "idea": "Caribbean ROSCAs (sou-sous, meeting turns) have long built economic solidarity across Jamaica, Guyana, and Haiti. The take: what if we used fintech and AI to digitize the 'meeting turn,' making it transparent, faster (like Bimpay's transaction speed), and globally scalable for the diaspora?",
+          "hook_options": [
+            "The sou-sou is our greatest financial tradition. But it\u2019s stuck in the past. Here\u2019s how we digitize it.",
+            "What if the 'meeting turn' could run on the blockchain or via AI? The Caribbean just leveled up.",
+            "Jamaica, Guyana, Haiti: we\u2019ve been doing economic solidarity for generations. Now it\u2019s time to scale it."
+          ],
+          "source_refs": [
+            36,
+            34,
+            44,
+            13
+          ],
+          "source_notes": [
+            {
+              "source_id": 36,
+              "facts_used": "Caribbean ROSCAs in Jamaica, Guyana, and Haiti build economic solidarity.",
+              "take_built_on_facts": "These traditional systems can be upgraded and scaled using digital transformation tools to serve the global diaspora."
+            },
+            {
+              "source_id": 34,
+              "facts_used": "Credit, identity, and resilience in the Bahamas and Barbados are tied to these community wealth systems.",
+              "take_built_on_facts": "Digital tools can enhance this resilience by removing geographic and trust frictions."
+            },
+            {
+              "source_id": 44,
+              "facts_used": "Meeting Turn, Sou-Sou, and Caribbean ROSCAs are foundational to Caribbean wealth attitudes.",
+              "take_built_on_facts": "Modernizing these attitudes is necessary for Caribbean entrepreneurs to compete globally."
+            },
+            {
+              "source_id": 13,
+              "facts_used": "Bimpay helps with faster transactions.",
+              "take_built_on_facts": "Faster digital transactions are the missing link to making traditional ROSCAs viable in a modern, fast-paced economy."
+            }
+          ],
+          "scores": {
+            "virality": 8,
+            "factual_grounding": 8,
+            "opinion_rooted_in_facts": 9,
+            "audience_relevance": 10,
+            "business_fit": 9,
+            "overall": 88
+          },
+          "ranking_reason": "Perfect intersection of Caribbean culture (ROSCAs), technology (fintech/AI), and wealth-building. It honors traditional systems while proposing a modern, tech-driven upgrade, hitting every core business subject.",
+          "treatment_hint": "Instagram Carousel or X Thread. Break down the history of the sou-sou, the current friction (slow transactions, trust issues), and the digital solution using frameworks from the module."
+        },
+        {
+          "rank": 2,
+          "idea": "Farrakhan notes that most people want success but avoid the pain that comes with growth. This 'Attitude Gap' is the real barrier to Caribbean wealth-building. The take: we need personal agency and a willingness to endure the friction of learning new tech and financial systems rather than waiting for systemic fixes.",
+          "hook_options": [
+            "Everybody wants Caribbean wealth. Nobody wants the pain of growth to get it.",
+            "The 'Attitude Gap' is costing Caribbean entrepreneurs millions. Here\u2019s how to close it.",
+            "Waiting for the system to fix our economy? The real gap isn't resources, it's our attitude toward pain."
+          ],
+          "source_refs": [
+            59,
+            43,
+            25
+          ],
+          "source_notes": [
+            {
+              "source_id": 59,
+              "facts_used": "Louis Farrakhan speaks on the hard truth that most people want success but avoid the pain of growth.",
+              "take_built_on_facts": "This pain avoidance maps directly to the reluctance of Caribbean businesses to adopt new financial and tech systems."
+            },
+            {
+              "source_id": 43,
+              "facts_used": "Concepts of the Attitude Gap and Personal Agency.",
+              "take_built_on_facts": "Closing the attitude gap requires taking personal agency over wealth-building instead of adopting a passive mindset."
+            },
+            {
+              "source_id": 25,
+              "facts_used": "Thomas Sowell discusses intellectuals, social justice, and the urge to power.",
+              "take_built_on_facts": "Focusing on systemic social justice can sometimes distract from the personal agency required to build wealth individually."
+            }
+          ],
+          "scores": {
+            "virality": 9,
+            "factual_grounding": 8,
+            "opinion_rooted_in_facts": 9,
+            "audience_relevance": 9,
+            "business_fit": 8,
+            "overall": 86
+          },
+          "ranking_reason": "High virality due to a strong, contrarian hot take on hustle culture and pain. It challenges the audience directly and promotes entrepreneurship and personal agency.",
+          "treatment_hint": "X Single Post or Instagram Reel Script. Use a blunt, high-energy delivery to challenge the audience's mindset about growth and digital transformation."
+        },
+        {
+          "rank": 3,
+          "idea": "Sou-sous build community, but the 'Ownership Gap' shows they keep Caribbean money stagnant compared to capital markets. The take: we need to graduate from the sou-sou to global capital markets, keeping the solidarity but gaining the compounding growth of 'money in motion.'",
+          "hook_options": [
+            "Your sou-sou is keeping you broke. Here\u2019s the financial truth nobody tells you.",
+            "Wealth is money in motion. Your sou-sou is money sitting still. Let\u2019s fix that.",
+            "The Caribbean sou-sou builds trust, but capital markets build generational wealth. We need both."
+          ],
+          "source_refs": [
+            44,
+            51,
+            36
+          ],
+          "source_notes": [
+            {
+              "source_id": 44,
+              "facts_used": "Meeting Turn, Sou-Sou, and Caribbean ROSCAs are common wealth-building tools.",
+              "take_built_on_facts": "While culturally significant, these tools lack the compounding interest mechanisms of modern capital markets."
+            },
+            {
+              "source_id": 51,
+              "facts_used": "Wealth is money continuously growing, vibrant, and in motion.",
+              "take_built_on_facts": "Money trapped in a rotating sou-sou cycle is not continuously growing into greater abundance."
+            },
+            {
+              "source_id": 36,
+              "facts_used": "Caribbean ROSCAs build economic solidarity.",
+              "take_built_on_facts": "Solidarity is good, but to close the ownership gap, Caribbean professionals must also participate in scalable digital assets and global index funds."
+            }
+          ],
+          "scores": {
+            "virality": 8,
+            "factual_grounding": 8,
+            "opinion_rooted_in_facts": 8,
+            "audience_relevance": 9,
+            "business_fit": 9,
+            "overall": 84
+          },
+          "ranking_reason": "Contrarian financial literacy take that respects Caribbean culture but pushes the audience toward advanced wealth-building strategies. High relevance to the financial literacy and wealth subjects.",
+          "treatment_hint": "X Thread breaking down the mechanics of sou-sou vs. compound interest in capital markets, ending with a CTA to learn one new financial concept today."
+        },
+        {
+          "rank": 4,
+          "idea": "Caribbean wealth attitudes are an 'inherited financial code.' Fintech like Bimpay (faster transactions) and AI tools can rewrite this code for digital transformation, turning slow cash economies into 'money in motion.'",
+          "hook_options": [
+            "Your grandparents\u2019 financial code is holding your business back. Time for an AI upgrade.",
+            "From inherited financial code to money in motion: the Caribbean digital transformation playbook.",
+            "Cash is slow. Bimpay is fast. AI is smart. Here\u2019s how to rewrite your wealth code."
+          ],
+          "source_refs": [
+            25,
+            13,
+            51
+          ],
+          "source_notes": [
+            {
+              "source_id": 25,
+              "facts_used": "Concept of Inherited Financial Code and AI-Assisted Caribbean Journalism.",
+              "take_built_on_facts": "The inherited financial code of the Caribbean (cash-heavy, slow) can be actively rewritten using AI and digital tools."
+            },
+            {
+              "source_id": 13,
+              "facts_used": "Bimpay will help with faster transactions.",
+              "take_built_on_facts": "Faster transaction speeds are the literal mechanism for turning stagnant inherited wealth into money in motion."
+            },
+            {
+              "source_id": 51,
+              "facts_used": "Wealth is money in motion and continuously growing.",
+              "take_built_on_facts": "Digital transformation is the vehicle that allows Caribbean businesses to keep their money vibrant and growing."
+            }
+          ],
+          "scores": {
+            "virality": 7,
+            "factual_grounding": 7,
+            "opinion_rooted_in_facts": 8,
+            "audience_relevance": 9,
+            "business_fit": 10,
+            "overall": 82
+          },
+          "ranking_reason": "Strong business fit hitting AI, digital transformation, and wealth. Slightly lower on factual grounding because 'inherited financial code' is a conceptual framing rather than a hard data point.",
+          "treatment_hint": "Instagram Carousel showing the evolution from paper ledgers/cash to digital tools like Bimpay and AI assistants."
+        },
+        {
+          "rank": 5,
+          "idea": "Fact: Love alone isn\u2019t enough for a lasting marriage; you need aligned values. The take: in Caribbean wealth-building, choosing a partner who supports your financial vision is step one to closing the ownership gap and building generational wealth.",
+          "hook_options": [
+            "Love won\u2019t make you rich. Shared financial values will.",
+            "Your spouse is your first business partner. Are your financial codes aligned?",
+            "Want to close the ownership gap? Start by checking if your partner shares your wealth vision."
+          ],
+          "source_refs": [
+            26,
+            28,
+            51
+          ],
+          "source_notes": [
+            {
+              "source_id": 26,
+              "facts_used": "Love alone isn\u2019t enough; a lasting marriage requires choosing a partner who aligns with values, supports vision, and complements life.",
+              "take_built_on_facts": "This applies directly to wealth-building: a partner misaligned on financial vision will sabotage wealth accumulation."
+            },
+            {
+              "source_id": 28,
+              "facts_used": "Justin Green discusses Spiritual Leadership in Marriage (Ephesians 5).",
+              "take_built_on_facts": "Spiritual and financial leadership in a household must be aligned to successfully navigate the ownership gap."
+            },
+            {
+              "source_id": 51,
+              "facts_used": "Concepts of Money Scripts and Ownership Gap.",
+              "take_built_on_facts": "Couples must share the same 'money script' (money in motion) to effectively close the ownership gap together."
+            }
+          ],
+          "scores": {
+            "virality": 7,
+            "factual_grounding": 8,
+            "opinion_rooted_in_facts": 7,
+            "audience_relevance": 8,
+            "business_fit": 7,
+            "overall": 75
+          },
+          "ranking_reason": "Unique angle on wealth-building through relationships and values. Slightly less technical/business-focused than the others, but highly relevant to the personal finance and generational wealth aspects of the audience.",
+          "treatment_hint": "Instagram Single Image Post with a bold quote about values and wealth, caption expanded to discuss money scripts and the ownership gap."
+        }
+      ]
+    }
+  ]
+}
