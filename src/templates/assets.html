@@ -102,6 +102,33 @@
         /* Spinner */
         .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(74,111,165,0.2); border-top-color: #4A6FA5; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 4px; vertical-align: middle; }
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Poll mock card — renders an X poll as the audience would see it ── */
+        .poll-mock { padding: 16px; background: #FAF8F3; border-radius: 12px; margin: 0; }
+        .poll-mock-header { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+        .poll-mock-avatar { width: 36px; height: 36px; border-radius: 50%; background: #E54B2C; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1rem; }
+        .poll-mock-name { font-weight: 700; font-size: 0.9rem; color: #1A1A1A; }
+        .poll-mock-sub { font-size: 0.75rem; color: #8A857C; }
+        .poll-mock-body { font-size: 0.92rem; line-height: 1.55; color: #1A1A1A; white-space: pre-wrap; margin-bottom: 14px; }
+        .poll-mock-question { font-size: 0.8rem; font-weight: 600; color: #8A857C; margin-bottom: 8px; }
+        .poll-mock-options { display: flex; flex-direction: column; gap: 8px; }
+        .poll-mock-option { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #FFFFFF; border: 1px solid #D8D4C8; border-radius: 10px; font-size: 0.85rem; color: #1A1A1A; transition: border-color 0.15s; }
+        .poll-mock-option:hover { border-color: #E54B2C; }
+        .poll-option-radio { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #8A857C; flex-shrink: 0; }
+        .poll-mock-footer { display: flex; justify-content: space-between; margin-top: 12px; font-size: 0.72rem; color: #8A857C; }
+
+        /* ── Newsletter mock — readable long-form text ── */
+        .newsletter-mock { padding: 0; }
+        .newsletter-mock-header { padding: 16px; border-bottom: 1px solid #D8D4C8; }
+        .newsletter-mock-title { font-family: Georgia, serif; font-size: 1.15rem; font-weight: 700; color: #1A1A1A; line-height: 1.4; }
+        .newsletter-mock-meta { font-size: 0.75rem; color: #8A857C; margin-top: 4px; }
+        .newsletter-mock-body { max-height: 500px; overflow-y: auto; }
+        .newsletter-section { padding: 14px 16px; border-bottom: 1px solid #F0EDE4; }
+        .newsletter-section:last-child { border-bottom: none; }
+        .newsletter-section-text { font-size: 0.88rem; line-height: 1.65; color: #1A1A1A; white-space: pre-wrap; }
+
+        /* ── Text-only single post (no image needed) ── */
+        .text-only-post { padding: 20px; font-size: 0.92rem; line-height: 1.55; color: #1A1A1A; white-space: pre-wrap; text-align: left; width: 100%; }
     </style>
 </head>
 <body>
@@ -185,6 +212,9 @@
         {% set is_carousel = 'carousel' in (asset.variant_type or '')|lower %}
         {% set is_story_series = 'story' in (asset.variant_type or '')|lower %}
         {% set is_reel = 'reel' in (asset.variant_type or '')|lower or 'video' in (asset.variant_type or '')|lower %}
+        {% set is_poll = 'poll' in (asset.variant_type or '')|lower %}
+        {% set is_newsletter = 'newsletter' in (asset.variant_type or '')|lower %}
+        {% set is_text_only = is_poll or is_newsletter %}
         {% set has_posts = asset.posts_parsed and asset.posts_parsed|length > 0 %}
         {% set has_images = asset.images and asset.images|length > 0 %}
         {% set has_final = asset.final_cuts and asset.final_cuts|length > 0 %}
@@ -271,32 +301,88 @@
                 </div>
             </div>
 
+            {% elif is_poll and has_posts %}
+            {# X POLL: render as a mock poll card — text + question + options #}
+            <div class="poll-mock">
+                {% set poll_text = asset.posts_parsed[0] if has_posts else asset.content %}
+                {# Try to split the post into body text + poll question + options #}
+                {% set poll_parts = poll_text.split('[POLL]') if '[POLL]' in poll_text else [poll_text, ''] %}
+                {% set poll_body = poll_parts[0].strip() if poll_parts|length > 1 else poll_text %}
+                {% set poll_block = poll_parts[1].strip() if poll_parts|length > 1 else '' %}
+                <div class="poll-mock-header">
+                    <div class="poll-mock-avatar">@</div>
+                    <div>
+                        <div class="poll-mock-name">{{ handle }}</div>
+                        <div class="poll-mock-sub">@{{ handle|replace('@','') }}</div>
+                    </div>
+                </div>
+                <div class="poll-mock-body">{{ poll_body }}</div>
+                {% if poll_block %}
+                <div class="poll-mock-question">Poll</div>
+                <div class="poll-mock-options">
+                    {% for line in poll_block.splitlines() if line.strip() and line.strip() != '•' %}
+                    {% set option = line.strip()|replace('•','')|trim %}
+                    {% if option %}
+                    <div class="poll-mock-option">
+                        <span class="poll-option-radio"></span>
+                        <span>{{ option }}</span>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+                <div class="poll-mock-footer">
+                    <span>📊 Poll</span>
+                    <span>{{ handle }}</span>
+                </div>
+            </div>
+
+            {% elif is_newsletter and has_posts %}
+            {# NEWSLETTER: render as a readable long-form text block #}
+            <div class="newsletter-mock">
+                <div class="newsletter-mock-header">
+                    <div class="newsletter-mock-title">{{ asset.content }}</div>
+                    <div class="newsletter-mock-meta">{{ handle }}</div>
+                </div>
+                <div class="newsletter-mock-body">
+                    {% for post in asset.posts_parsed %}
+                    <div class="newsletter-section">
+                        <div class="newsletter-section-text">{{ post }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
             {% else %}
-            {# SINGLE POST: image + caption #}
+            {# SINGLE POST: image + caption — use actual post text, not the summary #}
             {% set frame_class = 'horizontal' %}
+            {% set single_text = asset.posts_parsed[0] if has_posts else asset.content %}
             <div class="media-frame {{ frame_class }}">
                 {% if has_images %}
                 <img src="/media/{{ asset.images[0].path }}" alt="Visual" onclick="openLightbox(this.src, '{{ handle }}')">
                 {% elif asset.generated_images_parsed and asset.generated_images_parsed|length > 0 %}
                 <img src="/media/{{ asset.generated_images_parsed[0] }}" alt="Visual" onclick="openLightbox(this.src, '{{ handle }}')">
                 {% else %}
-                <div class="media-placeholder">No image generated yet</div>
+                {# Text-only single post — no image needed, show text directly #}
+                <div class="text-only-post">{{ single_text }}</div>
                 {% endif %}
             </div>
+            {% if has_images or (asset.generated_images_parsed and asset.generated_images_parsed|length > 0) %}
             <div style="padding: 12px 16px;">
-                <div class="post-text">{{ asset.content }}</div>
+                <div class="post-text">{{ single_text }}</div>
                 <div class="post-meta" style="margin-top: 4px;">
                     <span class="handle">{{ handle }}</span>
-                    <span>{{ asset.content|length }} chars</span>
+                    <span>{{ single_text|length }} chars</span>
                 </div>
             </div>
+            {% endif %}
             {% endif %}
 
             {# ── Step-by-step flow: one clear action at a time ── #}
             <div class="step-flow">
 
-                {# Step 1: Generate images (for image-based formats) #}
-                {% if not is_reel %}
+                {# Step 1: Generate images (only for image-based formats — skip polls, newsletters, text-only) #}
+                {% if not is_reel and not is_text_only %}
                 <div class="step">
                     <div class="step-label">
                         <span class="step-num {{ 'done' if has_images else 'active' }}">{{ '✓' if has_images else '1' }}</span>
@@ -308,11 +394,23 @@
                     </div>
                     {% if not has_images and asset.image_prompts_parsed and asset.image_prompts_parsed|length > 0 %}
                     {% set active_count = asset.image_prompts_parsed | reject('eq', 'none') | reject('eq', 'None') | list | length %}
+                    {% if active_count > 0 %}
                     <button class="btn btn-primary" onclick="generateVisuals({{ asset.id }}, this)">Generate {{ active_count }} image{{ 's' if active_count > 1 else '' }}</button>
                     <div class="status-line" id="status-{{ asset.id }}" style="display: none;"></div>
+                    {% else %}
+                    <p style="font-size: 0.78rem; color: #A8A399;">No image prompts on this variant.</p>
+                    {% endif %}
                     {% elif not has_images %}
                     <p style="font-size: 0.78rem; color: #A8A399;">No image prompts on this variant.</p>
                     {% endif %}
+                </div>
+                {% elif not is_reel and is_text_only %}
+                {# Text-only formats (poll, newsletter) — no image step needed #}
+                <div class="step">
+                    <div class="step-label">
+                        <span class="step-num done">✓</span>
+                        Text-only format — ready for review
+                    </div>
                 </div>
                 {% endif %}
 
