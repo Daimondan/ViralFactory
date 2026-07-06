@@ -68,6 +68,9 @@ def test_draft_page_shows_single_post_reel_script(template_app):
             card=card,
             treatment={},
             hook_options=[],
+            evidence_links=[],
+            source_refs=[],
+            capture_tasks=[],
             draft=draft,
             draft_visuals=[],
             scope_labels={},
@@ -77,7 +80,7 @@ def test_draft_page_shows_single_post_reel_script(template_app):
     assert full_script in html
     assert "Summary only — should not be the visible script</div>" not in html
     assert "AI Format" not in html
-    assert "Format:" in html
+    assert "Original idea card" in html
 
 
 def test_assets_page_approved_script_uses_platform_content_not_draft_summary(template_app):

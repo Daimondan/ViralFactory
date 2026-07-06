@@ -4856,6 +4856,15 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         treatment = json.loads(card.get("treatment") or "{}")
         hook_options = json.loads(card.get("hook_options") or "[]")
+        evidence_links = json.loads(card.get("evidence_links") or "[]")
+        source_refs = json.loads(card.get("source_refs") or "[]")
+        capture_required = treatment.get("capture_required") or []
+        capture_tasks = []
+        if isinstance(capture_required, list):
+            capture_tasks = [
+                item.get("task", item) if isinstance(item, dict) else item
+                for item in capture_required
+            ]
 
         # Check if a draft already exists for this card
         all_drafts = store.list_drafts(business_slug)
@@ -4910,6 +4919,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         return render_template("draft.html",
             business_name=business_name, card=card,
             treatment=treatment, hook_options=hook_options,
+            evidence_links=evidence_links, source_refs=source_refs,
+            capture_tasks=capture_tasks,
             draft=_parse_draft_for_display(existing_draft),
             draft_visuals=draft_visuals,
             scope_labels=SCOPE_LABELS, trail=trail)
