@@ -51,7 +51,8 @@
         <div class="asset-platform">{{ asset.platform }} — {{ asset.variant_type }}</div>
         <div class="asset-content">{{ asset.content[:500] }}{% if asset.content|length > 500 %}...{% endif %}</div>
         <div class="schedule-row">
-            <label>Schedule for: </label>
+            <button class="btn btn-go" onclick="postNow({{ asset.id }}, this)">Post now</button>
+            <label>or schedule for: </label>
             <input type="datetime-local" id="schedule-{{ asset.id }}">
             <button class="btn btn-go" onclick="schedule({{ asset.id }}, this)">Schedule & Post</button>
             <button class="btn btn-hold" onclick="hold({{ asset.id }}, this)">Hold</button>
@@ -88,6 +89,20 @@ fetch('/api/buffer/status').then(r => r.json()).then(data => {
         box.innerHTML = '<div class="warn-box">⚠️ Buffer not available. Set <code>BUFFER_API_KEY</code> env var and configure buffer channels to enable auto-publishing. Until then, scheduling marks a piece as ready and you can copy content manually.</div>';
     }
 }).catch(() => {});
+
+function postNow(id, btn) {
+    var errDiv = document.getElementById('error-' + id);
+    if (!confirm('Post this to ' + (btn.closest('.asset-card').querySelector('.asset-platform')?.textContent || 'the platform') + ' now?')) return;
+    errDiv.innerHTML = '';
+    busyAction(btn, '/api/assets/' + id + '/schedule', {
+        busyLabel: 'Posting…',
+        body: JSON.stringify({post_now: true}),
+        reloadOnSuccess: true,
+        onError: function(msg) {
+            errDiv.innerHTML = '<div class="error-box">' + msg + '</div>';
+        }
+    });
+}
 
 function schedule(id, btn) {
     var dt = document.getElementById('schedule-' + id).value;

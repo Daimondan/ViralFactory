@@ -6371,7 +6371,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
     @app.route("/api/assets/<int:asset_id>/schedule", methods=["POST"])
     def schedule_publish(asset_id):
         """T4.1: Schedule an approved asset for publish via Buffer (go + timing).
-        HARD RULE: asset must be 'approved' — no auto-publish."""
+        HARD RULE: asset must be 'approved' — no auto-publish.
+        post_now=true → share immediately (Buffer shareNow mode)."""
         business_slug = _get_business_slug()
         if not business_slug:
             return jsonify({"error": "Business not configured"}), 500
@@ -6383,8 +6384,12 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         if asset["asset_state"] != "approved":
             return jsonify({"error": "Asset must be approved first — no auto-publish"}), 400
 
-        scheduled_at = request.json.get("scheduled_at", "")
-        if not scheduled_at:
+        body = request.json or {}
+        scheduled_at = body.get("scheduled_at", "")
+        post_now = body.get("post_now", False)
+
+        # Hold = empty scheduled_at and not post_now → don't publish
+        if not scheduled_at and not post_now:
             return jsonify({"status": "ok", "message": "Held — not scheduled"})
 
         # ── Buffer publish path ──
