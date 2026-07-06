@@ -5298,6 +5298,74 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             "draft_text": updated["draft_text"],
         })
 
+    @app.route("/api/draft/<int:draft_id>/edit-platform/<int:variant_index>", methods=["POST"])
+    def draft_edit_platform(draft_id, variant_index):
+        """Edit the posts for a specific platform variant in platform_content.
+
+        Saves the edited posts array back into platform_content[variant_index].
+        Bumps draft_version, logs a weight-3 direct_edit feedback entry.
+        """
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        store = _get_pipeline_store()
+        draft = store.get_draft(draft_id)
+        if not draft:
+            return jsonify({"error": "Draft not found"}), 404
+
+        new_posts = request.json.get("posts", [])
+        if not new_posts:
+            return jsonify({"error": "posts is required and must not be empty"}), 400
+
+        platform_content = json.loads(draft.get("platform_content") or "[]")
+        if variant_index < 0 or variant_index >= len(platform_content):
+            return jsonify({"error": "Invalid variant index"}), 400
+
+        # Capture old posts for diff
+        old_posts = platform_content[variant_index].get("posts", [])
+        old_text = "\n".join(old_posts)
+        new_text = "\n".join(new_posts)
+
+        # Update the posts for this variant
+        platform_content[variant_index]["posts"] = new_posts
+        # Update content summary if single-post variant
+        if len(new_posts) == 1 and platform_content[variant_index].get("variant_type") in ("single_post", "reel", "poll", "newsletter"):
+            platform_content[variant_index]["content"] = new_posts[0]
+
+        # Generate diff
+        import difflib
+        diff_lines = list(difflib.unified_diff(
+            old_text.splitlines(keepends=True),
+            new_text.splitlines(keepends=True),
+            fromfile=f"{platform_content[variant_index].get('platform','?')}/old",
+            tofile=f"{platform_content[variant_index].get('platform','?')}/new",
+            n=1,
+        ))
+        diff_text = "".join(diff_lines)
+        if len(diff_text) > 4000:
+            diff_text = diff_text[:4000] + "\n[...diff truncated]"
+
+        # Save updated platform_content + bump version
+        store.save_platform_content(draft_id, platform_content)
+
+        # Bump version separately (save_platform_content doesn't bump)
+        import sqlite3 as _sqlite3
+        conn = _sqlite3.connect(app.config["DB_PATH"])
+        conn.execute("UPDATE drafts SET draft_version = draft_version + 1 WHERE id = ?", (draft_id,))
+        conn.commit()
+        conn.close()
+
+        # Log the diff as feedback
+        store.add_feedback(
+            business_slug=business_slug,
+            feedback_type="direct_edit",
+            feedback_text=diff_text,
+            draft_id=draft_id,
+        )
+
+        return jsonify({"status": "ok", "draft_id": draft_id})
+
     @app.route("/api/draft/<int:draft_id>/gate", methods=["POST"])
     def draft_gate(draft_id):
         """Gate 2 decision: ship-forward or kill the draft."""

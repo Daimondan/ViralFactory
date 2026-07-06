@@ -204,9 +204,14 @@
         <div class="platform-content-entry" style="margin-bottom: 20px; border: 1px solid #D8D4C8; border-radius: 8px; overflow: hidden;">
             <div style="padding: 8px 16px; background: #F0EDE4; border-bottom: 1px solid #D8D4C8; display: flex; justify-content: space-between; align-items: center;">
                 <strong style="font-size: 0.9rem; color: #E54B2C;">{{ pc.platform }}</strong>
-                <span style="font-size: 0.78rem; color: #8A857C;">{{ pc.variant_type }}</span>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 0.78rem; color: #8A857C;">{{ pc.variant_type }}</span>
+                    {% if draft.draft_state != 'shipped' %}
+                    <button class="btn btn-edit" style="font-size: 0.72rem; padding: 3px 8px;" onclick="toggleEditPlatform({{ loop.index0 }}, this)">✏️ Edit</button>
+                    {% endif %}
+                </div>
             </div>
-            <div style="padding: 12px 16px;">
+            <div style="padding: 12px 16px;" id="variant-display-{{ loop.index0 }}">
                 {% if pc.posts and pc.posts|length > 0 %}
                 <div class="post-list" style="margin: 0;">
                     {% for post in pc.posts %}
@@ -221,6 +226,38 @@
                 {% else %}
                 <div style="white-space: pre-wrap; font-size: 0.92rem; line-height: 1.7; color: #1A1A1A;">{{ pc.content }}</div>
                 {% endif %}
+
+                {# Per-platform image prompts #}
+                {% if pc.image_prompts and pc.image_prompts|length > 0 %}
+                {% set active_prompts = pc.image_prompts | reject('eq', 'none') | reject('eq', 'None') | list %}
+                {% if active_prompts and active_prompts|length > 0 %}
+                <details style="margin-top: 12px; border-top: 1px solid #F0EDE4; padding-top: 10px;">
+                    <summary style="cursor: pointer; font-size: 0.78rem; color: #8A857C;">Image prompts for this variant ({{ active_prompts|length }})</summary>
+                    <ul style="margin: 6px 0 0 18px; font-size: 0.78rem; line-height: 1.5; color: #555;">
+                    {% for prompt in pc.image_prompts %}
+                        {% if prompt and prompt.strip().lower() != 'none' %}
+                        <li style="margin-bottom: 4px;">{{ prompt }}</li>
+                        {% endif %}
+                    {% endfor %}
+                    </ul>
+                </details>
+                {% endif %}
+                {% endif %}
+            </div>
+
+            {# Edit area (hidden by default) #}
+            <div style="padding: 12px 16px; display: none;" id="variant-edit-{{ loop.index0 }}">
+                <textarea id="variantTextarea-{{ loop.index0 }}" style="width:100%; min-height:300px; padding:12px; border-radius:8px; border:1px solid #D8D4C8; background:#F0EDE4; color:#1A1A1A; font-size:0.92rem; line-height:1.7; resize:vertical; font-family:inherit; white-space: pre-wrap;">{% for post in pc.posts %}{{ post }}{% if not loop.last %}
+
+---POST BREAK---
+
+{% endif %}{% endfor %}</textarea>
+                <p style="font-size: 0.72rem; color: #8A857C; margin-top: 4px;">Each post is separated by <code>---POST BREAK---</code>. Edit the text and save.</p>
+                <div style="display:flex; gap:8px; margin-top:8px;">
+                    <button class="btn btn-ship" onclick="saveEditPlatform({{ loop.index0 }}, this)">Save</button>
+                    <button class="btn btn-edit" onclick="cancelEditPlatform({{ loop.index0 }})">Cancel</button>
+                </div>
+                <div id="editStatus-{{ loop.index0 }}" class="status-line" style="display:none;"></div>
             </div>
         </div>
         {% endfor %}
@@ -228,21 +265,6 @@
     {% elif draft.draft_text %}
     <h2>Draft text</h2>
     <div class="draft-text" id="draft-text">{{ draft.draft_text }}</div>
-    {% endif %}
-
-    {# F1: Edit draft toggle — direct edits write draft_text directly #}
-    {% if draft.draft_state != 'shipped' and draft.draft_text %}
-    <div id="edit-draft-area" style="display:none; margin-bottom: 16px;">
-        <textarea id="editDraftTextarea" style="width:100%; min-height:300px; padding:12px; border-radius:8px; border:1px solid #D8D4C8; background:#F0EDE4; color:#1A1A1A; font-size:0.95rem; line-height:1.7; resize:vertical; font-family:inherit;">{{ draft.draft_text }}</textarea>
-        <div style="display:flex; gap:8px; margin-top:8px;">
-            <button class="btn btn-ship" id="saveEditBtn" onclick="saveEditedText()">Save edit</button>
-            <button class="btn btn-edit" onclick="cancelEditDraft()">Cancel</button>
-        </div>
-        <div id="editStatus" class="status-line" style="display:none;"></div>
-    </div>
-    <div class="actions" style="margin: 8px 0;">
-        <button class="btn btn-edit" id="editDraftBtn" onclick="toggleEditDraft()">✏️ Edit draft</button>
-    </div>
     {% endif %}
 
     {% if draft.self_audit_flags_parsed %}
@@ -475,40 +497,40 @@ function sendText() {
     });
 }
 
-// F1: Edit draft toggle — direct edits write draft_text via /edit-text endpoint
-function toggleEditDraft() {
-    var display = document.getElementById('draft-text');
-    var editArea = document.getElementById('edit-draft-area');
-    var editBtn = document.getElementById('editDraftBtn');
+// Per-platform variant editing
+function toggleEditPlatform(idx, btn) {
+    var display = document.getElementById('variant-display-' + idx);
+    var editArea = document.getElementById('variant-edit-' + idx);
     if (editArea.style.display === 'none') {
         display.style.display = 'none';
         editArea.style.display = 'block';
-        editBtn.textContent = 'Cancel edit';
-        editBtn.onclick = cancelEditDraft;
+        btn.textContent = 'Cancel';
     } else {
-        cancelEditDraft();
+        cancelEditPlatform(idx);
+        btn.textContent = '✏️ Edit';
     }
 }
 
-function cancelEditDraft() {
-    var display = document.getElementById('draft-text');
-    var editArea = document.getElementById('edit-draft-area');
-    var editBtn = document.getElementById('editDraftBtn');
+function cancelEditPlatform(idx) {
+    var display = document.getElementById('variant-display-' + idx);
+    var editArea = document.getElementById('variant-edit-' + idx);
     display.style.display = 'block';
     editArea.style.display = 'none';
-    editBtn.textContent = '✏️ Edit draft';
-    editBtn.onclick = toggleEditDraft;
+    var btn = event.target.closest('.platform-content-entry').querySelector('button[onclick^="toggleEditPlatform"]');
+    if (btn) btn.textContent = '✏️ Edit';
 }
 
-function saveEditedText() {
-    var btn = document.getElementById('saveEditBtn');
-    var status = document.getElementById('editStatus');
-    var text = document.getElementById('editDraftTextarea').value;
-    if (!text.trim()) { alert('Draft text cannot be empty.'); return; }
-    busyAction(btn, '/api/draft/{{ draft.id }}/edit-text', {
+function saveEditPlatform(idx, btn) {
+    var status = document.getElementById('editStatus-' + idx);
+    var textarea = document.getElementById('variantTextarea-' + idx);
+    var raw = textarea.value;
+    // Split on the post break delimiter
+    var posts = raw.split('---POST BREAK---').map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+    if (posts.length === 0) { alert('Cannot save empty content.'); return; }
+    busyAction(btn, '/api/draft/{{ draft.id }}/edit-platform/' + idx, {
         busyLabel: 'Saving…',
         statusElem: status,
-        body: JSON.stringify({draft_text: text}),
+        body: JSON.stringify({posts: posts}),
         reloadOnSuccess: true,
         onError: function(msg) { status.style.color = '#C0392B'; status.textContent = msg; }
     });
