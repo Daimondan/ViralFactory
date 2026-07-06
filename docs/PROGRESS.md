@@ -307,3 +307,10 @@ Materials Library — editable source materials. DB migrations: `excluded` colum
 - xAI media adapter wired for `video_provider: xai`, `/v1/videos/generations`, `request_id`, polling, and clear `XAI_API_KEY` errors.
 - Attempted key copy from default Hermes env → `/home/daimon/.viralfactory.env`; blocker: `/home/daimon/.hermes/.env` does not contain `XAI_API_KEY`, so no secret was written.
 - **Tests:** 758 passed via `pytest -q` (non-fatal worker cleanup message: `no such table: materials`) · Q: real `XAI_API_KEY` still needed in env for live xAI video.
+
+### 2026-07-06 — FIX: variant_type mislabeling hid images on Assembler page
+
+- Root cause: Writer prompt told the LLM to copy `variant_type` from the Format Guide entry's single `Variant type` field. For cross-platform formats like "Newsletter Section" (X→thread, Instagram→carousel), this produced `variant_type="newsletter_section"` for both — the format name, not the structural type.
+- Impact: Assembler page classified both as `is_text_only` (because "newsletter" matched), hiding the Instagram carousel's 8 image prompts and the "Generate images" button behind a "Text-only format — ready for review" label. The X thread rendered as a newsletter mock instead of numbered tweets.
+- Fix at 3 layers: (1) DB: corrected existing assets 1+2 to `thread`/`carousel` and updated draft `platform_content`. (2) Prompt: `generate_v3.md` v3.0→v3.1 — variant_type now described as per-platform structural type matching the posts array, not a copy of the Format Guide field. (3) Template: `assets.html` safety net — auto-detects thread/carousel from content description + platform + post count when variant_type is the format name; `is_text_only` now checks for active image prompts, so a newsletter with image prompts is not text-only.
+- **Tests:** 763 passed (761 + 2 new regression tests in `test_ui_review_display_fixes.py`). Q: none

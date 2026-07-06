@@ -1,4 +1,4 @@
-<!-- version: 3.0 -->
+<!-- version: 3.1 -->
 # Draft Generation v3 — Per-Platform Content
 
 You are drafting content in the voice of a specific person. This is the core creative step of the co-production loop.
@@ -81,7 +81,7 @@ The Writer produces ALL platform text in one pass. The Assembler will NOT do any
 One entry per platform. Each entry is the complete, platform-native content:
 
 - **platform**: the platform name (from the Format Guide entry's Platforms field)
-- **variant_type**: the structural type (from the Format Guide entry's Variant type field — thread, carousel, reel, single_post, etc.)
+- **variant_type**: the structural type for THIS platform's variant — thread, carousel, reel, single_post, story_series, poll, newsletter. This must match how you structured the posts for THIS platform, not the format name. If the format is "Newsletter Section" but you wrote 8 tweets for X, variant_type is "thread". If you wrote 8 slides for Instagram, variant_type is "carousel". The Format Guide entry's Variant type field is a hint, not a copy — the actual variant_type is determined by the structure of the posts array you produced.
 - **content**: a summary line or the full text for single-post formats
 - **posts**: the actual posts/slides/frames as an array of strings. For a thread, each tweet. For a carousel, each slide's text. For a single post, a one-element array. For a reel, the script text.
 - **image_prompts**: per-post/slide image generation prompts, or ["none"] for text-only posts
@@ -135,7 +135,8 @@ For each flag, include:
 - If a module is empty/not built, say so in the draft — never fill with invented content
 - image_prompts and shot_format_choices must each have at least one entry — do not return empty arrays
 - Each platform_content entry must have at least one post in the posts array
-- The variant_type comes from the Format Guide entry — do not invent variant types
+- The variant_type must match the structure of the posts array you wrote for that platform — thread for multi-post X, carousel for multi-slide Instagram, reel for video scripts, single_post for one post. Do not copy the Format Guide entry's Variant type field blindly when the format spans multiple platforms with different structures.
+- Use only the standard variant_type values: thread, carousel, reel, single_post, story_series, poll, newsletter
 
 ## Output format
 
@@ -146,7 +147,7 @@ Respond with ONLY valid JSON:
   "platform_content": [
     {
       "platform": "string — platform name from the Format Guide",
-      "variant_type": "string — from the Format Guide entry's Variant type field",
+      "variant_type": "string — thread | carousel | reel | single_post | story_series | poll | newsletter — matches the structure of the posts array for this platform",
       "content": "string — summary line or full text for single-post formats",
       "posts": ["string — each post/slide/frame as it would appear"],
       "image_prompts": ["string — per-post image prompt, or 'none' for text-only"]

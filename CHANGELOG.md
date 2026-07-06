@@ -6,6 +6,21 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+### 2026-07-06 FIX — variant_type mislabeling hid carousel images on Assembler page
+
+**What:** The Assembler page (`/create/assets/1`) showed "Text-only format — ready for review" for an Instagram carousel that had 8 active image prompts, hiding the slides and the "Generate images" button. The X thread variant rendered as a newsletter mock instead of numbered tweets.
+
+**Root cause:** The Writer prompt (`generate_v3.md` v3.0) instructed the LLM to set `variant_type` from the Format Guide entry's single `Variant type` field. For cross-platform formats like "Newsletter Section" (X→thread, Instagram→carousel), the Format Guide has one `Variant type: newsletter` field — so both platform variants got `variant_type="newsletter_section"`, the format name, not the structural type. The template's `is_text_only = is_poll or is_newsletter` then classified both as text-only.
+
+**Fix at 3 layers:**
+1. **DB** — corrected existing assets: asset 1 (X) → `variant_type="thread"`, asset 2 (Instagram) → `variant_type="carousel"`, and updated the draft's `platform_content` to match.
+2. **Prompt** — `generate_v3.md` v3.0→v3.1: `variant_type` is now described as the per-platform structural type matching the posts array (thread for multi-post X, carousel for multi-slide Instagram), not a copy of the Format Guide field. The JSON schema description and rules section updated to match.
+3. **Template** — `assets.html` safety net: (a) `is_text_only` now checks for active image prompts — a newsletter with image prompts is NOT text-only. (b) Auto-detect block: when `variant_type` is the format name (not thread/carousel/reel/poll) and there are 2+ posts, the template infers thread or carousel from the content description + platform. This prevents future mislabeled variants from hiding images.
+
+**Rationale:** The Format Guide's single `Variant type` field can't represent per-platform structural variants for cross-platform formats. The Writer LLM sees the platform it's writing for and knows whether it produced a thread or a carousel — it should set `variant_type` accordingly. The template safety net catches any future mislabeling so images are never hidden from the operator.
+
+---
+
 ### 2026-07-04 LOGIC/FIX — AI tells + voice deepening correction applied
 
 **What:** Applied `docs/reviews/CORRECTION-ai-tells-and-voice-deepening-v1.md` after operator challenged the system to avoid AI writing at the thinking stage, not by post-hoc humanizing. Added `prompts/shared/ai_tells_v1.md`, a sourced 53-tell catalog with HIGH/MEDIUM/LOW confidence levels (including the operator-called-out “it’s not X, it’s Y” negative-parallelism tell). `draft/generate_v3.md` now loads the catalog and performs a specific 6-category self-audit. `alignment_check_v1.md` v1.1 now performs a second pass for surviving HIGH-confidence tells via `ai_tell_survived` issues.

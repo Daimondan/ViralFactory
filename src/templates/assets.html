@@ -266,10 +266,30 @@
         {% set is_reel = 'reel' in (asset.variant_type or '')|lower or 'video' in (asset.variant_type or '')|lower %}
         {% set is_poll = 'poll' in (asset.variant_type or '')|lower %}
         {% set is_newsletter = 'newsletter' in (asset.variant_type or '')|lower %}
-        {% set is_text_only = is_poll or is_newsletter %}
         {% set has_posts = asset.posts_parsed and asset.posts_parsed|length > 0 %}
         {% set has_images = asset.images and asset.images|length > 0 %}
         {% set has_final = asset.final_cuts and asset.final_cuts|length > 0 %}
+        {# Count active image prompts (not 'none'/'None') using filters — Jinja2 for-loop scoping prevents increment-in-loop #}
+        {% set active_prompt_count = (asset.image_prompts_parsed or []) | reject('eq', 'none') | reject('eq', 'None') | reject('eq', None) | reject('none') | list | length %}
+        {% set needs_visuals = active_prompt_count > 0 %}
+        {# Auto-detect thread/carousel when variant_type is the format name (e.g. 'newsletter_section')
+           instead of the structural type. Uses the content description + platform + post count.
+           This runs BEFORE is_text_only so the text-only check sees the corrected flags. #}
+        {% if not is_thread and not is_carousel and not is_reel and not is_poll and has_posts and asset.posts_parsed|length > 1 %}
+            {% set content_lower = (asset.content or '')|lower %}
+            {% if 'thread' in content_lower %}
+                {% set is_thread = true %}
+            {% elif 'carousel' in content_lower %}
+                {% set is_carousel = true %}
+            {% elif asset.platform|lower == 'instagram' and needs_visuals %}
+                {% set is_carousel = true %}
+            {% elif asset.platform|lower == 'x' %}
+                {% set is_thread = true %}
+            {% endif %}
+        {% endif %}
+        {# Text-only = poll, or newsletter with NO active image prompts.
+           A newsletter format that produced thread/carousel content is NOT text-only. #}
+        {% set is_text_only = (is_poll or (is_newsletter and not needs_visuals)) and not is_thread and not is_carousel %}
         {% set handle = '' %}
         {% for p in platforms %}
             {% if p.name == asset.platform %}{% set handle = p.handle %}{% endif %}

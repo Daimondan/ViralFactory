@@ -380,3 +380,104 @@ def test_researcher_generate_button_has_loading_state():
     assert "id=\"genStatus\"" in content
     assert "busyLabel: 'Generating…'" in content
     assert "status.textContent = 'Generating…'" in content
+
+
+def test_newsletter_format_with_image_prompts_not_text_only(template_app):
+    """Regression: a 'Newsletter Section' format asset on Instagram with 8
+    image prompts was misclassified as text-only (because variant_type
+    contained 'newsletter'), hiding the carousel slides and the 'Generate
+    images' button. The template must auto-detect the carousel structure and
+    show the Generate button when active image prompts exist."""
+    posts = [f"Slide {i} text" for i in range(1, 9)]
+    image_prompts = [f"Slide {i} prompt" for i in range(1, 9)]
+    asset = AttrDict(
+        id=5,
+        platform="Instagram",
+        variant_type="newsletter_section",  # format name, not structural type
+        asset_state="pending",
+        content="Carousel breaking down the ownership gap",
+        posts_parsed=posts,
+        image_prompts_parsed=image_prompts,
+        post_images=[],
+        images=[],
+        generated_images_parsed=[],
+        videos=[],
+        final_cuts=[],
+        edit_plans=[],
+    )
+    draft = AttrDict(
+        id=1,
+        draft_state="shipped",
+        format="Newsletter Section",
+        draft_text="Summary",
+        platform_content_parsed=[],
+    )
+
+    with template_app.test_request_context("/create/assets/1"):
+        html = render_template(
+            "assets.html",
+            business_name="TestBiz",
+            idea_card=AttrDict(idea="Original idea"),
+            draft=draft,
+            assets=[asset],
+            platforms=[],
+            trail=[],
+        )
+
+    # Must NOT show "Text-only format" — it has image prompts
+    assert "Text-only format" not in html
+    # Must show the Generate button
+    assert "Generate 8 images" in html
+    # Must show carousel slides (numbered 1/8 through 8/8)
+    assert "1/8" in html
+    assert "8/8" in html
+
+
+def test_newsletter_format_on_x_with_no_image_prompts_is_thread(template_app):
+    """Regression: a 'Newsletter Section' format asset on X with 8 tweets
+    and all-'none' image prompts was misclassified as text-only newsletter.
+    It should render as a thread (numbered tweets), not a newsletter mock."""
+    posts = [f"Tweet {i} text" for i in range(1, 9)]
+    asset = AttrDict(
+        id=6,
+        platform="X",
+        variant_type="newsletter_section",  # format name, not structural type
+        asset_state="pending",
+        content="Thread breaking down the ownership gap",
+        posts_parsed=posts,
+        image_prompts_parsed=["none"] * 8,
+        post_images=[],
+        images=[],
+        generated_images_parsed=[],
+        videos=[],
+        final_cuts=[],
+        edit_plans=[],
+    )
+    draft = AttrDict(
+        id=1,
+        draft_state="shipped",
+        format="Newsletter Section",
+        draft_text="Summary",
+        platform_content_parsed=[],
+    )
+
+    with template_app.test_request_context("/create/assets/1"):
+        html = render_template(
+            "assets.html",
+            business_name="TestBiz",
+            idea_card=AttrDict(idea="Original idea"),
+            draft=draft,
+            assets=[asset],
+            platforms=[],
+            trail=[],
+        )
+
+    # Must show thread numbers (1 through 8) not newsletter mock
+    # Thread posts are numbered with just the number (1, 2, 3...)
+    assert ">1<" in html  # tweet 1
+    assert ">8<" in html  # tweet 8
+    # Must NOT render the newsletter mock content structure
+    # (the CSS class exists in <style>, but the mock div must not be rendered)
+    assert 'class="newsletter-mock"' not in html
+    # Must NOT show "Text-only format" — X thread with 8 posts is not text-only
+    assert "Text-only format" not in html
