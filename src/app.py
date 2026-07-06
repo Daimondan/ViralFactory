@@ -5579,6 +5579,16 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 ]
             else:
                 display_card["capture_tasks_parsed"] = []
+            # Parse treatment + hooks for display
+            display_card["treatment_parsed"] = treatment_for_capture
+            try:
+                display_card["hook_options_parsed"] = json.loads(display_card.get("hook_options") or "[]")
+            except (json.JSONDecodeError, TypeError):
+                display_card["hook_options_parsed"] = []
+            try:
+                display_card["evidence_links_parsed"] = json.loads(display_card.get("evidence_links") or "[]")
+            except (json.JSONDecodeError, TypeError):
+                display_card["evidence_links_parsed"] = []
         trail = []
         trail.append({"stage": "Idea", "state": "approved", "label": "Idea approved"})
         trail.append({"stage": "Script", "state": "approved", "label": "Script approved (shipped)"})

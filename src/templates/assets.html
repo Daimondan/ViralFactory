@@ -143,6 +143,58 @@
     <div class="card-info" style="background: #FFFFFF; border-radius: 10px; padding: 16px; border: 1px solid #D8D4C8; margin-bottom: 16px;">
         <div style="font-size: 0.85rem; color: #8A857C; margin-bottom: 6px;">Original idea:</div>
         <div style="font-size: 0.95rem; line-height: 1.5;">{{ idea_card.idea }}</div>
+
+        {# Hook options #}
+        {% if idea_card.hook_options_parsed and idea_card.hook_options_parsed|length > 0 %}
+        <div style="margin-top: 10px;">
+            <div style="font-size: 0.78rem; color: #8A857C; margin-bottom: 4px;">Hook options:</div>
+            {% for hook in idea_card.hook_options_parsed %}
+            <div style="font-size: 0.86rem; line-height: 1.45; color: #1A1A1A; padding: 4px 0;">{{ loop.index }}. {{ hook }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {# Treatment summary #}
+        {% if idea_card.treatment_parsed %}
+        {% set tp = idea_card.treatment_parsed %}
+        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #F0EDE4; display: flex; flex-wrap: wrap; gap: 8px;">
+            {% if tp.format and tp.format.format_name %}
+            <span style="font-size: 0.74rem; background: #F0EDE4; color: #4A6FA5; padding: 3px 8px; border-radius: 10px;">{{ tp.format.format_name }}</span>
+            {% endif %}
+            {% if tp.scope and tp.scope.type %}
+            <span style="font-size: 0.74rem; background: #F0EDE4; color: #8A857C; padding: 3px 8px; border-radius: 10px;">{{ tp.scope.type|replace('_',' ')|title }}{% if tp.scope.n %} ({{ tp.scope.n }}){% endif %}</span>
+            {% endif %}
+            {% if tp.format and tp.format.experimental %}
+            <span style="font-size: 0.74rem; background: rgba(212,168,67,0.15); color: #8A6D20; padding: 3px 8px; border-radius: 10px;">Experimental</span>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {# Rationale #}
+        {% if idea_card.treatment_parsed and idea_card.treatment_parsed.rationale %}
+        <div style="margin-top: 10px;">
+            <details>
+                <summary style="cursor: pointer; font-size: 0.78rem; color: #8A857C;">Why this format?</summary>
+                <div style="font-size: 0.82rem; line-height: 1.5; color: #555; margin-top: 6px; white-space: pre-wrap;">{{ idea_card.treatment_parsed.rationale }}</div>
+            </details>
+        </div>
+        {% endif %}
+
+        {# Evidence / sources #}
+        {% if idea_card.evidence_links_parsed and idea_card.evidence_links_parsed|length > 0 %}
+        <div style="margin-top: 10px;">
+            <details>
+                <summary style="cursor: pointer; font-size: 0.78rem; color: #8A857C;">Sources cited ({{ idea_card.evidence_links_parsed|length }})</summary>
+                <ul style="margin: 6px 0 0 18px; font-size: 0.82rem; line-height: 1.5; color: #555;">
+                {% for link in idea_card.evidence_links_parsed %}
+                    <li>{{ link.note }}{% if link.url %} — <a href="{{ link.url }}" target="_blank" style="color: #4A6FA5;">{{ link.url }}</a>{% endif %}</li>
+                {% endfor %}
+                </ul>
+            </details>
+        </div>
+        {% endif %}
+
+        {# Capture reminders #}
         {% if idea_card.capture_tasks_parsed and idea_card.capture_tasks_parsed|length > 0 %}
         <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #F0EDE4;">
             <div style="font-size: 0.82rem; color: #8A857C; margin-bottom: 6px;">Capture reminders:</div>
