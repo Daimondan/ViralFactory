@@ -116,38 +116,51 @@
             </div>
             {% endif %}
 
-            {% if treatment and treatment.rationale %}
+            {# ── Full treatment definition list (mirrors Ideas page) ── #}
+            {% if treatment %}
             <div style="margin-top: 10px;">
-                <details>
-                    <summary style="cursor: pointer; font-size: 0.78rem; color: #8A857C;">Why this format?</summary>
-                    <div style="font-size: 0.82rem; line-height: 1.5; color: #555; margin-top: 6px; white-space: pre-wrap;">{{ treatment.rationale }}</div>
-                </details>
+                <div style="font-size: 0.78rem; color: #8A857C; margin-bottom: 6px;">Treatment:</div>
+                <dl style="font-size: 0.82rem; line-height: 1.5; color: #555; margin: 0 0 0 14px;">
+                    {% set tp = treatment %}
+                    {% set scope = tp.scope or {} %}
+                    {% set fmt = tp.format or {} %}
+                    <dt style="font-weight: 600; color: #4A4744; margin-top: 6px;">Scope</dt>
+                    <dd style="margin-left: 12px; margin-bottom: 4px;">{{ scope.get('type', '?') }}{% if scope.get('n') %} — {{ scope.n }} pieces, {{ scope.get('cadence', '') }}{% endif %}</dd>
+                    <dt style="font-weight: 600; color: #4A4744; margin-top: 6px;">Format</dt>
+                    <dd style="margin-left: 12px; margin-bottom: 4px;">{{ fmt.get('format_name', '?') }}{% if fmt.get('experimental') %} (experimental debut){% endif %}</dd>
+                    {% if fmt.get('format_spec') %}
+                    <dd style="margin-left: 12px; margin-bottom: 4px;"><em>{{ fmt.format_spec }}</em></dd>
+                    {% endif %}
+                    {% if capture_tasks and capture_tasks|length > 0 %}
+                    <dt style="font-weight: 600; color: #4A4744; margin-top: 6px;">Capture required</dt>
+                    <dd style="margin-left: 12px; margin-bottom: 4px;">
+                        <ul style="margin: 0 0 0 16px;">
+                        {% for task in capture_tasks %}
+                            <li>{{ task }}</li>
+                        {% endfor %}
+                        </ul>
+                    </dd>
+                    {% endif %}
+                    {% if tp.reuse and tp.reuse.reuse_notes %}
+                    <dt style="font-weight: 600; color: #4A4744; margin-top: 6px;">Reuse</dt>
+                    <dd style="margin-left: 12px; margin-bottom: 4px;">{{ tp.reuse.reuse_notes }}</dd>
+                    {% endif %}
+                    {% if tp.rationale %}
+                    <dt style="font-weight: 600; color: #4A4744; margin-top: 6px;">Rationale</dt>
+                    <dd style="margin-left: 12px; margin-bottom: 4px; white-space: pre-wrap;">{{ tp.rationale }}</dd>
+                    {% endif %}
+                </dl>
             </div>
             {% endif %}
 
             {% if evidence_links and evidence_links|length > 0 %}
             <div style="margin-top: 10px;">
-                <details>
-                    <summary style="cursor: pointer; font-size: 0.78rem; color: #8A857C;">Sources cited ({{ evidence_links|length }})</summary>
-                    <ul style="margin: 6px 0 0 18px; font-size: 0.82rem; line-height: 1.5; color: #555;">
-                    {% for link in evidence_links %}
-                        <li>{{ link.note }}{% if link.url %} — <a href="{{ link.url }}" target="_blank" style="color: #4A6FA5;">{{ link.url }}</a>{% endif %}</li>
-                    {% endfor %}
-                    </ul>
-                </details>
-            </div>
-            {% endif %}
-
-            {% if capture_tasks and capture_tasks|length > 0 %}
-            <div style="margin-top: 10px;">
-                <details>
-                    <summary style="cursor: pointer; font-size: 0.78rem; color: #8A857C;">Capture reminders ({{ capture_tasks|length }})</summary>
-                    <ul style="margin: 6px 0 0 18px; font-size: 0.86rem; line-height: 1.5; color: #555;">
-                    {% for task in capture_tasks %}
-                        <li>{{ task }}</li>
-                    {% endfor %}
-                    </ul>
-                </details>
+                <div style="font-size: 0.78rem; color: #8A857C; margin-bottom: 4px;">Sources cited ({{ evidence_links|length }}):</div>
+                <ul style="margin: 4px 0 0 18px; font-size: 0.82rem; line-height: 1.5; color: #555;">
+                {% for link in evidence_links %}
+                    <li>{{ link.note }}{% if link.url %} — <a href="{{ link.url }}" target="_blank" style="color: #4A6FA5;">{{ link.url }}</a>{% endif %}</li>
+                {% endfor %}
+                </ul>
             </div>
             {% endif %}
 
