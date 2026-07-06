@@ -631,6 +631,38 @@ class TestAssemblyRenderer:
         import shutil
         shutil.rmtree(os.path.join("data", "media", "9998"), ignore_errors=True)
 
+    def test_resolve_source_rejects_session_upload(self, tmp_path):
+        """Privacy guard: _resolve_source must reject session_upload materials.
+
+        Regression: personal WhatsApp voice recordings (session_upload channel)
+        were being fed to the edit plan as video ingredients, and the renderer
+        was stitching them into public-facing content. The renderer must refuse
+        to resolve any upload:<id> where the material's channel is session_upload.
+        """
+        from materials import MaterialsIntake
+        renderer = AssemblyRenderer({}, db_path=str(tmp_path / "test.db"))
+
+        # Create a materials table with a session_upload entry
+        intake = MaterialsIntake(str(tmp_path / "test.db"))
+        # We need to insert directly since MaterialsIntake may not have a helper
+        import sqlite3
+        conn = sqlite3.connect(str(tmp_path / "test.db"))
+        conn.execute("""CREATE TABLE IF NOT EXISTS materials (
+            id INTEGER PRIMARY KEY, business_slug TEXT, filename TEXT,
+            material_type TEXT, channel TEXT, date_approx TEXT,
+            audience TEXT, raw_content TEXT, normalized_content TEXT,
+            word_count INTEGER, created_at TEXT, transcription_status TEXT,
+            excluded INTEGER DEFAULT 0, run_id TEXT
+        )""")
+        conn.execute("""INSERT INTO materials (id, business_slug, filename, material_type, channel, raw_content, normalized_content, created_at, transcription_status, excluded)
+            VALUES (500, 'testbiz', 'personal_voice_memo.mp4', 'audio', 'session_upload', 'test', 'test', '2026-01-01', 'failed', 0)""")
+        conn.commit()
+        conn.close()
+
+        with pytest.raises(AssemblyError) as exc_info:
+            renderer._resolve_source("upload:500", asset_id=1)
+        assert "session_upload" in str(exc_info.value).lower() or "privacy" in str(exc_info.value).lower()
+
 
 # ── Integration: Flask app with new routes ──────────────────────────────────
 

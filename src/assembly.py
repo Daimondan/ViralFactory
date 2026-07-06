@@ -96,6 +96,13 @@ class AssemblyRenderer:
             mat = intake.get_material(int(ref_id))
             if not mat:
                 raise AssemblyError(f"Upload material not found: {source_ref}")
+            # Privacy guard: never resolve session_upload materials.
+            # These are personal voice recordings, not content for public videos.
+            if mat.get("channel") == "session_upload":
+                raise AssemblyError(
+                    f"Privacy guard: material {ref_id} is a session_upload "
+                    f"(personal recording) and cannot be used in content."
+                )
             # Try to find the file
             upload_dir = os.path.join("data", "uploads")
             filename = mat.get("filename", "")

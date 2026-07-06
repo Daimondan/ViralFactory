@@ -6081,11 +6081,18 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     "description": desc,
                 })
 
-        # Uploaded materials (video/audio)
+        # Uploaded materials (video/audio) — ONLY capture_upload, never session_upload.
+        # session_upload materials are personal WhatsApp/voice recordings for voice
+        # analysis, NOT content to be stitched into public-facing videos.
+        # Privacy: personal recordings must never leak into published content.
         from materials import MaterialsIntake
         intake = MaterialsIntake(app.config["DB_PATH"])
         all_materials = intake.list_materials(business_slug)
         for mat in all_materials:
+            # Privacy guard: skip session uploads — these are personal voice/audio
+            # recordings used for voice analysis, never as video content.
+            if mat.get("channel") == "session_upload":
+                continue
             if mat.get("material_type") in ("video", "audio"):
                 # F5: probe real duration for uploaded video/audio
                 mat_path = mat.get("file_path") or ""
