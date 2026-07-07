@@ -4,6 +4,14 @@
 
 All decisions — tech, logic, structure, strategy, ops — logged here with type tag + rationale.
 
+### 2026-07-07 FIX — `reviewing` cards no longer enter the Writer draft queue
+
+**FIX** — A card in `card_state='reviewing'` could appear on the Writer draft/review surface as if it were actionable. That contradicted the state rule: only cards ready to draft (`approved` or `capture_fulfilled`) should enter the draft queue; `reviewing` is an in-flight AI review state and should not be presented as operator work.
+
+**Rationale:** Showing `reviewing` beside actionable draft states creates state dissonance and invites the operator to click into a card while the writer/review loop is still active.
+
+**Change:** Removed `reviewing` from `writer_eligible_states` and updated regression coverage so `/create` excludes reviewing cards while still including `approved` and `capture_fulfilled` cards. Also tightened `/assemble` so `approved` alone does not make an unshipped draft appear in Assembler; a card needs a shipped draft or asset-stage state.
+
 ### 2026-07-07 FIX — Missing-media generation no longer says "Ready to render" after zero media
 
 **FIX** — The Assembler missing-capture flow could report `0 media items generated, 2 failed. Ready to render video.` That message was false in two layers:

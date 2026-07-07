@@ -641,6 +641,61 @@ class TestFlaskDraftEndpoints:
         assert resp.status_code == 200
         assert b"Writer" in resp.data
 
+    def test_create_surface_excludes_reviewing_cards(self, app, sample_treatment):
+        """Cards under AI review are in-flight, not ready for the draft queue."""
+        from pipeline import PipelineStore
+        store = PipelineStore(db_path=app.config["DB_PATH"])
+        card_id = store.create_idea_card(
+            business_slug="testbiz", idea="Reviewing should not be in draft section",
+            hook_options=["h"], treatment=sample_treatment, origin="ai_originated",
+        )
+        store.update_card_state(card_id, "reviewing")
+
+        client = app.test_client()
+        resp = client.get("/create")
+
+        assert resp.status_code == 200
+        assert b"Reviewing should not be in draft section" not in resp.data
+
+    def test_create_surface_includes_approved_and_capture_fulfilled_cards(self, app, sample_treatment):
+        """Only cards ready to draft enter the Writer draft section."""
+        from pipeline import PipelineStore
+        store = PipelineStore(db_path=app.config["DB_PATH"])
+        approved_id = store.create_idea_card(
+            business_slug="testbiz", idea="Approved card can be drafted",
+            hook_options=["h"], treatment=sample_treatment, origin="ai_originated",
+        )
+        capture_id = store.create_idea_card(
+            business_slug="testbiz", idea="Capture fulfilled card can be drafted",
+            hook_options=["h"], treatment=sample_treatment, origin="ai_originated",
+        )
+        store.update_card_state(approved_id, "approved")
+        store.update_card_state(capture_id, "capture_fulfilled")
+
+        client = app.test_client()
+        resp = client.get("/create")
+
+        assert resp.status_code == 200
+        assert b"Approved card can be drafted" in resp.data
+        assert b"Capture fulfilled card can be drafted" in resp.data
+
+    def test_assemble_surface_excludes_unshipped_approved_drafts(self, app, sample_treatment):
+        """Approved cards with unshipped drafts are not Assembler-ready."""
+        from pipeline import PipelineStore
+        store = PipelineStore(db_path=app.config["DB_PATH"])
+        card_id = store.create_idea_card(
+            business_slug="testbiz", idea="Approved unshipped draft should not be in assembler",
+            hook_options=["h"], treatment=sample_treatment, origin="ai_originated",
+        )
+        store.update_card_state(card_id, "approved")
+        store.create_draft("testbiz", card_id, "ai_originated")
+
+        client = app.test_client()
+        resp = client.get("/assemble")
+
+        assert resp.status_code == 200
+        assert b"Approved unshipped draft should not be in assembler" not in resp.data
+
     def test_fan_out_requires_shipped(self, app, sample_treatment):
         """Fan-out only works on shipped drafts."""
         from pipeline import PipelineStore
