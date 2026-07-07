@@ -14,6 +14,12 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 **Regression test:** `test_render_concat_mismatched_sar_images` — creates wide (1280x720) and tall (720x1280) images, concatenates 4 segments, verifies output exists with SAR 1:1. Tests: 60 passing (was 59).
 
+### 2026-07-07 FIX — Duplicate video player on Assembler reel page
+
+**FIX (UI)** — The reel asset card on `/create/assets/<draft_id>` rendered the final cut video **twice**: once in the media-frame (with "FINAL CUT" badge) and again in the "Final cut rendered" step section below. The operator saw a "repeat video" on refresh.
+
+**Fix:** Removed the redundant `<video>` element from the final-cut-section. The video is only shown once in the media-frame. The collapsible edit plan remains below it.
+
 ---
 
 ### 2026-07-06 FIX — variant_type mislabeling hid carousel images on Assembler page
