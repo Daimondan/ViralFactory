@@ -700,6 +700,171 @@ class TestFlaskRoutes:
         resp = client.post("/api/assets/999/edit-plan", json={})
         assert resp.status_code in (500, 404)
 
+    def test_edit_plan_blocks_when_required_capture_has_no_asset_specific_visuals(self, tmp_path):
+        """Edit planning must not substitute random old capture uploads.
+
+        Regression: asset #1 needed Landship/Bridgetown capture footage, but
+        the edit-plan inventory included every capture_upload in the business
+        and the LLM chose an unrelated old water clip.
+        """
+        from app import create_app
+        from llm_adapter import LLMAdapter
+        from materials import MaterialsIntake
+        from unittest.mock import patch
+
+        db_path = str(tmp_path / "test.db")
+        app = create_app(config_dir="config", db_path=db_path)
+        store = PipelineStore(db_path)
+        intake = MaterialsIntake(db_path)
+        intake._store(None, "stackpenni", "old-water.mp4", "audio", "capture_upload", "", "", "old unrelated clip")
+
+        card_id = store.create_idea_card(
+            business_slug="stackpenni",
+            idea="Landship mutual aid story",
+            hook_options=[],
+            treatment={
+                "format": {"format_name": "Instagram Reel Script"},
+                "capture_required": ["Landship parade footage", "Bridgetown commerce footage"],
+            },
+            origin="test",
+        )
+        draft_id = store.create_draft("stackpenni", card_id, "test", format_name="Instagram Reel Script")
+        store.save_draft_content(draft_id, "draft", {}, [], platform_content=[])
+        store.update_draft_state(draft_id, "shipped")
+        asset_id = store.create_asset("stackpenni", draft_id, "Instagram", "reel", "Landship reel")
+
+        called = False
+
+        def mock_complete(self, prompt_file, variables, schema, **kwargs):
+            nonlocal called
+            called = True
+            return {"segments": [{"source": "upload:1", "in": 0, "out": 1}], "canvas": {"aspect_ratio": "9:16", "resolution": "1080x1920"}}
+
+        with patch.object(LLMAdapter, "complete", mock_complete):
+            resp = app.test_client().post(f"/api/assets/{asset_id}/edit-plan", json={})
+
+        assert resp.status_code == 409
+        assert called is False
+        data = resp.get_json()
+        assert data["status"] == "missing_media"
+        assert "Generate missing media" in data["message"]
+
+    def test_edit_plan_inventory_only_includes_this_cards_capture_uploads(self, tmp_path):
+        """Only generated media and capture uploads linked to this card enter the edit planner."""
+        from app import create_app
+        from llm_adapter import LLMAdapter
+        from materials import MaterialsIntake
+        from unittest.mock import patch
+
+        db_path = str(tmp_path / "test.db")
+        app = create_app(config_dir="config", db_path=db_path)
+        store = PipelineStore(db_path)
+        intake = MaterialsIntake(db_path)
+        unrelated_id = intake._store(None, "stackpenni", "old-water.mp4", "audio", "capture_upload", "", "", "old unrelated clip")
+        owned_id = intake._store(None, "stackpenni", "landship.mp4", "audio", "capture_upload", "", "", "correct card clip")
+
+        card_id = store.create_idea_card(
+            business_slug="stackpenni",
+            idea="Landship mutual aid story",
+            hook_options=[],
+            treatment={
+                "format": {"format_name": "Instagram Reel Script"},
+                "capture_required": ["Landship parade footage"],
+            },
+            origin="test",
+        )
+        store.add_capture_upload(card_id, owned_id)
+        draft_id = store.create_draft("stackpenni", card_id, "test", format_name="Instagram Reel Script")
+        store.save_draft_content(draft_id, "draft", {}, [], platform_content=[])
+        store.update_draft_state(draft_id, "shipped")
+        asset_id = store.create_asset("stackpenni", draft_id, "Instagram", "reel", "Landship reel")
+
+        captured = {}
+
+        def mock_complete(self, prompt_file, variables, schema, **kwargs):
+            captured.update(variables)
+            return {"segments": [{"source": f"upload:{owned_id}", "in": 0, "out": 1}], "canvas": {"aspect_ratio": "9:16", "resolution": "1080x1920"}}
+
+        with patch.object(LLMAdapter, "complete", mock_complete):
+            resp = app.test_client().post(f"/api/assets/{asset_id}/edit-plan", json={})
+
+        assert resp.status_code == 200
+        inventory = captured["ingredient_inventory"]
+        assert f"upload:{owned_id}" in inventory
+        assert f"upload:{unrelated_id}" not in inventory
+
+    def test_generate_missing_media_registers_stock_as_asset_media(self, tmp_path):
+        """Stock found for a missing capture must become asset-scoped media."""
+        import sqlite3
+        from app import create_app
+        from llm_adapter import LLMAdapter
+        from stock_adapter import StockAdapter
+        from unittest.mock import patch
+
+        db_path = str(tmp_path / "test.db")
+        stock_path = str(tmp_path / "landship_stock.mp4")
+        open(stock_path, "wb").write(b"stock")
+        app = create_app(config_dir="config", db_path=db_path)
+        store = PipelineStore(db_path)
+
+        card_id = store.create_idea_card(
+            business_slug="stackpenni",
+            idea="Landship mutual aid story",
+            hook_options=[],
+            treatment={
+                "format": {"format_name": "Instagram Reel Script"},
+                "capture_required": ["Landship parade footage"],
+            },
+            origin="test",
+        )
+        draft_id = store.create_draft("stackpenni", card_id, "test", format_name="Instagram Reel Script")
+        store.save_draft_content(draft_id, "draft", {}, [], platform_content=[])
+        store.update_draft_state(draft_id, "shipped")
+        asset_id = store.create_asset("stackpenni", draft_id, "Instagram", "reel", "Landship reel")
+
+        def mock_complete(self, prompt_file, variables, schema, **kwargs):
+            return {
+                "media_plan": [{
+                    "capture_index": 0,
+                    "capture_task": "Landship parade footage",
+                    "generator": "stock",
+                    "search_query": "Barbados Landship parade",
+                }]
+            }
+
+        def mock_search(self, query, kind="video", per_page=3):
+            return [{
+                "provider": "test", "external_id": "landship", "kind": "video",
+                "url": "https://example.invalid/clip.mp4", "title": "Landship parade",
+            }]
+
+        def mock_download(self, item):
+            conn = sqlite3.connect(db_path)
+            conn.execute("""INSERT INTO stock_cache
+                (provider, external_id, kind, url, local_path, license, title, duration, width, height, downloaded_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                ("test", "landship", "video", item["url"], stock_path, "test", item["title"], 5.0, 1080, 1920, "now"))
+            conn.commit()
+            conn.close()
+            return stock_path
+
+        with patch.object(LLMAdapter, "complete", mock_complete), \
+             patch.object(StockAdapter, "search", mock_search), \
+             patch.object(StockAdapter, "download", mock_download):
+            resp = app.test_client().post(f"/api/assets/{asset_id}/generate-media", json={})
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["results"][0]["status"] == "ok"
+        assert data["results"][0]["ingredient_id"].startswith("generated:")
+        conn = sqlite3.connect(db_path)
+        media = conn.execute(
+            "SELECT kind, path, model, prompt FROM asset_media WHERE asset_id = ?",
+            (asset_id,),
+        ).fetchone()
+        conn.close()
+        assert media == ("video", stock_path, "stock:test", "Barbados Landship parade")
+
     def test_render_endpoint_exists(self, tmp_path):
         from app import create_app
         app = create_app(config_dir="config", db_path=str(tmp_path / "test.db"))

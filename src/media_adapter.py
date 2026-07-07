@@ -163,21 +163,23 @@ class MediaAdapter:
         # Check if owner_type column exists (defensive for old DBs)
         cols = [row[1] for row in conn.execute("PRAGMA table_info(asset_media)").fetchall()]
         if "owner_type" in cols:
-            conn.execute(
+            cursor = conn.execute(
                 """INSERT INTO asset_media
                    (asset_id, kind, path, model, prompt, cost_usd, created_at, owner_type)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (asset_id, kind, path, model, prompt[:2000], cost_usd, ts, owner_type),
             )
         else:
-            conn.execute(
+            cursor = conn.execute(
                 """INSERT INTO asset_media
                    (asset_id, kind, path, model, prompt, cost_usd, created_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
                 (asset_id, kind, path, model, prompt[:2000], cost_usd, ts),
             )
+        media_id = cursor.lastrowid
         conn.commit()
         conn.close()
+        return media_id
 
     def _get_cached_image(self, prompt: str, model: str) -> Optional[str]:
         """Check if an image for this prompt+model is already cached."""

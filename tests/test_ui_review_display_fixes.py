@@ -210,6 +210,40 @@ def test_reel_video_generation_step_is_numbered_one(template_app):
     assert '<span class="step-num active">2</span>' not in html
 
 
+def test_reel_without_final_cut_does_not_show_active_approve(template_app):
+    """A reel cannot be approved until a final cut exists for human review."""
+    asset = AttrDict(
+        id=1,
+        platform="Instagram",
+        variant_type="reel",
+        asset_state="pending",
+        content="Reel summary",
+        posts_parsed=["Full reel script"],
+        image_prompts_parsed=["none"],
+        post_images=[],
+        images=[],
+        generated_images_parsed=[],
+        videos=[],
+        final_cuts=[],
+        edit_plans=[],
+    )
+    draft = AttrDict(id=1, draft_state="shipped", format="Instagram Reel Script", draft_text="summary", platform_content_parsed=[])
+
+    with template_app.test_request_context("/create/assets/1"):
+        html = render_template(
+            "assets.html",
+            business_name="TestBiz",
+            idea_card=AttrDict(idea="Original idea"),
+            draft=draft,
+            assets=[asset],
+            platforms=[],
+            trail=[],
+        )
+
+    assert 'assetGate(1, \'approve\'' not in html
+    assert "Approve locked until final cut exists" in html
+
+
 def test_list_pages_do_not_manually_ellipsis_long_titles(template_app):
     long_idea = "This is a long idea title that needs at least two lines so the operator can understand what the card is about without clicking first."
     base_card = SimpleNamespace(

@@ -521,8 +521,13 @@
 
                 {# ── Gate 3: approve / fix / kill ── #}
                 {% if asset.asset_state in ('pending', 'fix') %}
+                {% set can_approve = (not is_reel) or has_final %}
                 <div class="gate-actions">
+                    {% if can_approve %}
                     <button class="btn btn-approve" onclick="assetGate({{ asset.id }}, 'approve', this)">Approve ✓</button>
+                    {% else %}
+                    <button class="btn btn-approve" disabled title="Approve locked until final cut exists">Approve locked until final cut exists</button>
+                    {% endif %}
                     <button class="btn btn-fix" title="Sends this asset back as internal state: fix" onclick="assetGate({{ asset.id }}, 'fix', this)">Needs work</button>
                     <button class="btn btn-kill" onclick="assetGate({{ asset.id }}, 'kill', this)">Kill</button>
                 </div>

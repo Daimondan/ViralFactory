@@ -4,6 +4,16 @@
 
 All decisions — tech, logic, structure, strategy, ops — logged here with type tag + rationale.
 
+### 2026-07-07 FIX — Assembler cannot render from unrelated capture uploads
+
+**FIX** — Asset #1 rendered a wrong water clip for a Barbados Landship reel because final assembly built its edit-plan ingredient inventory from all business-wide `capture_upload` materials. The LLM selected `upload:248` (`veo-water-clip.mp4`) even though that material was not linked to asset #1's idea card and did not match the required Landship/Bridgetown capture direction.
+
+**Rationale:** Capture uploads are card-specific production ingredients, not a global B-roll library. Global substitution causes ID/direction mismatches and can send unrelated media into public review.
+
+**Change:** Edit-plan generation now only exposes asset-scoped generated media and capture uploads explicitly linked to the source idea card. If required captures are still missing, `/api/assets/<id>/edit-plan` returns `status: missing_media` / HTTP 409 instead of asking the LLM to improvise. Stock clips found through missing-media generation are registered as asset-scoped `asset_media` rows so later edit plans consume them as `generated:<media_id>`, not global stock history. Reels without a final cut now show a disabled "Approve locked until final cut exists" control instead of an active approval button.
+
+**OPS:** The existing wrong asset #1 final cut was archived from `data/media/1/final_1.mp4` and its edit plan marked failed after a DB backup. The page now shows no final cut and the edit-plan API reports 2 missing required visuals.
+
 ### 2026-07-07 FIX — `reviewing` cards no longer enter the Writer draft queue
 
 **FIX** — A card in `card_state='reviewing'` could appear on the Writer draft/review surface as if it were actionable. That contradicted the state rule: only cards ready to draft (`approved` or `capture_fulfilled`) should enter the draft queue; `reviewing` is an in-flight AI review state and should not be presented as operator work.

@@ -25,6 +25,7 @@
 | 7. Generalization proof | ⬜ | Real near-term but not blocking v1. |
 
 ## What's Done
+- [x] 2026-07-07: Fixed Assembler asset #1 wrong-video class. Edit plans now use only asset-scoped generated media and the idea card's own capture uploads; missing required visuals return `missing_media` instead of letting the LLM choose unrelated uploads. Stock missing-media results are registered as asset media. Reels without final cuts cannot be approved. 779 tests passing.
 - [x] 2026-07-04: AI tells + voice deepening correction applied. Added `prompts/shared/ai_tells_v1.md`, loaded into `draft/generate_v3.md`, moved voice upstream into `ideas/generate_v1.md`, added cognitive Voice Profile dimensions to prompt + playbook, fixed T9.5 self-audit no-op so `fix_applied` changes real `platform_content`, restored full module context during AI-review revisions, and added 3 regression tests. 761 tests passing.
 - [x] Repo created: https://github.com/Daimondan/ViralFactory (public — deliberate, so architect can read without auth)
 - [x] Charter v3 grilled and amended (5 divergences → DIVERGENCE-001)

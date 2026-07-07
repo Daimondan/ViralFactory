@@ -6090,22 +6090,18 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             _get_jobs_store().fail_job(plan_job_id, str(e)[:200])
             return jsonify({"error": f"Config error: {e}"}), 500
 
-        # Capture guard: if the idea card has capture_required tasks that aren't
-        # fulfilled, return the missing tasks so the UI can offer generation options.
-        # Soft block — the operator can choose to generate missing media with AI
-        # or search stock footage instead of uploading captures.
+        # Capture guard: if the idea card has capture_required tasks, the edit
+        # planner may only work from this asset's generated media and this
+        # card's linked capture uploads. Never substitute random old uploads
+        # from the business-wide materials library.
         card = store.get_idea_card(draft["idea_card_id"]) if draft.get("idea_card_id") else None
+        capture_required = []
+        capture_upload_ids = set()
         if card:
             import json as _json
             treatment = _json.loads(card.get("treatment") or "{}")
             capture_required = treatment.get("capture_required", [])
-            if capture_required:
-                uploads = _json.loads(card.get("capture_uploads") or "[]")
-                missing_count = len(capture_required) - len(uploads)
-                if missing_count > 0:
-                    # Don't hard-block — return missing captures so the UI can offer choices
-                    # The operator can still proceed by generating AI footage or searching stock
-                    pass  # Soft warning — UI handles the choice
+            capture_upload_ids = {int(mid) for mid in _json.loads(card.get("capture_uploads") or "[]")}
 
         from llm_adapter import LLMAdapter, LLMAdapterError
         from pipeline import EDIT_PLAN_SCHEMA
@@ -6116,6 +6112,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         media_adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
 
         ingredients = []
+        visual_ingredient_count = 0
         # F5 (CORRECTION-feedback-plumbing): probe real durations for videos/uploads
         from assembly import probe_duration
 
@@ -6142,8 +6139,10 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     "duration": dur,
                     "description": desc,
                 })
+                visual_ingredient_count += 1
 
-        # Uploaded materials (video/audio) — ONLY capture_upload, never session_upload.
+        # Uploaded materials — ONLY this card's linked capture uploads, never
+        # session_upload and never unrelated capture_upload history.
         # session_upload materials are personal WhatsApp/voice recordings for voice
         # analysis, NOT content to be stitched into public-facing videos.
         # Privacy: personal recordings must never leak into published content.
@@ -6151,6 +6150,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         intake = MaterialsIntake(app.config["DB_PATH"])
         all_materials = intake.list_materials(business_slug)
         for mat in all_materials:
+            if int(mat.get("id")) not in capture_upload_ids:
+                continue
             # Privacy guard: skip session uploads — these are personal voice/audio
             # recordings used for voice analysis, never as video content.
             if mat.get("channel") == "session_upload":
@@ -6169,21 +6170,26 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     desc = (mat.get("filename") or mat.get("normalized_content", ""))[:100] + " (duration unverified)"
                 ingredients.append({
                     "id": f"upload:{mat['id']}",
-                    "kind": mat["material_type"],
+                    "kind": "video" if str(mat.get("filename") or "").lower().endswith((".mp4", ".mov", ".avi", ".webm")) else mat["material_type"],
                     "duration": dur,
                     "description": desc,
                 })
+                visual_ingredient_count += 1
 
-        # Stock items
-        from stock_adapter import StockAdapter
-        stock_adapter = StockAdapter(models_config, db_path=app.config["DB_PATH"])
-        for s in stock_adapter.list_cached(kind="video"):
-            ingredients.append({
-                "id": f"stock:{s['id']}",
-                "kind": "video",
-                "duration": s.get("duration") or 5.0,
-                "description": (s.get("title") or "")[:100],
-            })
+        if capture_required and visual_ingredient_count < len(capture_required):
+            missing_count = len(capture_required) - visual_ingredient_count
+            message = (
+                f"Missing {missing_count} required visual capture(s). "
+                "Generate missing media or upload the required captures before creating an edit plan."
+            )
+            _get_jobs_store().fail_job(plan_job_id, message[:200])
+            return jsonify({
+                "status": "missing_media",
+                "message": message,
+                "required_count": len(capture_required),
+                "available_visual_count": visual_ingredient_count,
+                "missing_count": missing_count,
+            }), 409
 
         inventory_text = "\n".join(
             f"- {ing['id']} ({ing['kind']}, {ing['duration']:.1f}s): {ing['description']}"
@@ -6736,8 +6742,15 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                         ).fetchone()
                         conn.close()
                         stock_id = row["id"] if row else 0
+                        stock_provider = stock_results[0].get("provider", "stock")
+                        media_id = media_adapter._record_media(
+                            asset_id, "video", path,
+                            f"stock:{stock_provider}", query, 0,
+                            owner_type="asset",
+                        )
                         item_result["status"] = "ok"
-                        item_result["ingredient_id"] = f"stock:{stock_id}"
+                        item_result["ingredient_id"] = f"generated:{media_id}"
+                        item_result["stock_id"] = stock_id
                         item_result["path"] = path
                     else:
                         # Fallback to AI generation
