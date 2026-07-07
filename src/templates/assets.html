@@ -842,7 +842,7 @@ function confirmVideoGeneration() {
     }).catch(function(err) { unbusyBtn(btn); closeVideoDialog(); alert('Error: ' + err); });
 }
 
-// ── Missing captures: load and offer generation/search per segment ──
+// ── Missing captures: load and offer LLM-driven generation ──
 function loadMissingCaptures(assetId) {
     var panel = document.getElementById('missing-captures-' + assetId);
     if (!panel) return;
@@ -851,18 +851,12 @@ function loadMissingCaptures(assetId) {
         .then(function(data) {
             if (!data.missing || data.missing.length === 0) return;
             var html = '<div style="background: rgba(212,168,67,0.12); border-radius: 8px; padding: 12px; margin-bottom: 8px;">';
-            html += '<div style="font-size: 0.82rem; color: #8A6D20; margin-bottom: 8px;">⚠ This format requires footage you haven\'t captured yet. You can upload it, generate it with AI, or search stock footage.</div>';
+            html += '<div style="font-size: 0.82rem; color: #8A6D20; margin-bottom: 8px;">⚠ This format requires ' + data.missing.length + ' footage capture' + (data.missing.length > 1 ? 's' : '') + ' you haven\'t uploaded. Click below to have the AI creative director generate style-consistent media.</div>';
             for (var i = 0; i < data.missing.length; i++) {
-                var task = data.missing[i];
-                html += '<div style="background: #FFFFFF; border-radius: 6px; padding: 10px; margin-bottom: 6px;">';
-                html += '<div style="font-size: 0.82rem; color: #1A1A1A; margin-bottom: 6px;">' + (i+1) + '. ' + task + '</div>';
-                html += '<div style="display: flex; gap: 6px; flex-wrap: wrap;">';
-                html += '<button class="btn btn-render" style="font-size: 0.78rem;" onclick="generateClipAI(' + assetId + ', ' + i + ', \'' + task.replace(/'/g, "\\'") + '\', this)">Generate with AI</button>';
-                html += '<button class="btn btn-primary" style="font-size: 0.78rem;" onclick="searchStockForCapture(' + assetId + ', ' + i + ', \'' + task.replace(/'/g, "\\'") + '\', this)">Search stock</button>';
-                html += '</div>';
-                html += '<div id="capture-status-' + assetId + '-' + i + '" style="font-size: 0.75rem; margin-top: 4px;"></div>';
-                html += '</div>';
+                html += '<div style="font-size: 0.8rem; color: #555; padding: 4px 0;">' + (i+1) + '. ' + data.missing[i] + '</div>';
             }
+            html += '<button class="btn btn-render" style="margin-top: 8px;" onclick="generateMissingMedia(' + assetId + ', this)">Generate missing media</button>';
+            html += '<div id="media-gen-status-' + assetId + '" style="font-size: 0.75rem; margin-top: 4px;"></div>';
             html += '</div>';
             panel.innerHTML = html;
         })
@@ -878,62 +872,33 @@ document.addEventListener('DOMContentLoaded', function() {
     {% endfor %}
 });
 
-function generateClipAI(assetId, idx, task, btn) {
-    var status = document.getElementById('capture-status-' + assetId + '-' + idx);
-    if (!confirm('Generate a video clip for: "' + task + '" using AI (Grok)? This costs money and takes a few minutes.')) return;
-    if (status) { status.style.color = '#4A6FA5'; status.textContent = 'Generating AI clip… this may take a few minutes.'; }
+function generateMissingMedia(assetId, btn) {
+    var status = document.getElementById('media-gen-status-' + assetId);
+    if (!confirm('The AI creative director will analyze the script, visual style, and missing captures, then generate style-consistent media. This may take several minutes. Continue?')) return;
+    if (status) { status.style.color = '#4A6FA5'; status.textContent = 'Planning media generation…'; }
     btn.disabled = true;
     btn.textContent = 'Generating…';
-    fetch('/api/assets/' + assetId + '/generate-clip', {
+    fetch('/api/assets/' + assetId + '/generate-media', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({prompt: task, duration: 5, aspect_ratio: '9:16'}),
+        body: '{}',
     }).then(function(r) { return r.json(); }).then(function(data) {
         btn.disabled = false;
-        btn.textContent = 'Generate with AI';
+        btn.textContent = 'Generate missing media';
         if (data.status === 'ok') {
-            if (status) { status.style.color = '#4A7C3A'; status.textContent = '✓ Clip generated! Ready to render video.'; }
+            var okCount = (data.results || []).filter(function(r) { return r.status === 'ok' || r.status === 'submitted'; }).length;
+            var failCount = (data.results || []).filter(function(r) { return r.status === 'failed'; }).length;
+            if (status) {
+                status.style.color = okCount > 0 ? '#4A7C3A' : '#C0392B';
+                status.textContent = okCount + ' media item' + (okCount > 1 ? 's' : '') + ' generated' +
+                    (failCount > 0 ? ', ' + failCount + ' failed' : '') +
+                    '. Ready to render video.';
+            }
         } else {
             if (status) { status.style.color = '#C0392B'; status.textContent = data.error || 'Generation failed'; }
         }
     }).catch(function(err) {
         btn.disabled = false;
-        btn.textContent = 'Generate with AI';
-        if (status) { status.style.color = '#C0392B'; status.textContent = 'Error: ' + err; }
-    });
-}
-
-function searchStockForCapture(assetId, idx, task, btn) {
-    var status = document.getElementById('capture-status-' + assetId + '-' + idx);
-    if (status) { status.style.color = '#4A6FA5'; status.textContent = 'Searching stock footage…'; }
-    btn.disabled = true;
-    btn.textContent = 'Searching…';
-    fetch('/api/stock/search', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({query: task, kind: 'video', per_page: 5}),
-    }).then(function(r) { return r.json(); }).then(function(data) {
-        btn.disabled = false;
-        btn.textContent = 'Search stock';
-        if (data.status === 'ok' && data.results && data.results.length > 0) {
-            if (status) { status.style.color = '#4A7C3A'; status.textContent = 'Found ' + data.results.length + ' clips. Downloading first…'; }
-            // Download the first result
-            fetch('/api/stock/download', {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({item: data.results[0], asset_id: assetId}),
-            }).then(function(r) { return r.json(); }).then(function(dlData) {
-                if (dlData.status === 'ok') {
-                    if (status) { status.style.color = '#4A7C3A'; status.textContent = '✓ Stock clip downloaded! Ready to render video.'; }
-                } else {
-                    if (status) { status.style.color = '#C0392B'; status.textContent = dlData.error || 'Download failed'; }
-                }
-            }).catch(function(err) {
-                if (status) { status.style.color = '#C0392B'; status.textContent = 'Download error: ' + err; }
-            });
-        } else {
-            if (status) { status.style.color = '#8A6D20'; status.textContent = 'No stock clips found. Try AI generation instead.'; }
-        }
-    }).catch(function(err) {
-        btn.disabled = false;
-        btn.textContent = 'Search stock';
+        btn.textContent = 'Generate missing media';
         if (status) { status.style.color = '#C0392B'; status.textContent = 'Error: ' + err; }
     });
 }

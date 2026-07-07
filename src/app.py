@@ -6507,6 +6507,175 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             "missing_count": len(missing),
         })
 
+    @app.route("/api/assets/<int:asset_id>/generate-media", methods=["POST"])
+    def generate_missing_media(asset_id):
+        """LLM-driven media generation plan: the LLM acts as creative director,
+        deciding per-segment which generator to use and writing style-consistent
+        prompts so all clips share a cohesive visual look.
+
+        Flow: get missing captures → LLM produces media plan → execute each plan
+        item (stock download or AI generation) → register as ingredients.
+        """
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        store = _get_pipeline_store()
+        asset = store.get_asset(asset_id)
+        if not asset:
+            return jsonify({"error": "Asset not found"}), 404
+
+        draft = store.get_draft(asset["draft_id"])
+        if not draft:
+            return jsonify({"error": "Draft not found"}), 404
+
+        # Get missing captures
+        card = store.get_idea_card(draft["idea_card_id"]) if draft.get("idea_card_id") else None
+        if not card:
+            return jsonify({"error": "No idea card for this asset"}), 400
+
+        import json as _json
+        treatment = _json.loads(card.get("treatment") or "{}")
+        capture_required = treatment.get("capture_required", [])
+        uploads = _json.loads(card.get("capture_uploads") or "[]")
+        missing = capture_required[len(uploads):] if len(uploads) < len(capture_required) else []
+
+        if not missing:
+            return jsonify({"status": "ok", "message": "No missing captures — all fulfilled"})
+
+        # Build missing captures text for the prompt
+        missing_text = "\n".join(f"{i}. {task}" for i, task in enumerate(missing))
+
+        # Load config + modules
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+            business = config["business"]
+        except ConfigError as e:
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        # Assemble module context (Visual Style)
+        from context_assembly import assemble_module_context
+        module_vars, module_prov = assemble_module_context(
+            "assembly/media_plan_v1.md", business_slug,
+            db_path=app.config["DB_PATH"], modules_dir="modules",
+        )
+
+        # Call LLM with the media plan prompt
+        from llm_adapter import LLMAdapter, LLMAdapterError
+        from pipeline import MEDIA_PLAN_SCHEMA
+
+        adapter_llm = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
+
+        try:
+            result = adapter_llm.complete(
+                prompt_file="assembly/media_plan_v1.md",
+                variables={
+                    "business_name": business["business"]["name"],
+                    "platform_name": asset.get("platform", ""),
+                    "format_name": draft.get("format") or "",
+                    "asset_content": asset["content"][:2000],
+                    "missing_captures": missing_text,
+                    **module_vars,
+                },
+                schema=MEDIA_PLAN_SCHEMA,
+                backend="default",
+                context=f"Media plan for asset {asset_id} ({asset.get('platform', '')}) | module_ctx: {module_prov}",
+                business_slug=business_slug,
+            )
+        except (LLMAdapterError, Exception) as e:
+            return jsonify({"error": str(e)}), 500
+
+        # Execute the media plan
+        from media_adapter import MediaAdapter, MediaAdapterError
+        from stock_adapter import StockAdapter, StockAdapterError
+        media_adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
+        stock_adapter = StockAdapter(models_config, db_path=app.config["DB_PATH"])
+
+        results = []
+        for plan_item in result.get("media_plan", []):
+            generator = plan_item.get("generator", "")
+            item_result = {"capture_index": plan_item.get("capture_index", 0), "generator": generator}
+
+            try:
+                if generator == "stock":
+                    # Search stock libraries
+                    query = plan_item.get("search_query", "")
+                    stock_results = stock_adapter.search(query, kind="video", per_page=3)
+                    if stock_results:
+                        # Download the first match
+                        path = stock_adapter.download(stock_results[0])
+                        # Get stock_cache ID
+                        import sqlite3 as _sqlite3
+                        conn = _sqlite3.connect(app.config["DB_PATH"])
+                        conn.row_factory = _sqlite3.Row
+                        row = conn.execute(
+                            "SELECT id FROM stock_cache WHERE local_path = ?",
+                            (path,),
+                        ).fetchone()
+                        conn.close()
+                        stock_id = row["id"] if row else 0
+                        item_result["status"] = "ok"
+                        item_result["ingredient_id"] = f"stock:{stock_id}"
+                        item_result["path"] = path
+                    else:
+                        # Fallback to AI generation
+                        fallback = plan_item.get("fallback_generator", "ai_video")
+                        fallback_prompt = plan_item.get("fallback_prompt", plan_item.get("generation_prompt", ""))
+                        if fallback == "ai_video" and fallback_prompt:
+                            submit = media_adapter.submit_video(
+                                prompt=fallback_prompt, asset_id=asset_id,
+                                aspect_ratio="9:16", duration=5,
+                                context=f"Media plan fallback for asset {asset_id}",
+                                business_slug=business_slug,
+                            )
+                            item_result["status"] = "submitted"
+                            item_result["external_job_id"] = submit.get("external_job_id")
+                        else:
+                            item_result["status"] = "failed"
+                            item_result["error"] = "Stock search returned nothing and no fallback configured"
+
+                elif generator == "ai_video":
+                    prompt = plan_item.get("generation_prompt", "")
+                    if prompt:
+                        submit = media_adapter.submit_video(
+                            prompt=prompt, asset_id=asset_id,
+                            aspect_ratio="9:16", duration=5,
+                            context=f"Media plan AI generation for asset {asset_id}",
+                            business_slug=business_slug,
+                        )
+                        item_result["status"] = "submitted"
+                        item_result["external_job_id"] = submit.get("external_job_id")
+
+                elif generator == "ai_image":
+                    prompt = plan_item.get("generation_prompt", "")
+                    if prompt:
+                        img_result = media_adapter.generate_image(
+                            prompt=prompt, asset_id=asset_id,
+                            aspect_ratio="9:16",
+                            context=f"Media plan AI image for asset {asset_id}",
+                            business_slug=business_slug,
+                        )
+                        item_result["status"] = "ok"
+                        item_result["path"] = img_result["path"]
+
+                else:
+                    item_result["status"] = "skipped"
+                    item_result["error"] = f"Unknown generator: {generator}"
+
+            except (MediaAdapterError, StockAdapterError, Exception) as e:
+                item_result["status"] = "failed"
+                item_result["error"] = str(e)[:200]
+
+            results.append(item_result)
+
+        return jsonify({
+            "status": "ok",
+            "media_plan": result.get("media_plan", []),
+            "results": results,
+            "count": len(results),
+        })
+
     # ── T3.12: Publish handoff ──
 
     @app.route("/create/publish/<int:draft_id>")

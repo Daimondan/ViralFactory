@@ -403,6 +403,34 @@ EDIT_PLAN_SCHEMA = {
 }
 
 
+# ─── Media Plan Schema (LLM-driven missing-media generation) ────────────────
+
+MEDIA_PLAN_SCHEMA = {
+    "type": "object",
+    "required": ["media_plan"],
+    "properties": {
+        "media_plan": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": ["capture_index", "generator"],
+                "properties": {
+                    "capture_index": {"type": "integer"},
+                    "capture_task": {"type": "string"},
+                    "generator": {"type": "string"},  # stock | ai_video | ai_image
+                    "search_query": {"type": "string"},  # for stock
+                    "generation_prompt": {"type": "string"},  # for ai_video/ai_image
+                    "style_directive": {"type": "string"},
+                    "fallback_generator": {"type": "string"},  # stock | ai_video | ai_image
+                    "fallback_prompt": {"type": "string"},
+                },
+            },
+        },
+    },
+}
+
+
 # ─── Pipeline Store ──────────────────────────────────────────────────────────
 
 class PipelineStore:
