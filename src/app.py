@@ -6561,6 +6561,57 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             db_path=app.config["DB_PATH"], modules_dir="modules",
         )
 
+        # Build available generators list from config — config-driven, not hardcoded
+        media_config = models_config.get("media", {})
+        stock_config = models_config.get("stock", {})
+        generators = []
+
+        # Stock footage
+        stock_providers = stock_config.get("providers", [])
+        if stock_providers:
+            generators.append(
+                f"- **stock** — Search {', '.join(stock_providers)} for real-world footage. "
+                f"You write a search query. Returns real video clips."
+            )
+
+        # AI video generation
+        video_model = media_config.get("video_default", "")
+        video_provider = media_config.get("video_provider", "")
+        if video_model:
+            generators.append(
+                f"- **ai_video** — Generate a video clip with AI ({video_model} via {video_provider}). "
+                f"You write the generation prompt. Full creative control over the output."
+            )
+
+        # AI image generation
+        image_model = media_config.get("image_default", "")
+        if image_model:
+            generators.append(
+                f"- **ai_image** — Generate a static image with AI ({image_model}). "
+                f"You write the generation prompt. Use for cover frames, data cards, text slides."
+            )
+
+        # Voice/narration
+        voice_config = models_config.get("voice_cloning", {})
+        voice_engine = voice_config.get("engine", "")
+        if voice_engine:
+            generators.append(
+                f"- **voice** — Generate narration/voiceover ({voice_engine}). "
+                f"You write the script text. The voice will match the business's voice profile."
+            )
+
+        # 3D/animation (check if configured)
+        animation_config = models_config.get("animation", {})
+        if animation_config.get("enabled"):
+            anim_tool = animation_config.get("tool", "blender")
+            generators.append(
+                f"- **animation** — 3D animation / motion graphics ({anim_tool}). "
+                f"You write the scene description. Use for motion graphics, animated text, "
+                f"transitions, or stylized sequences that other generators can't produce."
+            )
+
+        available_generators = "\n".join(generators) if generators else "(no generators configured)"
+
         # Call LLM with the media plan prompt
         from llm_adapter import LLMAdapter, LLMAdapterError
         from pipeline import MEDIA_PLAN_SCHEMA
@@ -6576,6 +6627,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     "format_name": draft.get("format") or "",
                     "asset_content": asset["content"][:2000],
                     "missing_captures": missing_text,
+                    "available_generators": available_generators,
                     **module_vars,
                 },
                 schema=MEDIA_PLAN_SCHEMA,

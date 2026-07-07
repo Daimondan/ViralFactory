@@ -61,13 +61,9 @@ Key principles:
 | Voice/narration | Qwen3 TTS | VO from script | `voice_cloning.engine` |
 | Assembly | FFmpeg | Stitch segments + burn captions | (local) |
 
-**No Blender needed.** Blender is a 3D animation/compositing tool — wrong fit:
-- We need real-looking B-roll + style-consistent AI clips, not 3D animation
-- Blender requires GPU compute and significant render time
-- Island bandwidth makes large tool downloads impractical
-- FFmpeg already handles compositing (captions, transitions, audio mixing)
+**Generator choice is LLM-driven, not hardcoded.** The available generators are built dynamically from `config/models.yaml` and passed to the LLM as `{available_generators}`. The LLM sees what's configured and decides per-segment which to use. If new generators are added to config (e.g. Blender for 3D animation, another video model, a music generator), they automatically appear in the LLM's options — no prompt changes needed.
 
-The LLM chooses which generator to use per segment and writes prompts that maintain visual consistency across all generated/downloaded clips.
+Currently configured: stock (Pexels/Pixabay), AI video (Grok/xAI), AI image (Gemini/OpenRouter), voice (Qwen3 TTS). Animation/3D tools (e.g. Blender) can be added via config when needed — the prompt already describes what they're for, and the endpoint already handles them.
 
 ## Implementation plan
 
