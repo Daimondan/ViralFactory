@@ -6045,6 +6045,25 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             _get_jobs_store().fail_job(plan_job_id, str(e)[:200])
             return jsonify({"error": f"Config error: {e}"}), 500
 
+        # Capture guard: if the idea card has capture_required tasks that aren't
+        # fulfilled, block video generation — the reel needs real footage, not
+        # a plan cobbled together from static images.
+        card = store.get_idea_card(draft["idea_card_id"]) if draft.get("idea_card_id") else None
+        if card:
+            import json as _json
+            treatment = _json.loads(card.get("treatment") or "{}")
+            capture_required = treatment.get("capture_required", [])
+            if capture_required:
+                uploads = _json.loads(card.get("capture_uploads") or "[]")
+                if len(uploads) < len(capture_required):
+                    _get_jobs_store().fail_job(plan_job_id, "Capture tasks not fulfilled")
+                    return jsonify({
+                        "error": "This format requires human-captured footage before video generation. "
+                                 f"{len(capture_required) - len(uploads)} of {len(capture_required)} capture tasks still pending. "
+                                 f"Upload the required captures first: "
+                                 + "; ".join(capture_required),
+                    }), 400
+
         from llm_adapter import LLMAdapter, LLMAdapterError
         from pipeline import EDIT_PLAN_SCHEMA
         from media_adapter import MediaAdapter
