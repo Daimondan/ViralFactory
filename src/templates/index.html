@@ -6,152 +6,123 @@
     <title>ViralFactory — {{ business_name }}</title>
     <link rel="stylesheet" href="/static/vf.css">
     <script src="/static/busy.js"></script>
-    <style>
-        .greeting { font-family: var(--font-serif); font-size: 1.8rem; line-height: 1.25; margin: var(--space-4) 0 var(--space-2); }
-        .greeting .accent { color: var(--accent); }
-        .greeting-sub { color: var(--muted); font-size: 0.88rem; margin-bottom: var(--space-6); }
-
-        .activity-item {
-            display: grid;
-            grid-template-columns: 48px 1fr auto;
-            gap: var(--space-3);
-            align-items: center;
-            padding: var(--space-3) 0;
-            border-bottom: 1px dotted var(--border-dotted);
-        }
-        .activity-item:last-child { border-bottom: none; }
-        .activity-icon {
-            width: 32px; height: 32px; border-radius: var(--radius-sm);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 0.75rem; font-weight: 700;
-        }
-        .icon-idea { background: rgba(74, 111, 165, 0.1); color: var(--blue); }
-        .icon-draft { background: var(--accent-tint); color: var(--accent); }
-        .icon-asset { background: rgba(123, 91, 166, 0.1); color: var(--purple); }
-        .icon-published { background: rgba(74, 124, 58, 0.1); color: var(--green); }
-        .activity-body { min-width: 0; }
-        .activity-title { font-size: 0.88rem; font-weight: 500; }
-        .activity-meta { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
-        .activity-sublist { list-style: none; margin-top: 6px; border-left: 2px solid var(--border); padding-left: 0; }
-        .activity-subitem { display: flex; gap: 8px; align-items: center; margin: 5px 0 5px 12px; font-size: 0.8rem; }
-        .activity-subitem .activity-icon { width: 22px; height: 22px; font-size: 0.62rem; }
-    </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>ViralFactory</h1>
-            <p class="subtle">{{ business_name }}</p>
-        </div>
-
         {% set active_page = "home" %}
         {% include "_nav.html" %}
 
-        <h2>Decision Desk</h2>
-        <p class="greeting">Good {{ greeting_period }}, Daimon. <span class="accent">{{ pending_count }}</span> {{ "call" if pending_count == 1 else "calls" }} waiting on your hand.</p>
-        <p class="greeting-sub">The factory drafted, scored, and staged everything below. Nothing moves until you say so.</p>
+        {# Page title block — greeting + new seed button #}
+        <div class="page-title-block">
+            <div>
+                <h1>Good {{ greeting_period }}, Daimon</h1>
+                <p class="subtitle">{{ pending_count }} decisions waiting · nothing ships without you</p>
+            </div>
+            <a href="/ideas" class="btn">+ New seed</a>
+        </div>
 
-        {% if activity %}
-        <h2>This Cycle</h2>
-        <div class="cycle-flow">
-            <div class="cycle-step">
-                <div class="cycle-step-num">{{ activity | selectattr('type', 'equalto', 'idea') | list | length }}</div>
-                <div class="cycle-step-label">Researcher (Ideas)</div>
+        {# Gate stat cards #}
+        <div class="gate-stats">
+            <div class="gate-stat-card">
+                <p class="stat-label">Gate 1 · Ideas</p>
+                <p class="stat-num">{{ gate_counts.ideas }} <span class="stat-sub">awaiting approval</span></p>
             </div>
-            <div class="cycle-step">
-                <div class="cycle-step-num">{{ activity | selectattr('type', 'equalto', 'draft') | list | length }}</div>
-                <div class="cycle-step-label">Writer (Script)</div>
+            <div class="gate-stat-card">
+                <p class="stat-label">Gate 2 · Drafts</p>
+                <p class="stat-num">{{ gate_counts.drafts }} <span class="stat-sub">ready for review</span></p>
             </div>
-            <div class="cycle-step">
-                <div class="cycle-step-num">{{ activity | selectattr('type', 'equalto', 'asset') | list | length }}</div>
-                <div class="cycle-step-label">Assembler (Studio)</div>
-            </div>
-            <div class="cycle-step cycle-step-final">
-                <div class="cycle-step-num">{{ activity | selectattr('type', 'equalto', 'published') | list | length }}</div>
-                <div class="cycle-step-label">Analyst (Learnings)</div>
+            <div class="gate-stat-card">
+                <p class="stat-label">Gate 3 · Assets</p>
+                <p class="stat-num">{{ gate_counts.assets }} <span class="stat-sub">preview ready</span></p>
             </div>
         </div>
+
+        {% if decision_queue %}
+        {# Decision queue #}
+        <p class="section-label">Needs your decision</p>
+        <div class="queue-card" style="margin-bottom: var(--space-6);">
+            {% for item in decision_queue %}
+            <div class="queue-item">
+                <span class="queue-number">№ {{ "%03d" | format(item.num) }}</span>
+                <div class="queue-body">
+                    <h3>{{ item.title }}…
+                        <span class="badge {% if item.gate_type == 'gate1' %}badge-gate{% elif item.gate_type == 'gate2' %}badge-ready{% elif item.gate_type == 'gate3' %}badge-approved{% endif %}">{{ item.gate }}</span>
+                    </h3>
+                    {% if item.meta %}<p class="queue-desc">{{ item.meta }}</p>{% endif %}
+                </div>
+                <a href="{{ item.link }}" class="btn {% if item.gate_type == 'gate3' %}{% else %}btn-small{% endif %}">Review</a>
+            </div>
+            {% endfor %}
+            <div class="queue-footer-banner">AI proposes · you decide · every gate logged</div>
+        </div>
         {% endif %}
-        {% if activity %}
-        <h2>Recent Activity</h2>
-        <div class="card">
-            <ul style="list-style:none;padding:0;">
-                {% for item in activity %}
-                <li class="activity-item" id="activity-{{ loop.index }}" {% if loop.index > 10 %}style="display:none;"{% endif %}>
-                    <div class="activity-icon icon-{{ item.type }}">{{ item.type[0] | upper }}</div>
-                    <div class="activity-body">
-                        <div class="activity-title">
+
+        {# Pipeline strip #}
+        <p class="section-label">Pipeline at a glance</p>
+        <div class="pipeline-strip">
+            <div class="pipeline-step">
+                <p class="step-name">Ideas</p>
+                <p class="step-meta">{{ pipeline_counts.ideas }} open</p>
+            </div>
+            <span class="pipeline-arrow">→</span>
+            <div class="pipeline-step">
+                <p class="step-name">Drafting</p>
+                <p class="step-meta">{{ pipeline_counts.drafting }} in progress</p>
+            </div>
+            <span class="pipeline-arrow">→</span>
+            <div class="pipeline-step">
+                <p class="step-name">Assets</p>
+                <p class="step-meta">{{ pipeline_counts.assets }} rendering</p>
+            </div>
+            <span class="pipeline-arrow">→</span>
+            <div class="pipeline-step">
+                <p class="step-name">Published</p>
+                <p class="step-meta">{{ pipeline_counts.published }} total</p>
+            </div>
+        </div>
+
+        {# Two-column: recent activity + system health #}
+        <div class="two-col">
+            <div>
+                <p class="section-label">Recent activity</p>
+                <div class="card" style="padding: var(--space-4) var(--space-5);">
+                    {% if activity %}
+                    <div style="font-size: 0.82rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: var(--space-2);">
+                        {% for item in activity[:8] %}
+                        <p style="margin: 0; border-bottom: 1px dotted var(--border-dotted); padding-bottom: var(--space-2);">
+                            {% if item.state == "shipped" %}<span style="color: var(--green); font-weight: 700;">✓</span>
+                            {% elif item.state == "killed" %}<span style="color: var(--red); font-weight: 700;">✕</span>
+                            {% else %}<span style="color: var(--accent); font-weight: 700;">↑</span>{% endif %}
                             <a href="{{ item.link }}">{{ item.title }}</a>
-                        </div>
-                        <div class="activity-meta">{{ item.type }} · {{ item.time }}</div>
-                        {% if item.sub_events %}
-                        <ul class="activity-sublist">
-                            {% for sub in item.sub_events %}
-                            <li class="activity-subitem">
-                                <div class="activity-icon icon-{{ sub.type }}">{{ sub.type[0] | upper }}</div>
-                                <div>
-                                    <a href="{{ sub.link }}">
-                                        {% if sub.type == 'asset' %}
-                                        Asset for {{ item.title }}: {{ sub.title | replace('  → ', '') }}
-                                        {% else %}
-                                        {{ sub.title }}
-                                        {% endif %}
-                                    </a>
-                                </div>
-                                <span class="badge badge-muted">{{ sub.state }}</span>
-                            </li>
-                            {% endfor %}
-                        </ul>
-                        {% endif %}
+                            <span class="timestamp" style="margin-left: 4px;">{{ item.time }}</span>
+                        </p>
+                        {% endfor %}
                     </div>
-                    <span class="badge badge-{{ item.state | replace('_', '') }}">{{ item.state | replace('_', ' ') }}</span>
-                </li>
-                {% endfor %}
-            </ul>
-            {% if activity|length > 10 %}
-            <div style="text-align:center; padding:10px 0 4px;">
-                <button class="btn btn-secondary" id="showMoreActivity" onclick="toggleMoreActivity()">Show more activity ({{ activity|length - 10 }} more)</button>
+                    {% else %}
+                    <div class="empty-state">
+                        <p>No activity yet. Start by <a href="/onboard">onboarding</a> or <a href="/ideas">generating ideas</a>.</p>
+                    </div>
+                    {% endif %}
+                </div>
             </div>
-            {% endif %}
-        </div>
-        {% else %}
-        <h2>Recent Activity</h2>
-        <div class="card">
-            <div class="empty-state">
-                <p>No activity yet. Start by <a href="/onboard">onboarding</a> or <a href="/ideas">generating ideas</a>.</p>
+            <div>
+                <p class="section-label">System health</p>
+                <div class="card" style="padding: var(--space-4) var(--space-5);">
+                    <div style="font-size: 0.82rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: var(--space-2);">
+                        {% for item in system_health %}
+                        <p style="margin: 0;">
+                            <span style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: {% if item.icon == 'green' %}var(--green){% elif item.icon == 'yellow' %}var(--yellow){% else %}var(--red){% endif %}; margin-right: 7px;"></span>
+                            {{ item.text }}
+                        </p>
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
-        </div>
-        {% endif %}
-
-        <h2>Quick Actions</h2>
-        <div class="flex gap-2">
-            <a href="/ideas" class="btn">Researcher — generate ideas →</a>
-            <a href="/create" class="btn btn-secondary">Writer — review drafts</a>
-            <a href="/assemble" class="btn btn-secondary">Assembler — review assets</a>
         </div>
 
         <div class="security-footer">
             Private via Tailscale · Auto-publish disabled
         </div>
     </div>
-    <script>
-    function toggleMoreActivity() {
-        var btn = document.getElementById('showMoreActivity');
-        var hidden = document.querySelectorAll('.activity-item[style*="display:none"]');
-        var shown = document.querySelectorAll('.activity-item:not([style*="display:none"])');
-        if (btn.textContent.indexOf('Show more') !== -1) {
-            hidden.forEach(function(el) { el.style.display = 'grid'; });
-            btn.textContent = 'Show less activity';
-        } else {
-            // Hide items beyond 10
-            var items = document.querySelectorAll('.activity-item');
-            items.forEach(function(el, idx) {
-                if (idx >= 10) el.style.display = 'none';
-            });
-            btn.textContent = 'Show more activity ({{ activity|length - 10 }} more)';
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-    }
-    </script>
 </body>
 </html>

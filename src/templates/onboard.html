@@ -4,80 +4,88 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/vf.css">
-    <title>Onboard — {{ business_name }}</title>
+    <title>Setup — {{ business_name }}</title>
+    <script src="/static/busy.js"></script>
     <style>
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: var(--bg); color: var(--text); line-height: 1.6;
-            padding: 2rem; max-width: 1200px; margin: 0 auto;
+        .playbook-row {
+            display: grid;
+            grid-template-columns: 1fr auto auto auto;
+            gap: var(--space-4);
+            align-items: center;
+            padding: var(--space-3) var(--space-5);
+            border-bottom: 1px dotted var(--border-dotted);
+            font-size: 0.82rem;
+            text-decoration: none;
+            color: inherit;
+            transition: background var(--transition);
         }
-        h1 { color: var(--accent); margin-bottom: 0.5rem; }
-        .subtle { color: var(--muted); font-size: 0.9rem; margin-bottom: 2rem; }
-        a { color: var(--accent); text-decoration: none; }
-
-        .playbook-card {
-            display: flex; align-items: center; gap: 1rem;
-            background: var(--surface); border: 1px solid var(--border);
-            border-radius: 10px; padding: 1.2rem 1.5rem; margin-bottom: 0.8rem;
-            transition: border-color 0.15s; text-decoration: none; color: var(--text);
-        }
-        .playbook-card:hover { border-color: var(--accent); }
-        .playbook-card.locked { opacity: 0.5; cursor: not-allowed; }
-        .playbook-card.locked:hover { border-color: var(--border); }
-        .playbook-card.done { border-color: rgba(63,185,80,0.3); }
-
-        .step-num {
-            flex-shrink: 0; width: 36px; height: 36px;
-            border-radius: 50%; background: var(--bg);
-            border: 2px solid var(--border);
-            display: flex; align-items: center; justify-content: center;
-            font-weight: 700; font-size: 0.9rem; color: var(--muted);
-        }
-        .step-num.active { border-color: var(--accent); color: var(--accent); }
-        .step-num.done { border-color: var(--green); color: var(--green); background: rgba(63,185,80,0.1); }
-        .step-num.locked { border-color: var(--border); color: var(--muted); }
-
-        .card-body { flex: 1; min-width: 0; }
-        .card-title { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.2rem; }
-        .card-purpose { font-size: 0.85rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-        .card-status { flex-shrink: 0; font-size: 0.75rem; font-weight: 600; padding: 0.2rem 0.6rem; border-radius: 10px; }
-        .status-done { background: rgba(63,185,80,0.15); color: var(--green); }
-        .status-locked { background: rgba(139,148,158,0.1); color: var(--muted); }
-        .status-ready { background: rgba(47,129,247,0.15); color: var(--accent); }
-
-        .start-arrow { flex-shrink: 0; color: var(--accent); font-size: 1.2rem; }
-        .locked .start-arrow { color: var(--muted); }
+        .playbook-row:hover { background: var(--surface-2); }
+        .playbook-row:last-child { border-bottom: none; }
+        .playbook-row.locked { opacity: 0.5; cursor: not-allowed; }
+        .playbook-row.locked:hover { background: transparent; }
+        .playbook-name { color: var(--text); font-weight: 500; }
+        .playbook-purpose { color: var(--muted); font-weight: 400; font-size: 0.78rem; }
     </style>
 </head>
 <body>
     <div class="container">
-    <h1>Onboarding</h1>
-    <p class="subtle">Run each step in order. The AI guides you through a conversation — you just talk, type, and upload.</p>
-    {% include "_nav.html" %}}
+    {% set active_page = "setup" %}
+    {% include "_nav.html" %}
 
-    {% for pb in playbooks %}
-    <a href="/onboard/{{ pb.name }}" class="playbook-card {{ 'locked' if pb.locked else '' }} {{ 'done' if pb.completed else '' }}">
-        <div class="step-num {{ 'done' if pb.completed else ('locked' if pb.locked else 'active') }}">{{ pb.run_order }}</div>
-        <div class="card-body">
-            <div class="card-title">{{ pb.display_label }}</div>
-            <div class="card-purpose">{{ pb.purpose }}</div>
+    <div class="page-title-block">
+        <div>
+            <h1>Setup</h1>
+            <p class="subtitle">Configure the factory · onboarding, health, connections</p>
         </div>
-        {% if pb.completed %}
-        <span class="card-status status-done">✓ Done</span>
-        {% elif pb.locked %}
-        <span class="card-status status-locked">Locked</span>
-        {% else %}
-        <span class="card-status status-ready">Start</span>
-        {% endif %}
-        <span class="start-arrow">→</span>
-    </a>
-    {% endfor %}
+    </div>
 
-    {% if not playbooks %}
-    <p style="color: var(--muted); padding: 2rem; text-align: center;">No playbooks found.</p>
-    {% endif %}
+    {# Setup tab bar #}
+    <div class="tab-bar">
+        <a href="/onboard" class="tab-active">Overview</a>
+        <a href="/onboard" class="">Onboarding</a>
+        <a href="/onboarding-health" class="">Module health</a>
+    </div>
+
+    <p class="section-label">Onboarding · {{ playbooks | selectattr('completed') | list | length }} of {{ playbooks | length }} playbooks complete</p>
+    <div class="queue-card" style="margin-bottom: var(--space-6);">
+        {% for pb in playbooks %}
+        <a href="{% if not pb.locked %}/onboard/{{ pb.name }}{% else %}#{% endif %}" class="playbook-row {{ 'locked' if pb.locked else '' }}">
+            <div>
+                <span class="playbook-name">{{ pb.display_label }}</span>
+                {% if pb.purpose %}<span class="playbook-purpose"> · {{ pb.purpose[:80] }}{% if pb.purpose | length > 80 %}…{% endif %}</span>{% endif %}
+            </div>
+            <span style="font-family: var(--font-mono); font-size: 0.68rem; color: var(--muted-dim);">{% if pb.completed %}→ module v{{ pb.version | default('?') }}{% endif %}</span>
+            <span class="timestamp">{{ pb.last_run[:10] if pb.last_run else '' }}</span>
+            {% if pb.completed %}
+            <span class="badge badge-approved">complete</span>
+            {% elif pb.locked %}
+            <span class="badge badge-muted">locked</span>
+            {% else %}
+            <span class="btn btn-small">Start →</span>
+            {% endif %}
+        </a>
+        {% endfor %}
+        <div class="queue-footer-banner">Every session is a conversation — one question at a time, readback at the gate</div>
+    </div>
+
+    {# Connections summary (static for now, matching mockup) #}
+    <p class="section-label">Connections</p>
+    <div class="connections-grid">
+        <div class="connection-card">
+            <div class="conn-head">
+                <span><span class="conn-name">Postiz</span> <span class="conn-desc">· posting + metrics</span></span>
+                <span class="conn-status">● connected</span>
+            </div>
+        </div>
+        <div class="connection-card">
+            <div class="conn-head">
+                <span><span class="conn-name">OpenRouter</span> <span class="conn-desc">· LLM, image, video</span></span>
+                <span class="conn-status">● connected</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="queue-footer-banner" style="border-radius: var(--radius-lg);">Keys live in server env — never rendered here, never in the repo</div>
     </div>
 </body>
 </html>

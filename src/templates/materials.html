@@ -4,158 +4,66 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/vf.css">
-    <title>Materials — ViralFactory</title>
+    <title>Knowledge · Materials — {{ business_name }}</title>
+    <script src="/static/busy.js"></script>
     <style>
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: var(--bg); color: var(--text); line-height: 1.6;
-            padding: 2rem; max-width: 1200px; margin: 0 auto;
-        }
-        h1 { color: var(--accent); margin-bottom: 0.5rem; }
-        .subtitle { color: var(--muted); margin-bottom: 1.5rem; font-size: 0.9rem; }
-
-        .filters {
-            display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;
-            align-items: center;
-        }
-        .filters label { font-size: 0.85rem; color: var(--muted); }
-        .filters select {
-            background: var(--surface); color: var(--text);
-            border: 1px solid var(--border); border-radius: 6px;
-            padding: 4px 10px; font-size: 0.85rem;
-        }
-        .filters .btn-clear {
-            background: transparent; border: 1px solid var(--border);
-            color: var(--muted); padding: 4px 12px; border-radius: 6px;
-            font-size: 0.85rem; cursor: pointer; text-decoration: none;
-        }
-
-        .material-card {
-            background: var(--surface); border: 1px solid var(--border);
-            border-radius: 10px; padding: 1.2rem 1.5rem; margin-bottom: 1rem;
-            transition: border-color 0.15s;
-        }
-        .material-card:hover { border-color: var(--accent); }
-        .material-card.excluded { opacity: 0.5; }
-        .card-header {
-            display: flex; align-items: center; justify-content: space-between;
-            margin-bottom: 0.5rem; gap: 1rem; flex-wrap: wrap;
-        }
-        .card-title {
-            display: flex; align-items: center; gap: 0.6rem;
-        }
-        .card-title a {
-            color: var(--text); text-decoration: none; font-weight: 500;
-        }
-        .card-title 
-        .card-title .filename { font-weight: 600; }
-        .card-title .material-type {
-            font-size: 11px; font-weight: 600; padding: 2px 8px;
-            border-radius: 10px; text-transform: uppercase;
-            background: rgba(47, 129, 247, 0.15); color: var(--accent);
-        }
-        .card-meta {
-            display: flex; gap: 1rem; font-size: 0.8rem; color: var(--muted);
-            flex-wrap: wrap;
-        }
-        .badge {
-            font-size: 11px; font-weight: 600; padding: 2px 8px;
-            border-radius: 10px; text-transform: uppercase;
-        }
-        .badge.excluded {
-            background: rgba(248, 81, 73, 0.15); color: var(--red);
-            border: 1px solid rgba(248, 81, 73, 0.3);
-        }
-        .badge.transcribing {
-            background: rgba(234, 179, 8, 0.15); color: var(--yellow);
-        }
-        .badge.transcribed {
-            background: rgba(34, 197, 94, 0.15); color: var(--green);
-        }
-        .excerpt {
-            font-size: 13px; color: var(--muted); margin-top: 0.5rem;
-            white-space: pre-wrap; word-wrap: break-word;
-            max-height: 80px; overflow: hidden;
-            position: relative;
-        }
-        .excerpt::after {
-            content: '';
-            position: absolute; bottom: 0; left: 0; right: 0; height: 20px;
-            background: linear-gradient(transparent, var(--surface));
-        }
-        .word-count { font-weight: 600; color: var(--text); }
-        .empty-state {
-            text-align: center; padding: 3rem; color: var(--muted);
-        }
+        .material-row { display: grid; grid-template-columns: 1fr auto auto; gap: var(--space-4); align-items: center; padding: var(--space-3) var(--space-5); border-bottom: 1px dotted var(--border-dotted); font-size: 0.82rem; }
+        .material-row:last-child { border-bottom: none; }
+        .material-row.excluded { opacity: 0.55; }
+        .material-name { color: var(--text); font-weight: 500; }
+        .material-name a { color: inherit; text-decoration: none; }
+        .material-name a:hover { color: var(--accent); }
+        .empty { color: var(--muted-dim); font-style: italic; padding: var(--space-5); text-align: center; }
     </style>
 </head>
 <body>
     <div class="container">
-    <h1>Materials</h1>
-    <p class="subtitle">Everything you've shared — uploads, transcripts, pasted text. Review, edit, and exclude.</p>
-    {% include "_nav.html" %}}
+    {% set active_page = "knowledge" %}
+    {% include "_nav.html" %}
 
-    {% if channels or run_ids %}
-    <div class="filters">
-        {% if run_ids %}
-        <label>Run:</label>
-        <select onchange="window.location.href=this.value ? '?run_id='+this.value : '/materials'">
-            <option value="">All runs</option>
-            {% for rid in run_ids %}
-            <option value="{{ rid }}" {{ 'selected' if filter_run == rid else '' }}>Run #{{ rid }}</option>
-            {% endfor %}
-        </select>
-        {% endif %}
-        {% if channels %}
-        <label>Channel:</label>
-        <select onchange="window.location.href=this.value ? '?channel='+this.value : '/materials'">
-            <option value="">All channels</option>
-            {% for ch in channels %}
-            <option value="{{ ch }}" {{ 'selected' if filter_channel == ch else '' }}>{{ ch }}</option>
-            {% endfor %}
-        </select>
-        {% endif %}
-        <a href="/materials" class="btn-clear">Clear filters</a>
+    <div class="page-title-block">
+        <div>
+            <h1>Knowledge · Materials</h1>
+            <p class="subtitle">{{ materials | length }} uploads{% if materials | selectattr('excluded_flag') | list | length > 0 %} · {{ materials | selectattr('excluded_flag') | list | length }} excluded{% endif %} · raw preserved, never deleted</p>
+        </div>
+        <a href="/onboard" class="btn btn-secondary">↑ Upload material</a>
     </div>
-    {% endif %}
+
+    {# Knowledge tab bar #}
+    <div class="tab-bar">
+        <a href="/library" class="">Overview</a>
+        <a href="/library" class="">Library</a>
+        <a href="/sources" class="">Source bank</a>
+        <a href="/materials" class="tab-active">Materials</a>
+    </div>
 
     {% if materials %}
-    {% for m in materials %}
-    <div class="material-card {{ 'excluded' if m.excluded_flag else '' }}">
-        <div class="card-header">
-            <div class="card-title">
-                <a href="/materials/{{ m.id }}">
-                    {% if m.filename %}<span class="filename">{{ m.filename }}</span>{% else %}<span class="filename">Pasted text</span>{% endif %}
-                </a>
-                <span class="material-type">{{ m.material_type }}</span>
-                {% if m.excluded_flag %}
-                <span class="badge excluded">Excluded</span>
-                {% endif %}
-                {% if m.transcription_status == 'pending' or m.transcription_status == 'processing' %}
-                <span class="badge transcribing">{{ m.transcription_status }}</span>
-                {% elif m.transcription_status == 'done' %}
-                <span class="badge transcribed">transcribed</span>
-                {% elif m.transcription_status == 'failed' %}
-                <span class="badge excluded">failed</span>
-                {% endif %}
+    <div class="queue-card">
+        {% for m in materials %}
+        <div class="material-row {{ 'excluded' if m.excluded_flag else '' }}">
+            <div>
+                <span class="material-name">
+                    <a href="/materials/{{ m.id }}">{% if m.filename %}{{ m.filename }}{% else %}Pasted text{% endif %}</a>
+                </span>
+                {% if m.material_type %}<span class="source-chip source-chip-material" style="margin-left: 6px;">{{ m.material_type }}</span>{% endif %}
+                {% if m.transcription_status == 'done' %}<span style="color: var(--muted); font-size: 0.78rem; margin-left: 6px;">· transcribed by Whisper · normalized</span>{% endif %}
+                {% if m.excluded_flag %}<span class="badge badge-killed" style="margin-left: 6px;">excluded</span>{% endif %}
             </div>
-            <div class="card-meta">
-                <span class="word-count">{{ m.word_count or 0 }} words</span>
-                {% if m.channel %}<span>{{ m.channel }}</span>{% endif %}
-                {% if m.run_id %}<span>Run #{{ m.run_id }}</span>{% endif %}
-                {% if m.date_approx %}<span>{{ m.date_approx }}</span>{% endif %}
-            </div>
+            <span class="timestamp" style="font-size: 0.68rem; color: var(--muted-dim);">{{ m.word_count or 0 }} words{% if m.date_approx %} · {{ m.date_approx }}{% endif %}</span>
+            {% if m.excluded_flag %}
+            <a href="/materials/{{ m.id }}" class="btn btn-small">Restore</a>
+            {% else %}
+            <a href="/materials/{{ m.id }}" class="btn btn-small">View · edit</a>
+            {% endif %}
         </div>
-        {% if m.excerpt %}
-        <div class="excerpt">{{ m.excerpt }}</div>
-        {% endif %}
+        {% endfor %}
     </div>
-    {% endfor %}
     {% else %}
-    <div class="empty-state">
-        <p>No materials yet. Materials appear here after onboarding uploads.</p>
-        <p style="margin-top:0.5rem;"><a href="/onboard" style="color:var(--accent)">Start onboarding →</a></p>
+    <div class="card">
+        <div class="empty-state">
+            <p>No materials yet. Materials appear here after onboarding uploads.</p>
+            <p style="margin-top: 0.5rem;"><a href="/onboard" style="color: var(--accent);">Start onboarding →</a></p>
+        </div>
     </div>
     {% endif %}
     </div>

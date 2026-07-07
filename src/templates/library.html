@@ -4,226 +4,145 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/vf.css">
-    <title>Library — ViralFactory</title>
+    <title>Knowledge — {{ business_name }}</title>
+    <script src="/static/busy.js"></script>
     <style>
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: var(--bg); color: var(--text); line-height: 1.6;
-            padding: 2rem; max-width: 1200px; margin: 0 auto;
-        }
-        h1 { color: var(--accent); margin-bottom: 1rem; }
-
-        .module-card {
-            background: var(--surface); border: 1px solid var(--border);
-            border-radius: 10px; padding: 1.5rem; margin-bottom: 1.2rem;
-        }
-        .module-header {
-            display: flex; align-items: center; justify-content: space-between;
-            margin-bottom: 0.8rem;
-        }
-        .module-header h3 {
-            font-size: 1.1rem; font-weight: 600;
-            text-transform: capitalize;
-        }
-        .module-meta {
-            display: flex; align-items: center; gap: 0.8rem;
-        }
-        .status-badge {
-            font-size: 11px; font-weight: 600; padding: 3px 10px;
-            border-radius: 12px; text-transform: uppercase;
-        }
-        .status-badge.draft {
-            background: rgba(234, 179, 8, 0.15); color: var(--yellow);
-            border: 1px solid rgba(234, 179, 8, 0.3);
-        }
-        .status-badge.approved {
-            background: rgba(34, 197, 94, 0.15); color: var(--green);
-            border: 1px solid rgba(34, 197, 94, 0.3);
-        }
-        .schema-tag {
-            font-size: 11px; color: var(--muted);
-            font-family: monospace;
-        }
         .module-preview {
-            background: var(--bg); border-radius: 8px; padding: 1rem;
-            font-size: 13px; color: var(--muted);
-            max-height: 120px; overflow: hidden; position: relative;
-            white-space: pre-wrap; word-wrap: break-word;
-            margin-bottom: 0.5rem;
+            background: var(--bg); border-radius: var(--radius); padding: var(--space-3) var(--space-4);
+            font-size: 0.82rem; color: var(--muted); max-height: 100px; overflow: hidden; position: relative;
+            white-space: pre-wrap; word-wrap: break-word; margin-bottom: var(--space-2);
             transition: max-height 0.3s ease;
         }
-        .module-preview.expanded {
-            max-height: 600px; overflow-y: auto;
-        }
-        .module-preview::after {
-            content: ''; position: absolute; bottom: 0; left: 0; right: 0;
-            height: 40px; background: linear-gradient(transparent, var(--bg));
-            pointer-events: none;
-        }
+        .module-preview.expanded { max-height: 600px; overflow-y: auto; }
+        .module-preview::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 40px; background: linear-gradient(transparent, var(--bg)); pointer-events: none; }
         .module-preview.expanded::after { display: none; }
-        .show-more-btn {
-            background: none; border: none; color: var(--accent);
-            font-size: 0.8rem; cursor: pointer; padding: 4px 0;
-            margin-bottom: 1rem;
-        }
-        .show-more-btn:hover { text-decoration: underline; }
-        .module-actions {
-            display: flex; gap: 0.5rem;
-        }
-        .btn {
-            padding: 6px 16px; border: none; border-radius: 6px;
-            font-size: 13px; font-weight: 500; cursor: pointer;
-        }
-        .btn-approve { background: var(--green); color: #fff; }
-        .btn-approve:hover { background: #16a34a; }
-        .btn-edit { background: transparent; border: 1px solid var(--border); color: var(--text); }
-        .btn-edit:hover { background: var(--surface); }
-        .btn-save { background: var(--accent); color: #fff; }
-        .btn-cancel { background: transparent; border: 1px solid var(--border); color: var(--muted); }
-
-        .edit-area {
-            width: 100%; min-height: 400px;
-            background: var(--bg); color: var(--text);
-            border: 1px solid var(--accent); border-radius: 8px;
-            padding: 1rem; font-family: monospace; font-size: 13px;
-            line-height: 1.6; resize: vertical;
-            margin-bottom: 0.8rem;
-        }
-        .muted { color: var(--muted); }
-        .empty-state {
-            text-align: center; padding: 3rem; color: var(--muted);
-        }
+        .edit-area { width: 100%; min-height: 400px; background: var(--bg); color: var(--text); border: 1px solid var(--accent); border-radius: var(--radius); padding: var(--space-3); font-family: var(--font-mono); font-size: 0.82rem; line-height: 1.6; resize: vertical; margin-bottom: var(--space-3); }
     </style>
 </head>
 <body>
     <div class="container">
-    <h1>Library</h1>
-    {% include "_nav.html" %}}
+    {% set active_page = "knowledge" %}
+    {% include "_nav.html" %}
+
+    <div class="page-title-block">
+        <div>
+            <h1>Knowledge</h1>
+            <p class="subtitle">What the system knows about {{ business_name }} · every write gated by you</p>
+        </div>
+        <a href="/materials" class="btn btn-secondary">↑ Upload material</a>
+    </div>
+
+    {# Knowledge tab bar #}
+    <div class="tab-bar">
+        <a href="/library" class="tab-active">Overview</a>
+        <a href="/library" class="">Library</a>
+        <a href="/sources" class="">Source Bank</a>
+        <a href="/materials" class="">Materials</a>
+    </div>
 
     {% if modules %}
-    {% for mod in modules %}
-    <div class="module-card" id="module-{{ mod.name }}">
-        <div class="module-header">
-            <h3>{{ mod.name.replace('-', ' ') }}</h3>
-            <div class="module-meta">
-                {% if mod.schema %}
-                <span class="schema-tag">{{ mod.schema }}</span>
+    <p class="section-label">Living modules · {{ modules | length }} of {{ modules | length }} approved</p>
+    <div class="module-grid">
+        {% for mod in modules %}
+        <div class="module-card {% if mod.status == 'draft' %}alert{% endif %}" id="module-{{ mod.name }}">
+            <div class="module-head">
+                <p class="module-name">{{ mod.name | replace('-', ' ') }}</p>
+                {% if mod.status == 'draft' %}
+                <span class="badge badge-ready">v{{ mod.version | default('draft') }} · review</span>
+                {% else %}
+                <span class="badge badge-approved">v{{ mod.version | default('?') }} approved</span>
                 {% endif %}
-                <span class="status-badge {{ mod.status }}">{{ mod.status }}</span>
+            </div>
+            {% if mod.schema %}<p class="module-meta">{{ mod.schema }}</p>{% endif %}
+            <div class="module-preview" id="preview-{{ mod.name }}">{{ mod.preview | strip_md }}</div>
+            <div style="display: flex; gap: var(--space-2); margin-top: var(--space-2);">
+                <button class="btn btn-small" onclick="toggleShowMore('{{ mod.name }}')">Show more ▾</button>
+                {% if mod.status == 'draft' %}
+                <button class="btn btn-small" onclick="approveModule('{{ mod.name }}')">✓ Approve</button>
+                {% endif %}
+                <button class="btn btn-small" onclick="editModule('{{ mod.name }}')">Edit</button>
             </div>
         </div>
-        <div class="module-preview" id="preview-{{ mod.name }}">{{ mod.preview | strip_md }}</div>
-        <button class="show-more-btn" onclick="toggleShowMore('{{ mod.name }}')">Show more ▾</button>
-        <div class="module-actions" id="actions-{{ mod.name }}">
-            {% if mod.status == 'draft' %}
-            <button class="btn btn-approve" onclick="approveModule('{{ mod.name }}')">✓ Approve</button>
-            {% endif %}
-            <button class="btn btn-edit" onclick="editModule('{{ mod.name }}')">Edit</button>
-        </div>
+        {% endfor %}
     </div>
-    {% endfor %}
+    <p style="font-size: 0.72rem; color: var(--muted-dim); font-style: italic; margin-bottom: var(--space-6);">Modules are never summarized by AI — prompts read approved sections directly via view maps.</p>
     {% else %}
-    <div class="empty-state">
-        <p>No modules yet. Complete onboarding to build your living documents.</p>
-        <p style="margin-top:0.5rem;"><a href="/onboard" style="color:var(--accent)">Start onboarding →</a></p>
+    <div class="card">
+        <div class="empty-state">
+            <p>No modules yet. Complete onboarding to build your living documents.</p>
+            <p style="margin-top: 0.5rem;"><a href="/onboard" style="color: var(--accent);">Start onboarding →</a></p>
+        </div>
     </div>
     {% endif %}
 
-    <script>
-    function toggleShowMore(name) {
-        var preview = document.getElementById('preview-' + name);
-        var btn = preview.nextElementSibling;
-        if (preview.classList.contains('expanded')) {
-            preview.classList.remove('expanded');
-            btn.textContent = 'Show more \u25be';
-        } else {
-            preview.classList.add('expanded');
-            btn.textContent = 'Show less \u25b4';
-        }
-    }
-
-    async function approveModule(name) {
-        if (!confirm('Approve "' + name + '"? This promotes it from draft to approved.')) return;
-
-        const businessSlug = '{{ business_slug }}';
-        try {
-            const resp = await fetch(`/api/library/${businessSlug}/${name}/approve`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({}),
-            });
-            const data = await resp.json();
-            if (data.status === 'ok') {
-                // Update the badge
-                const badge = document.querySelector(`#module-${name} .status-badge`);
-                badge.className = 'status-badge approved';
-                badge.textContent = 'approved';
-                // Remove the approve button
-                const approveBtn = document.querySelector(`#module-${name} .btn-approve`);
-                if (approveBtn) approveBtn.remove();
-            } else {
-                alert('Error: ' + (data.error || 'unknown'));
-            }
-        } catch (err) {
-            alert('Connection error');
-        }
-    }
-
-    async function editModule(name) {
-        const businessSlug = '{{ business_slug }}';
-        const preview = document.getElementById(`preview-${name}`);
-        const actions = document.getElementById(`actions-${name}`);
-
-        // Fetch full content
-        try {
-            const resp = await fetch(`/api/library/${businessSlug}/${name}`);
-            const data = await resp.json();
-            const content = data.content;
-
-            // Replace preview with textarea
-            const textarea = document.createElement('textarea');
-            textarea.className = 'edit-area';
-            textarea.id = `edit-${name}`;
-            textarea.value = content;
-            preview.replaceWith(textarea);
-
-            // Replace actions with save/cancel
-            actions.innerHTML = `
-                <button class="btn btn-save" onclick="saveEdit('${name}')">Save</button>
-                <button class="btn btn-cancel" onclick="cancelEdit('${name}')">Cancel</button>
-            `;
-        } catch (err) {
-            alert('Failed to load module content');
-        }
-    }
-
-    async function saveEdit(name) {
-        const businessSlug = '{{ business_slug }}';
-        const textarea = document.getElementById(`edit-${name}`);
-        const content = textarea.value;
-
-        try {
-            const resp = await fetch(`/api/library/${businessSlug}/${name}/edit`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content: content }),
-            });
-            const data = await resp.json();
-            if (data.status === 'ok') {
-                location.reload(); // Refresh to show updated preview
-            } else {
-                alert('Error: ' + (data.error || 'unknown'));
-            }
-        } catch (err) {
-            alert('Connection error');
-        }
-    }
-
-    function cancelEdit(name) {
-        location.reload();
-    }
-    </script>
+    <div class="security-footer">
+        Private via Tailscale · every module write is gated
     </div>
+    </div>
+
+<script>
+function toggleShowMore(name) {
+    var preview = document.getElementById('preview-' + name);
+    var btn = preview.nextElementSibling;
+    if (preview.classList.contains('expanded')) {
+        preview.classList.remove('expanded');
+        btn.textContent = 'Show more ▾';
+    } else {
+        preview.classList.add('expanded');
+        btn.textContent = 'Show less ▴';
+    }
+}
+
+async function approveModule(name) {
+    if (!confirm('Approve "' + name + '"? This promotes it from draft to approved.')) return;
+    const businessSlug = '{{ business_slug }}';
+    try {
+        const resp = await fetch(`/api/library/${businessSlug}/${name}/approve`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
+        });
+        const data = await resp.json();
+        if (data.status === 'ok') window.location.reload();
+        else alert('Error: ' + (data.error || 'unknown'));
+    } catch (err) { alert('Connection error'); }
+}
+
+async function editModule(name) {
+    const businessSlug = '{{ business_slug }}';
+    const preview = document.getElementById(`preview-${name}`);
+    const card = document.getElementById(`module-${name}`);
+    try {
+        const resp = await fetch(`/api/library/${businessSlug}/${name}`);
+        const data = await resp.json();
+        const content = data.content;
+        const textarea = document.createElement('textarea');
+        textarea.className = 'edit-area';
+        textarea.id = `edit-${name}`;
+        textarea.value = content;
+        preview.replaceWith(textarea);
+        // Replace action buttons
+        var actionsDiv = card.querySelector('.module-card > div:last-child');
+        actionsDiv.innerHTML = `
+            <button class="btn btn-small" onclick="saveEdit('${name}')">Save</button>
+            <button class="btn btn-small" onclick="cancelEdit('${name}')">Cancel</button>
+        `;
+    } catch (err) { alert('Failed to load module content'); }
+}
+
+async function saveEdit(name) {
+    const businessSlug = '{{ business_slug }}';
+    const textarea = document.getElementById(`edit-${name}`);
+    const content = textarea.value;
+    try {
+        const resp = await fetch(`/api/library/${businessSlug}/${name}/edit`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: content }),
+        });
+        const data = await resp.json();
+        if (data.status === 'ok') location.reload();
+        else alert('Error: ' + (data.error || 'unknown'));
+    } catch (err) { alert('Connection error'); }
+}
+
+function cancelEdit(name) { location.reload(); }
+</script>
 </body>
 </html>

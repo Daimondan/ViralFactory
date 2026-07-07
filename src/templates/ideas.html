@@ -4,106 +4,43 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/vf.css">
-    <title>Ideas — {{ business_name }}</title>
+    <title>Pipeline · Ideas — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
     <style>
-
-        /* Tabs */
-        .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
-        .tab { padding: 6px 16px; border-radius: 6px 6px 0 0; background: #FFFFFF; color: #8A857C; cursor: pointer; font-size: 0.85rem; border: none; }
-        .tab.active { background: #F0EDE4; color: #1A1A1A; }
-
-        /* Card grid */
-        .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 16px; }
-
-        .card-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px; }
-        .origin-badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
-        .origin-ai { background: rgba(74, 111, 165, 0.12); color: #4A6FA5; }
-        .origin-human { background: rgba(74, 124, 58, 0.12); color: #4A7C3A; }
-        .origin-developed { background: rgba(229, 75, 44, 0.12); color: #E54B2C; }
-        .card-state { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; }
-        .state-new { background: #D8D4C8; color: #8A857C; }
-        .state-approved { background: rgba(74, 124, 58, 0.12); color: #4A7C3A; }
-        .state-killed { background: rgba(192, 57, 43, 0.12); color: #C0392B; }
-        .state-parked { background: rgba(212, 168, 67, 0.12); color: #8A6D20; }
-        .state-awaiting { background: rgba(123, 91, 166, 0.12); color: #7B5BA6; }
-        .state-drafting { background: rgba(74, 111, 165, 0.12); color: #4A6FA5; }
-
-        .card-idea { font-size: 1rem; line-height: 1.5; margin-bottom: 10px; }
-        .card-meta { font-size: 0.75rem; color: #8A857C; margin-top: 4px; margin-bottom: 8px; }
-        .time-ago { font-size: 0.72rem; color: #A8A399; }
-        .card-hooks { font-size: 0.85rem; color: #8A857C; margin-bottom: 10px; }
-        .card-hooks li { margin-left: 18px; margin-bottom: 2px; }
-
-        /* Treatment compact line */
-        .treatment-line { font-size: 0.78rem; color: #8A857C; padding: 6px 10px; background: #F0EDE4; border-radius: 6px; margin-bottom: 8px; display: flex; gap: 10px; flex-wrap: wrap; }
-        .treatment-line span { white-space: nowrap; }
-        .capture-flag { color: #E54B2C; font-weight: 600; }
-
-        /* Treatment expandable */
-        .treatment-full { display: none; font-size: 0.8rem; line-height: 1.5; color: #8A857C; padding: 10px; background: #F0EDE4; border-radius: 6px; margin-bottom: 10px; }
-        .treatment-full.show { display: block; }
-        .treatment-full dt { font-weight: 600; color: #4A4744; margin-top: 6px; }
-        .treatment-full dd { margin-left: 12px; margin-bottom: 4px; }
-
-        .evidence-links { font-size: 0.75rem; color: #A8A399; margin-bottom: 10px; }
-        .evidence-links
-        .source-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600; text-transform: uppercase; margin-right: 2px; }
-        .source-type-rss_item { background: rgba(61, 107, 58, 0.15); color: #3D6B3A; }
-        .source-type-operator_material { background: rgba(229, 75, 44, 0.15); color: #E54B2C; }
-        .source-type-manual { background: rgba(229, 75, 44, 0.15); color: #E54B2C; }
-        .source-type-scraped_article { background: rgba(72, 101, 150, 0.15); color: #486596; }
-        .source-type-archival { background: rgba(138, 109, 32, 0.15); color: #8A6D20; }
-        .source-no-url { color: #A8A399; }
-
-        .card-actions { display: flex; gap: 8px; }
-        .btn { padding: 5px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.8rem; font-weight: 500; }
-        .btn-approve { background: rgba(74, 124, 58, 0.15); color: #4A7C3A; }
-        .btn-kill { background: rgba(192, 57, 43, 0.15); color: #C0392B; }
-        .btn-park { background: rgba(212, 168, 67, 0.15); color: #8A6D20; }
-        .btn-secondary { background: #E8E4D8; color: #4A4744; border: 1px solid #D8D4C8; }
-        
-        .btn:disabled { opacity: 0.4; cursor: default; }
-
-        .kill-reason { display: none; margin-top: 8px; }
-        .kill-reason.show { display: flex; gap: 6px; }
-        .kill-reason input { flex: 1; padding: 5px 8px; border-radius: 4px; border: 1px solid #D8D4C8; background: #F0EDE4; color: #1A1A1A; font-size: 0.8rem; }
-
-        /* Seed form */
-        .seed-box { background: #FFFFFF; border-radius: 10px; padding: 18px; border: 1px solid #D8D4C8; margin-bottom: 20px; }
-        .seed-box textare
-        .seed-box .btn { margin-top: 8px; }
-
-        /* Generate form */
-        .gen-form { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
-        .gen-form select { padding: 5px 10px; border-radius: 4px; border: 1px solid #D8D4C8; background: #F0EDE4; color: #1A1A1A; font-size: 0.85rem; }
-        .gen-form input[type=number] { width: 50px; padding: 5px; border-radius: 4px; border: 1px solid #D8D4C8; background: #F0EDE4; color: #1A1A1A; font-size: 0.85rem; }
-
-        .empty { color: #A8A399; font-style: italic; padding: 20px; text-align: center; }
-        .loading { color: #E54B2C; font-style: italic; }
-
-        .capture-tasks { font-size: 0.78rem; color: #E54B2C; margin-top: 6px; }
-        .capture-tasks li { margin-left: 16px; }
-
-        /* F3: Series children grouping */
-        .series-badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; background: rgba(123, 91, 166, 0.12); color: #7B5BA6; font-weight: 600; margin-bottom: 6px; display: inline-block; }
-        .child-card { border-left: 3px solid #4a3a6a; margin-left: 12px; }
-        .bulk-approve { margin-top: 6px; }
+        .seed-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-5); margin-bottom: var(--space-5); }
+        .seed-box textarea { width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--text); font-size: 0.9rem; resize: vertical; min-height: 80px; font-family: var(--font-sans); }
+        .seed-options { display: flex; gap: var(--space-2); margin-top: var(--space-3); }
+        .gen-form { display: flex; gap: var(--space-3); align-items: center; }
+        .gen-form input[type=number] { width: 50px; }
+        .kill-reason { display: none; margin-top: 8px; gap: 6px; }
+        .kill-reason.show { display: flex; }
+        .kill-reason input { flex: 1; }
+        .capture-flag { color: var(--accent); font-weight: 600; }
+        .series-badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; background: rgba(123, 91, 166, 0.12); color: var(--purple); font-weight: 600; margin-bottom: 6px; display: inline-block; }
+        .child-card { border-left: 3px solid rgba(123, 91, 166, 0.3); margin-left: 12px; }
+        .empty { color: var(--muted-dim); font-style: italic; padding: var(--space-5); text-align: center; }
     </style>
 </head>
 <body>
 <div class="container">
-    <h1>Researcher — {{ business_name }}</h1>
-    <p class="subtle">Gate 1: approve / kill / park. The funnel kills most here — by design.</p>
     {% set active_page = "ideas" %}
-        {% include "_nav.html" %}
+    {% include "_nav.html" %}
 
-    <div class="tabs">
-        <button class="tab {{ 'active' if active_tab == 'queue' else '' }}" onclick="window.location.href='/ideas?tab=queue'">Queue ({{ counts.new }})</button>
-        <button class="tab {{ 'active' if active_tab == 'approved' else '' }}" onclick="window.location.href='/ideas?tab=approved'">Approved ({{ counts.approved }})</button>
-        <button class="tab {{ 'active' if active_tab == 'parked' else '' }}" onclick="window.location.href='/ideas?tab=parked'">Parked ({{ counts.parked }})</button>
-        <button class="tab {{ 'active' if active_tab == 'killed' else '' }}" onclick="window.location.href='/ideas?tab=killed'">Killed ({{ counts.killed }})</button>
-        <button class="tab {{ 'active' if active_tab == 'all' else '' }}" onclick="window.location.href='/ideas?tab=all'">All ({{ counts.all }})</button>
+    {# Page title #}
+    <div class="page-title-block">
+        <div>
+            <h1>Pipeline · Ideas</h1>
+            <p class="subtitle">{{ counts.new }} awaiting your approval{% if counts.all > counts.new %} · {{ counts.all }} total in pipeline{% endif %} · approving runs straight to asset review</p>
+        </div>
+        <a href="/ideas?tab=queue" class="btn">+ New seed</a>
+    </div>
+
+    {# Pipeline tab bar #}
+    <div class="tab-bar">
+        <a href="/ideas?tab=queue" class="{% if active_tab == 'queue' %}tab-active{% endif %}">Ideas <span class="tab-count">{{ counts.new }}</span></a>
+        <a href="/create" class="">Drafting <span class="tab-count">{{ counts.approved }}</span></a>
+        <a href="/assemble" class="">Assets</a>
+        <a href="/published" class="">Published</a>
     </div>
 
     {% set state_labels = {
@@ -126,172 +63,179 @@
     } %}
 
     {% if active_tab == 'queue' %}
+    {# Seed section #}
     <div class="seed-box">
-        <h2>Seed an idea</h2>
-        <p class="subtle" style="margin-bottom: 10px;">Type or paste a raw idea. The AI will develop it into a card with treatment.</p>
+        <p class="section-label" style="margin-bottom: var(--space-2);">Seed an idea</p>
+        <p style="color: var(--muted); font-size: 0.82rem; margin-bottom: var(--space-3);">Type or paste a raw idea. The Researcher will develop it into a card with treatment, sources, and format recommendation.</p>
         <textarea id="seedText" placeholder="e.g. BiMPay is killing it but nobody talking about how it changes the game for small vendors..."></textarea>
-        <div style="display: flex; gap: 10px; margin-top: 8px;">
-            <button class="btn btn-secondary" onclick="submitSeed('human_seeded')">Seed as-is</button>
-            <button class="btn btn-secondary" onclick="submitSeed('human_seeded_ai_developed')">Seed + AI develop</button>
-        </div>
-    </div>
-
-    <div class="seed-box">
-        <h2>Generate AI ideas</h2>
-        <p class="subtle" style="margin-bottom: 10px;">AI-originated ideas from Source Bank × living modules.</p>
-        <div class="gen-form">
-            <label>Count: <input type="number" id="genCount" value="3" min="1" max="10"></label>
-            <button class="btn btn-secondary" id="genBtn" onclick="generateAI()">Generate</button>
-            <span id="genStatus" class="loading" style="display: none;">Generating...</span>
+        <div class="seed-options">
+            <button class="btn btn-small" onclick="submitSeed('human_seeded')">Seed as-is</button>
+            <button class="btn btn-small" onclick="submitSeed('human_seeded_ai_developed')">Seed + AI develop</button>
+            <span style="flex: 1;"></span>
+            <span style="font-size: 0.78rem; color: var(--muted);">Generate AI ideas:</span>
+            <input type="number" id="genCount" value="3" min="1" max="10" style="width: 50px; padding: 4px 8px;">
+            <button class="btn btn-small" id="genBtn" onclick="generateAI()">Generate</button>
+            <span id="genStatus" style="color: var(--accent); font-size: 0.78rem; display: none;">Generating...</span>
         </div>
     </div>
     {% endif %}
 
     {% if cards %}
-    <div class="card-grid">
-        {% for card in cards %}
-        <div class="card {{ 'child-card' if card.parent_id else '' }}" id="card-{{ card.id }}">
-            <div class="card-header">
-                <span class="origin-badge origin-{{ {'ai_originated': 'ai', 'human_seeded': 'human', 'human_seeded_ai_developed': 'developed'}.get(card.origin, 'ai') }}">
-                    {{ {'ai_originated': 'AI', 'human_seeded': 'Human', 'human_seeded_ai_developed': 'Human+AI'}.get(card.origin, card.origin) }}
-                </span>
-                <span class="card-state state-{{ card.card_state }}">{{ state_labels.get(card.card_state, card.card_state|replace('_',' ')) }}</span>
+    {% set has_expanded = cards | length > 0 %}
+    {% for card in cards %}
+    {% if loop.first and card.card_state == 'new' and active_tab == 'queue' %}
+    {# Expanded Gate 1 card — first card gets the full treatment #}
+    <div class="expanded-card" id="card-{{ card.id }}">
+        <div class="expanded-head">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-4);">
+                <div>
+                    <p class="expanded-meta">№ {{ "%03d" | format(card.id) }} · {{ {'ai_originated': 'proposed by Researcher', 'human_seeded': 'from your seed', 'human_seeded_ai_developed': 'from your seed · AI developed'}.get(card.origin, card.origin) }}{% if card.created_at %} · {{ card.created_at[:16] }}{% endif %}</p>
+                    <p class="expanded-title">{{ card.idea }}</p>
+                    <p class="expanded-sub">
+                        {{ card.treatment_compact[1] | default('') | replace('Format: ', '') | safe }}
+                        {% if card.treatment.get('scope', {}).get('type') == 'series_of_n' %} · series of {{ card.treatment.get('scope', {}).get('n', '?') }}{% endif %}
+                    </p>
+                </div>
+                <span class="badge badge-gate">Gate 1</span>
             </div>
-
-            {% if card.parent_id %}
-            <span class="series-badge">Part of series → #{{ card.parent_id }}</span>
-            {% endif %}
-
-            <div class="card-idea">{{ card.idea }}</div>
-
-            {% if card.created_at %}
-            <div class="card-meta time-ago">{{ card.created_at|relative_time }}</div>
-            {% endif %}
-
+        </div>
+        <div class="expanded-body" style="margin: 0; padding: var(--space-4) var(--space-5);">
             {% if card.hook_options %}
-            <ul class="card-hooks">
-                {% for hook in card.hook_options %}
-                <li>{{ hook }}</li>
+            <p class="expanded-detail-row"><span class="expanded-detail-label">Hook options:</span></p>
+            <ul style="margin: 0 0 var(--space-2) var(--space-4); font-size: 0.83rem;">
+                {% for hook in card.hook_options[:3] %}
+                <li style="margin-bottom: 4px;">"{{ hook }}"</li>
                 {% endfor %}
             </ul>
             {% endif %}
 
-            {% if card.treatment_compact %}
-            <div class="treatment-line">
-                {% for part in card.treatment_compact %}
-                <span>{{ part | safe }}</span>
-                {% endfor %}
-            </div>
-            {% endif %}
-
-            {% if card.treatment_full %}
-            <div class="treatment-full" id="treatment-{{ card.id }}">
-                {{ card.treatment_full | safe }}
-            </div>
-            <button class="btn btn-secondary" style="font-size: 0.72rem; padding: 3px 8px; margin-bottom: 8px;" onclick="toggleTreatment({{ card.id }})">Expand treatment</button>
+            {% if card.treatment.get('rationale') %}
+            <p class="expanded-detail-row"><span class="expanded-detail-label">Why this format:</span> {{ card.treatment.get('rationale', '')[:200] }}</p>
             {% endif %}
 
             {% if card.resolved_sources %}
-            <div class="evidence-links">
-                <strong>Sources:</strong>
+            <p class="expanded-detail-row">
+                <span class="expanded-detail-label">Sources on the card:</span>
                 {% for src in card.resolved_sources %}
-                <span class="source-badge source-type-{{ src.source_type }}">
-                    {{ src.source_type }}
-                </span>
-                {% if src.url %}
-                <a href="{{ src.url }}" target="_blank">{{ src.title }}</a>
-                {% else %}
-                <span class="source-no-url">{{ src.title }}</span>
-                {% endif %}
-                {% if not loop.last %} · {% endif %}
+                <span class="source-chip source-chip-{{ {'rss_item': 'rss', 'operator_material': 'material', 'manual': 'material', 'scraped_article': 'scraped', 'archival': 'archival'}.get(src.source_type, 'archival') }}">{{ src.source_type }} · {{ src.title[:30] }}</span>
                 {% endfor %}
-            </div>
+            </p>
             {% elif card.evidence_links %}
-            <div class="evidence-links">
+            <p class="expanded-detail-row">
+                <span class="expanded-detail-label">Sources:</span>
                 {% for link in card.evidence_links %}
-                <a href="{{ link.url }}" target="_blank">{{ link.note or link.url }}</a>{% if not loop.last %} · {% endif %}
+                <a href="{{ link.url }}" target="_blank" style="font-size: 0.8rem;">{{ link.note or link.url[:40] }}</a>{% if not loop.last %} · {% endif %}
                 {% endfor %}
-            </div>
+            </p>
             {% endif %}
 
             {% if card.capture_tasks %}
-            <div class="capture-tasks">
-                <strong>Capture required:</strong>
-                <ul>
-                    {% for task in card.capture_tasks %}
-                    <li>{{ task }}</li>
-                    {% endfor %}
-                </ul>
-            </div>
-            {% endif %}
-
-            {% if card.card_state == 'new' %}
-            <div class="card-actions">
-                <button class="btn btn-approve" onclick="cardAction({{ card.id }}, 'approve')">Approve</button>
-                <button class="btn btn-kill" onclick="cardAction({{ card.id }}, 'kill')">Kill</button>
-                <button class="btn btn-park" onclick="cardAction({{ card.id }}, 'park')">Park</button>
-            </div>
-            <div class="kill-reason" id="kill-reason-{{ card.id }}">
-                <input type="text" id="kill-text-{{ card.id }}" placeholder="Why kill? (goes to Feedback Log)">
-                <button class="btn btn-kill" onclick="confirmKill({{ card.id }})">Confirm</button>
-            </div>
-            {% endif %}
-
-            {# F3: Bulk approve for series children in 'new' state #}
-            {% if card.new_children_count and card.new_children_count > 0 %}
-            <div class="bulk-approve">
-                <button class="btn btn-approve" onclick="bulkApproveChildren({{ card.id }})">Approve {{ card.new_children_count }} new parts →</button>
-            </div>
-            {% endif %}
-
-            {% if card.card_state == 'awaiting_capture' or card.card_state == 'approved' or card.card_state == 'capture_fulfilled' %}
-            <div class="card-actions">
-                {% if card.capture_tasks %}
-                <button class="btn btn-secondary" onclick="window.location.href='/ideas/{{ card.id }}/capture'">Manage capture</button>
-                {% endif %}
-                <button class="btn btn-approve" onclick="window.location.href='/create/draft/{{ card.id }}'">View in Writer →</button>
-            </div>
-            {% elif card.card_state == 'writing' %}
-            <div class="card-actions">
-                <button class="btn btn-secondary" onclick="window.location.href='/create/draft/{{ card.id }}'">Writer working…</button>
-            </div>
-            {% elif card.card_state == 'draft_ready' or card.card_state == 'drafting' or card.card_state == 'drafted' %}
-            <div class="card-actions">
-                <button class="btn btn-approve" onclick="window.location.href='/create/draft/{{ card.id }}'">Review draft →</button>
-            </div>
-            {% elif card.card_state == 'parked' %}
-            <div class="card-actions">
-                <button class="btn btn-approve" onclick="cardAction({{ card.id }}, 'approve')">Reactivate</button>
-            </div>
+            <p class="expanded-detail-row"><span class="expanded-detail-label capture-flag">Capture required:</span>
+                {% for task in card.capture_tasks %}{{ task }}{% if not loop.last %} · {% endif %}{% endfor %}
+            </p>
             {% endif %}
         </div>
-        {% endfor %}
+        <div class="expanded-actions">
+            <button class="btn" onclick="cardAction({{ card.id }}, 'approve')">Approve → drafts & assets run</button>
+            <button class="btn btn-small" onclick="document.getElementById('kill-reason-{{ card.id }}').classList.add('show')">Kill · give reason</button>
+            <button class="btn btn-small" onclick="cardAction({{ card.id }}, 'park')">Park</button>
+            <div class="spacer"></div>
+            {% if card.new_children_count and card.new_children_count > 0 %}
+            <button class="btn btn-small" onclick="bulkApproveChildren({{ card.id }})">Approve {{ card.new_children_count }} new parts →</button>
+            {% endif %}
+        </div>
+        <div class="kill-reason" id="kill-reason-{{ card.id }}" style="padding: 0 var(--space-5) var(--space-3); gap: var(--space-2);">
+            <input type="text" id="kill-text-{{ card.id }}" placeholder="Why kill? (goes to Feedback Log — trains the Researcher)">
+            <button class="btn btn-small" onclick="confirmKill({{ card.id }})">Confirm</button>
+        </div>
     </div>
     {% else %}
-    <p class="empty">No cards in this view yet.</p>
+    {# Compact card row #}
+    <div class="queue-card" id="card-{{ card.id }}" style="margin-bottom: 0;">
+        <div class="queue-item">
+            <span class="queue-number">№ {{ "%03d" | format(card.id) }}</span>
+            <div class="queue-body">
+                <h3>{{ card.idea[:100] }}{% if card.idea | length > 100 %}…{% endif %}
+                    {% if card.card_state == 'new' %}<span class="badge badge-gate">Gate 1</span>
+                    {% elif card.card_state == 'approved' or card.card_state == 'capture_fulfilled' %}<span class="badge badge-approved">Approved</span>
+                    {% elif card.card_state == 'killed' %}<span class="badge badge-killed">Killed</span>
+                    {% elif card.card_state == 'parked' %}<span class="badge badge-held">Parked</span>
+                    {% elif card.card_state == 'shipped' %}<span class="badge badge-published">Shipped</span>
+                    {% elif card.card_state in ('writing', 'draft_ready', 'drafted', 'drafting') %}<span class="badge badge-drafting">{{ state_labels.get(card.card_state, card.card_state) }}</span>
+                    {% else %}<span class="badge badge-muted">{{ state_labels.get(card.card_state, card.card_state | replace('_', ' ')) }}</span>
+                    {% endif %}
+                    {% if card.capture_tasks %}<span class="badge badge-ready" style="margin-left: 4px;">capture required</span>{% endif %}
+                </h3>
+                <p class="queue-desc">
+                    {{ card.treatment_compact[1] | default('') | replace('Format: ', '') | safe }}
+                    {% if card.treatment.get('scope', {}).get('type') == 'series_of_n' %} · series of {{ card.treatment.get('scope', {}).get('n', '?') }}{% endif %}
+                    {% if card.created_at %} · {{ card.created_at[:10] }}{% endif %}
+                </p>
+            </div>
+            {% if card.card_state == 'new' %}
+            <div class="queue-actions">
+                <button class="btn btn-small" onclick="cardAction({{ card.id }}, 'approve')">Approve</button>
+                <button class="btn btn-small" onclick="document.getElementById('kill-reason-{{ card.id }}').classList.add('show')">Kill</button>
+            </div>
+            {% elif card.card_state == 'approved' or card.card_state == 'capture_fulfilled' %}
+            <a href="/create/draft/{{ card.id }}" class="btn btn-small">View in Writer →</a>
+            {% elif card.card_state in ('writing', 'draft_ready', 'drafted', 'drafting') %}
+            <a href="/create/draft/{{ card.id }}" class="btn btn-small">Review draft →</a>
+            {% elif card.card_state == 'parked' %}
+            <button class="btn btn-small" onclick="cardAction({{ card.id }}, 'approve')">Reactivate</button>
+            {% elif card.card_state == 'awaiting_capture' %}
+            <a href="/ideas/{{ card.id }}/capture" class="btn btn-small">Manage capture</a>
+            {% endif %}
+        </div>
+        {% if card.card_state == 'new' %}
+        <div class="kill-reason" id="kill-reason-{{ card.id }}" style="padding: 0 var(--space-5) var(--space-3); gap: var(--space-2);">
+            <input type="text" id="kill-text-{{ card.id }}" placeholder="Why kill? (goes to Feedback Log — trains the Researcher)">
+            <button class="btn btn-small" onclick="confirmKill({{ card.id }})">Confirm</button>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% endfor %}
+
+    {# Killed ledger — shows on killed tab or when there are killed cards #}
+    {% if active_tab == 'killed' or (active_tab == 'all' and counts.killed > 0) %}
+    {% set killed_cards = cards | selectattr('card_state', 'equalto', 'killed') | list %}
+    {% if killed_cards %}
+    <p class="section-label" style="margin-top: var(--space-5);">Killed · your reasons train the next batch</p>
+    <div class="queue-card muted-section">
+        {% for card in killed_cards %}
+        <div class="queue-item">
+            <span class="queue-number">№ {{ "%03d" | format(card.id) }}</span>
+            <div class="queue-body">
+                <h3 style="color: var(--text-secondary);">{{ card.idea[:80] }}{% if card.idea | length > 80 %}…{% endif %}
+                    <span style="color: var(--red); font-weight: 600; font-size: 0.78rem; margin-left: 8px;">✕ killed</span>
+                </h3>
+            </div>
+            <span class="timestamp">{{ card.created_at[:10] if card.created_at else '' }}</span>
+        </div>
+        {% endfor %}
+        <div class="queue-footer-banner">The Researcher sees every kill reason — no repeats, no clones</div>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    {% if active_tab == 'queue' %}
+    <div class="queue-footer-banner" style="border-radius: var(--radius-lg); margin-top: var(--space-4);">The Researcher sees every open card and every kill reason — no repeats, no clones</div>
+    {% endif %}
+
+    {% else %}
+    <div class="card">
+        <div class="empty-state">
+            <p>No cards in this view yet. Seed an idea above or generate AI ideas.</p>
+        </div>
+    </div>
     {% endif %}
 </div>
 
 <script>
-function toggleTreatment(id) {
-    const el = document.getElementById('treatment-' + id);
-    el.classList.toggle('show');
-}
-
 function cardAction(id, action) {
     if (action === 'kill') {
         document.getElementById('kill-reason-' + id).classList.add('show');
-        return;
-    }
-    if (action === 'approve') {
-        // Check if card has capture tasks
-        const cardEl = document.getElementById('card-' + id);
-        const hasCapture = cardEl.querySelector('.capture-tasks');
-        if (hasCapture) {
-            actionCard(id, 'approve');
-        } else {
-            actionCard(id, 'approve');
-        }
         return;
     }
     actionCard(id, action);
@@ -341,7 +285,6 @@ function generateAI() {
     });
 }
 
-// F3: Bulk approve all 'new' children of a parent card
 function bulkApproveChildren(parentId) {
     fetch('/api/ideas/' + parentId + '/bulk-approve-children', {
         method: 'POST',

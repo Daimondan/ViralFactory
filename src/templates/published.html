@@ -4,59 +4,87 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/vf.css">
-    <title>Analyst — {{ business_name }}</title>
+    <title>Results — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
     <style>
-
-        .published-card { background: #FFFFFF; border-radius: 12px; padding: 16px; border: 1px solid #D8D4C8; margin-bottom: 16px; }
-        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .platform { font-size: 0.85rem; font-weight: 600; color: #4A6FA5; }
-        .type { font-size: 0.72rem; color: #8A857C; }
-        .time-badge { font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; background: rgba(74, 124, 58, 0.12); color: #4A7C3A; }
-        .posts-list { margin: 8px 0; }
-        .post-row { padding: 8px 0; border-bottom: 1px solid #F0EDE4; display: flex; gap: 10px; }
+        .published-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-4); }
+        .platform { font-size: 0.85rem; font-weight: 600; color: var(--blue); }
+        .type { font-size: 0.72rem; color: var(--muted); }
+        .time-badge { font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; background: rgba(74, 124, 58, 0.12); color: var(--green); }
+        .posts-list { margin: var(--space-2) 0; }
+        .post-row { padding: var(--space-2) 0; border-bottom: 1px solid var(--surface-2); display: flex; gap: var(--space-3); }
         .post-row:last-child { border-bottom: none; }
-        .post-num { font-size: 0.75rem; color: #555; min-width: 20px; }
-        .post-text { font-size: 0.85rem; line-height: 1.5; white-space: pre-wrap; flex: 1; }
-        .post-img { width: 50px; height: 50px; border-radius: 4px; object-fit: cover; cursor: pointer; }
+        .post-num { font-size: 0.75rem; color: var(--text-secondary); min-width: 20px; }
+        .post-text { font-size: 0.85rem; line-height: 1.5; white-space: pre-wrap; flex: 1; color: var(--text); }
+        .post-img { width: 50px; height: 50px; border-radius: var(--radius-sm); object-fit: cover; cursor: pointer; }
         .post-img:hover { transform: scale(1.1); }
-        .copy-section { margin-top: 12px; padding-top: 10px; border-top: 1px solid #D8D4C8; }
-        .btn { padding: 6px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.8rem; font-weight: 500; }
-        .btn-copy { background: #D8D4C8; color: #8A857C; }
-        .btn-copy:hover { background: #D8D4C8; }
-        .empty { color: #A8A399; font-style: italic; padding: 20px; text-align: center; }
-        .info-box { color: #4A7C3A; font-size: 0.82rem; padding: 12px; background: rgba(74, 124, 58, 0.08); border-radius: 6px; margin-bottom: 16px; border-left: 3px solid #4A7C3A; }
-        .warn-box { color: #d2a04a; font-size: 0.82rem; padding: 12px; background: rgba(212, 168, 67, 0.12); border-radius: 6px; margin-bottom: 16px; border-left: 3px solid #d2a04a; }
-
-        /* Lightbox */
+        .copy-section { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border); }
+        .empty { color: var(--muted-dim); font-style: italic; padding: var(--space-5); text-align: center; }
         .lightbox { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 200; align-items: center; justify-content: center; flex-direction: column; }
         .lightbox.show { display: flex; }
-        .lightbox img { max-width: 90%; max-height: 85vh; object-fit: contain; border-radius: 8px; }
-        .lightbox-close { position: absolute; top: 16px; right: 20px; color: #8A857C; font-size: 2rem; cursor: pointer; }
+        .lightbox img { max-width: 90%; max-height: 85vh; object-fit: contain; border-radius: var(--radius); }
+        .lightbox-close { position: absolute; top: 16px; right: 20px; color: var(--muted); font-size: 2rem; cursor: pointer; }
         .lightbox-close:hover { color: #fff; }
     </style>
 </head>
 <body>
 <div class="container">
-    {% set active_page = "published" %}
-        {% include "_nav.html" %}
+    {% set active_page = "results" %}
+    {% include "_nav.html" %}
 
-    <h1>Analyst — Published & Scheduled</h1>
-    <p class="subtle">Pieces you've approved for posting. The Analyst tracks performance and feeds learnings back into the source banks.</p>
-
-    <div id="postiz-info" class="info-box">
-        ℹ️ Auto-posting via Buffer will post scheduled pieces automatically once configured.
+    <div class="page-title-block">
+        <div>
+            <h1>Results</h1>
+            <p class="subtitle">What the Analyst sees · what it wants to change · you gate the changes</p>
+        </div>
+        <span class="business-switcher" style="cursor: default;">Last 30 days ▾</span>
     </div>
+
+    {# Stat cards #}
+    <div class="metric-stats">
+        <div class="gate-stat-card">
+            <p class="stat-label">Published</p>
+            <p class="stat-num">{{ published_items | length }}</p>
+        </div>
+        <div class="gate-stat-card">
+            <p class="stat-label">Platforms</p>
+            <p class="stat-num">{{ published_items | map(attribute='platform') | list | unique | list | length }}</p>
+        </div>
+        <div class="gate-stat-card">
+            <p class="stat-label">Best format</p>
+            <p class="stat-num stat-num-sm">
+                {% set formats = published_items | map(attribute='variant_type') | list %}
+                {% if formats %}
+                    {% set max_count = formats | length %}
+                    {% for f in formats | unique %}
+                        {% if formats.count(f) > max_count %}
+                            {% set max_count = formats.count(f) %}
+                        {% endif %}
+                    {% endfor %}
+                    {{ formats | first }}
+                {% else %}—{% endif %}
+            </p>
+        </div>
+        <div class="gate-stat-card">
+            <p class="stat-label">Scheduled</p>
+            <p class="stat-num">{{ published_items | selectattr('publish_scheduled_at') | list | length }}</p>
+        </div>
+    </div>
+
+    {# Published posts #}
+    <p class="section-label">Published · best and worst this period</p>
 
     {% if published_items %}
     {% for item in published_items %}
     <div class="published-card">
-        <div class="card-header">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-2);">
             <div>
                 <span class="platform">{{ item.platform }}</span>
                 <span class="type"> · {{ item.variant_type }}</span>
             </div>
-            <span class="time-badge" id="schedule-badge-{{ item.id }}">Scheduled: {{ item.publish_scheduled_at[:16].replace('T', ' at ') if item.publish_scheduled_at else 'N/A' }}</span>
+            <span class="time-badge" id="schedule-badge-{{ item.id }}">
+                {% if item.publish_scheduled_at %}Scheduled: {{ item.publish_scheduled_at[:16] | replace('T', ' at ') }}{% else %}Published{% endif %}
+            </span>
         </div>
 
         {% if item.posts_parsed and item.posts_parsed|length > 0 %}
@@ -73,18 +101,26 @@
             {% endfor %}
         </div>
         {% else %}
-        <div class="post-text">{{ item.content[:500] }}{% if item.content|length > 500 %}...{% endif %}</div>
+        <div class="post-text">{{ item.content[:500] }}{% if item.content|length > 500 %}…{% endif %}</div>
         {% endif %}
 
         <div class="copy-section">
-            <button class="btn btn-copy" onclick="copyContent({{ item.id }})">Copy all text</button>
-            <span id="copy-status-{{ item.id }}" style="font-size: 0.75rem; color: #4A7C3A; margin-left: 8px; display: none;">Copied!</span>
+            <button class="btn btn-small" onclick="copyContent({{ item.id }})">Copy all text</button>
+            <span id="copy-status-{{ item.id }}" style="font-size: 0.75rem; color: var(--green); margin-left: var(--space-2); display: none;">Copied!</span>
         </div>
     </div>
     {% endfor %}
     {% else %}
-    <p class="empty">Nothing published yet. Approve assets at Gate 3, then schedule them at Gate 4.</p>
+    <div class="card">
+        <div class="empty-state">
+            <p>Nothing published yet. Approve assets at Gate 3, then schedule them at Gate 4.</p>
+        </div>
+    </div>
     {% endif %}
+
+    <div class="security-footer">
+        Metrics pulled via Buffer · per-piece approval required
+    </div>
 </div>
 
 {# Lightbox #}
@@ -94,24 +130,15 @@
 </div>
 
 <script>
-// Check Buffer status and update info box + schedule badges
 fetch('/api/buffer/status').then(function(r) { return r.json(); }).then(function(data) {
-    var box = document.getElementById('postiz-info');
-    if (data.available) {
-        box.innerHTML = '✅ Buffer connected. Scheduled pieces are posted automatically.';
-    } else {
-        box.innerHTML = '⚠️ Buffer not available. Set <code>BUFFER_API_KEY</code> and configure buffer channels to enable auto-posting. Until then, copy content manually.';
-        box.className = 'warn-box';
-        // UI-REVIEW-002 #8: Fix false "Scheduled" green badges when Postiz not connected
-        document.querySelectorAll('[id^="schedule-badge-"]').forEach(function(badge) {
-            var text = badge.textContent;
-            if (text.startsWith('Scheduled:')) {
-                badge.textContent = text.replace('Scheduled:', 'Draft schedule (Buffer not connected):');
-                badge.style.background = 'rgba(212, 168, 67, 0.12)';
-                badge.style.color = '#d2a04a';
-            }
-        });
-    }
+    document.querySelectorAll('[id^="schedule-badge-"]').forEach(function(badge) {
+        var text = badge.textContent;
+        if (!data.available && text.startsWith('Scheduled:')) {
+            badge.textContent = text.replace('Scheduled:', 'Draft schedule (Buffer not connected):');
+            badge.style.background = 'rgba(212, 168, 67, 0.12)';
+            badge.style.color = '#8A6D20';
+        }
+    });
 }).catch(function() {});
 
 function openLightbox(src) {
@@ -124,8 +151,6 @@ function closeLightbox() {
 document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeLightbox(); });
 
 function copyContent(assetId) {
-    var card = document.querySelector('.published-card:nth-of-type(' + (assetId) + ')');
-    // Simpler: find the card by looking at the copy button's parent
     var btn = event.target;
     var cardEl = btn.closest('.published-card');
     var texts = [];

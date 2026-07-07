@@ -1,14 +1,15 @@
-{# Shared navigation with real-time pipeline counts (UX-1) #}
-<div class="nav">
-    <a href="/" {% if active_page == 'home' %}class="active"{% endif %}>Home</a>
-    <a href="/ideas" {% if active_page == 'ideas' %}class="active"{% endif %}>Researcher{% if nav_counts and nav_counts.new %} <span class="nav-count">{{ nav_counts.new }}</span>{% endif %}</a>
-    <a href="/create" {% if active_page == 'writer' %}class="active"{% endif %}>Writer{% if nav_counts and nav_counts.ready_review %} <span class="nav-count">{{ nav_counts.ready_review }}</span>{% endif %}</a>
-    <a href="/assemble" {% if active_page == 'assembler' %}class="active"{% endif %}>Assembler{% if nav_counts and nav_counts.asset_ready %} <span class="nav-count">{{ nav_counts.asset_ready }}</span>{% endif %}</a>
-    <a href="/published" {% if active_page == 'published' %}class="active"{% endif %}>Analyst</a>
-    <a href="/onboard">Onboard</a>
-    <a href="/onboarding-health">Module Health</a>
-    <a href="/library">Library</a>
-    <a href="/materials">Materials</a>
-    <a href="/sources">Source Bank</a>
-    <a href="/proposals">Gate Queue</a>
+{# Shared topbar — 5-group nav with badge counts + business switcher
+   Matches the UIIX mockup design. active_page controls which group is highlighted.
+   nav_counts: {new: ideas awaiting gate1, ready_review: drafts at gate2, asset_ready: assets at gate3}
+   business_name: from context processor #}
+<div class="topbar">
+    <a href="/" class="brand">ViralFactory</a>
+    <nav>
+        <a href="/" {% if active_page == 'home' %}class="active"{% endif %}>Home</a>
+        <a href="/ideas" {% if active_page in ('pipeline', 'ideas', 'writer', 'assembler') %}class="active"{% endif %}>Pipeline{% if nav_counts and (nav_counts.new or nav_counts.ready_review or nav_counts.asset_ready) %} <span class="nav-count">{{ (nav_counts.new or 0) + (nav_counts.ready_review or 0) + (nav_counts.asset_ready or 0) }}</span>{% endif %}</a>
+        <a href="/library" {% if active_page in ('knowledge', 'library', 'sources', 'materials') %}class="active"{% endif %}>Knowledge</a>
+        <a href="/published" {% if active_page in ('results', 'published') %}class="active"{% endif %}>Results</a>
+        <a href="/onboard/hub" {% if active_page in ('setup', 'onboard', 'onboarding') %}class="active"{% endif %}>Setup</a>
+    </nav>
+    <span class="business-switcher">{{ business_name or "Not configured" }} <span class="arrow">▾</span></span>
 </div>

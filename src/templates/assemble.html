@@ -4,169 +4,94 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/vf.css">
-    <title>Assembler — {{ business_name }}</title>
+    <title>Pipeline · Assets — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
     <style>
-        /* Filter bar — buttons with counts */
-        .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
-        .filter-btn {
-            padding: 6px 14px; border-radius: 999px; border: 1px solid #D8D4C8;
-            background: #FFFFFF; color: #8A857C; font-size: 0.82rem; cursor: pointer;
-            display: flex; align-items: center; gap: 6px; transition: all 0.15s;
-        }
-        .filter-btn:hover { border-color: #E54B2C; }
-        .filter-btn.active { background: #E54B2C; color: #FFFFFF; border-color: #E54B2C; }
-        .filter-count {
-            font-size: 0.72rem; padding: 1px 7px; border-radius: 10px;
-            background: #F0EDE4; color: #8A857C; font-weight: 600;
-        }
-        .filter-btn.active .filter-count { background: rgba(255,255,255,0.25); color: #FFFFFF; }
-
-        /* Unified card list */
-        .card-list { display: flex; flex-direction: column; gap: 12px; }
-        .pipeline-card {
-            background: #FFFFFF; border-radius: 10px; padding: 16px 20px;
-            border: 1px solid #D8D4C8; transition: border-color 0.15s;
-        }
-        .pipeline-card:hover { border-color: #B5B0A4; }
-        .pipeline-card.hidden { display: none; }
-
-        .card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 8px; }
-        .card-title { font-size: 0.92rem; line-height: 1.5; color: #1A1A1A; flex: 1; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-        .card-title a { color: inherit; text-decoration: none; }
-        .card-title a:hover { color: #E54B2C; }
-
-        /* State badge */
-        .state-badge { font-size: 0.72rem; padding: 3px 10px; border-radius: 999px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
-        .st-ready_review { background: rgba(229, 75, 44, 0.12); color: #E54B2C; font-weight: 700; }
-        .st-assembling { background: rgba(74, 111, 165, 0.12); color: #4A6FA5; }
-        .st-no_assets { background: #D8D4C8; color: #8A857C; }
-        .st-partial { background: rgba(212, 168, 67, 0.15); color: #8A6D20; }
-        .st-all_approved { background: rgba(74, 124, 58, 0.15); color: #4A7C3A; }
-        .st-pending { background: #D8D4C8; color: #8A857C; }
-
-        /* Provenance trail */
-        .trail { display: flex; gap: 0; align-items: center; margin-top: 10px; }
-        .trail-step { display: flex; align-items: center; gap: 4px; }
-        .trail-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-        .trail-dot.done { background: #4A7C3A; }
-        .trail-dot.active { background: #E54B2C; box-shadow: 0 0 0 3px rgba(229,75,44,0.15); }
-        .trail-dot.pending { background: #D8D4C8; }
-        .trail-label { font-size: 0.72rem; color: #8A857C; margin-right: 8px; }
-        .trail-label.done { color: #4A7C3A; }
-        .trail-label.active { color: #E54B2C; font-weight: 600; }
-        .trail-connector { width: 20px; height: 2px; background: #D8D4C8; margin: 0 4px; }
-        .trail-connector.done { background: #4A7C3A; }
-
-        .card-meta { font-size: 0.75rem; color: #8A857C; margin-top: 6px; }
-        .time-ago { font-size: 0.72rem; color: #A8A399; }
-        .asset-summary { font-size: 0.78rem; color: #8A857C; margin-top: 6px; }
-        .empty { color: #A8A399; font-style: italic; padding: 30px; text-align: center; }
-        .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(74,111,165,0.2); border-top-color: #4A6FA5; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 4px; vertical-align: middle; }
+        .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(74,111,165,0.2); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 4px; vertical-align: middle; }
         @keyframes spin { to { transform: rotate(360deg); } }
+        .empty { color: var(--muted-dim); font-style: italic; padding: var(--space-5); text-align: center; }
     </style>
 </head>
 <body>
 <div class="container">
     {% set active_page = "assembler" %}
-        {% include "_nav.html" %}
+    {% include "_nav.html" %}
 
-    <h1>Assembler — Asset Review</h1>
-    <p class="subtle">Shipped scripts arrive here. Generate per-platform variants, review them, approve.</p>
-
-    <!-- Filter bar with counts -->
-    <div class="filter-bar" id="filterBar">
-        <button class="filter-btn active" data-filter="all" onclick="filterCards('all')">
-            All <span class="filter-count">{{ assembler_cards|length }}</span>
-        </button>
-        {% set labels = {
-            'ready_review': 'Ready for review',
-            'no_assets': 'No assets yet',
-            'pending': 'Assets pending',
-            'partial': 'Partially approved',
-            'all_approved': 'All approved',
-            'assembling': 'Assembling'
-        } %}
-        {% for state, count in state_counts.items() %}
-        <button class="filter-btn" data-filter="{{ state }}" onclick="filterCards('{{ state }}')">
-            {{ labels.get(state, state|replace('_',' ')) }}
-            <span class="filter-count">{{ count }}</span>
-        </button>
-        {% endfor %}
-    </div>
-
-    <!-- Unified card list -->
-    <div class="card-list" id="cardList">
-        {% for card in assembler_cards %}
-        <div class="pipeline-card" data-state="{{ card.display_state }}">
-            <div class="card-header">
-                <div class="card-title">
-                    <a href="/create/assets/{{ card.draft.id }}">{{ card.idea }}</a>
-                </div>
-                <span class="state-badge st-{{ card.display_state }}">
-                    {% if card.display_state == 'assembling' %}<span class="spinner"></span>{% endif %}
-                    {{ {
-                        'ready_review': 'Ready for review',
-                        'assembling': 'Assembling',
-                        'no_assets': 'No assets yet',
-                        'pending': 'Assets pending',
-                        'partial': 'Partially approved',
-                        'all_approved': 'All approved'
-                    }.get(card.display_state, card.display_state|replace('_',' ')) }}
-                </span>
-            </div>
-
-            <!-- Asset summary -->
-            {% if card.asset_count > 0 %}
-            <div class="asset-summary">
-                {{ card.asset_count }} asset{{ 's' if card.asset_count > 1 else '' }} ·
-                {{ card.approved_assets|length }} approved ·
-                {{ card.pending_assets|length }} pending
-            </div>
-            {% endif %}
-
-            <!-- Provenance trail -->
-            <div class="trail">
-                {% for step in card.trail %}
-                <div class="trail-step">
-                    <div class="trail-dot {{ 'done' if step.state in ('approved',) else 'active' if step.state in ('ready', 'assembling', 'partial') else 'pending' }}"></div>
-                    <span class="trail-label {{ 'done' if step.state in ('approved',) else 'active' if step.state in ('ready', 'assembling', 'partial') else '' }}">{{ step.stage }}</span>
-                </div>
-                {% if not loop.last %}
-                <div class="trail-connector {{ 'done' if step.state == 'approved' else '' }}"></div>
-                {% endif %}
-                {% endfor %}
-            </div>
-
-            {% if card.state_changed_at %}
-            <div class="card-meta time-ago">{{ card.state_changed_at|relative_time }}</div>
-            {% endif %}
+    <div class="page-title-block">
+        <div>
+            <h1>Pipeline · Assets</h1>
+            <p class="subtitle">{{ assembler_cards | length }} set{{ 's' if assembler_cards | length != 1 else '' }} awaiting preview approval{% if state_counts.get('assembling', 0) > 0 %} · {{ state_counts.get('assembling', 0) }} rendering{% endif %}</p>
         </div>
-        {% else %}
-        <p class="empty">No shipped scripts yet. <a href="/create">Ship a draft from Writer →</a></p>
-        {% endfor %}
+        <a href="/ideas" class="btn">+ New seed</a>
     </div>
+
+    {# Pipeline tab bar #}
+    <div class="tab-bar">
+        <a href="/ideas" class="">Ideas</a>
+        <a href="/create" class="">Drafting</a>
+        <a href="/assemble" class="tab-active">Assets <span class="tab-count">{{ assembler_cards | length }}</span></a>
+        <a href="/published" class="">Published</a>
+    </div>
+
+    {% if assembler_cards %}
+    {% for card in assembler_cards %}
+    {% if loop.first and card.display_state == 'ready_review' %}
+    {# Expanded Gate 3 card #}
+    <div class="expanded-card">
+        <div class="expanded-head">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-4);">
+                <div>
+                    <p class="expanded-meta">№ {{ "%03d" | format(card.draft.idea_card_id if card.draft.idea_card_id else card.draft.id) }} · from draft v{{ card.draft.draft_version }} (locked at Gate 2)</p>
+                    <p class="expanded-title">{{ card.idea[:100] }}{% if card.idea | length > 100 %}…{% endif %}</p>
+                    <p class="expanded-sub">{{ card.draft.platform if card.draft.platform else 'native' }} · {{ card.asset_count }} asset{{ 's' if card.asset_count != 1 else '' }}</p>
+                </div>
+                <span class="badge badge-approved">Gate 3 · {{ card.approved_assets | length }} of {{ card.asset_count }} ready</span>
+            </div>
+        </div>
+        <div class="expanded-actions">
+            <a href="/create/assets/{{ card.draft.id }}" class="btn">Preview assets</a>
+            <a href="/create/assets/{{ card.draft.id }}" class="btn btn-small">Hold</a>
+            <div class="spacer"></div>
+            <span class="expanded-cost">view per-platform assets →</span>
+        </div>
+        <div class="queue-footer-banner">Approved draft text is inviolable — fan-out adds furniture, never rephrases</div>
+    </div>
+    {% else %}
+    {# Compact card #}
+    <div class="queue-card" style="margin-bottom: 0;">
+        <div class="queue-item">
+            <span class="queue-number">№ {{ "%03d" | format(card.draft.idea_card_id if card.draft.idea_card_id else card.draft.id) }}</span>
+            <div class="queue-body">
+                <h3><a href="/create/assets/{{ card.draft.id }}">{{ card.idea[:80] }}{% if card.idea | length > 80 %}…{% endif %}</a>
+                    {% if card.display_state == 'ready_review' %}<span class="badge badge-approved" style="margin-left: 4px;">{{ card.approved_assets | length }} of {{ card.asset_count }} ready</span>
+                    {% elif card.display_state == 'assembling' %}<span class="badge badge-drafting" style="margin-left: 4px;"><span class="spinner"></span> assembling</span>
+                    {% elif card.display_state == 'all_approved' %}<span class="badge badge-published" style="margin-left: 4px;">all approved</span>
+                    {% elif card.display_state == 'partial' %}<span class="badge badge-ready" style="margin-left: 4px;">partial</span>
+                    {% else %}<span class="badge badge-muted" style="margin-left: 4px;">{{ card.display_state | replace('_', ' ') }}</span>
+                    {% endif %}
+                </h3>
+                <p class="queue-desc">
+                    {{ card.asset_count }} asset{{ 's' if card.asset_count != 1 else '' }} · {{ card.approved_assets | length }} approved · {{ card.pending_assets | length }} pending
+                </p>
+            </div>
+            <a href="/create/assets/{{ card.draft.id }}" class="btn {% if card.display_state == 'ready_review' %}{% else %}btn-small{% endif %}">Preview</a>
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+    {% else %}
+    <div class="card">
+        <div class="empty-state">
+            <p>No shipped scripts yet. <a href="/create">Ship a draft from Writer →</a></p>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <script>
-function filterCards(state) {
-    var cards = document.querySelectorAll('.pipeline-card');
-    var btns = document.querySelectorAll('.filter-btn');
-    btns.forEach(function(b) { b.classList.remove('active'); });
-    event.target.closest('.filter-btn').classList.add('active');
-
-    cards.forEach(function(c) {
-        if (state === 'all' || c.dataset.state === state) {
-            c.classList.remove('hidden');
-        } else {
-            c.classList.add('hidden');
-        }
-    });
-}
-
-// UX-4: Auto-refresh when any card is in assembling state.
+// Auto-refresh when any card is in assembling state
 (function() {
-    var spinning = document.querySelectorAll('.pipeline-card[data-state="assembling"]');
+    var spinning = document.querySelectorAll('.badge-drafting .spinner');
     if (spinning.length > 0) {
         setTimeout(function() { window.location.reload(); }, 10000);
     }

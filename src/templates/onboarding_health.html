@@ -4,72 +4,87 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/vf.css">
-    <title>Module Health — {{ business_name }}</title>
+    <title>Setup · Module Health — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
     <style>
-        .health-card { background: #FFFFFF; border-radius: 10px; padding: 16px 20px; border: 1px solid #D8D4C8; margin-bottom: 12px; }
-        .health-card:hover { border-color: #B5B0A4; }
-        .health-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .health-title { font-size: 0.92rem; font-weight: 600; color: #1A1A1A; }
-        .input-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 0.85rem; }
+        .input-row { display: flex; align-items: center; gap: var(--space-2); padding: 5px 0; font-size: 0.82rem; }
         .input-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-        .input-dot.present { background: #4A7C3A; }
-        .input-dot.missing { background: #D8D4C8; }
-        .input-label { color: #1A1A1A; }
-        .input-label.missing { color: #8A857C; }
+        .input-dot.present { background: var(--green); }
+        .input-dot.missing { background: var(--border); }
+        .input-label { color: var(--text); }
+        .input-label.missing { color: var(--muted); }
         .input-actions { margin-left: auto; display: flex; gap: 6px; }
-        .btn-mini { font-size: 0.75rem; padding: 2px 10px; border-radius: 6px; }
-        .status-badge { font-size: 0.72rem; padding: 3px 10px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
-        .st-complete { background: rgba(74, 124, 58, 0.15); color: #4A7C3A; }
-        .st-incomplete { background: rgba(229, 75, 44, 0.12); color: #E54B2C; }
-        .summary-bar { background: #F0EDE4; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 0.88rem; color: #8A857C; }
-        .summary-bar strong { color: #1A1A1A; }
     </style>
 </head>
 <body>
 <div class="container">
-    {% include "_nav.html" %}}
+    {% set active_page = "setup" %}
+    {% include "_nav.html" %}
 
-    <h1>Module Health</h1>
-
-    <div class="summary-bar">
-        <strong>{{ present_count }}/{{ total_inputs }}</strong> inputs collected ·
-        <strong>{{ missing_count }}</strong> missing
+    <div class="page-title-block">
+        <div>
+            <h1>Setup · Module Health</h1>
+            <p class="subtitle">{{ modules | length }} modules · {{ present_count }}/{{ total_inputs }} inputs collected — every verdict links to its remedy</p>
+        </div>
     </div>
 
-    <div class="card-list">
+    {# Setup tab bar #}
+    <div class="tab-bar">
+        <a href="/onboard" class="">Overview</a>
+        <a href="/onboard" class="">Onboarding</a>
+        <a href="/onboarding-health" class="tab-active">Module health</a>
+    </div>
+
+    {# Module health matrix #}
+    <div class="queue-card">
+        <div style="display: grid; grid-template-columns: 1.2fr auto auto 1fr auto; gap: var(--space-4); align-items: center; padding: var(--space-2) var(--space-5); border-bottom: 1px solid var(--border); font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted);">
+            <span>Module</span><span>Coverage</span><span>Fresh</span><span>Feeds → consumed by</span><span>Verdict</span>
+        </div>
         {% for module in modules %}
         {% set missing = module.inputs | selectattr('status', 'equalto', 'missing') | list %}
-        <div class="health-card">
-            <div class="health-header">
-                <div class="health-title">{{ module.display_label }}</div>
-                <span class="status-badge {{ 'st-complete' if missing | length == 0 else 'st-incomplete' }}">
-                    {% if missing | length == 0 %}Complete{% else %}{{ missing | length }} missing{% endif %}
-                </span>
-            </div>
-            <div>
-                {% for inp in module.inputs %}
-                <div class="input-row">
-                    <span class="input-dot {{ inp.status }}"></span>
-                    <span class="input-label {{ 'missing' if inp.status == 'missing' else '' }}">
-                        {{ inp.name | replace('_', ' ') }}
-                    </span>
-                    {% if inp.status == 'missing' %}
-                    <span class="input-actions">
-                        <button class="btn btn-secondary btn-mini"
-                                onclick="fillFromSources('{{ inp.name }}', '{{ inp.source_playbook }}')">Find in sources</button>
-                        <button class="btn btn-secondary btn-mini"
-                                onclick="fillManual('{{ inp.name }}')">Enter manually</button>
-                    </span>
-                    {% endif %}
-                </div>
-                {% endfor %}
-            </div>
+        {% set total = module.inputs | length %}
+        {% set present = total - missing | length %}
+        {% set coverage_pct = (present / total * 5) | int if total > 0 else 0 %}
+        {% set dots = '●' * coverage_pct + '○' * (5 - coverage_pct) %}
+        <div style="display: grid; grid-template-columns: 1.2fr auto auto 1fr auto; gap: var(--space-4); align-items: center; padding: var(--space-3) var(--space-5); border-bottom: 1px dotted var(--border-dotted); font-size: 0.82rem;">
+            <span style="color: var(--text); font-weight: 500;">{{ module.display_label }}</span>
+            <span class="coverage-dots" style="color: {% if missing | length == 0 %}var(--green){% else %}#8A6D20{% endif %};">{{ dots }}</span>
+            <span class="timestamp">{{ module.last_updated[:10] if module.last_updated else '—' }}</span>
+            <span style="font-family: var(--font-mono); font-size: 0.65rem; color: var(--muted-dim);">
+                {% if missing | length == 0 %}stable → all stages{% else %}{{ missing | length }} inputs missing{% endif %}
+            </span>
+            {% if missing | length == 0 %}
+            <span class="badge badge-approved">healthy</span>
+            {% else %}
+            <span class="badge badge-ready">{{ missing | length }} missing →</span>
+            {% endif %}
         </div>
-        {% else %}
-        <p class="empty">No playbooks with required inputs found.</p>
+        {% endfor %}
+        <div class="queue-footer-banner">Modules read as approved sections, never as AI summaries</div>
+    </div>
+
+    {# Detailed module inputs #}
+    <p class="section-label" style="margin-top: var(--space-5);">Input detail · fill missing to complete modules</p>
+    {% for module in modules %}
+    {% set missing = module.inputs | selectattr('status', 'equalto', 'missing') | list %}
+    {% if missing | length > 0 %}
+    <div class="card" style="margin-bottom: var(--space-4);">
+        <h3>{{ module.display_label }}</h3>
+        {% for inp in module.inputs %}
+        <div class="input-row">
+            <span class="input-dot {{ inp.status }}"></span>
+            <span class="input-label {{ 'missing' if inp.status == 'missing' else '' }}">{{ inp.name | replace('_', ' ') }}</span>
+            {% if inp.status == 'missing' %}
+            <span class="input-actions">
+                <button class="btn btn-small" onclick="fillFromSources('{{ inp.name }}', '{{ inp.source_playbook }}')">Find in sources</button>
+                <button class="btn btn-small" onclick="fillManual('{{ inp.name }}')">Enter manually</button>
+            </span>
+            {% endif %}
+        </div>
         {% endfor %}
     </div>
+    {% endif %}
+    {% endfor %}
 </div>
 
 <script>
@@ -78,9 +93,7 @@ function fillFromSources(inputName, sourcePlaybook) {
         busyLabel: 'Mining sources…',
         body: JSON.stringify({input_name: inputName, source_playbook: sourcePlaybook}),
         reloadOnSuccess: true,
-        onError: function(msg) {
-            alert('Source mining failed: ' + msg);
-        }
+        onError: function(msg) { alert('Source mining failed: ' + msg); }
     });
 }
 

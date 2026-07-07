@@ -201,17 +201,19 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             response.headers['Expires'] = '0'
         return response
 
-    # UX-1: Context processor — inject nav_counts into every template
+    # UX-1: Context processor — inject nav_counts + business_name into every template
     @app.context_processor
     def inject_nav_counts():
         """Count cards in each pipeline stage so the nav menu shows real-time counts."""
         try:
             config = load_all(config_dir)
             business_slug = config["business"]["business"]["slug"]
+            business_name = config["business"]["business"]["name"]
         except ConfigError:
             business_slug = None
+            business_name = None
         if not business_slug:
-            return dict(nav_counts={})
+            return dict(nav_counts={}, business_name=business_name or "Not configured")
         try:
             from pipeline import PipelineStore
             store = PipelineStore(db_path=db_path)
@@ -235,9 +237,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                         counts["asset_ready"] += 1
                     else:
                         counts["ready_review"] += 1
-            return dict(nav_counts=counts)
+            return dict(nav_counts=counts, business_name=business_name)
         except Exception:
-            return dict(nav_counts={})
+            return dict(nav_counts={}, business_name=business_name or "Not configured")
 
     # --- Routes ---
 
@@ -260,8 +262,11 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             business_name = "Not configured"
             business_slug = None
 
-        # Build activity log from the pipeline — grouped by idea
-        activity = []
+        # Build gate counts for stat cards
+        gate_counts = {"ideas": 0, "drafts": 0, "assets": 0}
+        pipeline_counts = {"ideas": 0, "drafting": 0, "assets": 0, "published": 0}
+        decision_queue = []  # items needing operator action
+
         if business_slug:
             store = _get_pipeline_store()
             from datetime import datetime, timezone
@@ -292,10 +297,67 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
             for card in all_cards:
                 title = card["idea"][:100]  # longer truncation, CSS handles overflow
+                cs = card["card_state"]
+                card_num = card.get("id", 0)
+
+                # Count pipeline stages
+                if cs == "new":
+                    gate_counts["ideas"] += 1
+                    pipeline_counts["ideas"] += 1
+                    decision_queue.append({
+                        "num": card_num,
+                        "title": title,
+                        "gate": "Gate 1",
+                        "meta": card.get("treatment_line", ""),
+                        "link": "/ideas",
+                        "gate_type": "gate1",
+                    })
+                elif cs in ("writing", "draft_ready", "drafted"):
+                    pipeline_counts["drafting"] += 1
+                    if cs in ("draft_ready", "drafted"):
+                        gate_counts["drafts"] += 1
+                        decision_queue.append({
+                            "num": card_num,
+                            "title": title,
+                            "gate": "Gate 2",
+                            "meta": "draft ready for review",
+                            "link": f"/create/draft/{card_num}",
+                            "gate_type": "gate2",
+                        })
+                elif cs in ("asset_ready", "assembling"):
+                    pipeline_counts["assets"] += 1
+                    if cs == "asset_ready":
+                        gate_counts["assets"] += 1
+                        # find the draft id for link
+                        card_drafts = [d for d in store.list_drafts(business_slug) if d["idea_card_id"] == card["id"]]
+                        if card_drafts:
+                            latest_draft = max(card_drafts, key=lambda d: d.get("draft_version", 1))
+                            decision_queue.append({
+                                "num": card_num,
+                                "title": title,
+                                "gate": "Gate 3",
+                                "meta": "assets ready for preview",
+                                "link": f"/create/assets/{latest_draft['id']}",
+                                "gate_type": "gate3",
+                            })
+                elif cs == "approved":
+                    pipeline_counts["drafting"] += 1
+                    gate_counts["drafts"] += 1
+                    decision_queue.append({
+                        "num": card_num,
+                        "title": title,
+                        "gate": "Gate 2",
+                        "meta": "draft ready for review",
+                        "link": f"/create/draft/{card_num}",
+                        "gate_type": "gate2",
+                    })
+                elif cs == "shipped":
+                    pipeline_counts["published"] += 1
+
                 if title not in grouped:
                     grouped[title] = {
                         "type": "idea",
-                        "state": card["card_state"],
+                        "state": cs,
                         "title": title,
                         "link": "/ideas",
                         "time": card.get("created_at", ""),
@@ -338,12 +400,44 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 item["time"] = fmt_time(item.get("time", ""))
                 item["sub_events"].sort(key=lambda x: x.get("time") or "", reverse=False)
 
+            # System health summary
+            system_health = []
+            try:
+                # Module count
+                modules_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "modules", business_slug)
+                if os.path.isdir(modules_dir):
+                    module_files = [f for f in os.listdir(modules_dir) if f.endswith(".md")]
+                    approved = sum(1 for f in module_files if not f.startswith("_draft_") and not f.startswith("_pending_"))
+                    system_health.append({"icon": "green", "text": f"{approved} of {len(module_files)} modules approved"})
+            except Exception:
+                pass
+
+            # Source staleness
+            try:
+                sources = store.list_sources(business_slug) if hasattr(store, 'list_sources') else []
+                stale = sum(1 for s in sources if s.get("staleness_status") == "stale")
+                if stale:
+                    system_health.append({"icon": "yellow", "text": f"Source Bank: {stale} sources stale (>30d)"})
+                else:
+                    system_health.append({"icon": "green", "text": "Source Bank: all sources fresh"})
+            except Exception:
+                pass
+
+            system_health.append({"icon": "green", "text": "Auto-publish disabled · per-piece approval"})
+
+        else:
+            system_health = []
+
         return render_template("index.html",
             business_name=business_name,
             business_slug=business_slug,
             activity=activity,
             greeting_period=_greeting_period(),
-            pending_count=sum(1 for a in activity if a.get("state") in ("new", "draft_ready", "pending", "shipped")),
+            pending_count=len(decision_queue),
+            gate_counts=gate_counts,
+            pipeline_counts=pipeline_counts,
+            decision_queue=decision_queue[:6],
+            system_health=system_health,
         )
 
     @app.route("/onboard")

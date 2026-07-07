@@ -4,177 +4,127 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/vf.css">
-    <title>Source Bank — {{ business_name }}</title>
+    <title>Knowledge · Source Bank — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
     <style>
-        .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
-        .filter-btn {
-            padding: 6px 14px; border-radius: 999px; border: 1px solid #D8D4C8;
-            background: #FFFFFF; color: #8A857C; font-size: 0.82rem; cursor: pointer;
-            display: flex; align-items: center; gap: 6px; transition: all 0.15s;
-        }
-        .filter-btn:hover { border-color: #E54B2C; }
-        .filter-btn.active { background: #E54B2C; color: #FFFFFF; border-color: #E54B2C; }
-        .filter-count { font-size: 0.72rem; padding: 1px 7px; border-radius: 10px; background: #F0EDE4; color: #8A857C; font-weight: 600; }
-        .filter-btn.active .filter-count { background: rgba(255,255,255,0.25); color: #FFFFFF; }
-
-        .source-list { display: flex; flex-direction: column; gap: 10px; }
-        .source-card {
-            background: #FFFFFF; border-radius: 10px; padding: 14px 18px;
-            border: 1px solid #D8D4C8; transition: border-color 0.15s;
-        }
-        .source-card:hover { border-color: #B5B0A4; }
-        .source-card.hidden { display: none; }
-        .source-card.removed { opacity: 0.5; }
-        .source-card.parked { opacity: 0.7; }
-
-        .source-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-        .source-title { font-size: 0.9rem; line-height: 1.5; color: #1A1A1A; flex: 1; }
-        .source-title a { color: inherit; text-decoration: none; }
-        .source-title a:hover { color: #E54B2C; }
-
-        .source-meta { font-size: 0.75rem; color: #8A857C; margin-top: 4px; }
-        .source-summary { font-size: 0.82rem; color: #8A857C; margin-top: 6px; line-height: 1.5; }
-        .source-id { font-size: 0.72rem; color: #A8A399; font-weight: 600; }
-
-        .status-badge { font-size: 0.68rem; padding: 2px 8px; border-radius: 8px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
-        .st-active { background: rgba(74, 124, 58, 0.12); color: #4A7C3A; }
-        .st-new { background: rgba(229, 75, 44, 0.12); color: #E54B2C; font-weight: 700; }
-        .st-parked { background: rgba(212, 168, 67, 0.15); color: #8A6D20; }
-        .st-removed { background: rgba(192, 57, 43, 0.12); color: #C0392B; }
-
-        .source-actions { display: flex; gap: 6px; margin-top: 8px; }
-        .btn { padding: 4px 12px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.78rem; font-weight: 500; }
-        .btn-keep { background: rgba(74, 124, 58, 0.15); color: #4A7C3A; }
-        .btn-park { background: rgba(212, 168, 67, 0.15); color: #8A6D20; }
-        .btn-remove { background: rgba(192, 57, 43, 0.12); color: #C0392B; }
-        .btn:disabled { opacity: 0.4; cursor: default; }
-
-        /* DIVERGENCE-007: Bulk actions for new sources */
-        .bulk-bar { display: flex; gap: 8px; align-items: center; margin: 12px 0; padding: 10px 14px; background: #F0EDE4; border-radius: 8px; }
-        .bulk-bar .btn { padding: 6px 16px; font-size: 0.82rem; }
-        .bulk-bar .hint { font-size: 0.78rem; color: #8A857C; margin-left: 8px; }
-
-        .empty { color: #A8A399; font-style: italic; padding: 30px; text-align: center; }
+        .source-card-row { display: grid; grid-template-columns: auto 1fr auto auto auto; gap: var(--space-4); align-items: center; padding: var(--space-3) var(--space-5); border-bottom: 1px dotted var(--border-dotted); font-size: 0.82rem; }
+        .source-card-row:last-child { border-bottom: none; }
+        .source-card-row.removed { opacity: 0.5; }
+        .source-card-row.parked { opacity: 0.7; }
+        .source-name { color: var(--text); font-weight: 500; }
+        .source-name a { color: inherit; text-decoration: none; }
+        .source-name a:hover { color: var(--accent); }
+        .st-active { color: var(--green); }
+        .st-new { color: var(--accent); font-weight: 700; }
+        .st-stale { color: var(--red); }
+        .st-parked { color: #8A6D20; }
+        .st-removed { color: var(--red); }
+        .empty { color: var(--muted-dim); font-style: italic; padding: var(--space-5); text-align: center; }
+        .source-actions { display: flex; gap: 6px; }
     </style>
 </head>
 <body>
 <div class="container">
-    {% include "_nav.html" %}}
+    {% set active_page = "knowledge" %}
+    {% include "_nav.html" %}
 
-    <h1>Source Bank — {{ business_name }}</h1>
-    <p class="subtle">Every source the system has ingested. Review new items, park irrelevant ones, remove junk. Only approved sources feed idea generation.</p>
-
-    <!-- Filter bar with counts -->
-    <div class="filter-bar" id="filterBar">
-        <button class="filter-btn active" data-filter="all" onclick="filterSources('all')">
-            All <span class="filter-count">{{ sources|length }}</span>
-        </button>
-        {% set status_labels = {
-            'new': 'New',
-            'active': 'Active',
-            'parked': 'Parked',
-            'removed': 'Removed'
-        } %}
-        {% for status, count in status_counts.items() %}
-        <button class="filter-btn" data-filter="{{ status }}" onclick="filterSources('{{ status }}')">
-            {{ status_labels.get(status, status|capitalize) }} <span class="filter-count">{{ count }}</span>
-        </button>
-        {% endfor %}
+    <div class="page-title-block">
+        <div>
+            <h1>Knowledge · Source Bank</h1>
+            <p class="subtitle">{{ sources | length }} sources · every citation on every card resolves here</p>
+        </div>
+        <a href="/sources?tab=add" class="btn btn-secondary">+ Add source</a>
     </div>
 
+    {# Knowledge tab bar #}
+    <div class="tab-bar">
+        <a href="/library" class="">Overview</a>
+        <a href="/library" class="">Library</a>
+        <a href="/sources" class="tab-active">Source bank</a>
+        <a href="/materials" class="">Materials</a>
+    </div>
+
+    {# Type filter chips #}
+    <div class="filter-chips">
+        <a href="/sources" class="filter-chip {% if not request.args.get('type') %}filter-chip-active{% endif %}">All {{ sources | length }}</a>
+        {% set type_counts = {} %}
+        {% for s in sources %}
+        {% set _ = type_counts.update({s.source_type: (type_counts.get(s.source_type, 0) + 1)}) if s.source_type %}
+        {% endfor %}
+        {% for st, count in type_counts.items() %}
+        <a href="/sources?type={{ st }}" class="filter-chip source-chip-{{ {'rss_item': 'rss', 'operator_material': 'material', 'manual': 'material', 'scraped_article': 'scraped', 'archival': 'archival'}.get(st, 'archival') }}">{{ st }} {{ count }}</a>
+        {% endfor %}
+        <span style="flex: 1;"></span>
+        {% if status_counts.get('new', 0) > 0 %}
+        <a href="/sources?status=new" class="filter-chip filter-chip-danger">new only {{ status_counts.new }}</a>
+        {% endif %}
+    </div>
+
+    {# Bulk actions for new sources #}
     {% if status_counts.get('new', 0) > 0 %}
-    <!-- DIVERGENCE-007: Bulk actions for new sources -->
-    <div class="bulk-bar" id="bulkBar">
-        <strong>{{ status_counts.new }} new source{{ 's' if status_counts.new != 1 else '' }} awaiting review.</strong>
-        <button class="btn btn-keep" onclick="bulkUpdateSources('active')">Keep all new →</button>
-        <button class="btn btn-remove" onclick="bulkUpdateSources('removed')">Remove all new</button>
-        <span class="hint">New sources don't feed idea generation until you approve them.</span>
+    <div style="display: flex; gap: var(--space-2); align-items: center; margin-bottom: var(--space-4); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius);">
+        <strong style="font-size: 0.82rem;">{{ status_counts.new }} new source{{ 's' if status_counts.new != 1 else '' }} awaiting review.</strong>
+        <button class="btn btn-small" onclick="bulkUpdateSources('active')">Keep all new →</button>
+        <button class="btn btn-small" onclick="bulkUpdateSources('removed')">Remove all new</button>
+        <span style="font-size: 0.78rem; color: var(--muted); margin-left: var(--space-2);">New sources don't feed idea generation until you approve them.</span>
     </div>
     {% endif %}
 
-    <!-- Source list -->
-    <div class="source-list" id="sourceList">
+    {# Source list #}
+    <div class="queue-card">
         {% for source in sources %}
-        <div class="source-card {{ source.display_status }}" data-status="{{ source.display_status }}" id="source-{{ source.id }}">
-            <div class="source-header">
-                <div class="source-title">
-                    <span class="source-id">[S{{ source.id }}]</span>
-                    {% if source.url %}
-                    <a href="{{ source.url }}" target="_blank">{{ source.title[:100] }}{% if source.title|length > 100 %}...{% endif %}</a>
-                    {% else %}
-                    {{ source.title[:100] }}{% if source.title|length > 100 %}...{% endif %}
-                    {% endif %}
-                </div>
-                <span class="status-badge st-{{ source.display_status }}">{{ status_labels.get(source.display_status, source.display_status|capitalize) }}</span>
+        <div class="source-card-row {{ source.display_status }}" data-status="{{ source.display_status }}" id="source-{{ source.id }}">
+            <span class="source-chip source-chip-{{ {'rss_item': 'rss', 'operator_material': 'material', 'manual': 'material', 'scraped_article': 'scraped', 'archival': 'archival'}.get(source.source_type, 'archival') }}">{{ source.source_type or 'unknown' }}</span>
+            <div>
+                <span class="source-name">
+                    {% if source.url %}<a href="{{ source.url }}" target="_blank">{{ source.title[:80] }}{% if source.title | length > 80 %}…{% endif %}</a>
+                    {% else %}{{ source.title[:80] }}{% if source.title | length > 80 %}…{% endif %}{% endif %}
+                </span>
+                {% if source.summary %}<span style="font-size: 0.72rem; color: var(--muted); margin-left: 8px;">{{ source.summary[:60] }}…</span>{% endif %}
             </div>
-            {% if source.summary %}
-            <div class="source-summary">{{ source.summary[:300] }}{% if source.summary|length > 300 %}...{% endif %}</div>
-            {% endif %}
-            <div class="source-meta">
-                {{ source.source_type or 'unknown' }} · first seen {{ source.first_seen[:10] if source.first_seen else '—' }}
-            </div>
+            <span class="timestamp" style="font-size: 0.68rem; color: var(--muted-dim);">cited {{ source.citation_count | default(0) }}×</span>
+            <span class="timestamp st-{{ source.display_status }}" style="font-size: 0.68rem; font-weight: 600;">
+                {% if source.display_status == 'active' %}fresh
+                {% elif source.display_status == 'new' %}new
+                {% elif source.display_status == 'parked' %}parked
+                {% elif source.display_status == 'removed' %}removed
+                {% else %}{{ source.display_status }}{% endif %}
+            </span>
             <div class="source-actions">
-                {% if source.display_status != 'active' %}
-                <button class="btn btn-keep" onclick="updateSource({{ source.id }}, 'active')">Keep</button>
-                {% endif %}
-                {% if source.display_status != 'parked' %}
-                <button class="btn btn-park" onclick="updateSource({{ source.id }}, 'parked')">Park</button>
-                {% endif %}
-                {% if source.display_status != 'removed' %}
-                <button class="btn btn-remove" onclick="updateSource({{ source.id }}, 'removed')">Remove</button>
-                {% endif %}
+                {% if source.display_status != 'active' %}<button class="btn btn-small" onclick="updateSource({{ source.id }}, 'active')">Keep</button>{% endif %}
+                {% if source.display_status != 'parked' %}<button class="btn btn-small" onclick="updateSource({{ source.id }}, 'parked')">Park</button>{% endif %}
+                {% if source.display_status != 'removed' %}<button class="btn btn-small" onclick="updateSource({{ source.id }}, 'removed')">Remove</button>{% endif %}
             </div>
         </div>
         {% else %}
-        <p class="empty">No sources in the bank yet. RSS feeds and search queries will populate this as they run.</p>
+        <div class="empty">No sources in the bank yet. RSS feeds and search queries will populate this as they run.</div>
         {% endfor %}
+        <div class="queue-footer-banner">Sources travel the whole pipeline — idea card to published asset</div>
+    </div>
+
+    {# Analyst auto-scouting note #}
+    <div style="margin-top: var(--space-4); background: var(--surface); border: 1px dashed var(--border); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); font-size: 0.78rem; color: var(--muted);">
+        <strong style="color: var(--text-secondary);">Analyst auto-scouting: not yet active.</strong> The landing zone (this table) is live; the Analyst begins proposing sources for your approval in a later milestone. Until then, every source here was added or uploaded by you.
     </div>
 </div>
 
 <script>
-function filterSources(status) {
-    var cards = document.querySelectorAll('.source-card');
-    var btns = document.querySelectorAll('.filter-btn');
-    btns.forEach(function(b) { b.classList.remove('active'); });
-    event.target.closest('.filter-btn').classList.add('active');
-
-    cards.forEach(function(c) {
-        if (status === 'all' || c.dataset.status === status) {
-            c.classList.remove('hidden');
-        } else {
-            c.classList.add('hidden');
-        }
-    });
-}
-
 function updateSource(sourceId, newStatus) {
     fetch('/api/sources/' + sourceId + '/status', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({status: newStatus}),
     }).then(function(r) { return r.json(); }).then(function(data) {
         if (data.status === 'ok') {
-            // Update the card in place
             var card = document.getElementById('source-' + sourceId);
-            card.className = 'source-card ' + newStatus;
+            card.className = 'source-card-row ' + newStatus;
             card.dataset.status = newStatus;
-            var badge = card.querySelector('.status-badge');
-            badge.className = 'status-badge st-' + newStatus;
-            badge.textContent = newStatus;
-            // Update action buttons
-            var actions = card.querySelector('.source-actions');
-            var keepBtn = '<button class="btn btn-keep" onclick="updateSource(' + sourceId + ', \'active\')">Keep</button>';
-            var parkBtn = '<button class="btn btn-park" onclick="updateSource(' + sourceId + ', \'parked\')">Park</button>';
-            var removeBtn = '<button class="btn btn-remove" onclick="updateSource(' + sourceId + ', \'removed\')">Remove</button>';
-            actions.innerHTML = '';
-            if (newStatus !== 'active') actions.innerHTML += keepBtn;
-            if (newStatus !== 'parked') actions.innerHTML += parkBtn;
-            if (newStatus !== 'removed') actions.innerHTML += removeBtn;
+            var badge = card.querySelector('.st-' + newStatus) || card.querySelectorAll('span')[3];
+            // Reload to update everything cleanly
+            window.location.reload();
         }
     });
 }
 
-// DIVERGENCE-007: Bulk update all new sources
 function bulkUpdateSources(newStatus) {
     var action = newStatus === 'active' ? 'Keep all new' : 'Remove all new';
     if (!confirm(action + '? This will update all sources currently marked as "new".')) return;
