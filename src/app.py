@@ -6046,8 +6046,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             return jsonify({"error": f"Config error: {e}"}), 500
 
         # Capture guard: if the idea card has capture_required tasks that aren't
-        # fulfilled, block video generation — the reel needs real footage, not
-        # a plan cobbled together from static images.
+        # fulfilled, return the missing tasks so the UI can offer generation options.
+        # Soft block — the operator can choose to generate missing media with AI
+        # or search stock footage instead of uploading captures.
         card = store.get_idea_card(draft["idea_card_id"]) if draft.get("idea_card_id") else None
         if card:
             import json as _json
@@ -6055,14 +6056,11 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             capture_required = treatment.get("capture_required", [])
             if capture_required:
                 uploads = _json.loads(card.get("capture_uploads") or "[]")
-                if len(uploads) < len(capture_required):
-                    _get_jobs_store().fail_job(plan_job_id, "Capture tasks not fulfilled")
-                    return jsonify({
-                        "error": "This format requires human-captured footage before video generation. "
-                                 f"{len(capture_required) - len(uploads)} of {len(capture_required)} capture tasks still pending. "
-                                 f"Upload the required captures first: "
-                                 + "; ".join(capture_required),
-                    }), 400
+                missing_count = len(capture_required) - len(uploads)
+                if missing_count > 0:
+                    # Don't hard-block — return missing captures so the UI can offer choices
+                    # The operator can still proceed by generating AI footage or searching stock
+                    pass  # Soft warning — UI handles the choice
 
         from llm_adapter import LLMAdapter, LLMAdapterError
         from pipeline import EDIT_PLAN_SCHEMA
@@ -6364,6 +6362,150 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         results = adapter.search(query, kind=kind, per_page=per_page)
 
         return jsonify({"status": "ok", "results": results, "count": len(results)})
+
+    @app.route("/api/stock/download", methods=["POST"])
+    def download_stock():
+        """Download a stock clip and register it as an ingredient for an asset."""
+        item = request.json.get("item", {})
+        asset_id = request.json.get("asset_id")
+
+        if not item or not asset_id:
+            return jsonify({"error": "item and asset_id required"}), 400
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+        except ConfigError:
+            models_config = {}
+
+        from stock_adapter import StockAdapter, StockAdapterError
+        adapter = StockAdapter(models_config, db_path=app.config["DB_PATH"])
+        try:
+            path = adapter.download(item)
+        except StockAdapterError as e:
+            return jsonify({"error": str(e)}), 500
+
+        # Get the stock_cache ID for this download
+        import sqlite3 as _sqlite3
+        conn = _sqlite3.connect(app.config["DB_PATH"])
+        conn.row_factory = _sqlite3.Row
+        row = conn.execute(
+            "SELECT id FROM stock_cache WHERE local_path = ?",
+            (path,),
+        ).fetchone()
+        conn.close()
+        stock_id = row["id"] if row else 0
+
+        return jsonify({
+            "status": "ok",
+            "path": path,
+            "ingredient_id": f"stock:{stock_id}",
+            "title": item.get("title", ""),
+        })
+
+    @app.route("/api/assets/<int:asset_id>/generate-clip", methods=["POST"])
+    def generate_clip(asset_id):
+        """Generate a video clip for a segment using AI (Grok/xAI).
+
+        Input: {prompt, duration, aspect_ratio}
+        Returns: {status, path, ingredient_id} when done (synchronous).
+        """
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        prompt = request.json.get("prompt", "")
+        duration = request.json.get("duration", 5)
+        aspect_ratio = request.json.get("aspect_ratio", "9:16")
+
+        if not prompt:
+            return jsonify({"error": "prompt required"}), 400
+
+        store = _get_pipeline_store()
+        asset = store.get_asset(asset_id)
+        if not asset:
+            return jsonify({"error": "Asset not found"}), 404
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+        except ConfigError:
+            models_config = {}
+
+        from media_adapter import MediaAdapter, MediaAdapterError
+        adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
+
+        try:
+            # Submit video generation
+            submit_result = adapter.submit_video(
+                prompt=prompt,
+                asset_id=asset_id,
+                aspect_ratio=aspect_ratio,
+                duration=duration,
+                context=f"AI clip generation for asset {asset_id}",
+                business_slug=business_slug,
+            )
+            external_job_id = submit_result.get("external_job_id")
+            if not external_job_id:
+                return jsonify({"error": "No job ID returned from video API"}), 500
+
+            # Poll until done (with timeout)
+            import time as _time
+            max_polls = 60  # 5 minutes at 5s intervals
+            for _ in range(max_polls):
+                _time.sleep(5)
+                poll_result = adapter.check_video_job(external_job_id)
+                status = poll_result.get("status", "")
+                if status == "completed":
+                    video_path = poll_result.get("path", "")
+                    # Register as asset media
+                    media_id = adapter._record_media(
+                        asset_id, "video", video_path,
+                        submit_result.get("model", ""),
+                        prompt, 0, owner_type="asset",
+                    )
+                    return jsonify({
+                        "status": "ok",
+                        "path": video_path,
+                        "ingredient_id": f"generated:{media_id}",
+                    })
+                elif status == "failed":
+                    return jsonify({"error": poll_result.get("error", "Video generation failed")}), 500
+
+            return jsonify({"error": "Video generation timed out — check back later"}), 504
+        except MediaAdapterError as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/assets/<int:asset_id>/missing-captures", methods=["GET"])
+    def missing_captures(asset_id):
+        """Get the missing capture tasks for an asset's idea card.
+        Returns the capture_required tasks and how many are fulfilled."""
+        store = _get_pipeline_store()
+        asset = store.get_asset(asset_id)
+        if not asset:
+            return jsonify({"error": "Asset not found"}), 404
+
+        draft = store.get_draft(asset["draft_id"])
+        if not draft:
+            return jsonify({"error": "Draft not found"}), 404
+
+        card = store.get_idea_card(draft["idea_card_id"]) if draft.get("idea_card_id") else None
+        if not card:
+            return jsonify({"status": "ok", "capture_required": [], "uploads": [], "missing": []})
+
+        import json as _json
+        treatment = _json.loads(card.get("treatment") or "{}")
+        capture_required = treatment.get("capture_required", [])
+        uploads = _json.loads(card.get("capture_uploads") or "[]")
+        missing = capture_required[len(uploads):] if len(uploads) < len(capture_required) else []
+
+        return jsonify({
+            "status": "ok",
+            "capture_required": capture_required,
+            "uploads": uploads,
+            "missing": missing,
+            "missing_count": len(missing),
+        })
 
     # ── T3.12: Publish handoff ──
 
