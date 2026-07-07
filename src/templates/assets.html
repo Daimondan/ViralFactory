@@ -505,13 +505,8 @@
                     {% endif %}
                 </div>
 
-                {# Final cut player + collapsible edit plan #}
+                {# Final cut edit plan (collapsible) — video already shown in media-frame above #}
                 {% if has_final %}
-                <div class="final-cut-section">
-                    <video controls preload="metadata">
-                        <source src="/media/{{ asset.final_cuts[-1].path }}" type="video/mp4">
-                    </video>
-                </div>
                 {% if asset.edit_plans and asset.edit_plans|length > 0 %}
                 <details style="margin-top: 8px;">
                     <summary style="cursor: pointer; font-size: 0.78rem; color: #8A857C;">View edit plan</summary>
