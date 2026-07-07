@@ -54,6 +54,51 @@ def _verify_config_write(db_path: str, run_id: int, gate_token: str):
     verify_gate_token(db_path, run_id, gate_token)
 
 
+def _resolve_ai_video_generator(generator: str, media_config: dict) -> dict:
+    """Resolve generator strings like ai_video:veo to concrete model/provider config.
+
+    Returns {model, provider, name}. Bare ``ai_video`` intentionally returns
+    null model/provider so MediaAdapter uses the legacy configured default.
+    Raises ValueError when a named generator is requested but not configured —
+    silently falling back to the default provider hides exactly the failure this
+    helper exists to prevent.
+    """
+    if not (generator or "").startswith("ai_video"):
+        raise ValueError(f"Not an AI video generator: {generator}")
+    if ":" not in generator:
+        return {"model": None, "provider": None, "name": "default"}
+
+    name = generator.split(":", 1)[1]
+    for vg in media_config.get("video_generators", []):
+        if vg.get("name") == name:
+            return {
+                "model": vg.get("model"),
+                "provider": vg.get("provider"),
+                "name": name,
+            }
+    raise ValueError(f"Unknown AI video generator '{name}' — add it to media.video_generators")
+
+
+def _summarize_media_generation_results(results: list[dict]) -> dict:
+    """Summarize media generation results for honest UI messaging.
+
+    Only status='ok' means a renderable local media ingredient exists now.
+    status='submitted' means an async provider job exists but is NOT renderable
+    yet; the UI must not call that ready-to-render.
+    """
+    available_count = sum(1 for r in results if r.get("status") == "ok")
+    submitted_count = sum(1 for r in results if r.get("status") == "submitted")
+    failed_count = sum(1 for r in results if r.get("status") == "failed")
+    skipped_count = sum(1 for r in results if r.get("status") == "skipped")
+    return {
+        "available_count": available_count,
+        "submitted_count": submitted_count,
+        "failed_count": failed_count,
+        "skipped_count": skipped_count,
+        "ready_to_render": available_count > 0,
+    }
+
+
 def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db", playbooks_dir: str = None):
     """Create and configure the Flask app."""
     if playbooks_dir is None:
@@ -6569,9 +6614,19 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         # Stock footage
         stock_providers = stock_config.get("providers", [])
         if stock_providers:
+            import os as _os
+            stock_key_env = {"pexels": "PEXELS_API_KEY", "pixabay": "PIXABAY_API_KEY"}
+            available_stock = [p for p in stock_providers if _os.environ.get(stock_key_env.get(p, ""), "")]
+            missing_stock = [p for p in stock_providers if p not in available_stock]
+            stock_status = (
+                f"✅ available: {', '.join(available_stock)}" if available_stock
+                else f"⚠️ needs API key: {', '.join(missing_stock)}"
+            )
+            if available_stock and missing_stock:
+                stock_status += f"; unavailable: {', '.join(missing_stock)}"
             generators.append(
                 f"- **stock** — Search {', '.join(stock_providers)} for real-world footage. "
-                f"You write a search query. Returns real video clips."
+                f"You write a search query. Returns real video clips. {stock_status}."
             )
 
         # Video generators — read from video_generators list (new config)
@@ -6689,19 +6744,24 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                         fallback = plan_item.get("fallback_generator", "ai_video")
                         fallback_prompt = plan_item.get("fallback_prompt", plan_item.get("generation_prompt", ""))
                         if fallback and fallback_prompt:
-                            # Recurse into the fallback as if it were the primary generator
-                            plan_item["generator"] = fallback
-                            plan_item["generation_prompt"] = fallback_prompt
-                            # Re-process this item with the fallback
-                            # (simplified — just submit to default video model)
-                            submit = media_adapter.submit_video(
-                                prompt=fallback_prompt, asset_id=asset_id,
-                                aspect_ratio="9:16", duration=5,
-                                context=f"Media plan fallback for asset {asset_id}",
-                                business_slug=business_slug,
-                            )
-                            item_result["status"] = "submitted"
-                            item_result["external_job_id"] = submit.get("external_job_id")
+                            try:
+                                resolved = _resolve_ai_video_generator(fallback, media_config)
+                            except ValueError as ve:
+                                item_result["status"] = "failed"
+                                item_result["error"] = str(ve)
+                            else:
+                                submit = media_adapter.submit_video(
+                                    prompt=fallback_prompt, asset_id=asset_id,
+                                    aspect_ratio="9:16", duration=5,
+                                    model=resolved["model"],
+                                    provider=resolved["provider"],
+                                    context=f"Media plan fallback ({fallback}) for asset {asset_id}",
+                                    business_slug=business_slug,
+                                )
+                                item_result["status"] = "submitted"
+                                item_result["external_job_id"] = submit.get("external_job_id")
+                                item_result["provider"] = submit.get("provider", resolved["provider"])
+                                item_result["model"] = submit.get("model", resolved["model"])
                         else:
                             item_result["status"] = "failed"
                             item_result["error"] = "Stock search returned nothing and no fallback configured"
@@ -6710,29 +6770,20 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     # Handle both "ai_video" and "ai_video:<model_name>"
                     prompt = plan_item.get("generation_prompt", "")
                     if prompt:
-                        # If generator specifies a model (ai_video:veo), look up config
-                        gen_model = None
-                        gen_provider = None
-                        if ":" in generator:
-                            model_name = generator.split(":", 1)[1]
-                            video_gens = media_config.get("video_generators", [])
-                            for vg in video_gens:
-                                if vg.get("name") == model_name:
-                                    gen_model = vg
-                                    gen_provider = vg.get("provider", "")
-                                    break
+                        resolved = _resolve_ai_video_generator(generator, media_config)
                         # Submit video generation
                         submit = media_adapter.submit_video(
                             prompt=prompt, asset_id=asset_id,
                             aspect_ratio="9:16", duration=5,
-                            model=gen_model["model"] if gen_model else None,
-                            provider=gen_provider,
+                            model=resolved["model"],
+                            provider=resolved["provider"],
                             context=f"Media plan AI generation ({generator}) for asset {asset_id}",
                             business_slug=business_slug,
                         )
                         item_result["status"] = "submitted"
                         item_result["external_job_id"] = submit.get("external_job_id")
-                        item_result["provider"] = submit.get("provider", gen_provider)
+                        item_result["provider"] = submit.get("provider", resolved["provider"])
+                        item_result["model"] = submit.get("model", resolved["model"])
 
                 elif generator == "ai_image":
                     prompt = plan_item.get("generation_prompt", "")
@@ -6771,12 +6822,23 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
             results.append(item_result)
 
-        return jsonify({
+        summary = _summarize_media_generation_results(results)
+        response_payload = {
             "status": "ok",
             "media_plan": result.get("media_plan", []),
             "results": results,
             "count": len(results),
-        })
+            **summary,
+        }
+        if len(results) > 0 and summary["available_count"] == 0 and summary["submitted_count"] == 0:
+            response_payload["status"] = "error"
+            response_payload["error"] = (
+                f"No renderable media was generated — "
+                f"{summary['failed_count']} failed, {summary['skipped_count']} skipped."
+            )
+            return jsonify(response_payload), 500
+
+        return jsonify(response_payload)
 
     # ── T3.12: Publish handoff ──
 

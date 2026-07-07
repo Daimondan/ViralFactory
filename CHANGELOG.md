@@ -4,6 +4,22 @@
 
 All decisions — tech, logic, structure, strategy, ops — logged here with type tag + rationale.
 
+### 2026-07-07 FIX — Missing-media generation no longer says "Ready to render" after zero media
+
+**FIX** — The Assembler missing-capture flow could report `0 media items generated, 2 failed. Ready to render video.` That message was false in two layers:
+
+1. **Frontend status bug:** `assets.html` appended `. Ready to render video.` for every `status: ok` response, even when `okCount === 0` and every plan item failed.
+2. **Backend contract bug:** `/api/assets/<id>/generate-media` returned `status: ok` even when every media-plan item failed/skipped and no renderable `asset_media` file existed.
+3. **Submitted ≠ renderable:** The frontend counted `status: "submitted"` video jobs as generated media, but an async provider job is not a local renderable ingredient yet.
+4. **Named video fallback bug:** Stock fallback values like `ai_video:veo` were ignored; the fallback branch called `submit_video()` with no model/provider, silently falling back to legacy default `xai` and failing when `XAI_API_KEY` was not present, even though `GOOGLE_API_KEY` was configured.
+
+**Fix:**
+- Added `_resolve_ai_video_generator()` so `ai_video:veo` resolves to the configured Google/Veo model/provider and unknown named generators fail loudly instead of silently defaulting.
+- Added `_summarize_media_generation_results()` and `ready_to_render` response flag. Only `status: "ok"` counts as renderable media; `submitted` is reported separately.
+- `/generate-media` now returns `status: error` / HTTP 500 when zero renderable media was created and nothing was submitted.
+- Assembler UI now says e.g. `0 renderable media items generated, 2 failed. Not ready to render yet.` and only says `Ready to render video` when `ready_to_render === true`.
+- Stock generator inventory now tells the LLM whether stock APIs are actually available or missing keys.
+
 ### 2026-07-07 FIX — 'reviewing' card state caused UI confusion + premature Gate 2 buttons
 
 **FIX** — The AI review loop sets `card_state = "reviewing"` during its alignment-check rounds, but this state was missing from two critical places in the Writer UI:
