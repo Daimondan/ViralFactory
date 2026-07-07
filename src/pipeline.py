@@ -418,11 +418,12 @@ MEDIA_PLAN_SCHEMA = {
                 "properties": {
                     "capture_index": {"type": "integer"},
                     "capture_task": {"type": "string"},
-                    "generator": {"type": "string"},  # stock | ai_video | ai_image
+                    "generator": {"type": "string"},  # stock | ai_video:<model_name> | ai_video | ai_image | voice | animation
                     "search_query": {"type": "string"},  # for stock
-                    "generation_prompt": {"type": "string"},  # for ai_video/ai_image
+                    "generation_prompt": {"type": "string"},  # for ai_video/ai_image/animation
+                    "script_text": {"type": "string"},  # for voice
                     "style_directive": {"type": "string"},
-                    "fallback_generator": {"type": "string"},  # stock | ai_video | ai_image
+                    "fallback_generator": {"type": "string"},  # same format as generator
                     "fallback_prompt": {"type": "string"},
                 },
             },

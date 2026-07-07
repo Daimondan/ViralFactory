@@ -68,13 +68,13 @@ Respond with ONLY valid JSON:
       "generator": "stock",
       "search_query": "specific search query for stock libraries",
       "style_directive": "one-line brand style anchor",
-      "fallback_generator": "ai_video",
+      "fallback_generator": "ai_video:veo",
       "fallback_prompt": "style-matched AI generation prompt if stock returns nothing"
     },
     {
       "capture_index": 1,
       "capture_task": "the original capture task text",
-      "generator": "ai_video",
+      "generator": "ai_video:veo",
       "generation_prompt": "full generation prompt with palette, stylization, aspect ratio, duration",
       "style_directive": "one-line brand style anchor",
       "fallback_generator": "ai_image",
@@ -83,5 +83,7 @@ Respond with ONLY valid JSON:
   ]
 }
 ```
+
+**Generator format:** Use `stock` for stock search, `ai_video:<model_name>` to specify which video generator (e.g. `ai_video:veo`, `ai_video:grok-imagine-video`, `ai_video:sora`), `ai_image` for images, `voice` for narration, `animation` for 3D/motion graphics. The model_name must match one from the available generators list above.
 
 One entry per missing capture. The system will execute each plan item and register the result as an ingredient for the edit plan.

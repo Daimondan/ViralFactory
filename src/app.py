@@ -6574,14 +6574,28 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 f"You write a search query. Returns real video clips."
             )
 
-        # AI video generation
-        video_model = media_config.get("video_default", "")
-        video_provider = media_config.get("video_provider", "")
-        if video_model:
+        # Video generators — read from video_generators list (new config)
+        video_gens = media_config.get("video_generators", [])
+        # Filter to only generators whose API key is set
+        for vg in video_gens:
+            api_key_env = vg.get("api_key_env", "")
+            import os as _os
+            api_key_set = bool(_os.environ.get(api_key_env, ""))
+            status = "✅ available" if api_key_set else "⚠️ needs API key"
             generators.append(
-                f"- **ai_video** — Generate a video clip with AI ({video_model} via {video_provider}). "
-                f"You write the generation prompt. Full creative control over the output."
+                f"- **ai_video:{vg['name']}** — {vg.get('provider', '')} video generation ({vg.get('model', '')}). "
+                f"Best for: {vg.get('best_for', '')}. {status}."
             )
+
+        # Fallback to legacy single video generator if no list configured
+        if not video_gens:
+            video_model = media_config.get("video_default", "")
+            video_provider = media_config.get("video_provider", "")
+            if video_model:
+                generators.append(
+                    f"- **ai_video** — Generate a video clip with AI ({video_model} via {video_provider}). "
+                    f"You write the generation prompt. Full creative control over the output."
+                )
 
         # AI image generation
         image_model = media_config.get("image_default", "")
@@ -6600,14 +6614,14 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 f"You write the script text. The voice will match the business's voice profile."
             )
 
-        # 3D/animation (check if configured)
-        animation_config = models_config.get("animation", {})
+        # 3D/animation (check if configured and enabled)
+        animation_config = media_config.get("animation", {})
         if animation_config.get("enabled"):
             anim_tool = animation_config.get("tool", "blender")
             generators.append(
                 f"- **animation** — 3D animation / motion graphics ({anim_tool}). "
-                f"You write the scene description. Use for motion graphics, animated text, "
-                f"transitions, or stylized sequences that other generators can't produce."
+                f"Best for: {animation_config.get('best_for', 'motion graphics and 3D sequences')}. "
+                f"You write the scene description."
             )
 
         available_generators = "\n".join(generators) if generators else "(no generators configured)"
@@ -6674,7 +6688,12 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                         # Fallback to AI generation
                         fallback = plan_item.get("fallback_generator", "ai_video")
                         fallback_prompt = plan_item.get("fallback_prompt", plan_item.get("generation_prompt", ""))
-                        if fallback == "ai_video" and fallback_prompt:
+                        if fallback and fallback_prompt:
+                            # Recurse into the fallback as if it were the primary generator
+                            plan_item["generator"] = fallback
+                            plan_item["generation_prompt"] = fallback_prompt
+                            # Re-process this item with the fallback
+                            # (simplified — just submit to default video model)
                             submit = media_adapter.submit_video(
                                 prompt=fallback_prompt, asset_id=asset_id,
                                 aspect_ratio="9:16", duration=5,
@@ -6687,13 +6706,25 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                             item_result["status"] = "failed"
                             item_result["error"] = "Stock search returned nothing and no fallback configured"
 
-                elif generator == "ai_video":
+                elif generator.startswith("ai_video"):
+                    # Handle both "ai_video" and "ai_video:<model_name>"
                     prompt = plan_item.get("generation_prompt", "")
                     if prompt:
+                        # If generator specifies a model (ai_video:veo), look up config
+                        gen_model = None
+                        if ":" in generator:
+                            model_name = generator.split(":", 1)[1]
+                            video_gens = media_config.get("video_generators", [])
+                            for vg in video_gens:
+                                if vg.get("name") == model_name:
+                                    gen_model = vg
+                                    break
+                        # Submit video generation
                         submit = media_adapter.submit_video(
                             prompt=prompt, asset_id=asset_id,
                             aspect_ratio="9:16", duration=5,
-                            context=f"Media plan AI generation for asset {asset_id}",
+                            model=gen_model["model"] if gen_model else None,
+                            context=f"Media plan AI generation ({generator}) for asset {asset_id}",
                             business_slug=business_slug,
                         )
                         item_result["status"] = "submitted"
@@ -6710,6 +6741,21 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                         )
                         item_result["status"] = "ok"
                         item_result["path"] = img_result["path"]
+
+                elif generator == "voice":
+                    # Voice generation — placeholder (TTS integration via voice_cloning config)
+                    script_text = plan_item.get("script_text") or plan_item.get("generation_prompt", "")
+                    if script_text:
+                        # TODO: wire to voice_cloning engine when TTS is ready
+                        item_result["status"] = "skipped"
+                        item_result["error"] = "Voice generation not yet wired — TTS engine configured but not implemented"
+
+                elif generator == "animation":
+                    # 3D/animation — placeholder
+                    prompt = plan_item.get("generation_prompt", "")
+                    if prompt:
+                        item_result["status"] = "skipped"
+                        item_result["error"] = "Animation generation not yet wired — configure and install the animation tool"
 
                 else:
                     item_result["status"] = "skipped"

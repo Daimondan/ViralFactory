@@ -83,14 +83,52 @@ voice_cloning:
   sample_rate: 24000
 
 # ── Media generation (F4: CORRECTION-pipeline-ux-and-media-generation-v1.0) ──
-# OpenRouter Image + Video APIs. Swap = config edit, zero code change.
-# Auth: OPENROUTER_API_KEY env var (single bearer token for both image + video).
+# Config-driven generator inventory. The LLM media plan prompt sees all
+# configured generators and decides which to use per segment.
+# Add new generators here — they automatically appear in the LLM's options.
+#
+# Auth: set the env var for each provider you want active.
+# OPENROUTER_API_KEY routes to Gemini, Veo, and other OpenRouter models.
+# XAI_API_KEY for Grok video.
+# OPENAI_API_KEY for Sora/DALL-E.
+# GOOGLE_API_KEY for Veo direct (if not via OpenRouter).
 media:
+  # ── Image generators ──
   image_default: "google/gemini-3.1-flash-image"
+  image_base_url: "https://openrouter.ai/api/v1"
+
+  # ── Video generators (list — LLM chooses) ──
+  video_generators:
+    - name: "grok-imagine-video"
+      provider: "xai"
+      model: "grok-imagine-video"
+      base_url: "https://api.x.ai"
+      api_key_env: "XAI_API_KEY"
+      best_for: "stylized, conceptual, fast generation"
+    - name: "veo"
+      provider: "google"
+      model: "veo-3.1-fast-generate"
+      base_url: "https://generativelanguage.googleapis.com"
+      api_key_env: "GOOGLE_API_KEY"
+      best_for: "cinematic, photorealistic, long clips"
+    - name: "sora"
+      provider: "openai"
+      model: "sora"
+      base_url: "https://api.openai.com"
+      api_key_env: "OPENAI_API_KEY"
+      best_for: "complex scenes, multi-subject, high quality"
+
+  # ── Legacy single-generator config (kept for backward compat) ──
   video_default: "grok-imagine-video"
   video_provider: "xai"
   video_base_url: "https://api.x.ai"
   base_url: "https://openrouter.ai/api/v1"
+
+  # ── Animation/3D (disabled by default — enable when installed) ──
+  animation:
+    enabled: false
+    tool: "blender"
+    best_for: "motion graphics, animated text, 3D sequences"
 
 # ── Stock library (Final Assembly Part 1) ──
 # Pexels (primary) + Pixabay (secondary). Both free, commercial-safe.
