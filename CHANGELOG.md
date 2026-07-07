@@ -4,6 +4,19 @@
 
 All decisions — tech, logic, structure, strategy, ops — logged here with type tag + rationale.
 
+## 2026-07-07 — UI: Full UI/UX redesign based on UIIX mockups
+
+**[UI] Redesigned all 13 page templates to match the UIIX Google Drive mockup design system.**
+- 5-group topbar (Home/Pipeline/Knowledge/Results/Setup) with badge counts + business switcher
+- Page title blocks with serif headings + accent subtitles
+- Tab bar for sub-navigation (pipeline stages, knowledge tabs, setup tabs)
+- Gate stat mini-cards, pipeline strip, decision queue with gate badges
+- Source type chips (rss/material/scraped/archival), module grid, coverage dots
+- Expanded card pattern for Gate detail, two-column activity+health layout
+- 550+ lines of new CSS component classes matching mockup design tokens
+- Enriched index() route with gate_counts, pipeline_counts, decision_queue, system_health
+**Rationale:** Operator provided 13 HTML mockup files defining the complete UI/UX. All templates now conform to this design system.
+
 ### 2026-07-07 FIX — Assembler cannot render from unrelated capture uploads
 
 **FIX** — Asset #1 rendered a wrong water clip for a Barbados Landship reel because final assembly built its edit-plan ingredient inventory from all business-wide `capture_upload` materials. The LLM selected `upload:248` (`veo-water-clip.mp4`) even though that material was not linked to asset #1's idea card and did not match the required Landship/Bridgetown capture direction.
