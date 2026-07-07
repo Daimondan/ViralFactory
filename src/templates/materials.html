@@ -47,7 +47,8 @@
                 </span>
                 {% if m.material_type %}<span class="source-chip source-chip-material" style="margin-left: 6px;">{{ m.material_type }}</span>{% endif %}
                 {% if m.transcription_status == 'done' %}<span style="color: var(--muted); font-size: 0.78rem; margin-left: 6px;">· transcribed by Whisper · normalized</span>{% endif %}
-                {% if m.excluded_flag %}<span class="badge badge-killed" style="margin-left: 6px;">excluded</span>{% endif %}
+                {% if m.excerpt %}<div style="font-size: 0.78rem; color: var(--muted); margin-top: 4px;">{{ m.excerpt[:120] }}{% if m.excerpt | length > 120 %}…{% endif %}</div>{% endif %}
+                {% if m.excluded_flag %}<span class="badge badge-killed" style="margin-left: 6px;">Excluded</span>{% endif %}
             </div>
             <span class="timestamp" style="font-size: 0.68rem; color: var(--muted-dim);">{{ m.word_count or 0 }} words{% if m.date_approx %} · {{ m.date_approx }}{% endif %}</span>
             {% if m.excluded_flag %}

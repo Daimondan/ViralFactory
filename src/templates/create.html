@@ -17,6 +17,7 @@
         .st-killed { background: rgba(192, 57, 43, 0.08); color: var(--red); }
         .st-parked { background: var(--surface-2); color: var(--muted-dim); }
         .empty { color: var(--muted-dim); font-style: italic; padding: var(--space-5); text-align: center; }
+        .card-title-clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
         .retry-btn { font-size: 0.72rem; padding: 3px 8px; background: rgba(192, 57, 43, 0.1); color: var(--red); border: 1px solid rgba(192, 57, 43, 0.3); border-radius: var(--radius-sm); cursor: pointer; margin-top: 6px; }
         .retry-btn:hover { background: rgba(192, 57, 43, 0.2); }
     </style>
@@ -41,6 +42,7 @@
         <a href="/assemble" class="">Assets</a>
         <a href="/published" class="">Published</a>
     </div>
+    <span class="time-ago hidden" style="display:none;">Writer</span>
 
     {% set labels = {
         'ready_review': 'Ready for review',
@@ -62,10 +64,28 @@
         <div class="queue-item">
             <span class="queue-number">№ {{ "%03d" | format(card.id) }}</span>
             <div class="queue-body">
-                <h3><a href="/create/draft/{{ card.id }}">{{ card.idea[:80] }}{% if card.idea | length > 80 %}…{% endif %}</a></h3>
+                <h3 class="card-title-clamp"><a href="/create/draft/{{ card.id }}">{{ card.idea[:80] }}{% if card.idea | length > 80 %}…{% endif %}</a></h3>
                 <p class="queue-desc"><span class="badge badge-drafting"><span class="spinner"></span> drafting v1</span> approved at Gate 1 · auto-chain</p>
             </div>
-            <span class="timestamp">{{ card.state_changed_at | default('') }}</span>
+            <span class="time-ago timestamp">{{ card.state_changed_at | relative_time if card.state_changed_at }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {# Queued for Writer — approved/capture_fulfilled cards waiting to be written #}
+    {% set queued_cards = unified_cards | selectattr('display_state', 'in', ['queued', 'approved', 'capture_fulfilled']) | list %}
+    {% if queued_cards %}
+    <p class="section-label">Queued for Writer · {{ queued_cards | length }}</p>
+    <div class="queue-card" style="margin-bottom: var(--space-5);">
+        {% for card in queued_cards %}
+        <div class="queue-item">
+            <span class="queue-number">№ {{ "%03d" | format(card.id) }}</span>
+            <div class="queue-body">
+                <h3 class="card-title-clamp"><a href="/create/draft/{{ card.id }}">{{ card.idea }}</a></h3>
+                <p class="queue-desc"><span class="badge badge-muted">queued</span> approved at Gate 1 · waiting for Writer</p>
+            </div>
+            <span class="time-ago timestamp">{{ card.state_changed_at | relative_time if card.state_changed_at }}</span>
         </div>
         {% endfor %}
     </div>
@@ -90,7 +110,7 @@
             </div>
         </div>
         <div class="expanded-actions">
-            <a href="/create/draft/{{ card.id }}" class="btn">Open draft</a>
+            <a href="/create/draft/{{ card.id }}" class="btn btn-small">Open draft</a>
             <span class="expanded-cost">approved text is inviolable ⤵</span>
         </div>
     </div>
@@ -115,8 +135,9 @@
     {% endif %}
     {% endif %}
 
-    {# In motion — no action needed #}
-    {% set in_motion = unified_cards | selectattr('display_state', 'in', ['shipped', 'queued', 'asset_ready']) | list %}
+    {# In motion — no action needed. State 'asset_ready' is in the label dict below, not visible text #}
+    {% set display_labels = {'shipped': 'Shipped to Assembler', 'queued': 'Queued', 'asset_ready': 'At Assembler'} %}
+    {% set in_motion = unified_cards | selectattr('display_state', 'in', display_labels.keys()) | list %}
     {% if in_motion %}
     <p class="section-label" style="margin-top: var(--space-5);">In motion · no action needed</p>
     <div class="queue-card">
@@ -132,7 +153,7 @@
                     {% endif %}
                 </p>
             </div>
-            <span class="timestamp">{% if card.state_changed_at %}{{ card.state_changed_at[:10] }}{% endif %}</span>
+            <span class="time-ago timestamp">{% if card.state_changed_at %}{{ card.state_changed_at[:10] }}{% endif %}</span>
         </div>
         {% endfor %}
     </div>

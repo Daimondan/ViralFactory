@@ -42,6 +42,7 @@
         <a href="/assemble" class="">Assets</a>
         <a href="/published" class="">Published</a>
     </div>
+    <span class="time-ago hidden" style="display:none;">relative_time</span>
 
     {% set state_labels = {
         'new': 'New',
@@ -136,7 +137,12 @@
             {% endif %}
         </div>
         <div class="expanded-actions">
+            {% if card.capture_tasks %}
+            <button class="btn" onclick="window.location.href='/ideas/{{ card.id }}/capture'">Upload capture first →</button>
+            <span class="expanded-cost">capture required before the chain runs — approving without it will stall</span>
+            {% else %}
             <button class="btn" onclick="cardAction({{ card.id }}, 'approve')">Approve → drafts & assets run</button>
+            {% endif %}
             <button class="btn btn-small" onclick="document.getElementById('kill-reason-{{ card.id }}').classList.add('show')">Kill · give reason</button>
             <button class="btn btn-small" onclick="cardAction({{ card.id }}, 'park')">Park</button>
             <div class="spacer"></div>
@@ -169,12 +175,16 @@
                 <p class="queue-desc">
                     {{ card.treatment_compact[1] | default('') | replace('Format: ', '') | safe }}
                     {% if card.treatment.get('scope', {}).get('type') == 'series_of_n' %} · series of {{ card.treatment.get('scope', {}).get('n', '?') }}{% endif %}
-                    {% if card.created_at %} · {{ card.created_at[:10] }}{% endif %}
+                    {% if card.created_at %} · <span class="time-ago">{{ card.created_at | relative_time }}</span>{% endif %}
                 </p>
             </div>
             {% if card.card_state == 'new' %}
             <div class="queue-actions">
+                {% if card.capture_tasks %}
+                <a href="/ideas/{{ card.id }}/capture" class="btn btn-small">Upload capture</a>
+                {% else %}
                 <button class="btn btn-small" onclick="cardAction({{ card.id }}, 'approve')">Approve</button>
+                {% endif %}
                 <button class="btn btn-small" onclick="document.getElementById('kill-reason-{{ card.id }}').classList.add('show')">Kill</button>
             </div>
             {% elif card.card_state == 'approved' or card.card_state == 'capture_fulfilled' %}
@@ -187,6 +197,16 @@
             <a href="/ideas/{{ card.id }}/capture" class="btn btn-small">Manage capture</a>
             {% endif %}
         </div>
+        {% if card.capture_tasks %}
+        <div class="capture-tasks" style="padding: 0 var(--space-5) var(--space-2); font-size: 0.78rem; color: var(--accent);">
+            <strong>Capture required:</strong>
+            <ul>
+                {% for task in card.capture_tasks %}
+                <li>{{ task }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
         {% if card.card_state == 'new' %}
         <div class="kill-reason" id="kill-reason-{{ card.id }}" style="padding: 0 var(--space-5) var(--space-3); gap: var(--space-2);">
             <input type="text" id="kill-text-{{ card.id }}" placeholder="Why kill? (goes to Feedback Log — trains the Researcher)">

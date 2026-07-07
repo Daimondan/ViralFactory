@@ -16,24 +16,24 @@
         <div class="page-title-block">
             <div>
                 <h1>Good {{ greeting_period }}, Daimon</h1>
-                <p class="subtitle">{{ pending_count }} decisions waiting · nothing ships without you</p>
+                <p class="subtitle">{{ pending_count }} decisions waiting on you · nothing ships without you</p>
             </div>
             <a href="/ideas" class="btn">+ New seed</a>
         </div>
 
-        {# Gate stat cards #}
+        {# Gate stat cards — decisions pending your action (not total cards) #}
         <div class="gate-stats">
             <div class="gate-stat-card">
                 <p class="stat-label">Gate 1 · Ideas</p>
-                <p class="stat-num">{{ gate_counts.ideas }} <span class="stat-sub">awaiting approval</span></p>
+                <p class="stat-num">{{ gate_counts.ideas }} <span class="stat-sub">awaiting your approval</span></p>
             </div>
             <div class="gate-stat-card">
                 <p class="stat-label">Gate 2 · Drafts</p>
-                <p class="stat-num">{{ gate_counts.drafts }} <span class="stat-sub">ready for review</span></p>
+                <p class="stat-num">{{ gate_counts.drafts }} <span class="stat-sub">awaiting your review</span></p>
             </div>
             <div class="gate-stat-card">
                 <p class="stat-label">Gate 3 · Assets</p>
-                <p class="stat-num">{{ gate_counts.assets }} <span class="stat-sub">preview ready</span></p>
+                <p class="stat-num">{{ gate_counts.assets }} <span class="stat-sub">awaiting your preview</span></p>
             </div>
         </div>
 
@@ -50,34 +50,34 @@
                     </h3>
                     {% if item.meta %}<p class="queue-desc">{{ item.meta }}</p>{% endif %}
                 </div>
-                <a href="{{ item.link }}" class="btn {% if item.gate_type == 'gate3' %}{% else %}btn-small{% endif %}">Review</a>
+                <a href="{{ item.link }}" class="btn btn-small">Review</a>
             </div>
             {% endfor %}
             <div class="queue-footer-banner">AI proposes · you decide · every gate logged</div>
         </div>
         {% endif %}
 
-        {# Pipeline strip #}
-        <p class="section-label">Pipeline at a glance</p>
+        {# Pipeline strip — total cards in each stage (not just decisions-pending) #}
+        <p class="section-label">Pipeline at a glance · all cards in motion</p>
         <div class="pipeline-strip">
             <div class="pipeline-step">
                 <p class="step-name">Ideas</p>
-                <p class="step-meta">{{ pipeline_counts.ideas }} open</p>
+                <p class="step-meta">{{ pipeline_counts.ideas }} total in stage</p>
             </div>
             <span class="pipeline-arrow">→</span>
             <div class="pipeline-step">
                 <p class="step-name">Drafting</p>
-                <p class="step-meta">{{ pipeline_counts.drafting }} in progress</p>
+                <p class="step-meta">{{ pipeline_counts.drafting }} total in stage</p>
             </div>
             <span class="pipeline-arrow">→</span>
             <div class="pipeline-step">
                 <p class="step-name">Assets</p>
-                <p class="step-meta">{{ pipeline_counts.assets }} rendering</p>
+                <p class="step-meta">{{ pipeline_counts.assets }} total in stage</p>
             </div>
             <span class="pipeline-arrow">→</span>
             <div class="pipeline-step">
                 <p class="step-name">Published</p>
-                <p class="step-meta">{{ pipeline_counts.published }} total</p>
+                <p class="step-meta">{{ pipeline_counts.published }} total in stage</p>
             </div>
         </div>
 
@@ -94,7 +94,8 @@
                             {% elif item.state == "killed" %}<span style="color: var(--red); font-weight: 700;">✕</span>
                             {% else %}<span style="color: var(--accent); font-weight: 700;">↑</span>{% endif %}
                             <a href="{{ item.link }}">{{ item.title }}</a>
-                            <span class="timestamp" style="margin-left: 4px;">{{ item.time }}</span>
+                            {% for sub in item.sub_events %}<span style="color: var(--muted); font-size: 0.78rem;"> · {% if sub.type == 'asset' %}Asset for {{ item.title }}: {{ sub.title | replace('  → ', '') }}{% else %}{{ sub.title }}{% endif %}</span>{% endfor %}
+                            <span class="time-ago timestamp" style="margin-left: 4px;">{{ item.time }}</span>
                         </p>
                         {% endfor %}
                     </div>

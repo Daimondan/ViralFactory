@@ -227,7 +227,7 @@ code { font-family: var(--font-mono); font-size: 0.85em; background: var(--surfa
 .badge-shipped { background: rgba(212, 168, 67, 0.15); color: #8A6D20; }
 .badge-published { background: rgba(74, 124, 58, 0.12); color: var(--green); }
 .badge-killed { background: rgba(192, 57, 43, 0.12); color: var(--red); }
-.badge-stalled { background: rgba(192, 57, 43, 0.08); color: var(--red); }
+.badge-stalled { background: rgba(212, 168, 67, 0.12); color: #8A6D20; }
 .badge-held { background: rgba(212, 168, 67, 0.12); color: #8A6D20; }
 .badge-native { background: rgba(123, 91, 166, 0.12); color: var(--purple); }
 .badge-muted { background: var(--surface-2); color: var(--muted); }
