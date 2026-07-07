@@ -333,12 +333,16 @@ class AssemblyRenderer:
                 if is_image:
                     # Create a video clip from the image with the specified duration
                     # Add silent audio so concat has both streams from every segment.
+                    # setsar=1 normalises SAR to 1:1 so the concat filter doesn't reject
+                    # segments whose source images had different aspect ratios (which
+                    # produces different SARs after scale+pad — ffmpeg demands matching
+                    # SAR across all concat inputs).
                     cmd = [
                         "ffmpeg", "-y",
                         "-loop", "1", "-i", src_path,
                         "-f", "lavfi", "-i", f"anullsrc=channel_layout=stereo:sample_rate=44100",
                         "-t", str(max(duration, 1)),
-                        "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2",
+                        "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1",
                         "-map", "0:v:0", "-map", "1:a:0",
                         "-c:v", "libx264", "-pix_fmt", "yuv420p",
                         "-c:a", "aac",
@@ -355,6 +359,7 @@ class AssemblyRenderer:
                         "-ss", str(in_pt),
                         "-i", src_path,
                         "-t", str(duration),
+                        "-vf", "setsar=1",
                         "-map", "0:v:0", "-map", "1:a:0",
                         "-c:v", "libx264", "-pix_fmt", "yuv420p",
                         "-c:a", "aac",
@@ -372,7 +377,7 @@ class AssemblyRenderer:
                             "-ss", str(in_pt),
                             "-i", src_path,
                             "-t", str(duration),
-                            "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2",
+                            "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1",
                             "-c:v", "libx264", "-pix_fmt", "yuv420p",
                             "-c:a", "aac",
                             "-r", "30",
@@ -386,7 +391,7 @@ class AssemblyRenderer:
                             "-i", src_path,
                             "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
                             "-t", str(duration),
-                            "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2",
+                            "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1",
                             "-map", "0:v:0", "-map", "1:a:0",
                             "-c:v", "libx264", "-pix_fmt", "yuv420p",
                             "-c:a", "aac",

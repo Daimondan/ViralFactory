@@ -829,6 +829,72 @@ class TestAssemblyInOutValidation:
         import shutil
         shutil.rmtree(os.path.join("data", "media", "9997"), ignore_errors=True)
 
+    def test_render_concat_mismatched_sar_images(self, tmp_path):
+        """Render should succeed when image segments have different aspect ratios.
+
+        Regression: Images with different native aspect ratios produce
+        different SAR (Sample Aspect Ratio) values after scale+pad. The
+        concat filter rejects inputs with mismatched SAR:
+        "Input link in0:v0 parameters (SAR 0:1) do not match (SAR 2880:2881)".
+        Fix: setsar=1 in every segment's -vf chain normalises SAR to 1:1.
+        """
+        import subprocess
+        renderer = AssemblyRenderer({}, db_path=str(tmp_path / "test.db"))
+
+        # Create two images with DIFFERENT aspect ratios — this is the trigger.
+        # A wide image (1280x720 → 16:9) and a tall image (720x1280 → 9:16)
+        # both get scaled+padded to 1080x1920 but with different SAR.
+        img_wide = str(tmp_path / "wide.png")
+        subprocess.run(
+            ["ffmpeg", "-y", "-f", "lavfi",
+             "-i", "color=c=red:s=1280x720:d=1", "-frames:v", "1", img_wide],
+            capture_output=True, timeout=30,
+        )
+        img_tall = str(tmp_path / "tall.png")
+        subprocess.run(
+            ["ffmpeg", "-y", "-f", "lavfi",
+             "-i", "color=c=blue:s=720x1280:d=1", "-frames:v", "1", img_tall],
+            capture_output=True, timeout=30,
+        )
+        assert os.path.exists(img_wide), "Failed to create wide test image"
+        assert os.path.exists(img_tall), "Failed to create tall test image"
+
+        sources = [img_wide, img_tall, img_wide, img_tall]
+        call_idx = [0]
+        def stub_resolve(ref, asset_id):
+            path = sources[call_idx[0] % len(sources)]
+            call_idx[0] += 1
+            return path
+        renderer._resolve_source = stub_resolve
+
+        plan = {
+            "segments": [
+                {"source": "generated:1", "in": 0, "out": 2, "transition_in": "cut"},
+                {"source": "generated:2", "in": 0, "out": 2, "transition_in": "cut"},
+                {"source": "generated:3", "in": 0, "out": 2, "transition_in": "cut"},
+                {"source": "generated:4", "in": 0, "out": 2, "transition_in": "cut"},
+            ],
+            "canvas": {"aspect_ratio": "9:16", "resolution": "1080x1920"},
+        }
+        os.makedirs(os.path.join("data", "media", "9998"), exist_ok=True)
+        result = renderer.render(plan, asset_id=9998, draft_id=1)
+        assert os.path.exists(result["path"]), f"Output file not created: {result.get('path')}"
+        assert result["duration"] > 0, "Output has zero duration"
+
+        # Verify the output has SAR 1:1
+        probe = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-print_format", "json",
+             "-show_streams", result["path"]],
+            capture_output=True, text=True, timeout=30,
+        )
+        streams = json.loads(probe.stdout)["streams"]
+        vstream = [s for s in streams if s["codec_type"] == "video"][0]
+        assert vstream.get("sample_aspect_ratio") == "1:1", \
+            f"Output SAR should be 1:1, got {vstream.get('sample_aspect_ratio')}"
+
+        import shutil
+        shutil.rmtree(os.path.join("data", "media", "9998"), ignore_errors=True)
+
 
 # ── Fan-out idempotency: no duplicate platform assets ──────────────────────
 

@@ -4,6 +4,16 @@
 
 All decisions — tech, logic, structure, strategy, ops — logged here with type tag + rationale.
 
+### 2026-07-07 FIX — ffmpeg concat "Invalid argument" on mismatched SAR
+
+**FIX** — The ffmpeg concat filter crashed with `Error while filtering: Invalid argument` / `Conversion failed!` when concatenating image segments that had different native aspect ratios. Root cause: `scale=...:force_original_aspect_ratio=decrease,pad=...` produces different SAR (Sample Aspect Ratio) values depending on the source image's dimensions (e.g. SAR 0:1 for one image, SAR 2880:2881 for another). The concat filter requires all inputs to have matching SAR.
+
+**Fix:** Added `setsar=1` to the `-vf` chain in all four segment preparation branches (image, audio-only, video+audio, video-only). This normalises SAR to 1:1 on every segment before concat, guaranteeing matching parameters across all inputs.
+
+**Rationale:** Operator hit this on asset 3 — a Reel with 8 image segments (3 generated images reused). All 8 individual segment trims succeeded, but the concat stage failed because the images had different aspect ratios producing different SARs. The error message ("Invalid argument") gave no clue about SAR mismatch — required reading the full ffmpeg stderr to find `Input link in0:v0 parameters (SAR 0:1) do not match (SAR 2880:2881)`.
+
+**Regression test:** `test_render_concat_mismatched_sar_images` — creates wide (1280x720) and tall (720x1280) images, concatenates 4 segments, verifies output exists with SAR 1:1. Tests: 60 passing (was 59).
+
 ---
 
 ### 2026-07-06 FIX — variant_type mislabeling hid carousel images on Assembler page

@@ -313,4 +313,10 @@ Materials Library — editable source materials. DB migrations: `excluded` colum
 - Root cause: Writer prompt told the LLM to copy `variant_type` from the Format Guide entry's single `Variant type` field. For cross-platform formats like "Newsletter Section" (X→thread, Instagram→carousel), this produced `variant_type="newsletter_section"` for both — the format name, not the structural type.
 - Impact: Assembler page classified both as `is_text_only` (because "newsletter" matched), hiding the Instagram carousel's 8 image prompts and the "Generate images" button behind a "Text-only format — ready for review" label. The X thread rendered as a newsletter mock instead of numbered tweets.
 - Fix at 3 layers: (1) DB: corrected existing assets 1+2 to `thread`/`carousel` and updated draft `platform_content`. (2) Prompt: `generate_v3.md` v3.0→v3.1 — variant_type now described as per-platform structural type matching the posts array, not a copy of the Format Guide field. (3) Template: `assets.html` safety net — auto-detects thread/carousel from content description + platform + post count when variant_type is the format name; `is_text_only` now checks for active image prompts, so a newsletter with image prompts is not text-only.
-- **Tests:** 763 passed (761 + 2 new regression tests in `test_ui_review_display_fixes.py`). Q: none
+
+### 2026-07-07 — FIX: ffmpeg concat "Invalid argument" on mismatched SAR
+
+- Root cause: Image segments with different native aspect ratios produce different SAR (Sample Aspect Ratio) values after `scale+pad`. The ffmpeg concat filter requires all inputs to have matching SAR — mismatched SAR crashes with "Error while filtering: Invalid argument".
+- Fix: Added `setsar=1` to the `-vf` chain in all four segment preparation branches (image, audio-only, video+audio, video-only) in `src/assembly.py`.
+- Regression test: `test_render_concat_mismatched_sar_images` — wide (1280x720) + tall (720x1280) images concatenated, verifies SAR 1:1 output.
+- **Tests:** 60 passing in assembly test file (was 59). 0 failures.
