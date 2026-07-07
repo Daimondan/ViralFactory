@@ -4,6 +4,23 @@
 
 All decisions — tech, logic, structure, strategy, ops — logged here with type tag + rationale.
 
+### 2026-07-07 FIX — 'reviewing' card state caused UI confusion + premature Gate 2 buttons
+
+**FIX** — The AI review loop sets `card_state = "reviewing"` during its alignment-check rounds, but this state was missing from two critical places in the Writer UI:
+
+1. `_writer_display_state()` (app.py:7456) had no case for `"reviewing"` — it fell through to `return cs`, returning the raw string `"reviewing"`. This produced a broken badge (no CSS class, no label, no spinner) and the auto-refresh JS didn't trigger (it only watches `data-state="writing"`/`"assembling"`).
+
+2. `writer_eligible_states` (app.py:7401) excluded `"reviewing"`, so cards in this state were filtered out of the Writer page entirely — the card vanished while the AI review loop ran.
+
+3. The draft page (draft.html) showed Gate 2 buttons (Send to Assembler, Revise, Kill, Regenerate) whenever `draft_state != 'shipped'` — but during the AI review loop, `draft_state` is still `"drafting"`, so those buttons appeared prematurely. Clicking "Generate draft" or "Regenerate" hit the API guard at app.py:4975, which rejected with "Card state is 'reviewing' — must be approved or capture_fulfilled to draft".
+
+**Fix:**
+- `reviewing` → mapped to `"writing"` display state (spinner + "Writer working" label + auto-refresh)
+- `reviewing` added to `writer_eligible_states` so the card stays visible
+- draft.html Gate 2 section now only renders when `draft_state in ('draft_ready', 'revised')` — during `drafting`, shows "Writer is working" message with spinner + auto-refresh
+- Per-platform Edit buttons, visual preview Generate button, and self-audit Apply/Dismiss buttons all gated to `draft_ready`/`revised` states only
+- Schema comment in pipeline.py updated to document `reviewing` in the state list
+
 ### 2026-07-07 FIX — ffmpeg concat "Invalid argument" on mismatched SAR
 
 **FIX** — The ffmpeg concat filter crashed with `Error while filtering: Invalid argument` / `Conversion failed!` when concatenating image segments that had different native aspect ratios. Root cause: `scale=...:force_original_aspect_ratio=decrease,pad=...` produces different SAR (Sample Aspect Ratio) values depending on the source image's dimensions (e.g. SAR 0:1 for one image, SAR 2880:2881 for another). The concat filter requires all inputs to have matching SAR.

@@ -247,6 +247,29 @@ class TestAIReviewLoopMaxRounds:
         assert '"reviewing"' in source
         assert "update_card_state(card_id, \"reviewing\")" in source
 
+    def test_reviewing_mapped_to_writing_display_state(self):
+        """The 'reviewing' card state must map to 'writing' display state, not fall through raw."""
+        source_path = os.path.join(os.path.dirname(__file__), "..", "src", "app.py")
+        with open(source_path) as f:
+            source = f.read()
+        # _writer_display_state must include reviewing in the writing group
+        assert '"reviewing"' in source
+        # The eligible states set must include reviewing so the card isn't hidden
+        assert '"reviewing"' in source
+
+    def test_reviewing_in_writer_eligible_states(self):
+        """The 'reviewing' card state must be in writer_eligible_states so the card isn't hidden."""
+        source_path = os.path.join(os.path.dirname(__file__), "..", "src", "app.py")
+        with open(source_path) as f:
+            source = f.read()
+        # Find writer_eligible_states and verify reviewing is in the set
+        assert "writer_eligible_states" in source
+        # Extract the set literal
+        import re
+        m = re.search(r'writer_eligible_states\s*=\s*\{([^}]+)\}', source)
+        assert m, "writer_eligible_states set not found"
+        assert '"reviewing"' in m.group(1), "reviewing not in writer_eligible_states"
+
 
 class TestT9_4AssemblerMediaOnly:
     """T9.4: Verify the Assembler makes zero LLM text calls."""

@@ -7399,7 +7399,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         # UX-3: Writer only shows cards that have been approved (not new/killed/parked).
         # New cards belong in Researcher; killed/parked are terminal states.
         writer_eligible_states = {
-            "approved", "writing", "drafting", "draft_ready", "drafted",
+            "approved", "writing", "drafting", "reviewing", "draft_ready", "drafted",
             "shipped", "assembling", "asset_ready",
             "writer_failed", "assembly_failed", "production_failed",
             "awaiting_capture", "capture_fulfilled",
@@ -7458,7 +7458,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         cs = card["card_state"]
         if cs in ("new",):
             return "queued"
-        if cs in ("writing", "drafting"):
+        if cs in ("writing", "drafting", "reviewing"):
             return "writing"
         if cs in ("draft_ready", "revised"):
             return "ready_review"

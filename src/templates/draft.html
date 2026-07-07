@@ -65,6 +65,7 @@
         .visual-thumb { background: #F0EDE4; border-radius: 8px; overflow: hidden; aspect-ratio: 9 / 16; border: 1px solid #D8D4C8; }
         .visual-thumb img { width: 100%; height: 100%; object-fit: cover; }
         .status-line { font-size: 0.82rem; margin-top: 6px; color: #E54B2C; }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -206,7 +207,7 @@
                 <strong style="font-size: 0.9rem; color: #E54B2C;">{{ pc.platform }}</strong>
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <span style="font-size: 0.78rem; color: #8A857C;">{{ pc.variant_type }}</span>
-                    {% if draft.draft_state != 'shipped' %}
+                    {% if draft.draft_state in ('draft_ready', 'revised') %}
                     <button class="btn btn-edit" style="font-size: 0.72rem; padding: 3px 8px;" onclick="toggleEditPlatform({{ loop.index0 }}, this)">✏️ Edit</button>
                     {% endif %}
                 </div>
@@ -272,7 +273,7 @@
     <div class="audit-flags" id="audit-flags">
         {% set active_flags = draft.self_audit_flags_parsed | selectattr('status', 'undefined') | list %}
         {% set explicitly_active_flags = draft.self_audit_flags_parsed | selectattr('status', 'equalto', 'active') | list %}
-        {% if draft.draft_state != 'shipped' and (active_flags or explicitly_active_flags) %}
+        {% if draft.draft_state in ('draft_ready', 'revised') and (active_flags or explicitly_active_flags) %}
         <button class="btn btn-apply" onclick="applyAllRemaining()">Apply all remaining</button>
         {% endif %}
         {% for flag in draft.self_audit_flags_parsed %}
@@ -281,13 +282,15 @@
             <div class="rule">Rule: {{ flag.rule }}</div>
             <div class="suggestion">Suggestion: {{ flag.suggestion }}</div>
             {% if not flag.status or flag.status == 'active' %}
-            {% if draft.draft_state != 'shipped' %}
+            {% if draft.draft_state in ('draft_ready', 'revised') %}
             <div class="flag-actions">
                 <button class="btn btn-apply" onclick="auditFlag({{ loop.index0 }}, 'apply')">Apply</button>
                 <button class="btn btn-dismiss" onclick="auditFlag({{ loop.index0 }}, 'dismiss')">Dismiss</button>
             </div>
-            {% else %}
+            {% elif draft.draft_state == 'shipped' %}
             <div class="flag-status">Read-only (shipped)</div>
+            {% else %}
+            <div class="flag-status">Writer working…</div>
             {% endif %}
             {% else %}
             <div class="flag-status">Status: {{ flag.status }}</div>
@@ -386,7 +389,7 @@
         {% else %}
         <p class="empty-vd">No visuals generated yet. Click to preview what the images will look like.</p>
         {% endif %}
-        {% if draft.draft_state != 'shipped' %}
+        {% if draft.draft_state in ('draft_ready', 'revised') %}
         <div class="actions" style="margin: 10px 0;">
             <button class="btn btn-gen" id="genVisualsBtn" onclick="generateDraftVisuals()">Generate visual preview</button>
         </div>
@@ -395,7 +398,19 @@
     </div>
     {% endif %}
 
-    {% if draft.draft_state != 'shipped' %}
+    {% if draft.draft_state == 'drafting' %}
+    {# Writer still working (drafting or AI review loop) — no Gate 2 actions yet #}
+    <div class="actions" style="margin-top: 20px;">
+        <p class="subtle" style="font-size: 0.9rem;">
+            <span class="spinner" style="display:inline-block; width:12px; height:12px; border:2px solid #E54B2C; border-top-color:transparent; border-radius:50%; animation:spin 1s linear infinite; vertical-align:middle; margin-right:6px;"></span>
+            Writer is working — draft not ready for review yet. This page will refresh automatically.
+        </p>
+    </div>
+    <script>
+    // Auto-refresh while the writer is working so the page updates when draft_ready
+    setTimeout(function() { window.location.reload(); }, 10000);
+    </script>
+    {% elif draft.draft_state in ('draft_ready', 'revised') %}
     <h2>Human pass (Gate 2)</h2>
     <div class="feedback-section">
         <p class="subtle">React with chips or type feedback. To edit the draft text itself, use the ✏️ Edit draft button above — direct edits become the draft and are logged as the highest-weight voice signal.</p>
