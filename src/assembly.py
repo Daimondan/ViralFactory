@@ -119,13 +119,26 @@ class AssemblyRenderer:
         elif kind == "stock":
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row
-            row = conn.execute(
-                "SELECT local_path FROM stock_cache WHERE id = ?",
-                (int(ref_id),),
-            ).fetchone()
+            # Support both numeric IDs (stock:42) and string slugs (stock:my_clip_name)
+            try:
+                stock_id = int(ref_id)
+                row = conn.execute(
+                    "SELECT local_path FROM stock_cache WHERE id = ?",
+                    (stock_id,),
+                ).fetchone()
+            except ValueError:
+                # String slug — look up by title match
+                row = conn.execute(
+                    "SELECT local_path FROM stock_cache WHERE title LIKE ?",
+                    (f"%{ref_id}%",),
+                ).fetchone()
             conn.close()
             if not row or not row["local_path"]:
-                raise AssemblyError(f"Stock item not found: {source_ref}")
+                raise AssemblyError(
+                    f"Stock item not found: {source_ref}. "
+                    f"No stock clips are cached — the edit plan referenced stock footage "
+                    f"that hasn't been downloaded. Stock footage must be cached before rendering."
+                )
             path = row["local_path"]
             if not os.path.exists(path):
                 raise AssemblyError(f"Stock file missing: {path}")
