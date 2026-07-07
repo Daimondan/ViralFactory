@@ -4,7 +4,17 @@
 
 All decisions — tech, logic, structure, strategy, ops — logged here with type tag + rationale.
 
-## 2026-07-07 — UI: Full UI/UX redesign based on UIIX mockups
+## 2026-07-07 — UI: Fix 7 operator-identified defects from UIIX review
+
+**[UI] Seven defects caught by operator deep-walk of the redesigned UI.**
+1. Numbers dissonance: pipeline strip labels say "total in stage", gate stats say "awaiting your X" — disambiguates total-in-pipeline vs decisions-pending
+2. Contradictory state: verified live app correct (assemble page distinguishes "awaiting preview" from "rendering")
+3. Red color leak: stale sources → yellow (#8A6D20), badge-stalled → yellow, "new only" filter → accent (not danger red)
+4. Orange button leak: all navigation buttons (Review/Preview/Open-draft) → btn-small neutral; orange reserved for gate decisions only
+5. Capture-required Approve: cards with capture_tasks show "Upload capture first" instead of live Approve (prevents auto-chain stall)
+6. Gate 3 granularity: footer banners state "per-set · set ships when all are ready"
+7. Constitutional footers: added to assemble page and published page
+**Rationale:** Operator caught color semantics, count dissonance, and missing guardrails that the mockup hardcoded but the templates needed to enforce dynamically.
 
 **[UI] Redesigned all 13 page templates to match the UIIX Google Drive mockup design system.**
 - 5-group topbar (Home/Pipeline/Knowledge/Results/Setup) with badge counts + business switcher
