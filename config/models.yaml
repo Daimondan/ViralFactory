@@ -107,7 +107,7 @@ media:
       best_for: "stylized, conceptual, fast generation"
     - name: "veo"
       provider: "google"
-      model: "veo-3.1-fast-generate"
+      model: "veo-3.1-fast-generate-preview"
       base_url: "https://generativelanguage.googleapis.com"
       api_key_env: "GOOGLE_API_KEY"
       best_for: "cinematic, photorealistic, long clips"

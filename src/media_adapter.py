@@ -327,22 +327,59 @@ class MediaAdapter:
         duration: int = 5,
         context: str = "Video generation",
         business_slug: str = None,
+        provider: str = None,
     ) -> dict:
         """
-        Submit a video generation job to OpenRouter Video API (async).
-        Returns dict: {job_id, model, prompt, status, external_job_id}.
-
-        The caller is responsible for polling check_video_job() or the worker
-        framework handles it via the jobs table.
+        Submit a video generation job (async).
+        Supports xAI (Grok), Google (Veo), and OpenRouter providers.
+        Returns dict: {model, prompt, external_job_id, status, cost_usd, provider}.
         """
         model = model or self.media_config.get("video_default", "grok-imagine-video")
-
-        # T9: Support xAI video provider (config-driven)
+        video_provider = provider or self.media_config.get("video_provider", "openrouter")
         video_base_url = self.media_config.get("video_base_url", self.base_url)
-        video_provider = self.media_config.get("video_provider", "openrouter")
 
-        if video_provider == "xai":
-            # xAI uses XAI_API_KEY and a different API format
+        if video_provider == "google":
+            # Google Veo — Generative Language API (long-running operation)
+            api_key = os.environ.get("GOOGLE_API_KEY", "")
+            if not api_key:
+                raise MediaAdapterError("GOOGLE_API_KEY not set — cannot generate video with Google/Veo")
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:predictLongRunning"
+            headers = {"Content-Type": "application/json"}
+            params = {"key": api_key}
+            payload = {
+                "instances": [{"prompt": prompt}],
+                "parameters": {
+                    "sampleCount": 1,
+                    "aspectRatio": aspect_ratio.replace(":", "x"),
+                    "durationSeconds": duration,
+                },
+            }
+            try:
+                response = requests.post(url, json=payload, headers=headers, params=params, timeout=60)
+                response.raise_for_status()
+            except requests.RequestException as e:
+                self._log_provenance(model, prompt, context=f"{context} (submit failed)",
+                                     business_slug=business_slug, provider="google")
+                raise MediaAdapterError(f"Google Veo API submit failed: {e}")
+
+            data = response.json()
+            external_job_id = data.get("name") or data.get("operationId")
+            cost_usd = 0
+
+            self._log_provenance(model, prompt, cost_usd=cost_usd,
+                                context=f"{context} (submitted, ext_job={external_job_id})",
+                                business_slug=business_slug, provider="google")
+
+            return {
+                "model": model,
+                "prompt": prompt,
+                "external_job_id": external_job_id,
+                "status": "submitted",
+                "cost_usd": cost_usd,
+                "provider": "google",
+            }
+
+        elif video_provider == "xai":
             api_key = os.environ.get("XAI_API_KEY", "")
             if not api_key:
                 raise MediaAdapterError("XAI_API_KEY not set — cannot generate video with xAI")
@@ -360,7 +397,6 @@ class MediaAdapter:
         else:
             if not self.api_key:
                 raise MediaAdapterError("OPENROUTER_API_KEY not set — cannot generate video")
-
             url = f"{self.base_url}/videos"
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
@@ -382,7 +418,6 @@ class MediaAdapter:
             raise MediaAdapterError(f"Video API submit failed: {e}")
 
         data = response.json()
-        # xAI returns request_id, OpenRouter returns id/job_id
         external_job_id = data.get("request_id") or data.get("id") or data.get("job_id")
         cost_usd = data.get("cost", 0)
 
@@ -396,18 +431,52 @@ class MediaAdapter:
             "external_job_id": external_job_id,
             "status": "submitted",
             "cost_usd": cost_usd,
+            "provider": video_provider,
         }
 
-    def check_video_job(self, external_job_id: str) -> dict:
+    def check_video_job(self, external_job_id: str, provider: str = None) -> dict:
         """
         Poll a video generation job. Returns:
         {status: "processing"|"completed"|"failed", download_url, cost_usd}
         """
-        # T9: Support xAI video provider
         video_base_url = self.media_config.get("video_base_url", self.base_url)
-        video_provider = self.media_config.get("video_provider", "openrouter")
+        video_provider = provider or self.media_config.get("video_provider", "openrouter")
 
-        if video_provider == "xai":
+        if video_provider == "google":
+            # Google Veo — poll long-running operation
+            api_key = os.environ.get("GOOGLE_API_KEY", "")
+            if not api_key:
+                raise MediaAdapterError("GOOGLE_API_KEY not set — cannot poll Google video jobs")
+            url = f"https://generativelanguage.googleapis.com/v1beta/{external_job_id}"
+            params = {"key": api_key}
+            try:
+                response = requests.get(url, params=params, timeout=30)
+                response.raise_for_status()
+            except requests.RequestException as e:
+                raise MediaAdapterError(f"Google Veo poll failed: {e}")
+
+            data = response.json()
+            done = data.get("done", False)
+            if not done:
+                return {"status": "processing", "download_url": None, "cost_usd": 0}
+
+            # Operation complete — extract video URI from response
+            result = data.get("response", {})
+            generated_samples = result.get("generatedSamples", [])
+            if generated_samples:
+                video_data = generated_samples[0].get("video", {})
+                download_url = video_data.get("gcsUri") or video_data.get("url")
+            else:
+                download_url = None
+
+            status = "completed" if download_url else "failed"
+            return {
+                "status": status,
+                "download_url": download_url,
+                "cost_usd": 0,
+            }
+
+        elif video_provider == "xai":
             api_key = os.environ.get("XAI_API_KEY", "")
             if not api_key:
                 raise MediaAdapterError("XAI_API_KEY not set — cannot poll xAI video jobs")
@@ -416,7 +485,6 @@ class MediaAdapter:
         else:
             if not self.api_key:
                 raise MediaAdapterError("OPENROUTER_API_KEY not set")
-
             url = f"{self.base_url}/videos/{external_job_id}"
             headers = {"Authorization": f"Bearer {self.api_key}"}
 

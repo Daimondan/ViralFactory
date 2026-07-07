@@ -6712,23 +6712,27 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     if prompt:
                         # If generator specifies a model (ai_video:veo), look up config
                         gen_model = None
+                        gen_provider = None
                         if ":" in generator:
                             model_name = generator.split(":", 1)[1]
                             video_gens = media_config.get("video_generators", [])
                             for vg in video_gens:
                                 if vg.get("name") == model_name:
                                     gen_model = vg
+                                    gen_provider = vg.get("provider", "")
                                     break
                         # Submit video generation
                         submit = media_adapter.submit_video(
                             prompt=prompt, asset_id=asset_id,
                             aspect_ratio="9:16", duration=5,
                             model=gen_model["model"] if gen_model else None,
+                            provider=gen_provider,
                             context=f"Media plan AI generation ({generator}) for asset {asset_id}",
                             business_slug=business_slug,
                         )
                         item_result["status"] = "submitted"
                         item_result["external_job_id"] = submit.get("external_job_id")
+                        item_result["provider"] = submit.get("provider", gen_provider)
 
                 elif generator == "ai_image":
                     prompt = plan_item.get("generation_prompt", "")
