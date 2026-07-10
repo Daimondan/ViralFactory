@@ -493,17 +493,23 @@
                         <span class="step-num {{ 'done' if has_final else 'active' }}">{{ '✓' if has_final else '1' }}</span>
                         {% if has_final %}
                         Final cut rendered
+                        {% elif asset.videos and asset.videos|length > 0 %}
+                        Video ingredient ready — create final cut
                         {% else %}
-                        Generate video
+                        Generate video ingredient
                         {% endif %}
                     </div>
                     {# Missing captures panel — always available so operator can generate
                        more media even after a final cut exists (re-render with new images). #}
                     <div id="missing-captures-{{ asset.id }}" style="margin-bottom: 10px;"></div>
                     {% if not has_final %}
-                    <button class="btn btn-render" onclick="generateVideoOneClick({{ asset.id }}, this)">Generate video</button>
+                        {% if asset.videos and asset.videos|length > 0 %}
+                    <button class="btn btn-render" onclick="generateVideoOneClick({{ asset.id }}, this)">Create final cut</button>
+                        {% else %}
+                    <button class="btn btn-render" onclick="showVideoDialog({{ asset.id }})">Generate video ingredient</button>
+                        {% endif %}
                     {% else %}
-                    <button class="btn btn-render" onclick="generateVideoOneClick({{ asset.id }}, this)">Re-render video</button>
+                    <button class="btn btn-render" onclick="generateVideoOneClick({{ asset.id }}, this)">Re-render final cut</button>
                     {% endif %}
                     <div class="status-line" id="render-status-{{ asset.id }}" style="display: none;"></div>
                 </div>
@@ -658,7 +664,7 @@ function generateVideoOneClick(assetId, btn) {
             unbusyBtn(btn);
             if (statusElem) {
                 statusElem.style.color = '#C0392B';
-                statusElem.textContent = planData.error || 'Plan failed';
+                statusElem.textContent = planData.message || planData.error || 'Plan failed';
             }
             return;
         }
@@ -832,7 +838,7 @@ function confirmVideoGeneration() {
     var duration = parseInt(document.getElementById('videoDuration').value) || 5;
     var aspect = document.getElementById('videoAspect').value;
     busyBtn(btn, 'Submitting…');
-    fetch('/api/assets/' + currentVideoAssetId + '/generate-video', {
+    fetch('/api/assets/' + currentVideoAssetId + '/generate-clip', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({prompt: prompt, duration: duration, aspect_ratio: aspect}),
     }).then(function(r) { return r.json(); }).then(function(data) {
@@ -840,8 +846,13 @@ function confirmVideoGeneration() {
         closeVideoDialog();
         if (data.status === 'ok') {
             var s = document.getElementById('render-status-' + currentVideoAssetId);
-            if (s) { s.style.display = 'block'; s.textContent = 'Video submitted. Worker will render it.'; }
-        } else { alert('Error: ' + (data.error || 'unknown')); }
+            if (s) {
+                s.style.display = 'block';
+                s.style.color = '#4A7C3A';
+                s.textContent = 'Video ingredient ready. Loading final-cut step…';
+            }
+            setTimeout(function() { window.location.reload(); }, 1000);
+        } else { alert('Error: ' + (data.error || 'Video generation failed')); }
     }).catch(function(err) { unbusyBtn(btn); closeVideoDialog(); alert('Error: ' + err); });
 }
 

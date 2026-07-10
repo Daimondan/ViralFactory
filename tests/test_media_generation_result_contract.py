@@ -67,3 +67,18 @@ def test_assets_template_does_not_count_submitted_jobs_as_generated_media():
     assert "video job" in source
     assert "not renderable yet" in source
     assert "Not ready to render yet" in source
+
+
+def test_reel_asset_template_separates_video_generation_from_final_render():
+    """A reel with no clip must not label plan+render as "Generate video".
+
+    Regression: the button called /edit-plan and /render while labelled
+    "Generate video", so an empty asset surfaced only the opaque "Plan failed".
+    """
+    template_path = os.path.join(os.path.dirname(__file__), "..", "src", "templates", "assets.html")
+    source = open(template_path).read()
+
+    assert 'onclick="showVideoDialog({{ asset.id }})">Generate video ingredient</button>' in source
+    assert 'onclick="generateVideoOneClick({{ asset.id }}, this)">Create final cut</button>' in source
+    assert "'/api/assets/' + currentVideoAssetId + '/generate-clip'" in source
+    assert "planData.message || planData.error || 'Plan failed'" in source
