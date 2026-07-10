@@ -363,3 +363,23 @@ Materials Library — editable source materials. DB migrations: `excluded` colum
 
 - [x] Edit plan source validator: post-LLM mechanical check rejects plans with hallucinated stock: IDs not in ingredient inventory. 4 tests. 812 total passing.
 - [x] Orphaned media cleanup: removed 13 stale PNGs + old final cut from data/media/2/ (left by pipeline archive/reset). Generated 5 new images for asset 2 (biscuit tin reel). Rendered 18s final cut with valid edit plan (1 video + 5 images, no hallucinated sources).
+
+### 2026-07-10 — Final Output Review Layer + Audio Bed Fix (correction-final-output-review-2026-07-10)
+
+**Architect correction applied:** `docs/reviews/CORRECTION-final-output-review-and-audio-fix-v1.0.md` (8 tasks)
+
+**Completed:**
+- [x] AUDIO-1 (P0): Removed looping audio bed heuristic (lines 454–518 in assembly.py — charter violation: judgment in code). Replaced with plan-audio-block-driven mixing: renderer reads `plan["audio"]` and executes the LLM's strategy. Silent/original/music/VO strategies. 14 tests in `test_audio_strategy.py`.
+- [x] AUDIO-2 (P0): Edit plan prompt bumped to v1.2 with Audio Strategy guidance section. LLM now told: no VO + no music → silent (better than nonsense); music available → use stock ref; renderer will NOT invent audio.
+- [x] ASSET-REVIEW-1 (P0): Mechanical post-render checks via new `asset_review.py` module. ffprobe-based: file size, duration, stream presence, resolution, SAR. Duration mismatch > 2s flagged, missing/unexpected audio flagged, resolution mismatch flagged. Results saved to `asset_reviews` table + provenance. 15 tests.
+- [x] ASSET-REVIEW-2 (P0): Vision-based visual inspection. Keyframes extracted at 20/40/60/80% + first frame via ffmpeg. Vision LLM (config-driven in `models.yaml` `asset_review` block) examines frames vs content. New prompt `asset_review_v1.md`. Graceful degradation when not configured. 10 tests.
+- [x] ASSET-REVIEW-3 (P1): Audio inspection via faster-whisper transcription. Looping detection (same 5+ word phrase 3+ times → flagged). Unexpected audio when plan says silent → flagged. No speech when non-silent → flagged (catches ambient/looping). 12 tests.
+- [x] ASSET-REVIEW-4 (P1): Content alignment aggregation. Combines mechanical + visual + audio into single advisory verdict: `ready_for_operator` / `needs_operator_decision` / `needs_rerender`. Pure aggregation, no LLM. 6 tests.
+- [x] ASSET-REVIEW-5 (P0): UI integration. AI Review Summary panel below video player in assets.html. ✓/⚠/✗ indicators per check. Verdict badge. Expandable detailed review. Advisory only — does not block operator. CSS + JS parse tests pass.
+- [x] ASSET-REVIEW-6 (P1): Image review. Lightweight vision check on standalone images: mechanical (file exists, size > 10KB) + visual (image vs prompt). 8 tests.
+- [x] Config: `asset_review` block added to `config/models.yaml` (vision_model, max_keyframes, enabled — config-driven, swappable).
+
+**New files:** `src/asset_review.py`, `prompts/assembly/asset_review_v1.md`, `tests/test_audio_strategy.py`, `tests/test_asset_review_mechanical.py`, `tests/test_asset_review_visual.py`, `tests/test_asset_review_audio_alignment.py`, `tests/test_asset_review_image.py`
+**New DB table:** `asset_reviews`
+**New API endpoints:** `/api/assets/<id>/reviews`
+**Tests:** 69 new tests across 5 test files. All existing tests pass.

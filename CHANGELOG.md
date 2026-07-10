@@ -4,6 +4,42 @@
 
 All decisions — tech, logic, structure, strategy, ops — logged here with type tag + rationale.
 
+### 2026-07-10 — Audio bed fix: plan-driven audio mixing (AUDIO-1)
+
+**FIX** — Removed the post-concat audio bed heuristic (assembly.py lines 454–518) that looped the first video clip's ambient audio to fill output duration. This was a charter violation — judgment in code (the code decided to loop audio without the LLM's direction). Replaced with `_apply_audio_strategy()` which reads `plan["audio"]` and executes the LLM's strategy: silent (original_audio=false, no music → strip + replace with silence), original (preserve concat audio, loudnorm), music (resolve stock ref, mix at specified volume), VO (duck under VO, deferred if no file). Provenance logs the audio strategy decision.
+
+### 2026-07-10 — Edit plan prompt v1.2: audio strategy guidance (AUDIO-2)
+
+**LOGIC** — Added Audio Strategy section to `prompts/assembly/edit_plan_v1.md` (v1.1 → v1.2). The LLM is now explicitly told: no VO + no music → original_audio: false (silent is better than nonsense); video clip ambient sound meaningful → original_audio: true; music available → use stock ref with volume 0.2–0.4; renderer will NOT invent audio. This prevents the edit plan from leaving audio ambiguous, which previously caused the renderer to apply its own (broken) heuristic.
+
+### 2026-07-10 — Asset review layer: mechanical checks (ASSET-REVIEW-1)
+
+**STRUCTURE** — New `src/asset_review.py` module with `AssetReviewer` class. Mechanical post-render checks run after every render: file size, duration, video/audio stream presence, resolution, SAR via ffprobe. Duration mismatch > 2s flagged, missing audio when expected flagged, unexpected audio when plan says silent flagged, resolution mismatch with canvas flagged. Results saved to new `asset_reviews` table + provenance. Advisory only — does not block the operator. Wired into `render_final_cut` route and `render-status` endpoint.
+
+### 2026-07-10 — Asset review layer: vision inspection (ASSET-REVIEW-2)
+
+**STRUCTURE** — Vision-based visual inspection: keyframes extracted at 20/40/60/80% of duration + first frame via ffmpeg, encoded as base64, sent to vision-capable LLM (config-driven: `asset_review.vision_model` in models.yaml). New prompt `prompts/assembly/asset_review_v1.md` (v1.0) checks content alignment, caption presence, visual quality, style conformance. Graceful degradation: skips if disabled, no API key, or no model configured. Results saved to `asset_reviews` + provenance with model + prompt version.
+
+### 2026-07-10 — Asset review config block (ASSET-REVIEW-2)
+
+**TECH** — New `asset_review` block in `config/models.yaml`: `vision_model` (default `google/gemini-3.1-flash`), `vision_provider`, `vision_api_key_env`, `max_keyframes` (5), `enabled` (true). Config-driven — a second business could use a different vision model with zero code changes.
+
+### 2026-07-10 — Asset review layer: audio inspection (ASSET-REVIEW-3)
+
+**STRUCTURE** — Audio inspection via faster-whisper transcription. Extracts audio from rendered video, transcribes, checks for looping (same 5+ word phrase appearing 3+ times → flagged), unexpected audio (plan says no audio but transcript has speech → flagged), no speech when non-silent (catches ambient/looping → flagged). Graceful degradation if whisper not installed. Results saved to `asset_reviews` + provenance.
+
+### 2026-07-10 — Asset review layer: content alignment (ASSET-REVIEW-4)
+
+**STRUCTURE** — Content alignment aggregation: combines mechanical + visual + audio review results into a single advisory verdict. `ready_for_operator` (no issues) / `needs_operator_decision` (medium issues) / `needs_rerender` (high-severity issues like looping). Pure aggregation, no LLM call. Saved to `asset_reviews` + provenance.
+
+### 2026-07-10 — Asset review layer: UI integration (ASSET-REVIEW-5)
+
+**STRUCTURE** — AI Review Summary panel in `assets.html` below the video player. Fetches from `/api/assets/<id>/reviews` on page load. Each check (mechanical, visual, audio, alignment) shown with ✓/⚠/✗ icon. Overall verdict badge: Passed / Ready for review / Issues found / Needs re-render. Expandable "View detailed review" shows full JSON findings. Advisory only — does not block operator from approving/fixing/killing. New `/api/assets/<id>/reviews` endpoint.
+
+### 2026-07-10 — Asset review layer: image review (ASSET-REVIEW-6)
+
+**STRUCTURE** — Extended the AI review pattern to standalone generated images. `run_image_review()` does mechanical checks (file exists, size > 10KB) + a single vision LLM call comparing the image to the prompt that generated it. Lighter-weight than video review. Mismatch flagged with original prompt + what the AI sees. Results saved to `asset_reviews` + provenance.
+
 ### 2026-07-10 — Audio bed mixing for reels with image segments
 
 **FIX** — Reels that mix video clips with image segments had dead silence during the image portions (image segments use `anullsrc` for concat compatibility). Added a post-concat audio pass: extracts the first video source's audio, loops it to full output duration, mixes it under the concat audio at reduced volume with loudnorm. This gives reels ambient audio throughout instead of 3 seconds of sound followed by 15 seconds of silence. Falls back to plain loudnorm if the bed extraction fails.
