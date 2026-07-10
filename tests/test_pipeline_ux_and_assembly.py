@@ -749,6 +749,52 @@ class TestFlaskRoutes:
         assert data["status"] == "missing_media"
         assert "Generate missing media" in data["message"]
 
+    def test_edit_plan_blocks_when_no_visual_ingredients_exist(self, tmp_path):
+        """A no-capture reel still needs generated or uploaded visuals.
+
+        Regression: an empty inventory was sent to the LLM, which invented
+        stock slugs such as stock:caribbean_biscuit_tin. Rendering then failed
+        because those clips were never downloaded or cached.
+        """
+        from app import create_app
+        from llm_adapter import LLMAdapter
+        from unittest.mock import patch
+
+        db_path = str(tmp_path / "test.db")
+        app = create_app(config_dir="config", db_path=db_path)
+        store = PipelineStore(db_path)
+        card_id = store.create_idea_card(
+            business_slug="stackpenni",
+            idea="Biscuit tin savings story",
+            hook_options=[],
+            treatment={
+                "format": {"format_name": "Instagram Reel Script"},
+                "capture_required": [],
+            },
+            origin="test",
+        )
+        draft_id = store.create_draft("stackpenni", card_id, "test", format_name="Instagram Reel Script")
+        store.save_draft_content(draft_id, "draft", {}, [], platform_content=[])
+        store.update_draft_state(draft_id, "shipped")
+        asset_id = store.create_asset("stackpenni", draft_id, "Instagram", "reel", "Biscuit tin reel")
+
+        called = False
+
+        def mock_complete(self, prompt_file, variables, schema, **kwargs):
+            nonlocal called
+            called = True
+            return {"segments": [{"source": "stock:caribbean_biscuit_tin", "in": 0, "out": 2}]}
+
+        with patch.object(LLMAdapter, "complete", mock_complete):
+            resp = app.test_client().post(f"/api/assets/{asset_id}/edit-plan", json={})
+
+        assert resp.status_code == 409
+        assert called is False
+        data = resp.get_json()
+        assert data["status"] == "missing_media"
+        assert data["available_visual_count"] == 0
+        assert "Generate missing media" in data["message"]
+
     def test_edit_plan_inventory_only_includes_this_cards_capture_uploads(self, tmp_path):
         """Only generated media and capture uploads linked to this card enter the edit planner."""
         from app import create_app

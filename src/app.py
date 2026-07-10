@@ -6324,6 +6324,20 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 })
                 visual_ingredient_count += 1
 
+        if visual_ingredient_count == 0:
+            message = (
+                "No usable visual media is available. Generate missing media or upload "
+                "a capture before creating an edit plan."
+            )
+            _get_jobs_store().fail_job(plan_job_id, message[:200])
+            return jsonify({
+                "status": "missing_media",
+                "message": message,
+                "required_count": len(capture_required),
+                "available_visual_count": 0,
+                "missing_count": max(1, len(capture_required)),
+            }), 409
+
         if capture_required and visual_ingredient_count < len(capture_required):
             missing_count = len(capture_required) - visual_ingredient_count
             message = (
