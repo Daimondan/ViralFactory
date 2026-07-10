@@ -6785,15 +6785,31 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     @app.route("/api/assets/<int:asset_id>/reviews", methods=["GET"])
     def get_asset_reviews(asset_id):
-        """Get all AI review data for an asset's media."""
+        """Get AI review data for an asset's latest final cut only."""
         try:
             config = load_all(app.config["CONFIG_DIR"])
             models_config = config["models"]
         except ConfigError:
             models_config = {}
         from asset_review import AssetReviewer
+        import sqlite3 as _sqlite3
         reviewer = AssetReviewer(models_config, db_path=app.config["DB_PATH"])
-        reviews = reviewer.get_reviews_for_asset(asset_id)
+
+        # Only return reviews for the LATEST final_cut — old renders' reviews
+        # are stale and shouldn't clutter the UI
+        conn = _sqlite3.connect(app.config["DB_PATH"])
+        conn.row_factory = _sqlite3.Row
+        latest_media = conn.execute(
+            "SELECT id FROM asset_media WHERE asset_id = ? AND kind = 'final_cut' "
+            "ORDER BY id DESC LIMIT 1",
+            (asset_id,),
+        ).fetchone()
+        conn.close()
+
+        if latest_media:
+            reviews = reviewer.get_reviews_for_media(latest_media["id"])
+        else:
+            reviews = []
         return jsonify({"reviews": reviews})
 
     @app.route("/api/stock/search", methods=["POST"])
