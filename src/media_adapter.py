@@ -74,6 +74,22 @@ class MediaAdapterError(Exception):
     pass
 
 
+def _veo_clamp_duration(duration: int) -> int:
+    """Veo 3.1 Fast only accepts even-numbered durations (4, 6, 8).
+    Odd values (5, 7) return 400 'out of bound' despite the docs saying 4-8.
+    Clamp to the nearest valid value."""
+    d = int(duration)
+    if d in (4, 6, 8):
+        return d
+    # Round to nearest even value in [4, 8]
+    if d < 5:
+        return 4
+    elif d < 7:
+        return 6
+    else:
+        return 8
+
+
 class MediaAdapter:
     """
     Config-driven media generation adapter (F4).
@@ -355,16 +371,23 @@ class MediaAdapter:
                 "parameters": {
                     "sampleCount": 1,
                     "aspectRatio": aspect_ratio,  # VH-3 bug 1: send as-is, NOT replace(":", "x")
-                    "durationSeconds": duration,
+                    "durationSeconds": _veo_clamp_duration(duration),
                 },
             }
             try:
                 response = requests.post(url, json=payload, headers=headers, params=params, timeout=60)
                 response.raise_for_status()
             except requests.RequestException as e:
+                # Include response body in error for debugging
+                detail = ""
+                if hasattr(e, 'response') and e.response is not None:
+                    try:
+                        detail = f" — {e.response.text[:300]}"
+                    except Exception:
+                        pass
                 self._log_provenance(model, prompt, context=f"{context} (submit failed)",
                                      business_slug=business_slug, provider="google")
-                raise MediaAdapterError(f"Google Veo API submit failed: {e}")
+                raise MediaAdapterError(f"Google Veo API submit failed: {e}{detail}")
 
             data = response.json()
             external_job_id = data.get("name") or data.get("operationId")
@@ -491,7 +514,7 @@ class MediaAdapter:
                     generated_samples = shallow_samples
             if generated_samples:
                 video_data = generated_samples[0].get("video", {})
-                download_url = video_data.get("gcsUri") or video_data.get("url")
+                download_url = video_data.get("gcsUri") or video_data.get("url") or video_data.get("uri")
             else:
                 download_url = None
 
@@ -552,8 +575,11 @@ class MediaAdapter:
         vp = video_provider or self.media_config.get("video_provider", "openrouter")
         if vp == "google" or "googleapis" in download_url:
             api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY", "")
-            if api_key and "?" not in download_url:
-                effective_url = download_url + f"?key={api_key}"
+            if api_key:
+                if "?" not in download_url:
+                    effective_url = download_url + f"?key={api_key}"
+                elif "key=" not in download_url:
+                    effective_url = download_url + f"&key={api_key}"
 
         response = requests.get(effective_url, timeout=120)
         response.raise_for_status()

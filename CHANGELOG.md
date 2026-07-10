@@ -4,6 +4,20 @@
 
 All decisions — tech, logic, structure, strategy, ops — logged here with type tag + rationale.
 
+### 2026-07-10 — Video generator fallback + Veo API bug fixes
+
+**FIX** — Video generator fallback: when the requested video generator's API key is not set, the system now automatically falls back to the next available generator from `config/models.yaml`. This applies to all three video generation paths: the media plan executor (`ai_video:<name>`), the direct `/generate-video` endpoint, and the `/generate-clip` endpoint. The operator's instruction: "if asking for xai then use next best system — system should always work that way."
+
+**FIX** — Veo `durationSeconds` bug: Google Veo 3.1 Fast only accepts even-numbered durations (4, 6, 8). Odd values (5, 7) return 400 "out of bound" despite docs saying 4-8. Added `_veo_clamp_duration()` to clamp to nearest valid value.
+
+**FIX** — Veo download URL extraction: response field is `video.uri`, not `video.gcsUri` or `video.url`. Added `uri` to the key extraction chain. Without this, Veo jobs completed successfully but the system reported "failed" because it couldn't find the download URL.
+
+**FIX** — Veo download URL authentication: URLs from Veo contain `?alt=media` — the API key needs to be appended with `&key=`, not `?key=`. Fixed the conditional to handle both cases.
+
+**FIX** — Veo error logging: API errors now include the response body for debugging instead of just the HTTP status code.
+
+**TECH** — `_find_available_video_generator()` and `_resolve_ai_video_generator_with_fallback()` added to `src/app.py`. 10 new tests in `tests/test_video_fallback.py`. 808 tests passing.
+
 ## 2026-07-10 — VH-1 through VH-6: Video generation → assembly handoff correction
 
 **[FIX] VH-1 (P0): generate-clip route no longer poisons asset_media.** The route read `poll_result.get("path")` but `check_video_job()` returns `download_url`, not `path` — so `video_path` was always `""`. It then called `_record_media()` with that empty path, inserting a bogus `asset_media` row. Fixed: route now reads `download_url`, calls `download_video()` which downloads the file AND records it in `asset_media`, returns `{file_path, media_id}` so the caller can construct `ingredient_id: "generated:<media_id>"`.

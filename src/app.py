@@ -79,6 +79,81 @@ def _resolve_ai_video_generator(generator: str, media_config: dict) -> dict:
     raise ValueError(f"Unknown AI video generator '{name}' — add it to media.video_generators")
 
 
+def _find_available_video_generator(media_config: dict, exclude_name: str = None) -> dict | None:
+    """Scan the video_generators list and return the first generator whose
+    API key is actually set in the environment.
+
+    Returns {model, provider, name} or None if no generator has a key.
+    ``exclude_name`` skips a specific generator (used when that one was the
+    primary but its key is missing).
+    """
+    import os as _os
+    for vg in media_config.get("video_generators", []):
+        if exclude_name and vg.get("name") == exclude_name:
+            continue
+        api_key_env = vg.get("api_key_env", "")
+        if api_key_env and _os.environ.get(api_key_env, ""):
+            return {
+                "model": vg.get("model"),
+                "provider": vg.get("provider"),
+                "name": vg.get("name"),
+            }
+    return None
+
+
+def _resolve_ai_video_generator_with_fallback(generator: str, media_config: dict) -> dict:
+    """Resolve a video generator, falling back to the next available one
+    if the requested generator's API key is not set.
+
+    This is the "system should always work that way" behavior: the operator
+    picks a generator (or the LLM picks one), and if it can't run, the system
+    silently falls back to the next available configured generator.
+
+    Returns {model, provider, name, fell_back} where fell_back is True when
+    a different generator was used than requested.
+    """
+    resolved = _resolve_ai_video_generator(generator, media_config)
+
+    # Check if the resolved generator has its API key set
+    api_key_env = None
+    for vg in media_config.get("video_generators", []):
+        if vg.get("name") == resolved["name"]:
+            api_key_env = vg.get("api_key_env", "")
+            break
+
+    # For the bare "ai_video" case (name=default), check legacy config
+    if resolved["name"] == "default":
+        # Use the legacy video_provider/video_default — but also check its key
+        video_provider = media_config.get("video_provider", "")
+        # Find the matching generator in video_generators to get its api_key_env
+        for vg in media_config.get("video_generators", []):
+            if vg.get("name") == media_config.get("video_default", ""):
+                api_key_env = vg.get("api_key_env", "")
+                break
+        if not api_key_env:
+            # No matching entry — try to find any available generator
+            fallback = _find_available_video_generator(media_config)
+            if fallback:
+                fallback["fell_back"] = True
+                return fallback
+            return resolved
+
+    import os as _os
+    if api_key_env and _os.environ.get(api_key_env, ""):
+        resolved["fell_back"] = False
+        return resolved
+
+    # Key not set — try to find an available fallback
+    fallback = _find_available_video_generator(media_config, exclude_name=resolved["name"])
+    if fallback:
+        fallback["fell_back"] = True
+        return fallback
+
+    # No fallback available — return original (will fail with a clear error)
+    resolved["fell_back"] = False
+    return resolved
+
+
 def _summarize_media_generation_results(results: list[dict]) -> dict:
     """Summarize media generation results for honest UI messaging.
 
@@ -6156,22 +6231,43 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         from media_adapter import MediaAdapter, MediaAdapterError
         adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
 
+        # Fallback: if the default video generator's API key is not set, try
+        # the next available generator from the config list.
+        video_default = models_config.get("media", {}).get("video_generators", [])
+        chosen_model = None
+        chosen_provider = None
+        fell_back = False
+        for vg in video_default:
+            api_key_env = vg.get("api_key_env", "")
+            if api_key_env and os.environ.get(api_key_env, ""):
+                chosen_model = vg.get("model")
+                chosen_provider = vg.get("provider")
+                # Check if this is different from the legacy default
+                if vg.get("name") != models_config.get("media", {}).get("video_default", ""):
+                    fell_back = True
+                break
+
         try:
             result = adapter.submit_video(
                 prompt=prompt,
                 asset_id=asset_id,
                 aspect_ratio=aspect_ratio,
                 duration=duration,
+                model=chosen_model,
+                provider=chosen_provider,
                 context=f"Video generation for asset {asset_id}",
                 business_slug=business_slug,
             )
             _get_jobs_store().complete_job(video_job_id, f"video_submitted:{result.get('external_job_id', '')}")
-            return jsonify({
+            resp = {
                 "status": "ok",
                 "external_job_id": result.get("external_job_id"),
                 "model": result.get("model"),
                 "estimated_cost": result.get("cost_usd", 0),
-            })
+            }
+            if fell_back:
+                resp["fallback_used"] = result.get("provider", chosen_provider)
+            return jsonify(resp)
         except MediaAdapterError as e:
             _get_jobs_store().fail_job(video_job_id, str(e)[:200])
             return jsonify({"error": str(e)}), 500
@@ -6669,6 +6765,21 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         from media_adapter import MediaAdapter, MediaAdapterError
         adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
 
+        # Fallback: if the default video generator's API key is not set, try
+        # the next available generator from the config list.
+        video_gens = models_config.get("media", {}).get("video_generators", [])
+        chosen_model = None
+        chosen_provider = None
+        fell_back = False
+        for vg in video_gens:
+            api_key_env = vg.get("api_key_env", "")
+            if api_key_env and os.environ.get(api_key_env, ""):
+                chosen_model = vg.get("model")
+                chosen_provider = vg.get("provider")
+                if vg.get("name") != models_config.get("media", {}).get("video_default", ""):
+                    fell_back = True
+                break
+
         try:
             # Submit video generation
             submit_result = adapter.submit_video(
@@ -6676,7 +6787,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 asset_id=asset_id,
                 aspect_ratio=aspect_ratio,
                 duration=duration,
-                context=f"AI clip generation for asset {asset_id}",
+                model=chosen_model,
+                provider=chosen_provider,
+                context=f"AI clip generation for asset {asset_id}" + (f" (fallback: {chosen_provider})" if fell_back else ""),
                 business_slug=business_slug,
             )
             external_job_id = submit_result.get("external_job_id")
@@ -6688,7 +6801,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             max_polls = 60  # 5 minutes at 5s intervals
             for _ in range(max_polls):
                 _time.sleep(5)
-                poll_result = adapter.check_video_job(external_job_id)
+                poll_result = adapter.check_video_job(external_job_id, provider=chosen_provider)
                 status = poll_result.get("status", "")
                 if status == "completed":
                     download_url = poll_result.get("download_url", "")
@@ -6705,6 +6818,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                         prompt,
                         poll_result.get("cost_usd", 0),
                         business_slug,
+                        video_provider=chosen_provider,
                     )
                     return jsonify({
                         "status": "ok",
@@ -6949,7 +7063,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                         fallback_prompt = plan_item.get("fallback_prompt", plan_item.get("generation_prompt", ""))
                         if fallback and fallback_prompt:
                             try:
-                                resolved = _resolve_ai_video_generator(fallback, media_config)
+                                resolved = _resolve_ai_video_generator_with_fallback(fallback, media_config)
                             except ValueError as ve:
                                 item_result["status"] = "failed"
                                 item_result["error"] = str(ve)
@@ -6984,7 +7098,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     # Handle both "ai_video" and "ai_video:<model_name>"
                     prompt = plan_item.get("generation_prompt", "")
                     if prompt:
-                        resolved = _resolve_ai_video_generator(generator, media_config)
+                        resolved = _resolve_ai_video_generator_with_fallback(generator, media_config)
+                        if resolved.get("fell_back"):
+                            item_result["fallback_used"] = resolved["name"]
                         duration = plan_item.get("duration", 5)
                         # Submit video generation
                         submit = media_adapter.submit_video(

@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-10
-**Current Phase:** VIDEO HANDOFF CORRECTION — VH-1 through VH-6 applied. Both video generation routes (generate-clip, generate-media) now poll, download, and register AI-generated video in asset_media. Google/Veo bugs fixed (aspect ratio, response nesting, download API key, env var). Duration read from LLM media plan. 0-byte render files cleaned + size validation. 795 tests passing.
+**Current Phase:** VIDEO GENERATOR FALLBACK + VEO API FIXES — System automatically falls back to next available video generator when requested generator's API key is missing. Veo duration clamping (only even values 4/6/8 accepted), Veo `video.uri` field extraction, Veo download URL `&key=` auth. Full pipeline tested end-to-end via UI: idea → approve → writer chain → draft review → ship → assembler → video generation (Veo fallback) → video displayed in UI. 808 tests passing.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
