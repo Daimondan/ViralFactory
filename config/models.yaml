@@ -137,7 +137,7 @@ media:
 # The review is advisory — the operator is always the final gate.
 # Set enabled: false to skip AI review (mechanical checks still run).
 asset_review:
-  vision_model: "google/gemini-3.1-flash"
+  vision_model: "google/gemini-3.1-flash-lite"
   vision_provider: "openrouter"
   vision_api_key_env: "OPENROUTER_API_KEY"
   max_keyframes: 5
