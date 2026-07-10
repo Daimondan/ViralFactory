@@ -451,71 +451,16 @@ class AssemblyRenderer:
                 error_msg = "\n".join(error_lines[-3:]) if error_lines else result.stderr[-500:]
                 raise AssemblyError(f"ffmpeg concat failed: {error_msg}")
 
-            # Post-concat audio pass: mix the video clip's audio across the
-            # full duration so image segments aren't dead silent.
-            # Strategy: extract the first video source's audio, loop/extend it
-            # to the full output duration, mix it under the concat audio at a
-            # reduced volume, then loudnorm the result.
-            full_duration = self._get_duration(output_file)
-            video_audio_sources = []
-            for seg, src_path in zip(segments, source_files):
-                is_img = src_path.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
-                if not is_img and self._has_audio_stream(src_path):
-                    video_audio_sources.append(src_path)
-
-            if video_audio_sources and full_duration and full_duration > 0:
-                # Extract and extend the first video source's audio to full duration
-                bed_audio = os.path.join(media_dir, f"audio_bed_{version}.mp3")
-                extract_cmd = [
-                    "ffmpeg", "-y",
-                    "-i", video_audio_sources[0],
-                    "-vn",
-                    "-ar", "44100", "-ac", "2",
-                    "-t", str(full_duration),
-                    "-af", "aloop=loop=-1:size=2e9,atrim=0:{}".format(full_duration),
-                    bed_audio,
-                ]
-                extract_result = subprocess.run(extract_cmd, capture_output=True, text=True, timeout=120)
-                if extract_result.returncode == 0 and os.path.exists(bed_audio):
-                    # Mix: concat audio (VO/clip audio) + bed audio at low volume
-                    normalized_file = os.path.join(media_dir, f"final_{version}_norm.mp4")
-                    mix_cmd = [
-                        "ffmpeg", "-y",
-                        "-i", output_file,
-                        "-i", bed_audio,
-                        "-filter_complex",
-                        "[0:a]loudnorm=I=-16:TP=-1.5:LRA=11[main];"
-                        "[1:a]volume=0.4,aloop=loop=-1:size=2e9,atrim=0:{dur},loudnorm=I=-20:TP=-1.5:LRA=11[bed];"
-                        "[main][bed]amix=inputs=2:duration=first:dropout_transition=0[aout]".format(dur=full_duration),
-                        "-map", "0:v",
-                        "-map", "[aout]",
-                        "-c:v", "copy",
-                        "-c:a", "aac",
-                        normalized_file,
-                    ]
-                    mix_result = subprocess.run(mix_cmd, capture_output=True, text=True, timeout=300)
-                    if mix_result.returncode == 0 and os.path.exists(normalized_file):
-                        os.replace(normalized_file, output_file)
-                    else:
-                        # Mix failed — try simple loudnorm on original
-                        if os.path.exists(normalized_file):
-                            os.remove(normalized_file)
-                        norm_cmd = [
-                            "ffmpeg", "-y", "-i", output_file,
-                            "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
-                            "-c:v", "copy", "-c:a", "aac",
-                            normalized_file,
-                        ]
-                        norm_result = subprocess.run(norm_cmd, capture_output=True, text=True, timeout=300)
-                        if norm_result.returncode == 0 and os.path.exists(normalized_file):
-                            os.replace(normalized_file, output_file)
-                        elif os.path.exists(normalized_file):
-                            os.remove(normalized_file)
-                    # Clean up bed audio
-                    try:
-                        os.remove(bed_audio)
-                    except OSError:
-                        pass
+            # Audio strategy: driven by the edit plan's audio block, not a heuristic.
+            # The LLM decided the audio strategy in the edit plan; the renderer
+            # executes it. This replaced the old post-concat audio bed that looped
+            # the first video clip's ambient sound — a charter violation (judgment
+            # in code). Per CORRECTION-final-output-review-and-audio-fix-v1.0 AUDIO-1.
+            audio_block = plan.get("audio", {})
+            self._apply_audio_strategy(
+                output_file, audio_block, media_dir, version,
+                asset_id, draft_id, business_slug,
+            )
 
             # Get final duration
             final_duration = self._get_duration(output_file)
@@ -548,6 +493,297 @@ class AssemblyRenderer:
                     os.remove(f)
                 except OSError:
                     pass
+
+    # ── Audio strategy (AUDIO-1) ───────────────────────────────────────
+    # The edit plan's audio block drives all audio decisions. The renderer
+    # executes the LLM's strategy — it does not invent audio.
+
+    def _resolve_audio_strategy(self, audio_block: dict,
+                                asset_id: int = None) -> str:
+        """Determine the audio strategy from the edit plan's audio block.
+
+        Returns one of: "silent", "original", "music", "vo".
+        VO is deferred — if take_id is set but no VO file exists, falls back
+        to the next applicable strategy.
+        """
+        original_audio = audio_block.get("original_audio", False)
+        music = audio_block.get("music", {})
+        vo = audio_block.get("vo", {})
+        music_ref = music.get("stock_ref") if music else None
+        vo_take_id = vo.get("take_id") if vo else None
+        has_vo = bool(vo_take_id)
+
+        if has_vo:
+            vo_path = self._resolve_vo_path(vo_take_id, asset_id) if (vo_take_id and asset_id) else None
+            if vo_path and os.path.exists(vo_path):
+                return "vo"
+            # No VO file — degrade gracefully
+            if music_ref:
+                return "music"
+            elif original_audio:
+                return "original"
+            else:
+                return "silent"
+        elif music_ref:
+            return "music"
+        elif original_audio:
+            return "original"
+        else:
+            return "silent"
+
+    def _apply_audio_strategy(self, output_file: str, audio_block: dict,
+                              media_dir: str, version: int,
+                              asset_id: int, draft_id: int,
+                              business_slug: str):
+        """Apply the edit plan's audio strategy to the rendered output.
+
+        Per CORRECTION-final-output-review-and-audio-fix-v1.0 AUDIO-1:
+        - original_audio == false, no music → silent video (add silent AAC track)
+        - original_audio == true, no music  → keep concat audio as-is (each segment's source audio)
+        - music stock_ref present           → mix music at specified volume
+        - vo take_id present                → duck clip/music under VO (deferred: if no VO file, proceed as empty)
+        """
+        original_audio = audio_block.get("original_audio", False)
+        music = audio_block.get("music", {})
+        vo = audio_block.get("vo", {})
+        music_ref = music.get("stock_ref") if music else None
+        vo_take_id = vo.get("take_id") if vo else None
+
+        strategy = self._resolve_audio_strategy(audio_block, asset_id)
+
+        self._log_render(
+            asset_id, draft_id,
+            f"audio strategy: {strategy}, source: {json.dumps(audio_block)}",
+            business_slug, "done",
+        )
+
+        if strategy == "silent":
+            self._apply_silent_audio(output_file, media_dir, version)
+        elif strategy == "original":
+            # Concat already preserved each segment's source audio.
+            # Just loudnorm for consistent levels.
+            self._apply_loudnorm(output_file, media_dir, version)
+        elif strategy == "music":
+            music_volume = music.get("volume", 0.3) if music else 0.3
+            music_path = self._resolve_music_path(music_ref)
+            if music_path and os.path.exists(music_path):
+                if original_audio:
+                    self._mix_music_with_original(
+                        output_file, music_path, music_volume, media_dir, version)
+                else:
+                    self._apply_music_only(
+                        output_file, music_path, music_volume, media_dir, version)
+            else:
+                # Music ref unresolved — fall back to loudnorm or silent
+                if original_audio:
+                    self._apply_loudnorm(output_file, media_dir, version)
+                else:
+                    self._apply_silent_audio(output_file, media_dir, version)
+        elif strategy == "vo":
+            # VO is primary audio; duck everything under it.
+            # Music + original audio become secondary layers.
+            vo_path = self._resolve_vo_path(vo_take_id, asset_id)
+            music_volume = music.get("volume", 0.15) if music else 0.15
+            music_path = None
+            if music_ref:
+                music_path = self._resolve_music_path(music_ref)
+            self._mix_vo(
+                output_file, vo_path, music_path, music_volume,
+                original_audio, media_dir, version)
+
+    def _resolve_vo_path(self, take_id: str, asset_id: int) -> Optional[str]:
+        """Resolve a VO take_id to a file path.
+
+        VO files are stored in data/media/<asset_id>/vo_<take_id>.wav
+        (or .mp3). The VO pipeline is deferred — if the file doesn't
+        exist, return None so the caller degrades gracefully.
+        """
+        media_dir = os.path.join("data", "media", str(asset_id))
+        for ext in [".wav", ".mp3", ".m4a"]:
+            candidate = os.path.join(media_dir, f"vo_{take_id}{ext}")
+            if os.path.exists(candidate):
+                return candidate
+        return None
+
+    def _resolve_music_path(self, stock_ref: str) -> Optional[str]:
+        """Resolve a music stock_ref (stock:<id>) to a file path."""
+        if not stock_ref or ":" not in stock_ref:
+            return None
+        kind, ref_id = stock_ref.split(":", 1)
+        if kind != "stock":
+            return None
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            try:
+                stock_id = int(ref_id)
+                row = conn.execute(
+                    "SELECT local_path FROM stock_cache WHERE id = ?",
+                    (stock_id,),
+                ).fetchone()
+            except ValueError:
+                row = conn.execute(
+                    "SELECT local_path FROM stock_cache WHERE title LIKE ?",
+                    (f"%{ref_id}%",),
+                ).fetchone()
+            conn.close()
+            if row and row["local_path"]:
+                path = row["local_path"]
+                if os.path.exists(path):
+                    return path
+        except Exception:
+            pass
+        return None
+
+    def _apply_silent_audio(self, output_file: str, media_dir: str, version: int):
+        """Replace the output's audio with a silent AAC track for player compatibility.
+
+        When the plan says original_audio=false, we strip any audio from the
+        concat (e.g. from a video clip that has ambient sound) and replace it
+        with silence. This ensures no looping or unexpected audio leaks through.
+        """
+        normalized = os.path.join(media_dir, f"final_{version}_silence.mp4")
+        duration = self._get_duration(output_file)
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", output_file,
+            "-f", "lavfi", "-i", f"anullsrc=channel_layout=stereo:sample_rate=44100",
+            "-t", str(max(duration, 1)),
+            "-map", "0:v:0", "-map", "1:a:0",
+            "-c:v", "copy",
+            "-c:a", "aac",
+            "-shortest",
+            normalized,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        if result.returncode == 0 and os.path.exists(normalized):
+            os.replace(normalized, output_file)
+        elif os.path.exists(normalized):
+            os.remove(normalized)
+
+    def _apply_loudnorm(self, output_file: str, media_dir: str, version: int):
+        """Apply loudnorm normalization to the output's audio track."""
+        if not self._has_audio_stream(output_file):
+            return
+        normalized = os.path.join(media_dir, f"final_{version}_norm.mp4")
+        cmd = [
+            "ffmpeg", "-y", "-i", output_file,
+            "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
+            "-c:v", "copy", "-c:a", "aac",
+            normalized,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        if result.returncode == 0 and os.path.exists(normalized):
+            os.replace(normalized, output_file)
+        elif os.path.exists(normalized):
+            os.remove(normalized)
+
+    def _apply_music_only(self, output_file: str, music_path: str,
+                          volume: float, media_dir: str, version: int):
+        """Replace audio with music track, trimmed/looped to output duration."""
+        duration = self._get_duration(output_file)
+        normalized = os.path.join(media_dir, f"final_{version}_music.mp4")
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", output_file,
+            "-i", music_path,
+            "-filter_complex",
+            f"[1:a]aloop=loop=-1:size=2e9,atrim=0:{duration},"
+            f"volume={volume},loudnorm=I=-16:TP=-1.5:LRA=11[music]",
+            "-map", "0:v:0", "-map", "[music]",
+            "-c:v", "copy", "-c:a", "aac",
+            "-t", str(max(duration, 1)),
+            normalized,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        if result.returncode == 0 and os.path.exists(normalized):
+            os.replace(normalized, output_file)
+        elif os.path.exists(normalized):
+            os.remove(normalized)
+
+    def _mix_music_with_original(self, output_file: str, music_path: str,
+                                 volume: float, media_dir: str, version: int):
+        """Mix original clip audio with music bed at specified volume."""
+        duration = self._get_duration(output_file)
+        normalized = os.path.join(media_dir, f"final_{version}_mix.mp4")
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", output_file,
+            "-i", music_path,
+            "-filter_complex",
+            f"[0:a]loudnorm=I=-16:TP=-1.5:LRA=11[main];"
+            f"[1:a]aloop=loop=-1:size=2e9,atrim=0:{duration},"
+            f"volume={volume},loudnorm=I=-20:TP=-1.5:LRA=11[bed];"
+            f"[main][bed]amix=inputs=2:duration=first:dropout_transition=0[aout]",
+            "-map", "0:v:0", "-map", "[aout]",
+            "-c:v", "copy", "-c:a", "aac",
+            normalized,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        if result.returncode == 0 and os.path.exists(normalized):
+            os.replace(normalized, output_file)
+        elif os.path.exists(normalized):
+            os.remove(normalized)
+
+    def _mix_vo(self, output_file: str, vo_path: str,
+                music_path: Optional[str], music_volume: float,
+                original_audio: bool, media_dir: str, version: int):
+        """Mix VO as primary audio, ducking clip/music under it."""
+        duration = self._get_duration(output_file)
+        normalized = os.path.join(media_dir, f"final_{version}_vo.mp4")
+
+        inputs = ["-i", output_file, "-i", vo_path]
+        filter_parts = ["[0:a]loudnorm=I=-16:TP=-1.5:LRA=11[main]"]
+
+        if music_path and os.path.exists(music_path):
+            inputs.extend(["-i", music_path])
+            music_idx = 2
+            filter_parts.append(
+                f"[{music_idx}:a]aloop=loop=-1:size=2e9,atrim=0:{duration},"
+                f"volume={music_volume},loudnorm=I=-24:TP=-1.5:LRA=11[bed]"
+            )
+            if original_audio:
+                filter_parts.append(
+                    "[1:a]loudnorm=I=-16:TP=-1.5:LRA=11[vo]")
+                filter_parts.append(
+                    "[main][bed]amix=inputs=2:duration=first:dropout_transition=0[ducked]")
+                filter_parts.append(
+                    "[ducked][vo]amix=inputs=2:duration=first:dropout_transition=0,"
+                    "volume=1.5[aout]")
+            else:
+                filter_parts.append(
+                    "[1:a]loudnorm=I=-16:TP=-1.5:LRA=11[vo]")
+                filter_parts.append(
+                    "[bed][vo]amix=inputs=2:duration=first:dropout_transition=0,"
+                    "volume=1.5[aout]")
+        else:
+            # VO only (no music)
+            if original_audio:
+                filter_parts.append(
+                    "[1:a]loudnorm=I=-16:TP=-1.5:LRA=11[vo]")
+                filter_parts.append(
+                    "[main][vo]amix=inputs=2:duration=first:dropout_transition=0,"
+                    "volume=1.5[aout]")
+            else:
+                # VO replaces audio entirely — map VO directly to [aout]
+                filter_parts.append(
+                    "[1:a]loudnorm=I=-16:TP=-1.5:LRA=11[aout]")
+
+        filter_str = ";".join(filter_parts)
+        cmd = [
+            "ffmpeg", "-y",
+        ] + inputs + [
+            "-filter_complex", filter_str,
+            "-map", "0:v:0", "-map", "[aout]",
+            "-c:v", "copy", "-c:a", "aac",
+            "-t", str(max(duration, 1)),
+            normalized,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        if result.returncode == 0 and os.path.exists(normalized):
+            os.replace(normalized, output_file)
+        elif os.path.exists(normalized):
+            os.remove(normalized)
 
     def _record_final_cut(self, asset_id: int, path: str, duration: float, render_time: float):
         """Record the final cut in asset_media."""
