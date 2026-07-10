@@ -6642,13 +6642,23 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         duration = request.json.get("duration", 5)
         aspect_ratio = request.json.get("aspect_ratio", "9:16")
 
-        if not prompt:
-            return jsonify({"error": "prompt required"}), 400
-
         store = _get_pipeline_store()
         asset = store.get_asset(asset_id)
         if not asset:
             return jsonify({"error": "Asset not found"}), 404
+
+        if not prompt:
+            # The operator may leave the dialog prompt blank. Derive the same
+            # asset-specific fallback used by the earlier video endpoint.
+            draft = store.get_draft(asset["draft_id"])
+            visual_direction = json.loads(draft.get("visual_direction") or "{}") if draft else {}
+            shot_choices = visual_direction.get("shot_format_choices", [])
+            image_prompts = visual_direction.get("image_prompts", [])
+            prompt = ". ".join(shot_choices[:2] + image_prompts[:1])
+            if not prompt:
+                prompt = (asset.get("content") or "").strip()
+            if not prompt:
+                return jsonify({"error": "No visual direction is available for this asset"}), 409
 
         try:
             config = load_all(app.config["CONFIG_DIR"])

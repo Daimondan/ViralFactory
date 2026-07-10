@@ -115,6 +115,33 @@ class TestVH1GenerateClip:
         assert os.path.exists(data["path"])
         assert os.path.getsize(data["path"]) > 1024
 
+    def test_generate_clip_derives_prompt_from_asset_when_dialog_prompt_is_blank(self, tmp_path):
+        """The optional prompt field must not send the API into ``prompt required``."""
+        from app import create_app
+        db_path = str(tmp_path / "test.db")
+        app = create_app(config_dir="config", db_path=db_path)
+        store = PipelineStore(db_path)
+        asset_id = _setup_asset_for_media_gen(store, tmp_path)
+        submitted_prompts = []
+
+        def mock_submit(self, prompt, **kwargs):
+            submitted_prompts.append(prompt)
+            return {"model": "test", "external_job_id": "test-job", "cost_usd": 0, "provider": "xai"}
+
+        def mock_check(self, external_job_id, provider=None):
+            return {"status": "failed", "error": "test stops after prompt resolution"}
+
+        with patch.object(MediaAdapter, "submit_video", mock_submit), \
+             patch.object(MediaAdapter, "check_video_job", mock_check), \
+             patch("time.sleep"):
+            resp = app.test_client().post(
+                f"/api/assets/{asset_id}/generate-clip",
+                json={"prompt": "", "duration": 5, "aspect_ratio": "9:16"},
+            )
+
+        assert resp.status_code == 500
+        assert submitted_prompts == ["Test reel"]
+
     def test_generate_clip_error_on_missing_download_url(self, tmp_path):
         """If poll returns completed but no download_url, generate-clip returns 500."""
         from app import create_app
