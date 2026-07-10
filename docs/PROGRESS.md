@@ -360,3 +360,6 @@ Materials Library — editable source materials. DB migrations: `excluded` colum
 
 **Review tag:** `review-video-handoff-2026-07-09`
 **Tests:** 795 passing (16 new in `tests/test_video_handoff_vh.py`). 0 failures.
+
+- [x] Edit plan source validator: post-LLM mechanical check rejects plans with hallucinated stock: IDs not in ingredient inventory. 4 tests. 812 total passing.
+- [x] Orphaned media cleanup: removed 13 stale PNGs + old final cut from data/media/2/ (left by pipeline archive/reset). Generated 5 new images for asset 2 (biscuit tin reel). Rendered 18s final cut with valid edit plan (1 video + 5 images, no hallucinated sources).

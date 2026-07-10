@@ -1107,6 +1107,139 @@ class TestAssemblyInOutValidation:
         shutil.rmtree(os.path.join("data", "media", "9998"), ignore_errors=True)
 
 
+# ── Edit plan source validation: reject hallucinated sources ───────────────
+
+class TestEditPlanSourceValidation:
+    """Post-LLM source validation. The edit plan prompt says "ONLY use
+    ingredient ids from the inventory" but the LLM sometimes hallucinates
+    stock: IDs anyway. The endpoint must reject plans with invalid sources
+    BEFORE saving — a mechanical referential integrity guard."""
+
+    def test_valid_sources_pass(self):
+        """A plan where every segment source is in the inventory passes."""
+        ingredients = [
+            {"id": "generated:11", "kind": "video", "duration": 6.0, "description": "clip"},
+            {"id": "generated:12", "kind": "image", "duration": 3.0, "description": "img"},
+        ]
+        valid_source_ids = {ing["id"] for ing in ingredients}
+        plan = {
+            "segments": [
+                {"source": "generated:11", "in": 0, "out": 6},
+                {"source": "generated:12", "in": 0, "out": 3},
+            ],
+        }
+        invalid = [s["source"] for s in plan["segments"] if s["source"] not in valid_source_ids]
+        assert invalid == []
+
+    def test_hallucinated_stock_sources_detected(self):
+        """The LLM invents stock:caribbean_biscuit_tin — must be caught."""
+        ingredients = [
+            {"id": "generated:11", "kind": "video", "duration": 6.0, "description": "veo clip"},
+        ]
+        valid_source_ids = {ing["id"] for ing in ingredients}
+        plan = {
+            "segments": [
+                {"source": "stock:caribbean_biscuit_tin", "in": 0, "out": 2},
+                {"source": "stock:digital_wallet_phone", "in": 0, "out": 4},
+            ],
+        }
+        invalid = [s["source"] for s in plan["segments"] if s["source"] not in valid_source_ids]
+        assert len(invalid) == 2
+        assert "stock:caribbean_biscuit_tin" in invalid
+        assert "stock:digital_wallet_phone" in invalid
+
+    def test_mixed_valid_and_invalid_detected(self):
+        """Plans with some valid and some invalid sources list only the invalid."""
+        ingredients = [
+            {"id": "generated:11", "kind": "video", "duration": 6.0, "description": "veo clip"},
+            {"id": "generated:12", "kind": "image", "duration": 3.0, "description": "img"},
+        ]
+        valid_source_ids = {ing["id"] for ing in ingredients}
+        plan = {
+            "segments": [
+                {"source": "generated:11", "in": 0, "out": 6},
+                {"source": "stock:fake_clip", "in": 0, "out": 4},
+                {"source": "generated:12", "in": 0, "out": 3},
+            ],
+        }
+        invalid = [s["source"] for s in plan["segments"] if s["source"] not in valid_source_ids]
+        assert invalid == ["stock:fake_clip"]
+
+    def test_endpoint_rejects_invalid_sources(self, tmp_path):
+        """The /api/assets/<id>/edit-plan endpoint returns 422 for plans with
+        hallucinated sources. This is an integration test that exercises the
+        actual validation path in the app."""
+        from app import create_app
+
+        db_path = str(tmp_path / "test.db")
+        app = create_app(config_dir="config", db_path=db_path)
+        client = app.test_client()
+
+        # Create a shipped draft with platform content
+        store = PipelineStore(db_path)
+        card_id = store.create_idea_card(
+            business_slug="stackpenni",
+            idea="Test idea",
+            hook_options=["hook"],
+            treatment={"scope": {"type": "one_off"}, "format": {"format_name": "Instagram Reel Script"}, "capture_required": []},
+            origin="test",
+        )
+        draft_id = store.create_draft(
+            business_slug="stackpenni",
+            idea_card_id=card_id,
+            origin="test",
+            format_name="Instagram Reel Script",
+        )
+        platform_content = [
+            {"platform": "Instagram", "variant_type": "reel", "content": "Test content",
+             "posts": ["Test post"], "image_prompts": ["none"]}
+        ]
+        store.save_draft_content(draft_id, "Test content",
+                                 {"image_prompts": [], "reference_notes": [], "shot_format_choices": []}, [],
+                                 platform_content=platform_content)
+        store.update_draft_state(draft_id, "shipped")
+
+        # Create asset for this draft
+        asset_id = store.create_asset(
+            business_slug="stackpenni",
+            draft_id=draft_id,
+            platform="Instagram",
+            variant_type="reel",
+            content="Test content",
+            native=True,
+        )
+
+        # Register one video media item so we have at least one ingredient.
+        # The asset_media table is created by MediaAdapter.__init__.
+        from media_adapter import MediaAdapter
+        adapter = MediaAdapter({}, db_path=db_path)
+        from datetime import datetime, timezone
+        conn = __import__("sqlite3").connect(db_path)
+        conn.execute(
+            "INSERT INTO asset_media (asset_id, kind, path, model, prompt, cost_usd, owner_type, created_at) "
+            "VALUES (?, 'video', 'data/media/test/video.mp4', 'test-model', 'test prompt', 0, 'asset', ?)",
+            (asset_id, datetime.now(timezone.utc).isoformat()),
+        )
+        conn.commit()
+        conn.close()
+
+        # Mock the LLM to return a plan with hallucinated stock sources
+        from unittest.mock import patch as mock_patch
+        mock_result = {
+            "segments": [
+                {"source": "stock:fake_clip", "in": 0, "out": 5, "transition_in": "cut"},
+            ],
+            "canvas": {"aspect_ratio": "9:16", "resolution": "1080x1920", "duration_target": 30},
+        }
+        with mock_patch("llm_adapter.LLMAdapter.complete", return_value=mock_result):
+            resp = client.post(f"/api/assets/{asset_id}/edit-plan", json={})
+
+        assert resp.status_code == 422
+        data = resp.get_json()
+        assert data["status"] == "invalid_sources"
+        assert "stock:fake_clip" in data["invalid_sources"]
+
+
 # ── Fan-out idempotency: no duplicate platform assets ──────────────────────
 
 class TestFanOutIdempotency:

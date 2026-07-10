@@ -6500,6 +6500,32 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             _get_jobs_store().fail_job(plan_job_id, str(e)[:200])
             return jsonify({"error": str(e)}), 500
 
+        # ── Post-LLM source validation (mechanical, not judgment) ──────────
+        # The prompt says "ONLY use ingredient ids from the inventory" but the
+        # LLM sometimes hallucinates stock: IDs anyway. This is a referential
+        # integrity guard: every segment source must exist in the inventory we
+        # just built. Invalid sources → reject plan, fail job, return error.
+        valid_source_ids = {ing["id"] for ing in ingredients}
+        invalid_sources = []
+        for seg in result.get("segments", []):
+            src = seg.get("source", "")
+            if src not in valid_source_ids:
+                invalid_sources.append(src)
+        if invalid_sources:
+            err_msg = (
+                f"Edit plan contains {len(invalid_sources)} invalid source(s): "
+                f"{', '.join(invalid_sources[:5])}. The LLM invented references "
+                f"that are not in the ingredient inventory. Valid sources: "
+                f"{', '.join(sorted(valid_source_ids)[:10])}."
+            )
+            _get_jobs_store().fail_job(plan_job_id, err_msg[:300])
+            return jsonify({
+                "status": "invalid_sources",
+                "message": err_msg,
+                "invalid_sources": invalid_sources,
+                "valid_sources": sorted(valid_source_ids),
+            }), 422
+
         # Save the edit plan
         plan_id = store.save_edit_plan(draft["id"], asset_id, result)
 

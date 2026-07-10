@@ -4,6 +4,12 @@
 
 All decisions — tech, logic, structure, strategy, ops — logged here with type tag + rationale.
 
+### 2026-07-10 — Edit plan source validator + orphaned media cleanup
+
+**FIX** — Post-LLM source validation for edit plans: the edit plan prompt explicitly says "ONLY use ingredient ids from the inventory" but the LLM sometimes hallucinates `stock:` IDs anyway. Added a mechanical referential integrity guard that checks every segment source against the ingredient inventory after the LLM returns. Invalid sources → 422 response, plan not saved, job marked failed. This prevents the failure mode where the plan is saved with fake stock references and only fails at render time. 4 tests added (`TestEditPlanSourceValidation`).
+
+**FIX** — Orphaned media cleanup: a previous pipeline archive/reset wiped `asset_media` records but left image files on disk. Asset 2 had 13 orphaned PNGs from a previous content topic ("The Ownership Gap") while the current asset is about biscuit tins. Cleaned up orphaned files and regenerated images for the current asset's 5 image prompts. Generated a valid edit plan using only real ingredients (1 Veo video + 5 images) and rendered a working 18s final cut.
+
 ### 2026-07-10 — Video generator fallback + Veo API bug fixes
 
 **FIX** — Video generator fallback: when the requested video generator's API key is not set, the system now automatically falls back to the next available generator from `config/models.yaml`. This applies to all three video generation paths: the media plan executor (`ai_video:<name>`), the direct `/generate-video` endpoint, and the `/generate-clip` endpoint. The operator's instruction: "if asking for xai then use next best system — system should always work that way."
