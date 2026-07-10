@@ -879,3 +879,13 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 **Rationale:** CORRECTION-final-assembly-and-materials-editing-v1.0 Part 2. Everything the operator shared is reviewable and editable. Transcripts contain errors; extraction picks up junk; an uncorrected transcription error becomes a "voice pattern." The content-hash cache means an edited material naturally changes the variables hash on the next drafting call — no cache invalidation machinery needed. Built first per manifest -c note 1 (independent, small, operator needs it to correct transcripts as soon as Whisper lands).
 
+### 2026-07-09 REVIEW — Video generation → assembly handoff audit
+
+**Rationale:** Operator requested full audit of the video generation → local media → edit plan → FFmpeg assembly path. Architect verified all claims against live code, DB, and rendered files.
+
+**What:** Filed `docs/reviews/REVIEW-video-generation-handoff-2026-07-09.md` (review) and `docs/inbox/CORRECTION-video-generation-handoff-v1.0.md` (6 corrective tasks via `MANIFEST-2026-07-09-video-handoff.md`).
+
+**Findings:** 5 P0 blocking bugs (generate-clip reads wrong key + never downloads; generate-media submits and walks away; Google/Veo has 5 independent bugs: aspect ratio, response parsing, download API key, env var, duration hardcode), 2 P1 defects (0-byte render files, duration override), 2 P2 deficiencies (VO placeholder, render limits). `asset_media` has 0 rows — no AI-generated video has ever reached the assembler. The FFmpeg stitcher itself is solid and produces valid MP4s. The edit-plan prompt is conceptually right. The failure is entirely in the execution layer between "submit job" and "local file registered as ingredient."
+
+**Correction tasks:** VH-1 (fix generate-clip), VH-2 (fix generate-media poll/download/register), VH-3 (fix Google/Veo 5 bugs), VH-4 (0-byte cleanup + size validation), VH-5 (duration from plan_item), VH-6 (document render limits in CONTEXT.md). Blocking — builder must apply before new milestone work.
+

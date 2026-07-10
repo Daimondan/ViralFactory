@@ -253,6 +253,23 @@ Scheduled research of what works in the wild: monitors top accounts/hashtags/cha
 4. **8 modules in context window:** Load all 8 every draft (may exceed smaller model limits), or load essential 4 (Voice, Viral, Story, Format) always and pull others on demand? — *Genuinely deferrable; resolve at M3 when drafter is built.*
 5. **Video generation scope:** xAI Grok for generated video, or text/image only for v1? — *Genuinely deferrable; bounded by the charter's hybrid rules (real anchors for lived claims, generated is supporting layer).*
 
+## Current Render Capability
+
+The FFmpeg stitcher (`src/assembly.py`) currently produces:
+
+- **Valid MP4s** via simple clip concatenation — H264 video + AAC audio, normalized to target resolution (e.g., 1080×1920), SAR 1:1
+- **Cut transitions only** — segments are concatenated back-to-back with hard cuts
+- **Segment audio** — each clip's own audio stream is preserved and concatenated
+
+The stitcher does NOT yet implement (known limitations, not bugs):
+
+- **Transitions** — crossfade, slide, whip are read from the edit plan but not rendered (future enhancement)
+- **Captions/overlays** — read for the human-readable cut list but not burned into the video
+- **Voiceover** — VO info is a placeholder string `"(no VO take yet)"`; voice pipeline (T2.6–T2.8) is deferred
+- **Music/ducking** — audio plan is ignored; only segment audio streams are used
+
+**Video generation handoff status (2026-07-09):** Both video generation routes (`generate-clip` and `generate-media`) have blocking bugs that prevent AI-generated video from reaching the assembler. `asset_media` has 0 rows. See `docs/reviews/REVIEW-video-generation-handoff-2026-07-09.md` for details. Correction tasks VH-1 through VH-6 filed in `docs/inbox/`.
+
 ## Architecture
 
 - **Python + Flask** console (new, not extending v2)

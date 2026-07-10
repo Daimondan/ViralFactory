@@ -321,3 +321,25 @@ Materials Library — editable source materials. DB migrations: `excluded` colum
 - Fix: Added `setsar=1` to the `-vf` chain in all four segment preparation branches (image, audio-only, video+audio, video-only) in `src/assembly.py`.
 - Regression test: `test_render_concat_mismatched_sar_images` — wide (1280x720) + tall (720x1280) images concatenated, verifies SAR 1:1 output.
 - **Tests:** 60 passing in assembly test file (was 59). 0 failures.
+
+### 2026-07-09 — REVIEW: Video generation → assembly handoff audit
+
+**Architect review filed:** `docs/reviews/REVIEW-video-generation-handoff-2026-07-09.md`
+**Correction filed:** `docs/inbox/CORRECTION-video-generation-handoff-v1.0.md` (via `MANIFEST-2026-07-09-video-handoff.md`)
+
+**Findings:** 5 P0 blocking bugs, 2 P1 defects, 2 P2 deficiencies.
+
+- **P0-1:** `generate-clip` route reads `poll_result.get("path")` but `check_video_job()` returns `download_url`, not `path`. Video path is always `""`. Never calls `download_video()`. Poisons `asset_media` with empty paths.
+- **P0-2:** `generate-media` route submits AI video jobs and walks away — no poll/download/register loop. Jobs float indefinitely.
+- **P0-3:** Google/Veo sends `aspect_ratio.replace(":", "x")` → `"9x16"` instead of `"9:16"`.
+- **P0-4:** Google/Veo response parsing misses a nesting level (`response.generatedSamples` vs `response.generateVideoResponse.generatedSamples`).
+- **P0-5:** Google/Veo video download omits API key query param → downloads error blob, not MP4.
+- **P1-1:** Duration hardcoded to 5 in both AI video paths — ignores LLM creative direction.
+- **P1-2:** Google API key env var may be wrong (`GOOGLE_API_KEY` vs `GEMINI_API_KEY`).
+- **P2-1:** VO info is a dead placeholder string — voice pipeline deferred.
+- **P2-2:** FFmpeg stitcher ignores transitions, overlays, captions, audio plan (honest about it).
+- **Additional:** Three 0-byte `final_*.mp4` files in `data/media/3/` — silent render failures not cleaned up.
+- **DB state:** `asset_media` has 0 rows. No AI-generated video has ever been registered as an assembler ingredient.
+
+**Correction tasks:** VH-1 through VH-6 in `docs/inbox/CORRECTION-video-generation-handoff-v1.0.md`.
+**Status:** Blocking. The system can stitch files it has, but cannot reliably acquire AI-generated video files to stitch.
