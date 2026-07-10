@@ -673,9 +673,42 @@ class AssetReviewer:
                 return True
         return False
 
+    def _script_has_vo_or_dialogue(self, asset_content: str, posts: str = None) -> bool:
+        """Check if the script/content contains VO or spoken dialogue.
+
+        Scans for VO markers, dialogue indicators, and spoken-content patterns
+        that mean the output should have audio — not be silent.
+        """
+        text = (asset_content or "") + "\n" + (posts or "")
+        if not text.strip():
+            return False
+
+        text_lower = text.lower()
+
+        # Direct VO markers
+        vo_markers = ["vo:", "voiceover:", "voice over:", "voice-over:", "narrator:"]
+        for marker in vo_markers:
+            if marker in text_lower:
+                return True
+
+        # Dialogue/speech indicators
+        speech_markers = ["spoken:", "say:", "says:", "speaking:", "narrates:"]
+        for marker in speech_markers:
+            if marker in text_lower:
+                return True
+
+        # "Audio:" directives that aren't "audio: none" or "audio: silent"
+        for line in text_lower.split("\n"):
+            if line.strip().startswith("audio:") and "none" not in line and "silent" not in line:
+                return True
+
+        return False
+
     def run_audio_inspection(self, video_path: str, plan: dict,
                              asset_id: int, media_id: int,
-                             business_slug: str = None) -> dict:
+                             business_slug: str = None,
+                             asset_content: str = None,
+                             asset_posts: str = None) -> dict:
         """ASSET-REVIEW-3: Audio inspection via whisper transcription.
 
         If the output has an audio stream:
@@ -684,6 +717,8 @@ class AssetReviewer:
         3. Check for looping (repeated phrases)
         4. Check for unexpected audio (plan says no audio but audio has content)
         5. Check for silence when audio expected
+        6. Cross-reference script: if script has VO/dialogue but plan has no
+           audio strategy, flag as a silent failure
         """
         if not self._has_stream(video_path, "audio"):
             return {
@@ -703,6 +738,46 @@ class AssetReviewer:
         expects_sound = original_audio or bool(music_ref)
 
         if is_silent and not expects_sound:
+            # Cross-reference: does the script have VO or dialogue that should
+            # produce audio? If so, a silent output is a silent failure — the
+            # plan's audio strategy doesn't match the content's requirements.
+            script_has_vo = self._script_has_vo_or_dialogue(asset_content, asset_posts)
+            vo_block = audio_block.get("vo", {})
+            vo_take_id = vo_block.get("take_id", "") if vo_block else ""
+
+            if script_has_vo and not vo_take_id and not music_ref:
+                # Script has spoken content but plan has no VO take and no music
+                # → the video will be silent despite having dialogue written
+                warning = (
+                    "Script contains VO/spoken dialogue but the plan has no VO take "
+                    "and no music — the output is silent despite the script requiring audio. "
+                    "Either generate a VO take or add background music."
+                )
+                findings = {
+                    "has_audio": True, "is_silent": True, "expects_sound": False,
+                    "script_has_vo": True, "vo_take_id": vo_take_id,
+                    "warnings": [warning],
+                }
+                summary = "Script has VO but output is silent — no VO take or music in plan"
+                review_id = self._save_review(
+                    asset_id=asset_id, media_id=media_id, media_path=video_path,
+                    review_type="audio", status="complete", verdict="issues_found",
+                    findings=findings, summary=summary,
+                )
+                self._log_provenance(
+                    asset_id, "audio",
+                    f"Audio inspection: issues_found. {summary}",
+                    "issues_found", business_slug=business_slug,
+                )
+                return {
+                    "review_id": review_id,
+                    "review_type": "audio",
+                    "status": "complete",
+                    "verdict": "issues_found",
+                    "summary": summary,
+                    "findings": findings,
+                }
+
             review_id = self._save_review(
                 asset_id=asset_id, media_id=media_id, media_path=video_path,
                 review_type="audio", status="complete", verdict="pass",
@@ -840,12 +915,121 @@ class AssetReviewer:
                               mechanical: dict = None,
                               visual: dict = None,
                               audio: dict = None,
-                              business_slug: str = None) -> dict:
-        """ASSET-REVIEW-4: Aggregate all checks into a single verdict.
+                              business_slug: str = None,
+                              asset_content: str = None,
+                              asset_posts: str = None,
+                              plan: dict = None) -> dict:
+        """ASSET-REVIEW-4: LLM-based content alignment check.
 
-        Combines mechanical, visual, and audio review results into one
-        advisory verdict for the operator. No LLM call — pure aggregation.
+        Uses an LLM to judge whether the final output is coherent given the
+        script, plan, and all check results. Catches silent failures like
+        "script has VO but plan has no audio strategy."
         """
+        # Build a plan summary for the prompt
+        plan_summary = "(no plan provided)"
+        if plan:
+            segments = plan.get("segments", [])
+            audio_block = plan.get("audio", {})
+            canvas = plan.get("canvas", {})
+            seg_lines = []
+            for i, seg in enumerate(segments):
+                overlays = seg.get("overlays", [])
+                caption = ""
+                for ov in overlays:
+                    if ov.get("type") == "caption" and ov.get("text"):
+                        caption = ov["text"][:80]
+                        break
+                seg_lines.append(
+                    f"  Seg {i+1}: source={seg.get('source','?')}, "
+                    f"in={seg.get('in',0)}s, out={seg.get('out',0)}s"
+                    f"{', caption: ' + caption if caption else ''}"
+                )
+            plan_summary = (
+                f"Canvas: {json.dumps(canvas)}\n"
+                f"Audio: {json.dumps(audio_block)}\n"
+                f"Segments:\n" + "\n".join(seg_lines)
+            )
+
+        # Build the check result summaries
+        mechanical_results = json.dumps(mechanical, indent=2) if mechanical else "(not run)"
+        visual_results = (
+            json.dumps(visual.get("findings", {}), indent=2)
+            if visual and visual.get("status") == "complete"
+            else "(not run or skipped)"
+        )
+        audio_results = (
+            json.dumps(audio.get("findings", {}), indent=2)
+            if audio and audio.get("status") == "complete"
+            else "(not run)"
+        )
+
+        # Try LLM-based alignment check
+        review_config = self.models_config.get("asset_review", {})
+        enabled = review_config.get("enabled", True)
+        vision_model = review_config.get("vision_model")
+        api_key_env = review_config.get("vision_api_key_env", "OPENROUTER_API_KEY")
+        api_key = os.environ.get(api_key_env, "")
+
+        full_content = (asset_content or "") + "\n" + (asset_posts or "")
+
+        if enabled and vision_model and api_key:
+            # Load and render the alignment prompt
+            try:
+                template, prompt_version = self._load_prompt_template(
+                    "assembly/asset_alignment_v1.md")
+                rendered = self._render_prompt(template, {
+                    "asset_content": full_content[:3000],
+                    "plan_summary": plan_summary,
+                    "mechanical_results": mechanical_results[:2000],
+                    "visual_results": visual_results[:2000],
+                    "audio_results": audio_results[:2000],
+                })
+
+                base_url = review_config.get("vision_base_url", "https://openrouter.ai/api/v1")
+                # Text-only call — no images needed for alignment
+                findings = self._call_vision_model(
+                    vision_model, base_url, api_key,
+                    rendered, [],
+                )
+
+                verdict = findings.get("verdict", "needs_operator_decision")
+                summary = findings.get("summary", "Content alignment check complete")
+                issues = findings.get("issues", [])
+
+                review_id = self._save_review(
+                    asset_id=asset_id, media_id=media_id, media_path="",
+                    review_type="alignment", status="complete",
+                    verdict=verdict, findings=findings, summary=summary,
+                    model=vision_model,
+                    prompt_file="assembly/asset_alignment_v1.md",
+                    prompt_version=prompt_version,
+                )
+
+                self._log_provenance(
+                    asset_id, "alignment",
+                    f"Content alignment: {verdict}. {summary}",
+                    verdict,
+                    model=vision_model,
+                    provider=review_config.get("vision_provider", "openrouter"),
+                    prompt_file="assembly/asset_alignment_v1.md",
+                    prompt_version=prompt_version,
+                    business_slug=business_slug,
+                )
+
+                return {
+                    "review_id": review_id,
+                    "review_type": "alignment",
+                    "status": "complete",
+                    "verdict": verdict,
+                    "findings": findings,
+                    "summary": summary,
+                }
+            except Exception as e:
+                # LLM call failed — fall through to mechanical aggregation
+                pass
+
+        # Fallback: mechanical aggregation (no LLM)
+        # This also includes the script-audio coherence check
         issues = []
         verdict = "ready_for_operator"
 
@@ -879,6 +1063,27 @@ class AssetReviewer:
                         "source": "audio",
                     })
 
+        # Script-audio coherence check (even without LLM)
+        if asset_content or asset_posts:
+            script_has_vo = self._script_has_vo_or_dialogue(asset_content, asset_posts)
+            if plan:
+                audio_block = plan.get("audio", {})
+                vo_block = audio_block.get("vo", {})
+                vo_take_id = vo_block.get("take_id", "") if vo_block else ""
+                music = audio_block.get("music", {})
+                music_ref = music.get("stock_ref") if music else None
+                if script_has_vo and not vo_take_id and not music_ref:
+                    issues.append({
+                        "severity": "high",
+                        "category": "audio_coherence",
+                        "description": (
+                            "Script contains VO/spoken dialogue but the plan has no VO take "
+                            "and no music — output will be silent despite dialogue"
+                        ),
+                        "source": "alignment",
+                        "recommended_action": "Generate a VO take or add background music",
+                    })
+
         # Determine overall verdict
         high_issues = [i for i in issues if i.get("severity") == "high"]
         if high_issues:
@@ -892,7 +1097,7 @@ class AssetReviewer:
         else:
             for issue in issues:
                 summary_parts.append(f"{issue['severity'].upper()}: {issue['description']}")
-        summary = ". ".join(summary_parts[:5])  # Cap at 5 issues for summary
+        summary = ". ".join(summary_parts[:5])
 
         findings = {
             "verdict": verdict,
@@ -901,18 +1106,13 @@ class AssetReviewer:
             "visual_verdict": visual.get("verdict") if visual else None,
             "audio_verdict": audio.get("verdict") if audio else None,
             "issue_count": len(issues),
+            "llm_used": False,
         }
 
-        # Save to DB
         review_id = self._save_review(
-            asset_id=asset_id,
-            media_id=media_id,
-            media_path="",
-            review_type="alignment",
-            status="complete",
-            verdict=verdict,
-            findings=findings,
-            summary=summary,
+            asset_id=asset_id, media_id=media_id, media_path="",
+            review_type="alignment", status="complete",
+            verdict=verdict, findings=findings, summary=summary,
         )
 
         self._log_provenance(

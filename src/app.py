@@ -6673,7 +6673,10 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 audio_result = None
                 try:
                     audio_result = reviewer.run_audio_inspection(
-                        out_path, plan, asset_id, media_id, business_slug)
+                        out_path, plan, asset_id, media_id, business_slug,
+                        asset_content=asset.get("content") or "",
+                        asset_posts=asset.get("posts") or "",
+                    )
                     if audio_result.get("status") == "complete":
                         review_summary["audio"] = {
                             "verdict": audio_result["verdict"],
@@ -6683,7 +6686,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     import logging
                     logging.warning(f"Audio inspection failed (non-blocking): {audio_err}")
 
-                # ASSET-REVIEW-4: Content alignment aggregation
+                # ASSET-REVIEW-4: Content alignment (LLM-based coherence check)
                 try:
                     alignment_result = reviewer.run_content_alignment(
                         asset_id, media_id,
@@ -6691,6 +6694,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                         visual=visual_result,
                         audio=audio_result,
                         business_slug=business_slug,
+                        asset_content=asset.get("content") or "",
+                        asset_posts=asset.get("posts") or "",
+                        plan=plan,
                     )
                     review_summary["alignment"] = {
                         "verdict": alignment_result["verdict"],
