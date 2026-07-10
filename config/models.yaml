@@ -77,10 +77,17 @@ transcription:
 # (commercially safe for paying customers). NOT XTTS-v2 (CPML = non-commercial).
 # Reference audio stored per-business in modules/{business}/voice-samples/.
 voice_cloning:
-  engine: "qwen3_tts"                      # qwen3_tts | moss_tts | voxflash_tts
-  model: "Qwen3-TTS-12Hz-1.7B-VoiceDesign"  # Apache 2.0, 3-second cloning
+  engine: "gemini_tts"                      # gemini_tts (uses GEMINI_API_KEY) | qwen3_tts (local, GPU)
+  model: "Qwen3-TTS-12Hz-1.7B-VoiceDesign"  # Apache 2.0, 3-second cloning (future)
   reference_audio_dir: "modules/{business}/voice-samples/"
   sample_rate: 24000
+  # TTS sub-config — controls how VO is generated
+  tts:
+    model: "gemini-3.1-flash-tts-preview"   # Google Gemini TTS model
+    voice: "Kore"                            # Prebuilt voice name
+    style: "warm, authoritative, Caribbean-influenced English"
+    api_key_env: "GEMINI_API_KEY"
+    sample_rate: 24000
 
 # ── Media generation (F4: CORRECTION-pipeline-ux-and-media-generation-v1.0) ──
 # Config-driven generator inventory. The LLM media plan prompt sees all

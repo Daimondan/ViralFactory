@@ -6598,6 +6598,41 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         from assembly import AssemblyRenderer, AssemblyError
 
         plan = json.loads(edit_plan.get("plan_json") or "{}")
+
+        # ── VO generation: if the script has VO lines but no VO file exists,
+        # generate one before rendering so the renderer can mix it.
+        # This bridges the gap between "script has dialogue" and "video has audio."
+        vo_gen_result = None
+        try:
+            from vo_generator import VOGenerator, VOGenerationError
+            vo_gen = VOGenerator(models_config, db_path=app.config["DB_PATH"])
+            existing_vo = vo_gen.has_vo_for_asset(asset_id)
+            if not existing_vo:
+                # Check if the script has VO lines
+                vo_text = vo_gen._extract_vo_lines(
+                    asset.get("content") or "",
+                    asset.get("posts") or "",
+                )
+                if vo_text:
+                    vo_gen_result = vo_gen.generate_vo(
+                        asset_id=asset_id,
+                        content=asset.get("content") or "",
+                        posts=asset.get("posts") or "",
+                        business_slug=business_slug,
+                    )
+                    # Update the plan's audio block to reference this take
+                    audio_block = plan.get("audio", {})
+                    vo_block = audio_block.get("vo", {})
+                    vo_block["take_id"] = vo_gen_result["take_id"]
+                    audio_block["vo"] = vo_block
+                    plan["audio"] = audio_block
+        except VOGenerationError as vo_err:
+            import logging
+            logging.warning(f"VO generation failed (non-blocking): {vo_err}")
+        except Exception as vo_err:
+            import logging
+            logging.warning(f"VO generation error (non-blocking): {vo_err}")
+
         renderer = AssemblyRenderer(models_config, db_path=app.config["DB_PATH"])
 
         # Update plan status to rendering
