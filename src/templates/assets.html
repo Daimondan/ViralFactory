@@ -98,6 +98,21 @@
         .plan-status.rendering { background: rgba(123, 91, 166, 0.12); color: #7B5BA6; }
         .plan-status.rendered { background: rgba(74, 124, 58, 0.12); color: #4A7C3A; }
         .plan-status.failed { background: rgba(192, 57, 43, 0.12); color: #C0392B; }
+        /* AI Review Summary panel */
+        .ai-review-panel { background: #F0EDE4; border-radius: 8px; padding: 12px 16px; margin: 8px 0; border-left: 3px solid #E54B2C; }
+        .ai-review-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .ai-review-title { font-size: 0.85rem; font-weight: 600; color: #2C2823; }
+        .ai-review-verdict { font-size: 0.78rem; padding: 2px 10px; border-radius: 10px; }
+        .ai-review-verdict.pass, .ai-review-verdict.ready_for_operator { background: rgba(74, 124, 58, 0.12); color: #4A7C3A; }
+        .ai-review-verdict.issues_found, .ai-review-verdict.needs_operator_decision { background: rgba(229, 75, 44, 0.12); color: #E54B2C; }
+        .ai-review-verdict.needs_rerender { background: rgba(192, 57, 43, 0.15); color: #C0392B; font-weight: 600; }
+        .ai-review-verdict.skipped { background: #D8D4C8; color: #8A857C; }
+        .ai-review-body { font-size: 0.82rem; line-height: 1.5; color: #5A554C; }
+        .ai-review-body .check-pass { color: #4A7C3A; }
+        .ai-review-body .check-fail { color: #C0392B; }
+        .ai-review-body .check-warn { color: #E54B2C; }
+        .ai-review-loading { color: #8A857C; font-style: italic; }
+        .ai-review-details { font-size: 0.76rem; line-height: 1.4; color: #8A857C; margin-top: 6px; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }
 
         /* Spinner */
         .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(74,111,165,0.2); border-top-color: #4A6FA5; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 4px; vertical-align: middle; }
@@ -364,6 +379,24 @@
                 <div class="media-placeholder">No video yet</div>
                 {% endif %}
             </div>
+
+            {# AI Review Summary — appears below the video player for reels #}
+            {% if is_reel and has_final %}
+            <div id="ai-review-{{ asset.id }}" class="ai-review-panel" style="display: none;">
+                <div class="ai-review-header">
+                    <span class="ai-review-title">AI Review Summary</span>
+                    <span class="ai-review-verdict" id="ai-review-verdict-{{ asset.id }}"></span>
+                </div>
+                <div id="ai-review-body-{{ asset.id }}" class="ai-review-body">
+                    <span class="ai-review-loading">AI review in progress…</span>
+                </div>
+                <details style="margin-top: 6px;">
+                    <summary style="cursor: pointer; font-size: 0.78rem; color: #8A857C;">View detailed review</summary>
+                    <div id="ai-review-details-{{ asset.id }}" class="ai-review-details"></div>
+                </details>
+            </div>
+            {% endif %}
+
             <div style="padding: 12px 16px;">
                 {% set reel_excerpt = asset.posts_parsed[0] if has_posts else asset.content %}
                 <div class="post-meta" style="margin-bottom: 4px;">Script excerpt</div>
@@ -925,6 +958,107 @@ function generateMissingMedia(assetId, btn) {
         if (status) { status.style.color = '#C0392B'; status.textContent = 'Error: ' + err; }
     });
 }
+
+// ── AI Review Summary: fetch and display reviews for rendered videos ──
+function loadAIReviews() {
+    // Find all AI review panels on the page
+    var panels = document.querySelectorAll('[id^="ai-review-"]');
+    panels.forEach(function(panel) {
+        if (panel.id === 'ai-review-' + panel.id.split('-')[2]) {
+            var assetId = panel.id.split('-')[2];
+            fetchAssetReviews(assetId);
+        }
+    });
+}
+
+function fetchAssetReviews(assetId) {
+    fetch('/api/assets/' + assetId + '/reviews')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.reviews && data.reviews.length > 0) {
+                displayAIReview(assetId, data.reviews);
+            }
+        })
+        .catch(function(err) {
+            // Silently fail — review is advisory
+        });
+}
+
+function displayAIReview(assetId, reviews) {
+    var panel = document.getElementById('ai-review-' + assetId);
+    if (!panel) return;
+    panel.style.display = 'block';
+
+    var verdictElem = document.getElementById('ai-review-verdict-' + assetId);
+    var bodyElem = document.getElementById('ai-review-body-' + assetId);
+    var detailsElem = document.getElementById('ai-review-details-' + assetId);
+    if (!bodyElem) return;
+
+    // Build summary from reviews
+    var parts = [];
+    var overallVerdict = 'pass';
+    var details = [];
+
+    reviews.forEach(function(review) {
+        if (review.status === 'skipped' || review.status === 'failed') return;
+
+        var icon = review.verdict === 'pass' || review.verdict === 'ready_for_operator' ? '✓' :
+                   review.verdict === 'issues_found' || review.verdict === 'needs_operator_decision' ? '⚠' :
+                   review.verdict === 'needs_rerender' ? '✗' : '○';
+        var cls = review.verdict === 'pass' || review.verdict === 'ready_for_operator' ? 'check-pass' :
+                  review.verdict === 'issues_found' || review.verdict === 'needs_operator_decision' ? 'check-warn' :
+                  review.verdict === 'needs_rerender' ? 'check-fail' : '';
+
+        var label = {
+            'mechanical': 'Render checks',
+            'visual': 'Visual inspection',
+            'audio': 'Audio inspection',
+            'alignment': 'Overall verdict',
+            'image': 'Image review',
+        }[review.review_type] || review.review_type;
+
+        parts.push('<div class="' + cls + '">' + icon + ' <strong>' + label + ':</strong> ' +
+                   review.summary + '</div>');
+
+        // Track highest severity verdict
+        if (review.verdict === 'needs_rerender') overallVerdict = 'needs_rerender';
+        else if (review.verdict === 'issues_found' || review.verdict === 'needs_operator_decision') {
+            if (overallVerdict !== 'needs_rerender') overallVerdict = 'needs_operator_decision';
+        }
+
+        // Add to details
+        try {
+            var findings = JSON.parse(review.findings_json || '{}');
+            details.push('--- ' + label + ' (' + review.verdict + ') ---');
+            details.push(JSON.stringify(findings, null, 2));
+        } catch(e) {}
+    });
+
+    if (parts.length === 0) {
+        bodyElem.innerHTML = '<span class="ai-review-loading">No review data available yet.</span>';
+        return;
+    }
+
+    // NOTE: innerHTML is safe here — review data comes from our own server-side
+    // API (ffprobe checks + LLM reviews), not from user input. No XSS vector.
+    bodyElem.innerHTML = parts.join('');
+    if (verdictElem) {
+        var verdictLabel = {
+            'pass': 'Passed',
+            'ready_for_operator': 'Ready for review',
+            'needs_operator_decision': 'Issues found',
+            'needs_rerender': 'Needs re-render',
+        }[overallVerdict] || overallVerdict;
+        verdictElem.textContent = verdictLabel;
+        verdictElem.className = 'ai-review-verdict ' + overallVerdict;
+    }
+    if (detailsElem) {
+        detailsElem.textContent = details.join('\n\n');
+    }
+}
+
+// Load AI reviews on page load
+document.addEventListener('DOMContentLoaded', loadAIReviews);
 </script>
 </body>
 </html>
