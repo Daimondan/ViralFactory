@@ -6607,7 +6607,19 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             from vo_generator import VOGenerator, VOGenerationError
             vo_gen = VOGenerator(models_config, db_path=app.config["DB_PATH"])
             existing_vo = vo_gen.has_vo_for_asset(asset_id)
-            if not existing_vo:
+            if existing_vo:
+                # VO file exists from a previous generation — update the plan
+                # to reference it so the renderer can find it
+                vo_filename = os.path.basename(existing_vo)
+                # Extract take_id from filename: vo_<take_id>.wav
+                existing_take_id = vo_filename.replace("vo_", "").rsplit(".", 1)[0]
+                audio_block = plan.get("audio", {})
+                vo_block = audio_block.get("vo", {})
+                if not vo_block.get("take_id"):
+                    vo_block["take_id"] = existing_take_id
+                    audio_block["vo"] = vo_block
+                    plan["audio"] = audio_block
+            else:
                 # Check if the script has VO lines
                 vo_text = vo_gen._extract_vo_lines(
                     asset.get("content") or "",
