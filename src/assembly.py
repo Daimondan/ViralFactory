@@ -733,7 +733,12 @@ class AssemblyRenderer:
         normalized = os.path.join(media_dir, f"final_{version}_vo.mp4")
 
         inputs = ["-i", output_file, "-i", vo_path]
-        filter_parts = ["[0:a]loudnorm=I=-16:TP=-1.5:LRA=11[main]"]
+        # Only process [0:a] (concat audio) if we'll actually use it
+        # — i.e., when original_audio is true (we mix clip audio under VO)
+        if original_audio:
+            filter_parts = ["[0:a]loudnorm=I=-16:TP=-1.5:LRA=11[main]"]
+        else:
+            filter_parts = []
 
         if music_path and os.path.exists(music_path):
             inputs.extend(["-i", music_path])
@@ -757,7 +762,7 @@ class AssemblyRenderer:
                     "[bed][vo]amix=inputs=2:duration=first:dropout_transition=0,"
                     "volume=1.5[aout]")
         else:
-            # VO only (no music)
+            # VO only (no music, no original audio)
             if original_audio:
                 filter_parts.append(
                     "[1:a]loudnorm=I=-16:TP=-1.5:LRA=11[vo]")
@@ -765,9 +770,10 @@ class AssemblyRenderer:
                     "[main][vo]amix=inputs=2:duration=first:dropout_transition=0,"
                     "volume=1.5[aout]")
             else:
-                # VO replaces audio entirely — map VO directly to [aout]
+                # VO replaces audio entirely — trim VO to video duration,
+                # normalize, map directly to [aout]
                 filter_parts.append(
-                    "[1:a]loudnorm=I=-16:TP=-1.5:LRA=11[aout]")
+                    f"[1:a]atrim=0:{duration},loudnorm=I=-16:TP=-1.5:LRA=11[aout]")
 
         filter_str = ";".join(filter_parts)
         cmd = [
