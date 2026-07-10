@@ -4,6 +4,29 @@
 
 All decisions — tech, logic, structure, strategy, ops — logged here with type tag + rationale.
 
+## 2026-07-10 — VH-1 through VH-6: Video generation → assembly handoff correction
+
+**[FIX] VH-1 (P0): generate-clip route no longer poisons asset_media.** The route read `poll_result.get("path")` but `check_video_job()` returns `download_url`, not `path` — so `video_path` was always `""`. It then called `_record_media()` with that empty path, inserting a bogus `asset_media` row. Fixed: route now reads `download_url`, calls `download_video()` which downloads the file AND records it in `asset_media`, returns `{file_path, media_id}` so the caller can construct `ingredient_id: "generated:<media_id>"`.
+**Rationale:** Both video generation routes were broken — no AI-generated video could ever reach the assembler. This was the first of 5 P0 bugs identified by the architect audit.
+
+**[FIX] VH-2 (P0): generate-media route no longer submits and walks away.** After `submit_video()`, both the direct AI video path and the stock-fallback path set `status="submitted"` and returned. No polling, no download, no `_record_media` — the job floated indefinitely. Fixed: new `_poll_download_register_video()` helper polls `check_video_job()` (5s intervals, max 60 polls = 5min timeout), calls `download_video()` on completion, returns `ingredient_id`. On timeout, returns `status="processing"` with `external_job_id` so the operator knows to check back.
+**Rationale:** The operator saw "submitted" and nothing ever came back. No AI video was ever registered as an assembler ingredient (asset_media had 0 rows).
+
+**[FIX] VH-3 (P0): Google/Veo — 5 independent bugs fixed.** (1) Aspect ratio sent `9x16` instead of `9:16` — removed `.replace(":", "x")`. (2) Response parsing missed a nesting level — now navigates `response.generateVideoResponse.generatedSamples` with shallow fallback. (3) Download URL omitted API key — `download_video()` now appends `?key={api_key}` for Google URLs + rejects files <1KB (error blobs are ~100 bytes). (4) API key env var only checked `GOOGLE_API_KEY` — now checks `GEMINI_API_KEY` first, then `GOOGLE_API_KEY`. (5) Duration hardcoded — fixed in VH-5.
+**Rationale:** Each bug independently prevented Google/Veo from working. The system is config-driven — any business could configure either provider.
+
+**[FIX] VH-4 (P1): 0-byte render files cleaned up + output size validation.** Three 0-byte `final_*.mp4` files existed in `data/media/3/` — silent render failures that weren't cleaned up. Deleted them. Render route now checks output file size after FFmpeg: if 0 bytes, deletes the file, marks job as failed, surfaces the failure to the operator. No more false greens.
+**Rationale:** 0-byte files could be served as "rendered outputs" — the operator would see a broken video player with no error message.
+
+**[FIX] VH-5 (P1): Duration read from plan_item, not hardcoded to 5.** Both AI video paths hardcoded `duration=5`, silently overriding the LLM's creative direction. The media plan LLM could write "Cinematic 15-second clip..." but the API always sent 5. Fixed: `plan_item.get("duration", 5)`.
+**Rationale:** Charter concern — this is judgment in code. The LLM decided the duration; code overrides it. Per charter §"No judgment in code," the LLM's plan should be honored.
+
+**[STRUCTURE] download_video() return type changed from str to dict.** Was returning only the file path string; now returns `{file_path, media_id}` so callers can construct `ingredient_id: "generated:<media_id>"` without calling `_record_media` separately (which would double-register).
+**Rationale:** The correction required `media_id` to be returned alongside the file path. No external callers existed (generate-clip never used it, generate-media never used it), so the signature change is safe.
+
+**[OPS] _summarize_media_generation_results updated to track processing_count.** New status "processing" (timeout jobs still running) added to the summary dict and the error check at the end of generate-media.
+**Rationale:** The summary is the honest UI messaging layer — "processing" means a job is still running, not ready to render.
+
 ## 2026-07-07 — UI: Fix 7 operator-identified defects from UIIX review
 
 **[UI] Seven defects caught by operator deep-walk of the redesigned UI.**

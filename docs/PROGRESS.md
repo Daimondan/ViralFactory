@@ -4,8 +4,8 @@
 > blocked, or changed. Any agent should be able to read this and know
 > exactly where we are.
 
-**Last Updated:** 2026-07-04
-**Current Phase:** AI TELLS + VOICE DEEPENING — M9 Writer/Assembler redesign is implemented and green. Follow-up correction applied: voice-first ideation, shared AI-tells catalog with confidence levels, concrete self-audit fix application, alignment-check second pass for surviving HIGH-confidence tells, cognitive Voice Profile dimensions, and shared prompt-file context loading. 761 tests passing. Blocker remains: default Hermes env lacks `XAI_API_KEY`, so `/home/daimon/.viralfactory.env` still needs the real key before live xAI video generation works.
+**Last Updated:** 2026-07-10
+**Current Phase:** VIDEO HANDOFF CORRECTION — VH-1 through VH-6 applied. Both video generation routes (generate-clip, generate-media) now poll, download, and register AI-generated video in asset_media. Google/Veo bugs fixed (aspect ratio, response nesting, download API key, env var). Duration read from LLM media plan. 0-byte render files cleaned + size validation. 795 tests passing.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
@@ -343,3 +343,20 @@ Materials Library — editable source materials. DB migrations: `excluded` colum
 
 **Correction tasks:** VH-1 through VH-6 in `docs/inbox/CORRECTION-video-generation-handoff-v1.0.md`.
 **Status:** Blocking. The system can stitch files it has, but cannot reliably acquire AI-generated video files to stitch.
+
+### 2026-07-10 — VH-1 through VH-6 applied (review-video-handoff-2026-07-09)
+
+**Architect correction applied:** `docs/inbox/CORRECTION-video-generation-handoff-v1.0.md` (6 tasks)
+
+**Completed:**
+- [x] VH-1 (P0): `generate-clip` route now reads `download_url` from `check_video_job()` result, calls `download_video()` to download + register in `asset_media`, returns valid `ingredient_id` with real file path. No longer reads nonexistent `path` key or calls `_record_media` separately (which poisoned DB with path="").
+- [x] VH-2 (P0): `generate-media` route now polls, downloads, and registers AI video jobs via `_poll_download_register_video()` helper. Both the direct `ai_video` path and the stock-fallback-to-AI path use it. Timeout returns `status="processing"` with `external_job_id` so the operator knows to check back.
+- [x] VH-3 (P0): Google/Veo — 5 bugs fixed: (1) aspect ratio sent as-is `9:16` not `9x16`; (2) response parsing navigates `response.generateVideoResponse.generatedSamples` with shallow fallback; (3) `download_video()` appends `?key={api_key}` for Google download URLs + rejects <1KB files (error blobs); (4) API key env var checks both `GEMINI_API_KEY` and `GOOGLE_API_KEY`; (5) duration from plan_item (VH-5).
+- [x] VH-4 (P1): Deleted 3 existing 0-byte `final_*.mp4` files from `data/media/3/`. Render route now checks output file size after FFmpeg — 0 bytes = job failed, file deleted, operator notified. No more false greens.
+- [x] VH-5 (P1): Duration read from `plan_item.get("duration", 5)` in both AI video paths — no longer hardcoded to 5. LLM creative direction honored.
+- [x] VH-6 (P2): CONTEXT.md "Current Render Capability" section updated with video generation handoff status.
+- [x] `download_video()` return type changed from `str` to `dict {file_path, media_id}` so callers can construct `ingredient_id`.
+- [x] `_summarize_media_generation_results` updated to track `processing_count` (timeout jobs).
+
+**Review tag:** `review-video-handoff-2026-07-09`
+**Tests:** 795 passing (16 new in `tests/test_video_handoff_vh.py`). 0 failures.

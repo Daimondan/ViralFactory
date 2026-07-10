@@ -83,19 +83,73 @@ def _summarize_media_generation_results(results: list[dict]) -> dict:
     """Summarize media generation results for honest UI messaging.
 
     Only status='ok' means a renderable local media ingredient exists now.
-    status='submitted' means an async provider job exists but is NOT renderable
-    yet; the UI must not call that ready-to-render.
+    status='processing' means a video job timed out and is still running —
+    the operator should check back. The UI must not call that ready-to-render.
     """
     available_count = sum(1 for r in results if r.get("status") == "ok")
+    processing_count = sum(1 for r in results if r.get("status") == "processing")
     submitted_count = sum(1 for r in results if r.get("status") == "submitted")
     failed_count = sum(1 for r in results if r.get("status") == "failed")
     skipped_count = sum(1 for r in results if r.get("status") == "skipped")
     return {
         "available_count": available_count,
+        "processing_count": processing_count,
         "submitted_count": submitted_count,
         "failed_count": failed_count,
         "skipped_count": skipped_count,
         "ready_to_render": available_count > 0,
+    }
+
+
+def _poll_download_register_video(
+    media_adapter, external_job_id, asset_id, model, prompt,
+    business_slug, provider=None,
+):
+    """Poll a video job, download on completion, register as asset_media.
+
+    Returns dict with keys:
+        status  — "ok" | "processing" | "failed"
+        ingredient_id — "generated:<media_id>" (only when status=="ok")
+        path        — local file path (only when status=="ok")
+        external_job_id — the provider job ID (only when status=="processing")
+        error       — plain-language error (only when status=="failed")
+    """
+    import time as _time
+
+    max_polls = 60  # 5 minutes at 5s intervals
+    for _ in range(max_polls):
+        _time.sleep(5)
+        poll_result = media_adapter.check_video_job(external_job_id, provider=provider)
+        status = poll_result.get("status", "")
+        if status == "completed":
+            download_url = poll_result.get("download_url", "")
+            if not download_url:
+                return {
+                    "status": "failed",
+                    "error": "Job completed but no download URL was returned by the provider",
+                }
+            dl = media_adapter.download_video(
+                external_job_id, download_url, asset_id,
+                model, prompt,
+                poll_result.get("cost_usd", 0),
+                business_slug,
+                video_provider=provider,
+            )
+            return {
+                "status": "ok",
+                "path": dl["file_path"],
+                "ingredient_id": f"generated:{dl['media_id']}",
+            }
+        elif status == "failed":
+            return {
+                "status": "failed",
+                "error": poll_result.get("error", "Video generation failed"),
+            }
+
+    # Timeout — job still processing
+    return {
+        "status": "processing",
+        "external_job_id": external_job_id,
     }
 
 
@@ -6421,10 +6475,21 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 business_slug=business_slug,
                 plan_id=plan_id,
             )
-            _get_jobs_store().complete_job(render_job_id, f"rendered:{result['path']}")
+            # VH-4: validate output file size — 0 bytes = silent render failure
+            import os as _os
+            out_path = result["path"]
+            if not _os.path.exists(out_path) or _os.path.getsize(out_path) == 0:
+                # Delete the 0-byte file so it doesn't linger as a false green
+                if _os.path.exists(out_path):
+                    _os.remove(out_path)
+                err_msg = "Render produced a 0-byte output file — FFmpeg failed silently"
+                _get_jobs_store().fail_job(render_job_id, err_msg)
+                store.update_edit_plan_status(plan_id, "failed", err_msg)
+                return jsonify({"error": err_msg}), 500
+            _get_jobs_store().complete_job(render_job_id, f"rendered:{out_path}")
             return jsonify({
                 "status": "ok",
-                "path": result["path"],
+                "path": out_path,
                 "duration": result["duration"],
                 "render_time_s": result["render_time_s"],
                 "version": result["version"],
@@ -6602,17 +6667,25 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 poll_result = adapter.check_video_job(external_job_id)
                 status = poll_result.get("status", "")
                 if status == "completed":
-                    video_path = poll_result.get("path", "")
-                    # Register as asset media
-                    media_id = adapter._record_media(
-                        asset_id, "video", video_path,
+                    download_url = poll_result.get("download_url", "")
+                    if not download_url:
+                        return jsonify({
+                            "error": "Job completed but no download URL returned",
+                        }), 500
+                    # download_video() downloads the file AND records it in
+                    # asset_media — returns {file_path, media_id}. Do NOT call
+                    # _record_media separately (would double-register).
+                    dl = adapter.download_video(
+                        external_job_id, download_url, asset_id,
                         submit_result.get("model", ""),
-                        prompt, 0, owner_type="asset",
+                        prompt,
+                        poll_result.get("cost_usd", 0),
+                        business_slug,
                     )
                     return jsonify({
                         "status": "ok",
-                        "path": video_path,
-                        "ingredient_id": f"generated:{media_id}",
+                        "path": dl["file_path"],
+                        "ingredient_id": f"generated:{dl['media_id']}",
                     })
                 elif status == "failed":
                     return jsonify({"error": poll_result.get("error", "Video generation failed")}), 500
@@ -6857,18 +6930,28 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                                 item_result["status"] = "failed"
                                 item_result["error"] = str(ve)
                             else:
+                                duration = plan_item.get("duration", 5)
                                 submit = media_adapter.submit_video(
                                     prompt=fallback_prompt, asset_id=asset_id,
-                                    aspect_ratio="9:16", duration=5,
+                                    aspect_ratio="9:16", duration=duration,
                                     model=resolved["model"],
                                     provider=resolved["provider"],
                                     context=f"Media plan fallback ({fallback}) for asset {asset_id}",
                                     business_slug=business_slug,
                                 )
-                                item_result["status"] = "submitted"
-                                item_result["external_job_id"] = submit.get("external_job_id")
-                                item_result["provider"] = submit.get("provider", resolved["provider"])
-                                item_result["model"] = submit.get("model", resolved["model"])
+                                ext_job = submit.get("external_job_id")
+                                if not ext_job:
+                                    item_result["status"] = "failed"
+                                    item_result["error"] = "Video API returned no job ID"
+                                else:
+                                    # VH-2: poll → download → register
+                                    poll_result = _poll_download_register_video(
+                                        media_adapter, ext_job, asset_id,
+                                        submit.get("model", resolved["model"] or ""),
+                                        fallback_prompt, business_slug,
+                                        provider=resolved["provider"],
+                                    )
+                                    item_result.update(poll_result)
                         else:
                             item_result["status"] = "failed"
                             item_result["error"] = "Stock search returned nothing and no fallback configured"
@@ -6878,19 +6961,29 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     prompt = plan_item.get("generation_prompt", "")
                     if prompt:
                         resolved = _resolve_ai_video_generator(generator, media_config)
+                        duration = plan_item.get("duration", 5)
                         # Submit video generation
                         submit = media_adapter.submit_video(
                             prompt=prompt, asset_id=asset_id,
-                            aspect_ratio="9:16", duration=5,
+                            aspect_ratio="9:16", duration=duration,
                             model=resolved["model"],
                             provider=resolved["provider"],
                             context=f"Media plan AI generation ({generator}) for asset {asset_id}",
                             business_slug=business_slug,
                         )
-                        item_result["status"] = "submitted"
-                        item_result["external_job_id"] = submit.get("external_job_id")
-                        item_result["provider"] = submit.get("provider", resolved["provider"])
-                        item_result["model"] = submit.get("model", resolved["model"])
+                        ext_job = submit.get("external_job_id")
+                        if not ext_job:
+                            item_result["status"] = "failed"
+                            item_result["error"] = "Video API returned no job ID"
+                        else:
+                            # VH-2: poll → download → register
+                            poll_result = _poll_download_register_video(
+                                media_adapter, ext_job, asset_id,
+                                submit.get("model", resolved["model"] or ""),
+                                prompt, business_slug,
+                                provider=resolved["provider"],
+                            )
+                            item_result.update(poll_result)
 
                 elif generator == "ai_image":
                     prompt = plan_item.get("generation_prompt", "")
@@ -6937,7 +7030,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             "count": len(results),
             **summary,
         }
-        if len(results) > 0 and summary["available_count"] == 0 and summary["submitted_count"] == 0:
+        if (len(results) > 0 and summary["available_count"] == 0
+                and summary["submitted_count"] == 0
+                and summary["processing_count"] == 0):
             response_payload["status"] = "error"
             response_payload["error"] = (
                 f"No renderable media was generated — "

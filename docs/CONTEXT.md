@@ -268,7 +268,7 @@ The stitcher does NOT yet implement (known limitations, not bugs):
 - **Voiceover** — VO info is a placeholder string `"(no VO take yet)"`; voice pipeline (T2.6–T2.8) is deferred
 - **Music/ducking** — audio plan is ignored; only segment audio streams are used
 
-**Video generation handoff status (2026-07-09):** Both video generation routes (`generate-clip` and `generate-media`) have blocking bugs that prevent AI-generated video from reaching the assembler. `asset_media` has 0 rows. See `docs/reviews/REVIEW-video-generation-handoff-2026-07-09.md` for details. Correction tasks VH-1 through VH-6 filed in `docs/inbox/`.
+**Video generation handoff status (2026-07-10):** VH-1 through VH-6 corrections applied. Both video generation routes (`generate-clip` and `generate-media`) now poll, download, and register AI-generated video in `asset_media` with valid file paths. Google/Veo bugs fixed (aspect ratio, response nesting, download API key, env var). Duration now read from the LLM media plan. 0-byte render files cleaned up and output size validation added. See `docs/reviews/REVIEW-video-generation-handoff-2026-07-09.md` and `docs/inbox/CORRECTION-video-generation-handoff-v1.0.md`.
 
 ## Architecture
 

@@ -342,9 +342,11 @@ class MediaAdapter:
 
         if video_provider == "google":
             # Google Veo — Generative Language API (long-running operation)
-            api_key = os.environ.get("GOOGLE_API_KEY", "")
+            api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY", "")
             if not api_key:
-                raise MediaAdapterError("GOOGLE_API_KEY not set — cannot generate video with Google/Veo")
+                raise MediaAdapterError(
+                    "GEMINI_API_KEY (or GOOGLE_API_KEY) not set — cannot generate video with Google/Veo"
+                )
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:predictLongRunning"
             headers = {"Content-Type": "application/json"}
             params = {"key": api_key}
@@ -352,7 +354,7 @@ class MediaAdapter:
                 "instances": [{"prompt": prompt}],
                 "parameters": {
                     "sampleCount": 1,
-                    "aspectRatio": aspect_ratio.replace(":", "x"),
+                    "aspectRatio": aspect_ratio,  # VH-3 bug 1: send as-is, NOT replace(":", "x")
                     "durationSeconds": duration,
                 },
             }
@@ -446,9 +448,11 @@ class MediaAdapter:
 
         if video_provider == "google":
             # Google Veo — poll long-running operation
-            api_key = os.environ.get("GOOGLE_API_KEY", "")
+            api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY", "")
             if not api_key:
-                raise MediaAdapterError("GOOGLE_API_KEY not set — cannot poll Google video jobs")
+                raise MediaAdapterError(
+                    "GEMINI_API_KEY (or GOOGLE_API_KEY) not set — cannot poll Google video jobs"
+                )
             url = f"https://generativelanguage.googleapis.com/v1beta/{external_job_id}"
             params = {"key": api_key}
             try:
@@ -458,13 +462,33 @@ class MediaAdapter:
                 raise MediaAdapterError(f"Google Veo poll failed: {e}")
 
             data = response.json()
+            # Log raw response to provenance for debugging response-shape mismatches
+            self._log_provenance(
+                "google-veo-poll", str(external_job_id),
+                context=f"Veo poll raw response: {str(data)[:500]}",
+                business_slug=None, provider="google",
+            )
             done = data.get("done", False)
             if not done:
                 return {"status": "processing", "download_url": None, "cost_usd": 0}
 
-            # Operation complete — extract video URI from response
+            # Operation complete — extract video URI from response.
+            # VH-3 bug 2: Veo nests samples under response.generateVideoResponse.generatedSamples
             result = data.get("response", {})
-            generated_samples = result.get("generatedSamples", [])
+            generate_video_response = result.get("generateVideoResponse", {})
+            generated_samples = generate_video_response.get("generatedSamples", [])
+            # Fallback: some model versions may nest differently — also try the
+            # shallow path and log a warning if the deep path found nothing.
+            if not generated_samples:
+                shallow_samples = result.get("generatedSamples", [])
+                if shallow_samples:
+                    self._log_provenance(
+                        "google-veo-poll", str(external_job_id),
+                        context="WARNING: generatedSamples found at shallow level (response.generatedSamples), "
+                                "not under generateVideoResponse. Response shape may differ by model version.",
+                        business_slug=None, provider="google",
+                    )
+                    generated_samples = shallow_samples
             if generated_samples:
                 video_data = generated_samples[0].get("video", {})
                 download_url = video_data.get("gcsUri") or video_data.get("url")
@@ -509,24 +533,48 @@ class MediaAdapter:
 
     def download_video(self, external_job_id: str, download_url: str, asset_id: int,
                        model: str, prompt: str, cost_usd: float = 0,
-                       business_slug: str = None) -> str:
-        """Download a completed video and record it."""
+                       business_slug: str = None,
+                       video_provider: str = None) -> dict:
+        """Download a completed video and record it.
+
+        Returns dict: {file_path, media_id} so the caller can construct
+        an ingredient_id of the form ``generated:<media_id>``.
+        """
         media_dir = self._ensure_media_dir(asset_id)
         file_hash = hashlib.sha256(prompt.encode()).hexdigest()[:16]
         filename = f"video_{file_hash}.mp4"
         file_path = os.path.join(media_dir, filename)
 
-        response = requests.get(download_url, timeout=120)
+        # VH-3 bug 3: Google/Veo download URIs require the API key as a
+        # query parameter. Without it Google returns a small JSON error
+        # blob with HTTP 200 — raise_for_status won't catch it.
+        effective_url = download_url
+        vp = video_provider or self.media_config.get("video_provider", "openrouter")
+        if vp == "google" or "googleapis" in download_url:
+            api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY", "")
+            if api_key and "?" not in download_url:
+                effective_url = download_url + f"?key={api_key}"
+
+        response = requests.get(effective_url, timeout=120)
         response.raise_for_status()
+
+        # Sanity check: Google error blobs are a few hundred bytes of JSON.
+        # A real video is at least 1KB.
+        if len(response.content) < 1024:
+            raise MediaAdapterError(
+                f"Downloaded file is only {len(response.content)} bytes — "
+                f"likely an error response, not a video. URL: {effective_url}"
+            )
+
         with open(file_path, "wb") as f:
             f.write(response.content)
 
-        self._record_media(asset_id, "video", file_path, model, prompt, cost_usd)
+        media_id = self._record_media(asset_id, "video", file_path, model, prompt, cost_usd)
         self._log_provenance(model, prompt, cost_usd=cost_usd,
                             context=f"Video download (ext_job={external_job_id})",
                             business_slug=business_slug)
 
-        return file_path
+        return {"file_path": file_path, "media_id": media_id}
 
     # ── Discovery ──
 
