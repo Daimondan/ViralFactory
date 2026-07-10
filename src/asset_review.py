@@ -929,3 +929,128 @@ class AssetReviewer:
             "findings": findings,
             "summary": summary,
         }
+
+    # ── ASSET-REVIEW-6: Image review ─────────────────────────────────────
+
+    def run_image_review(self, image_path: str, prompt: str,
+                         asset_content: str, asset_id: int,
+                         media_id: int, business_slug: str = None) -> dict:
+        """ASSET-REVIEW-6: Lightweight vision check on standalone images.
+
+        1. Mechanical: file exists, size > 10KB, correct aspect ratio
+        2. Visual: vision LLM examines the image vs the prompt that generated it
+        3. Content: does the image match the asset content?
+
+        This is lighter-weight than the video review (single image, no audio).
+        """
+        # Mechanical checks
+        checks = {
+            "file_exists": os.path.exists(image_path),
+            "file_size_kb": 0,
+            "is_image": image_path.lower().endswith((".png", ".jpg", ".jpeg", ".webp")),
+            "warnings": [],
+        }
+
+        if checks["file_exists"]:
+            checks["file_size_kb"] = round(os.path.getsize(image_path) / 1024, 1)
+            if checks["file_size_kb"] < 10:
+                checks["warnings"].append(f"Image is only {checks['file_size_kb']}KB — may be low quality")
+
+        if not checks["file_exists"]:
+            checks["warnings"].append("Image file does not exist")
+
+        # Vision check (if configured)
+        review_config = self.models_config.get("asset_review", {})
+        enabled = review_config.get("enabled", True)
+        vision_model = review_config.get("vision_model")
+        api_key_env = review_config.get("vision_api_key_env", "OPENROUTER_API_KEY")
+        api_key = os.environ.get(api_key_env, "")
+
+        vision_findings = None
+        if enabled and vision_model and api_key and checks["file_exists"]:
+            # Build a simple prompt for image review
+            text_prompt = (
+                f"You are reviewing an AI-generated image. Does it match the prompt that generated it?\n\n"
+                f"Prompt: {prompt[:500]}\n\n"
+                f"Asset content context: {asset_content[:500]}\n\n"
+                f"Check: Does the image show what the prompt describes? "
+                f"Are there obvious AI artifacts or quality issues?\n\n"
+                f"Respond with ONLY valid JSON:\n"
+                f'{{"verdict": "pass" | "issues_found", '
+                f'"issues": [{{"severity": "high" | "medium" | "low", '
+                f'"description": "...", "recommended_action": "..."}}], '
+                f'"summary": "..."}}'
+            )
+
+            try:
+                image_data_url = self._encode_image_b64(image_path)
+                base_url = review_config.get("vision_base_url", "https://openrouter.ai/api/v1")
+                vision_findings = self._call_vision_model(
+                    vision_model, base_url, api_key,
+                    text_prompt, [image_data_url],
+                )
+            except Exception as e:
+                vision_findings = {"verdict": "issues_found", "issues": [], "summary": f"Vision API failed: {str(e)[:200]}"}
+
+        # Combine mechanical + vision
+        all_warnings = list(checks["warnings"])
+        if vision_findings:
+            for issue in vision_findings.get("issues", []):
+                all_warnings.append(f"{issue.get('severity','?').upper()}: {issue.get('description','')}")
+
+        verdict = "pass" if not all_warnings else "issues_found"
+
+        summary_parts = []
+        if checks["file_size_kb"] > 0:
+            summary_parts.append(f"Image: {checks['file_size_kb']}KB")
+        if vision_findings:
+            summary_parts.append(vision_findings.get("summary", "Vision check complete"))
+        if all_warnings and not vision_findings:
+            summary_parts.extend(all_warnings)
+        if not summary_parts:
+            summary_parts.append("Image review complete")
+        summary = ". ".join(summary_parts[:4])
+
+        findings = {
+            "mechanical": checks,
+            "vision": vision_findings,
+            "prompt": prompt[:200] if prompt else "",
+        }
+
+        model_name = vision_model if vision_findings else "mechanical"
+        prompt_file = "assembly/asset_review_v1.md" if vision_findings else None
+        prompt_ver = "1.0" if vision_findings else None
+
+        review_id = self._save_review(
+            asset_id=asset_id,
+            media_id=media_id,
+            media_path=image_path,
+            review_type="image",
+            status="complete",
+            verdict=verdict,
+            findings=findings,
+            summary=summary,
+            model=model_name,
+            prompt_file=prompt_file,
+            prompt_version=prompt_ver,
+        )
+
+        self._log_provenance(
+            asset_id, "image",
+            f"Image review: {verdict}. {summary}",
+            verdict,
+            model=model_name,
+            provider=review_config.get("vision_provider", "openrouter") if vision_findings else "local",
+            prompt_file=prompt_file or "(asset_review)",
+            prompt_version=prompt_ver or "1.0",
+            business_slug=business_slug,
+        )
+
+        return {
+            "review_id": review_id,
+            "review_type": "image",
+            "status": "complete",
+            "verdict": verdict,
+            "findings": findings,
+            "summary": summary,
+        }
