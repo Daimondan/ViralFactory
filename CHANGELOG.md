@@ -4,6 +4,10 @@
 
 All decisions — tech, logic, structure, strategy, ops — logged here with type tag + rationale.
 
+### 2026-07-10 — Audio bed mixing for reels with image segments
+
+**FIX** — Reels that mix video clips with image segments had dead silence during the image portions (image segments use `anullsrc` for concat compatibility). Added a post-concat audio pass: extracts the first video source's audio, loops it to full output duration, mixes it under the concat audio at reduced volume with loudnorm. This gives reels ambient audio throughout instead of 3 seconds of sound followed by 15 seconds of silence. Falls back to plain loudnorm if the bed extraction fails.
+
 ### 2026-07-10 — Edit plan source validator + orphaned media cleanup
 
 **FIX** — Post-LLM source validation for edit plans: the edit plan prompt explicitly says "ONLY use ingredient ids from the inventory" but the LLM sometimes hallucinates `stock:` IDs anyway. Added a mechanical referential integrity guard that checks every segment source against the ingredient inventory after the LLM returns. Invalid sources → 422 response, plan not saved, job marked failed. This prevents the failure mode where the plan is saved with fake stock references and only fails at render time. 4 tests added (`TestEditPlanSourceValidation`).

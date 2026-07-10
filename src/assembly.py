@@ -451,6 +451,72 @@ class AssemblyRenderer:
                 error_msg = "\n".join(error_lines[-3:]) if error_lines else result.stderr[-500:]
                 raise AssemblyError(f"ffmpeg concat failed: {error_msg}")
 
+            # Post-concat audio pass: mix the video clip's audio across the
+            # full duration so image segments aren't dead silent.
+            # Strategy: extract the first video source's audio, loop/extend it
+            # to the full output duration, mix it under the concat audio at a
+            # reduced volume, then loudnorm the result.
+            full_duration = self._get_duration(output_file)
+            video_audio_sources = []
+            for seg, src_path in zip(segments, source_files):
+                is_img = src_path.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
+                if not is_img and self._has_audio_stream(src_path):
+                    video_audio_sources.append(src_path)
+
+            if video_audio_sources and full_duration and full_duration > 0:
+                # Extract and extend the first video source's audio to full duration
+                bed_audio = os.path.join(media_dir, f"audio_bed_{version}.mp3")
+                extract_cmd = [
+                    "ffmpeg", "-y",
+                    "-i", video_audio_sources[0],
+                    "-vn",
+                    "-ar", "44100", "-ac", "2",
+                    "-t", str(full_duration),
+                    "-af", "aloop=loop=-1:size=2e9,atrim=0:{}".format(full_duration),
+                    bed_audio,
+                ]
+                extract_result = subprocess.run(extract_cmd, capture_output=True, text=True, timeout=120)
+                if extract_result.returncode == 0 and os.path.exists(bed_audio):
+                    # Mix: concat audio (VO/clip audio) + bed audio at low volume
+                    normalized_file = os.path.join(media_dir, f"final_{version}_norm.mp4")
+                    mix_cmd = [
+                        "ffmpeg", "-y",
+                        "-i", output_file,
+                        "-i", bed_audio,
+                        "-filter_complex",
+                        "[0:a]loudnorm=I=-16:TP=-1.5:LRA=11[main];"
+                        "[1:a]volume=0.4,aloop=loop=-1:size=2e9,atrim=0:{dur},loudnorm=I=-20:TP=-1.5:LRA=11[bed];"
+                        "[main][bed]amix=inputs=2:duration=first:dropout_transition=0[aout]".format(dur=full_duration),
+                        "-map", "0:v",
+                        "-map", "[aout]",
+                        "-c:v", "copy",
+                        "-c:a", "aac",
+                        normalized_file,
+                    ]
+                    mix_result = subprocess.run(mix_cmd, capture_output=True, text=True, timeout=300)
+                    if mix_result.returncode == 0 and os.path.exists(normalized_file):
+                        os.replace(normalized_file, output_file)
+                    else:
+                        # Mix failed — try simple loudnorm on original
+                        if os.path.exists(normalized_file):
+                            os.remove(normalized_file)
+                        norm_cmd = [
+                            "ffmpeg", "-y", "-i", output_file,
+                            "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
+                            "-c:v", "copy", "-c:a", "aac",
+                            normalized_file,
+                        ]
+                        norm_result = subprocess.run(norm_cmd, capture_output=True, text=True, timeout=300)
+                        if norm_result.returncode == 0 and os.path.exists(normalized_file):
+                            os.replace(normalized_file, output_file)
+                        elif os.path.exists(normalized_file):
+                            os.remove(normalized_file)
+                    # Clean up bed audio
+                    try:
+                        os.remove(bed_audio)
+                    except OSError:
+                        pass
+
             # Get final duration
             final_duration = self._get_duration(output_file)
             render_time = time.time() - start_time
