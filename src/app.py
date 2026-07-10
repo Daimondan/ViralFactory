@@ -6623,14 +6623,49 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 store.update_edit_plan_status(plan_id, "failed", err_msg)
                 return jsonify({"error": err_msg}), 500
             _get_jobs_store().complete_job(render_job_id, f"rendered:{out_path}")
-            return jsonify({
+
+            # ASSET-REVIEW-1: Run mechanical post-render checks (deterministic,
+            # no LLM). The review is advisory — it doesn't block the operator
+            # from seeing the video. Results are saved to asset_reviews table
+            # and displayed in the UI alongside the video.
+            review_summary = None
+            try:
+                import sqlite3 as _sqlite3
+                from asset_review import AssetReviewer
+                reviewer = AssetReviewer(models_config, db_path=app.config["DB_PATH"])
+                # Find the media_id for the final_cut we just recorded
+                conn = _sqlite3.connect(app.config["DB_PATH"])
+                conn.row_factory = _sqlite3.Row
+                media_row = conn.execute(
+                    "SELECT id FROM asset_media WHERE asset_id = ? AND kind = 'final_cut' "
+                    "ORDER BY id DESC LIMIT 1",
+                    (asset_id,),
+                ).fetchone()
+                conn.close()
+                media_id = media_row["id"] if media_row else 0
+                review_result = reviewer.review_render(
+                    out_path, plan, asset_id, media_id, business_slug)
+                review_summary = {
+                    "verdict": review_result["verdict"],
+                    "summary": review_result["summary"],
+                    "warnings": review_result["findings"].get("warnings", []),
+                }
+            except Exception as review_err:
+                # Review failure should not block the render result
+                import logging
+                logging.warning(f"Asset review failed (non-blocking): {review_err}")
+
+            response = {
                 "status": "ok",
                 "path": out_path,
                 "duration": result["duration"],
                 "render_time_s": result["render_time_s"],
                 "version": result["version"],
                 "cut_list": result["cut_list"],
-            })
+            }
+            if review_summary:
+                response["review"] = review_summary
+            return jsonify(response)
         except AssemblyError as e:
             _get_jobs_store().fail_job(render_job_id, str(e)[:200])
             store.update_edit_plan_status(plan_id, "failed", str(e)[:500])
@@ -6673,11 +6708,23 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         job_status = dict(job_row)["status"] if job_row else None
 
         if final_cuts:
-            return jsonify({
+            # Include asset review data if available
+            review_data = None
+            try:
+                from asset_review import AssetReviewer
+                reviewer = AssetReviewer(models_config, db_path=app.config["DB_PATH"])
+                review_data = reviewer.get_latest_review_summary(final_cuts[-1]["id"])
+            except Exception:
+                pass
+
+            response = {
                 "status": "rendered",
                 "path": final_cuts[-1]["path"],
                 "plan_status": plan_status,
-            })
+            }
+            if review_data:
+                response["review"] = review_data
+            return jsonify(response)
         if job_status == "running":
             return jsonify({"status": "rendering", "plan_status": plan_status})
         if job_status == "failed":
@@ -6686,6 +6733,19 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         if plan_status == "rendering":
             return jsonify({"status": "rendering", "plan_status": plan_status})
         return jsonify({"status": "idle", "plan_status": plan_status})
+
+    @app.route("/api/assets/<int:asset_id>/reviews", methods=["GET"])
+    def get_asset_reviews(asset_id):
+        """Get all AI review data for an asset's media."""
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+        except ConfigError:
+            models_config = {}
+        from asset_review import AssetReviewer
+        reviewer = AssetReviewer(models_config, db_path=app.config["DB_PATH"])
+        reviews = reviewer.get_reviews_for_asset(asset_id)
+        return jsonify({"reviews": reviews})
 
     @app.route("/api/stock/search", methods=["POST"])
     def search_stock():
