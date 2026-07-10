@@ -130,6 +130,19 @@ media:
     tool: "blender"
     best_for: "motion graphics, animated text, 3D sequences"
 
+# ── Asset review (AI viewer) ──────────────────────────────────────────
+# Vision-capable model for inspecting rendered videos and generated images.
+# The model receives extracted keyframes + the asset content and judges
+# whether the output is coherent before the operator reviews it.
+# The review is advisory — the operator is always the final gate.
+# Set enabled: false to skip AI review (mechanical checks still run).
+asset_review:
+  vision_model: "google/gemini-3.1-flash"
+  vision_provider: "openrouter"
+  vision_api_key_env: "OPENROUTER_API_KEY"
+  max_keyframes: 5
+  enabled: true
+
 # ── Stock library (Final Assembly Part 1) ──
 # Pexels (primary) + Pixabay (secondary). Both free, commercial-safe.
 # Auth: PEXELS_API_KEY + PIXABAY_API_KEY env vars.

@@ -6650,6 +6650,23 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     "summary": review_result["summary"],
                     "warnings": review_result["findings"].get("warnings", []),
                 }
+
+                # ASSET-REVIEW-2: Vision-based visual inspection (advisory, async)
+                # Runs after mechanical checks. If vision model is not configured,
+                # degrades gracefully (returns "skipped"). Results saved to DB.
+                try:
+                    # Get the asset content for the vision prompt
+                    asset_content = asset.get("content") or ""
+                    visual_result = reviewer.run_visual_inspection(
+                        out_path, plan, asset_content, asset_id, media_id, business_slug)
+                    if visual_result.get("status") != "skipped":
+                        review_summary["visual"] = {
+                            "verdict": visual_result["verdict"],
+                            "summary": visual_result["summary"],
+                        }
+                except Exception as visual_err:
+                    import logging
+                    logging.warning(f"Visual inspection failed (non-blocking): {visual_err}")
             except Exception as review_err:
                 # Review failure should not block the render result
                 import logging

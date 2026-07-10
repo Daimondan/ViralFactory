@@ -357,3 +357,258 @@ class AssetReviewer:
             "findings": json.loads(latest.get("findings_json") or "{}"),
             "created_at": latest["created_at"],
         }
+
+    # ── ASSET-REVIEW-2: Vision-based visual inspection ───────────────────
+
+    def _extract_keyframes(self, video_path: str, output_dir: str,
+                           max_frames: int = 5) -> list:
+        """Extract keyframes from a video at 20%, 40%, 60%, 80% of duration + first frame.
+
+        Returns list of (frame_index, file_path) tuples.
+        """
+        duration = self._get_duration(video_path)
+        if duration <= 0:
+            return []
+
+        # Extract at: 0, 20%, 40%, 60%, 80%
+        timestamps = [0]
+        if max_frames > 1:
+            for i in range(1, max_frames):
+                t = duration * (i / max_frames)
+                timestamps.append(round(t, 1))
+
+        keyframes = []
+        for i, t in enumerate(timestamps):
+            frame_path = os.path.join(output_dir, f"keyframe_{i}.jpg")
+            cmd = [
+                "ffmpeg", "-y",
+                "-ss", str(t),
+                "-i", video_path,
+                "-frames:v", "1",
+                "-q:v", "2",
+                frame_path,
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if result.returncode == 0 and os.path.exists(frame_path):
+                keyframes.append((i, frame_path))
+        return keyframes
+
+    def _encode_image_b64(self, file_path: str) -> str:
+        """Encode an image file as base64 data URL."""
+        import base64
+        with open(file_path, "rb") as f:
+            data = base64.b64encode(f.read()).decode("utf-8")
+        ext = os.path.splitext(file_path)[1].lower().lstrip(".")
+        mime = {"jpg": "jpeg", "jpeg": "jpeg", "png": "png", "webp": "webp"}.get(ext, "jpeg")
+        return f"data:image/{mime};base64,{data}"
+
+    def _load_prompt_template(self, prompt_file: str) -> tuple:
+        """Load a prompt template and extract its version.
+
+        Returns (template_text, version_string).
+        """
+        import re
+        prompt_path = os.path.join("prompts", prompt_file)
+        with open(prompt_path) as f:
+            content = f.read()
+        m = re.search(r'<!-- version: ([\d.]+) -->', content)
+        version = m.group(1) if m else "1.0"
+        return content, version
+
+    def _render_prompt(self, template: str, variables: dict) -> str:
+        """Render a prompt template with variables."""
+        rendered = template
+        for key, value in variables.items():
+            rendered = rendered.replace("{" + key + "}", str(value))
+        return rendered
+
+    def _call_vision_model(self, model: str, base_url: str, api_key: str,
+                           text_prompt: str, image_data_urls: list) -> dict:
+        """Call a vision-capable LLM via OpenRouter-compatible API.
+
+        Returns parsed JSON response from the model.
+        """
+        import requests
+
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": text_prompt},
+                ],
+            }
+        ]
+
+        # Add images to the message content
+        for img_url in image_data_urls:
+            messages[0]["content"].append({
+                "type": "image_url",
+                "image_url": {"url": img_url},
+            })
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": 0,
+            "max_tokens": 4096,
+            "response_format": {"type": "json_object"},
+        }
+
+        response = requests.post(
+            f"{base_url}/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=120,
+        )
+
+        if response.status_code != 200:
+            raise Exception(f"Vision API error {response.status_code}: {response.text[:500]}")
+
+        data = response.json()
+        content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        return json.loads(content)
+
+    def run_visual_inspection(self, video_path: str, plan: dict,
+                              asset_content: str, asset_id: int,
+                              media_id: int, business_slug: str = None) -> dict:
+        """ASSET-REVIEW-2: Vision-based visual inspection.
+
+        Extracts keyframes, sends them + content to a vision LLM, gets back
+        a structured review of whether the visuals match the content.
+        """
+        review_config = self.models_config.get("asset_review", {})
+        enabled = review_config.get("enabled", True)
+
+        if not enabled:
+            return {
+                "review_type": "visual",
+                "status": "skipped",
+                "verdict": "skipped",
+                "summary": "AI visual review is disabled in config",
+                "findings": {},
+            }
+
+        # Check if vision model is configured
+        vision_model = review_config.get("vision_model")
+        api_key_env = review_config.get("vision_api_key_env", "OPENROUTER_API_KEY")
+        api_key = os.environ.get(api_key_env, "")
+
+        if not vision_model or not api_key:
+            return {
+                "review_type": "visual",
+                "status": "skipped",
+                "verdict": "skipped",
+                "summary": "Vision model not configured or API key not set — visual inspection skipped",
+                "findings": {},
+            }
+
+        # Extract keyframes
+        max_keyframes = review_config.get("max_keyframes", 5)
+        keyframe_dir = os.path.join(os.path.dirname(video_path), f"review_keyframes_{media_id}")
+        os.makedirs(keyframe_dir, exist_ok=True)
+
+        keyframes = self._extract_keyframes(video_path, keyframe_dir, max_keyframes)
+
+        if not keyframes:
+            return {
+                "review_type": "visual",
+                "status": "failed",
+                "verdict": "issues_found",
+                "summary": "Could not extract keyframes from the video",
+                "findings": {"error": "keyframe extraction failed"},
+            }
+
+        # Build segment descriptions for the prompt
+        segments = plan.get("segments", [])
+        seg_descs = []
+        for i, seg in enumerate(segments):
+            overlays = seg.get("overlays", [])
+            caption = ""
+            for ov in overlays:
+                if ov.get("type") == "caption" and ov.get("text"):
+                    caption = ov["text"][:80]
+                    break
+            seg_descs.append(f"Segment {i+1}: source={seg.get('source','?')}, "
+                             f"in={seg.get('in',0)}s, out={seg.get('out',0)}s"
+                             f"{', caption: ' + caption if caption else ''}")
+
+        # Load and render the prompt
+        template, prompt_version = self._load_prompt_template("assembly/asset_review_v1.md")
+        rendered = self._render_prompt(template, {
+            "asset_content": asset_content[:2000],
+            "segment_descriptions": "\n".join(seg_descs),
+            "visual_style": "(visual style guide not yet configured)",
+            "keyframe_count": str(len(keyframes)),
+        })
+
+        # Encode keyframes as base64
+        image_data_urls = []
+        for idx, frame_path in keyframes:
+            image_data_urls.append(self._encode_image_b64(frame_path))
+
+        # Call the vision model
+        base_url = review_config.get("vision_base_url", "https://openrouter.ai/api/v1")
+        try:
+            findings = self._call_vision_model(
+                vision_model, base_url, api_key,
+                rendered, image_data_urls,
+            )
+        except Exception as e:
+            # Clean up keyframes
+            import shutil
+            shutil.rmtree(keyframe_dir, ignore_errors=True)
+            return {
+                "review_type": "visual",
+                "status": "failed",
+                "verdict": "issues_found",
+                "summary": f"Vision API call failed: {str(e)[:200]}",
+                "findings": {"error": str(e)[:500]},
+            }
+
+        # Clean up keyframe temp files
+        import shutil
+        shutil.rmtree(keyframe_dir, ignore_errors=True)
+
+        verdict = findings.get("verdict", "issues_found")
+        summary = findings.get("summary", "Visual inspection complete")
+
+        # Save to DB
+        review_id = self._save_review(
+            asset_id=asset_id,
+            media_id=media_id,
+            media_path=video_path,
+            review_type="visual",
+            status="complete",
+            verdict=verdict,
+            findings=findings,
+            summary=summary,
+            model=vision_model,
+            prompt_file="assembly/asset_review_v1.md",
+            prompt_version=prompt_version,
+        )
+
+        # Log to provenance
+        self._log_provenance(
+            asset_id, "visual",
+            f"Visual inspection: {verdict}. {summary}",
+            verdict,
+            model=vision_model,
+            provider=review_config.get("vision_provider", "openrouter"),
+            prompt_file="assembly/asset_review_v1.md",
+            prompt_version=prompt_version,
+            business_slug=business_slug,
+        )
+
+        return {
+            "review_id": review_id,
+            "review_type": "visual",
+            "status": "complete",
+            "verdict": verdict,
+            "findings": findings,
+            "summary": summary,
+        }
