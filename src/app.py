@@ -6654,6 +6654,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 # ASSET-REVIEW-2: Vision-based visual inspection (advisory, async)
                 # Runs after mechanical checks. If vision model is not configured,
                 # degrades gracefully (returns "skipped"). Results saved to DB.
+                visual_result = None
                 try:
                     # Get the asset content for the vision prompt
                     asset_content = asset.get("content") or ""
@@ -6667,6 +6668,37 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 except Exception as visual_err:
                     import logging
                     logging.warning(f"Visual inspection failed (non-blocking): {visual_err}")
+
+                # ASSET-REVIEW-3: Audio inspection via whisper (advisory)
+                audio_result = None
+                try:
+                    audio_result = reviewer.run_audio_inspection(
+                        out_path, plan, asset_id, media_id, business_slug)
+                    if audio_result.get("status") == "complete":
+                        review_summary["audio"] = {
+                            "verdict": audio_result["verdict"],
+                            "summary": audio_result["summary"],
+                        }
+                except Exception as audio_err:
+                    import logging
+                    logging.warning(f"Audio inspection failed (non-blocking): {audio_err}")
+
+                # ASSET-REVIEW-4: Content alignment aggregation
+                try:
+                    alignment_result = reviewer.run_content_alignment(
+                        asset_id, media_id,
+                        mechanical=review_result.get("findings"),
+                        visual=visual_result,
+                        audio=audio_result,
+                        business_slug=business_slug,
+                    )
+                    review_summary["alignment"] = {
+                        "verdict": alignment_result["verdict"],
+                        "summary": alignment_result["summary"],
+                    }
+                except Exception as align_err:
+                    import logging
+                    logging.warning(f"Content alignment failed (non-blocking): {align_err}")
             except Exception as review_err:
                 # Review failure should not block the render result
                 import logging

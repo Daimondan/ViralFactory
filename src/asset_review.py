@@ -612,3 +612,320 @@ class AssetReviewer:
             "findings": findings,
             "summary": summary,
         }
+
+    # ── ASSET-REVIEW-3: Audio inspection via whisper ─────────────────────
+
+    def _extract_audio(self, video_path: str, output_path: str) -> bool:
+        """Extract audio from a video file as 16kHz mono WAV for whisper."""
+        cmd = [
+            "ffmpeg", "-y", "-i", video_path,
+            "-vn", "-ac", "1", "-ar", "16000",
+            output_path,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        return result.returncode == 0 and os.path.exists(output_path)
+
+    def _transcribe_audio(self, audio_path: str) -> str:
+        """Transcribe audio using faster-whisper (if available).
+
+        Returns transcript text. Returns empty string if whisper not installed.
+        """
+        try:
+            from faster_whisper import WhisperModel
+            transcribe_config = self.models_config.get("transcription", {})
+            model_name = transcribe_config.get("model", "medium")
+            compute_type = transcribe_config.get("compute_type", "int8")
+            language = transcribe_config.get("language", "en")
+
+            model = WhisperModel(model_name, compute_type=compute_type)
+            segments, info = model.transcribe(
+                audio_path,
+                language=language if language != "auto" else None,
+                beam_size=5,
+            )
+            parts = [seg.text.strip() for seg in segments]
+            return " ".join(parts)
+        except ImportError:
+            return ""  # faster-whisper not installed
+        except Exception:
+            return ""
+
+    def _detect_looping(self, transcript: str) -> bool:
+        """Detect if audio appears to loop.
+
+        Heuristic: if the same 5+ word phrase appears 3+ times, flag as looping.
+        This is a mechanical check on the transcript — the LLM is not involved.
+        """
+        if not transcript:
+            return False
+        words = transcript.split()
+        if len(words) < 15:
+            return False
+
+        # Check for repeated 5-word phrases
+        phrases = {}
+        for i in range(len(words) - 4):
+            phrase = " ".join(words[i:i+5]).lower()
+            phrases[phrase] = phrases.get(phrase, 0) + 1
+
+        for phrase, count in phrases.items():
+            if count >= 3:
+                return True
+        return False
+
+    def run_audio_inspection(self, video_path: str, plan: dict,
+                             asset_id: int, media_id: int,
+                             business_slug: str = None) -> dict:
+        """ASSET-REVIEW-3: Audio inspection via whisper transcription.
+
+        If the output has an audio stream:
+        1. Extract audio
+        2. Transcribe via faster-whisper
+        3. Check for looping (repeated phrases)
+        4. Check for unexpected audio (plan says no audio but audio has content)
+        5. Check for silence when audio expected
+        """
+        if not self._has_stream(video_path, "audio"):
+            return {
+                "review_type": "audio",
+                "status": "complete",
+                "verdict": "pass",
+                "summary": "No audio stream in output — nothing to inspect",
+                "findings": {"has_audio": False},
+            }
+
+        # Check if audio is silent
+        is_silent = self._is_silent_audio(video_path)
+        audio_block = plan.get("audio", {})
+        original_audio = audio_block.get("original_audio", False)
+        music = audio_block.get("music", {})
+        music_ref = music.get("stock_ref") if music else None
+        expects_sound = original_audio or bool(music_ref)
+
+        if is_silent and not expects_sound:
+            review_id = self._save_review(
+                asset_id=asset_id, media_id=media_id, media_path=video_path,
+                review_type="audio", status="complete", verdict="pass",
+                findings={"has_audio": True, "is_silent": True, "expects_sound": False},
+                summary="Audio is silent as specified in the plan",
+            )
+            self._log_provenance(
+                asset_id, "audio",
+                "Audio inspection: pass. Audio is silent as specified in the plan",
+                "pass", business_slug=business_slug,
+            )
+            return {
+                "review_id": review_id,
+                "review_type": "audio",
+                "status": "complete",
+                "verdict": "pass",
+                "summary": "Audio is silent as specified in the plan",
+                "findings": {"has_audio": True, "is_silent": True, "expects_sound": False},
+            }
+
+        if is_silent and expects_sound:
+            review_id = self._save_review(
+                asset_id=asset_id, media_id=media_id, media_path=video_path,
+                review_type="audio", status="complete", verdict="issues_found",
+                findings={"has_audio": True, "is_silent": True, "expects_sound": True},
+                summary="Plan expects audio but output is silent",
+            )
+            self._log_provenance(
+                asset_id, "audio",
+                "Audio inspection: issues_found. Plan expects audio but output is silent",
+                "issues_found", business_slug=business_slug,
+            )
+            return {
+                "review_id": review_id,
+                "review_type": "audio",
+                "status": "complete",
+                "verdict": "issues_found",
+                "summary": "Plan expects audio but output is silent",
+                "findings": {"has_audio": True, "is_silent": True, "expects_sound": True},
+            }
+
+        # Extract audio for transcription
+        audio_dir = os.path.dirname(video_path)
+        audio_extract_path = os.path.join(audio_dir, f"review_audio_{media_id}.wav")
+
+        if not self._extract_audio(video_path, audio_extract_path):
+            return {
+                "review_type": "audio",
+                "status": "failed",
+                "verdict": "issues_found",
+                "summary": "Could not extract audio for inspection",
+                "findings": {"error": "audio extraction failed"},
+            }
+
+        # Transcribe
+        transcript = self._transcribe_audio(audio_extract_path)
+
+        # Clean up temp audio file
+        try:
+            os.remove(audio_extract_path)
+        except OSError:
+            pass
+
+        findings = {
+            "has_audio": True,
+            "is_silent": False,
+            "transcript": transcript[:500] if transcript else "",
+            "transcript_word_count": len(transcript.split()) if transcript else 0,
+            "expects_sound": expects_sound,
+            "is_looping": False,
+            "warnings": [],
+        }
+
+        # Check for looping
+        if self._detect_looping(transcript):
+            findings["is_looping"] = True
+            findings["warnings"].append(
+                "Audio appears to loop — the same phrase repeats 3+ times"
+            )
+
+        # Check for unexpected audio
+        if not expects_sound and transcript:
+            findings["warnings"].append(
+                "Plan says no audio (original_audio=false, no music) but audio has speech content"
+            )
+
+        # Check for no speech when audio is non-silent
+        if not transcript and not is_silent:
+            findings["warnings"].append(
+                "Audio is present and non-silent but no speech detected — likely ambient/looping"
+            )
+
+        verdict = "pass" if not findings["warnings"] else "issues_found"
+        summary_parts = []
+        if findings["is_looping"]:
+            summary_parts.append("Audio is looping")
+        if not transcript and not is_silent:
+            summary_parts.append("No speech detected (ambient/looping)")
+        if not expects_sound and transcript:
+            summary_parts.append("Unexpected audio content")
+        if not summary_parts:
+            summary_parts.append("Audio inspection passed")
+        summary = ". ".join(summary_parts)
+
+        # Save to DB
+        review_id = self._save_review(
+            asset_id=asset_id,
+            media_id=media_id,
+            media_path=video_path,
+            review_type="audio",
+            status="complete",
+            verdict=verdict,
+            findings=findings,
+            summary=summary,
+        )
+
+        self._log_provenance(
+            asset_id, "audio",
+            f"Audio inspection: {verdict}. {summary}",
+            verdict, business_slug=business_slug,
+        )
+
+        return {
+            "review_id": review_id,
+            "review_type": "audio",
+            "status": "complete",
+            "verdict": verdict,
+            "findings": findings,
+            "summary": summary,
+        }
+
+    # ── ASSET-REVIEW-4: Content alignment aggregation ────────────────────
+
+    def run_content_alignment(self, asset_id: int, media_id: int,
+                              mechanical: dict = None,
+                              visual: dict = None,
+                              audio: dict = None,
+                              business_slug: str = None) -> dict:
+        """ASSET-REVIEW-4: Aggregate all checks into a single verdict.
+
+        Combines mechanical, visual, and audio review results into one
+        advisory verdict for the operator. No LLM call — pure aggregation.
+        """
+        issues = []
+        verdict = "ready_for_operator"
+
+        if mechanical:
+            for w in mechanical.get("warnings", []):
+                issues.append({
+                    "severity": "medium",
+                    "category": "mechanical",
+                    "description": w,
+                    "source": "mechanical",
+                })
+
+        if visual and visual.get("status") == "complete":
+            if visual.get("verdict") == "issues_found":
+                for issue in visual.get("findings", {}).get("issues", []):
+                    issues.append({
+                        "severity": issue.get("severity", "medium"),
+                        "category": issue.get("category", "visual"),
+                        "description": issue.get("description", ""),
+                        "source": "visual",
+                        "recommended_action": issue.get("recommended_action", ""),
+                    })
+
+        if audio and audio.get("status") == "complete":
+            if audio.get("verdict") == "issues_found":
+                for w in audio.get("findings", {}).get("warnings", []):
+                    issues.append({
+                        "severity": "high" if "loop" in w.lower() else "medium",
+                        "category": "audio",
+                        "description": w,
+                        "source": "audio",
+                    })
+
+        # Determine overall verdict
+        high_issues = [i for i in issues if i.get("severity") == "high"]
+        if high_issues:
+            verdict = "needs_rerender"
+        elif issues:
+            verdict = "needs_operator_decision"
+
+        summary_parts = []
+        if not issues:
+            summary_parts.append("All checks passed — ready for your review")
+        else:
+            for issue in issues:
+                summary_parts.append(f"{issue['severity'].upper()}: {issue['description']}")
+        summary = ". ".join(summary_parts[:5])  # Cap at 5 issues for summary
+
+        findings = {
+            "verdict": verdict,
+            "issues": issues,
+            "mechanical_verdict": mechanical.get("verdict") if mechanical else None,
+            "visual_verdict": visual.get("verdict") if visual else None,
+            "audio_verdict": audio.get("verdict") if audio else None,
+            "issue_count": len(issues),
+        }
+
+        # Save to DB
+        review_id = self._save_review(
+            asset_id=asset_id,
+            media_id=media_id,
+            media_path="",
+            review_type="alignment",
+            status="complete",
+            verdict=verdict,
+            findings=findings,
+            summary=summary,
+        )
+
+        self._log_provenance(
+            asset_id, "alignment",
+            f"Content alignment: {verdict}. {summary}",
+            verdict, business_slug=business_slug,
+        )
+
+        return {
+            "review_id": review_id,
+            "review_type": "alignment",
+            "status": "complete",
+            "verdict": verdict,
+            "findings": findings,
+            "summary": summary,
+        }
