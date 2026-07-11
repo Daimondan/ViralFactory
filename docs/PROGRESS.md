@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-11
-**Current Phase:** DIVERGENCE-012 RATIFIED — AMENDMENT-008 filed, Charter v3.5 published. Final-output compliance contract + bounded remediation loop (max 3 rounds, cost-capped) approved for Assembler side. Builder may now implement. Three architect conditions: (1) text-boundary firewall — remediation never modifies `platform_content`, SHA-256 hash locked at loop entry; (2) config-driven cost guard — `max_remediation_cost_usd` in models.yaml; (3) operator visibility — full remediation history in Assets UI. 912 tests passing.
+**Current Phase:** DIVERGENCE-012 RATIFIED — AMENDMENT-008 filed, Charter v3.5 published. Final-output compliance contract + bounded remediation loop (max 3 rounds, cost-capped) approved for Assembler side. Builder may now implement. Three architect conditions: (1) text-boundary firewall — remediation never modifies `platform_content`, SHA-256 hash locked at loop entry; (2) config-driven cost guard — `max_remediation_cost_usd` in models.yaml; (3) operator visibility — full remediation history in Assets UI. 1,015 tests passing.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
@@ -25,6 +25,7 @@
 | 7. Generalization proof | ⬜ | Real near-term but not blocking v1. |
 
 ## What's Done
+- [x] 2026-07-11: Replaced deterministic format routing with affordance-based Format Guide v2. Idea generation now separates locked concepts from treatment selection, supports explicit open/platform/exact user constraints, chooses one primary destination, and treats cross-platform derivatives as optional. Migrated StackPenni guide, persisted structured JSON, left architect note, ran two real LLM experiments, and restarted the live service. 1,015 tests passing.
 - [x] 2026-07-11: DIVERGENCE-012 RATIFIED via AMENDMENT-008. Charter v3.4 → v3.5. Architect approved final-output compliance contract + bounded remediation loop (max 3 rounds). Three conditions: (1) text-boundary firewall (SHA-256 hash lock on `platform_content`), (2) config-driven cost guard (`max_remediation_cost_usd`), (3) operator visibility (full remediation history in Assets UI). Retires keyword-based VO detection as compliance decision. Builder may implement.
 - [x] 2026-07-11: Fixed VO extraction from JSON-encoded reel posts. The old parser swallowed frame labels and visual directions into TTS; real asset #2 now extracts only its five spoken lines (198 words). Added the production-shape regression test; 912 tests passing. Script/timeline completeness remains tracked in proposed DIVERGENCE-012.
 - [x] 2026-07-10: Fixed a full-suite tenant-string regression in generic VO generation. `src/vo_generator.py` no longer supplies a tenant dialect as a fallback; an omitted style produces a neutral TTS instruction while the configured business style remains authoritative. 911 tests passing.
@@ -394,3 +395,5 @@ Materials Library — editable source materials. DB migrations: `excluded` colum
 2026-07-11 · T10.4 · Final-output LLM compliance review done (run_compliance_review method, domain-specific validation, fallback on LLM failure, 6 tests) · Q: none
 2026-07-11 · T10.5 · Bounded remediation loop done (text-boundary firewall, cost guard, max 3 rounds, 21 tests) · Q: none
 2026-07-11 · T10.6 + T10.8 + T10.9 · State model extended, keyword heuristic retired, config cost cap added, existing tests updated for contract-based behavior · Q: none
+2026-07-11 · OPS · Pipeline cleanup: wiped all idea_cards/drafts/assets/edit_plans/asset_media/jobs (150 rows total), deleted 7 old backup DBs (~1.8GB freed), VACUUM'd main DB, cleaned orphaned media files. Infrastructure preserved (sources, provenance, caches, materials). System ready for fresh video generation.
+2026-07-11 · RESEARCH · Viral content mechanics research compiled: hooks, retention, emotional triggers, platform differences, MrBeast production analysis, AI tool landscape. Doc at docs/research/viral-content-mechanics-2026-07-11.md. Identifies 4-phase upgrade path: text overlays/captions → sound design → pacing/structure → format templates.
