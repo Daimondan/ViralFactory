@@ -407,8 +407,8 @@ class TestMusicMixing:
 class TestPromptVersion:
     """AUDIO-2: edit plan prompt must be v1.2 with audio strategy guidance."""
 
-    def test_prompt_version_is_1_2(self):
-        """Prompt version bumped to 1.2 per AUDIO-2."""
+    def test_prompt_version_is_current(self):
+        """Prompt version bumped to 1.4 with overlay/SFX guidance."""
         prompt_path = os.path.join(
             os.path.dirname(__file__), "..", "prompts", "assembly", "edit_plan_v1.md"
         )
@@ -417,7 +417,7 @@ class TestPromptVersion:
         import re
         m = re.search(r'<!-- version: ([\d.]+) -->', content)
         assert m, "No version tag in prompt"
-        assert m.group(1) == "1.2", f"Expected v1.2, got v{m.group(1)}"
+        assert m.group(1) == "1.4", f"Expected v1.4, got v{m.group(1)}"
 
     def test_prompt_has_audio_strategy_section(self):
         """Prompt must contain audio strategy guidance."""

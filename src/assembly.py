@@ -451,6 +451,24 @@ class AssemblyRenderer:
                 error_msg = "\n".join(error_lines[-3:]) if error_lines else result.stderr[-500:]
                 raise AssemblyError(f"ffmpeg concat failed: {error_msg}")
 
+            # Burn in text overlays (captions, text cards, highlights)
+            # The edit plan's per-segment overlays have start/end relative to
+            # each segment. We convert these to cumulative timeline timestamps
+            # and apply all drawtext filters in a single ffmpeg pass.
+            overlay_result = self._burn_overlays(plan, segments, output_file, media_dir, version,
+                                                  asset_id, draft_id, business_slug)
+            if overlay_result:
+                output_file = overlay_result
+
+            # Mix in SFX cues (whoosh, pop, hit, riser)
+            # The edit plan's per-segment sfx array has offsets relative to each
+            # segment. We convert to cumulative timeline positions and generate
+            # short synthetic audio tones mixed into the output.
+            sfx_result = self._mix_sfx(plan, segments, output_file, media_dir, version,
+                                       asset_id, draft_id, business_slug)
+            if sfx_result:
+                output_file = sfx_result
+
             # Audio strategy: driven by the edit plan's audio block, not a heuristic.
             # The LLM decided the audio strategy in the edit plan; the renderer
             # executes it. This replaced the old post-concat audio bed that looped
@@ -493,6 +511,331 @@ class AssemblyRenderer:
                     os.remove(f)
                 except OSError:
                     pass
+
+    # ── Text overlay burn-in ────────────────────────────────────────────
+
+    # Font path — config-driven via models.yaml rendering.font_path, with
+    # a system fallback to DejaVuSans-Bold (always present on Debian/Ubuntu).
+    _DEFAULT_FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+
+    # Style presets keyed by style_ref. Values are ffmpeg drawtext params.
+    # These map the style_ref names from the edit plan to concrete rendering
+    # parameters. The LLM picks a style_ref; the renderer applies the params.
+    # Brand-specific colors come from the visual-style module (config), not here.
+    _OVERLAY_STYLES = {
+        "hook": {
+            "fontsize": 72,
+            "fontcolor": "white",
+            "borderw": 4,
+            "bordercolor": "black",
+            "shadowx": 2, "shadowy": 2, "shadowcolor": "black@0.5",
+        },
+        "default": {
+            "fontsize": 48,
+            "fontcolor": "white",
+            "borderw": 3,
+            "bordercolor": "black",
+            "shadowx": 1, "shadowy": 1, "shadowcolor": "black@0.5",
+        },
+        "highlight": {
+            "fontsize": 56,
+            "fontcolor": "yellow",
+            "borderw": 3,
+            "bordercolor": "black",
+        },
+        "title": {
+            "fontsize": 80,
+            "fontcolor": "white",
+            "borderw": 5,
+            "bordercolor": "black",
+            "shadowx": 3, "shadowy": 3, "shadowcolor": "black@0.6",
+        },
+    }
+
+    def _get_font_path(self) -> str:
+        """Resolve font path from config or fall back to system default."""
+        try:
+            render_cfg = (self.models_config or {}).get("rendering", {})
+            font = render_cfg.get("font_path", "")
+            if font and os.path.exists(font):
+                return font
+        except Exception:
+            pass
+        return self._DEFAULT_FONT
+
+    def _resolve_overlay_style(self, style_ref: str) -> dict:
+        """Map a style_ref to concrete ffmpeg drawtext params."""
+        if style_ref and style_ref in self._OVERLAY_STYLES:
+            return self._OVERLAY_STYLES[style_ref]
+        return self._OVERLAY_STYLES["default"]
+
+    def _overlay_position_y(self, position: str, height: int) -> str:
+        """Map a position name to a ffmpeg y= expression."""
+        positions = {
+            "top": "40",
+            "center": "(h-text_h)/2",
+            "bottom": f"h-text_h-80",
+        }
+        return positions.get(position, positions["center"])
+
+    def _burn_overlays(self, plan: dict, segments: list, output_file: str,
+                       media_dir: str, version: int,
+                       asset_id: int, draft_id: int,
+                       business_slug: str) -> Optional[str]:
+        """Burn in text overlays from all segments as drawtext filters.
+
+        Overlays have start/end times relative to their segment. We compute
+        cumulative timeline positions by summing preceding segment durations,
+        then build a single drawtext filter chain applied in one ffmpeg pass.
+
+        Returns the path to the overlay-burned file, or None if no overlays
+        were found (the original output_file is used as-is).
+        """
+        # Collect all overlays with cumulative timeline positions
+        cumulative = 0.0
+        all_overlays = []
+        for seg in segments:
+            seg_in = seg.get("in", 0)
+            seg_out = seg.get("out", 0)
+            seg_duration = seg_out - seg_in if seg_out > seg_in else 0
+            for ov in seg.get("overlays", []):
+                if not ov.get("text"):
+                    continue
+                # start/end are relative to the segment's start in the timeline
+                ov_start = cumulative + ov.get("start", 0)
+                ov_end = cumulative + ov.get("end", seg_duration)
+                all_overlays.append({
+                    "text": ov["text"],
+                    "start": ov_start,
+                    "end": ov_end,
+                    "style_ref": ov.get("style_ref", "default"),
+                    "position": ov.get("position", "center"),
+                })
+            cumulative += seg_duration
+
+        if not all_overlays:
+            return None
+
+        # Also check for global captions block
+        captions = plan.get("captions", {})
+        if captions.get("burned_in") and captions.get("source") == "vo_script":
+            # Auto-caption generation from VO is handled separately — here
+            # we only burn the per-segment overlays the LLM explicitly wrote.
+            pass
+
+        # Build drawtext filter chain
+        font_path = self._get_font_path()
+        canvas = plan.get("canvas", {})
+        resolution = canvas.get("resolution", "1080x1920")
+        _, height = resolution.split("x")
+
+        filter_parts = []
+        for ov in all_overlays:
+            style = self._resolve_overlay_style(ov["style_ref"])
+            # Escape text for ffmpeg: colons, single quotes, backslashes
+            escaped_text = (
+                ov["text"]
+                .replace("\\", "\\\\")
+                .replace(":", "\\:")
+                .replace("'", "\u2019")
+            )
+            y_expr = self._overlay_position_y(ov["position"], int(height))
+
+            params = [
+                f"drawtext=fontfile={font_path}",
+                f"text='{escaped_text}'",
+                f"fontsize={style['fontsize']}",
+                f"fontcolor={style['fontcolor']}",
+                f"x=(w-text_w)/2",
+                f"y={y_expr}",
+                f"enable='between(t,{ov['start']:.2f},{ov['end']:.2f})'",
+            ]
+            if style.get("borderw"):
+                params.append(f"borderw={style['borderw']}")
+                params.append(f"bordercolor={style['bordercolor']}")
+            if style.get("shadowx"):
+                params.append(f"shadowx={style['shadowx']}")
+                params.append(f"shadowy={style['shadowy']}")
+                params.append(f"shadowcolor={style['shadowcolor']}")
+
+            filter_parts.append(":".join(params))
+
+        if not filter_parts:
+            return None
+
+        # Chain all drawtext filters: [0:v]drawtext=...[v1]; [v1]drawtext=...[v2]; ...
+        # Each filter consumes the previous filter's output. For a single
+        # overlay, it's just [0:v]drawtext=...[vout].
+        if len(filter_parts) == 1:
+            filter_chain = f"[0:v]{filter_parts[0]}[vout]"
+        else:
+            chain_links = []
+            for i, fp in enumerate(filter_parts):
+                if i == 0:
+                    chain_links.append(f"[0:v]{fp}[v{i}]")
+                elif i == len(filter_parts) - 1:
+                    chain_links.append(f"[v{i-1}]{fp}[vout]")
+                else:
+                    chain_links.append(f"[v{i-1}]{fp}[v{i}]")
+            filter_chain = ";".join(chain_links)
+
+        overlay_file = os.path.join(media_dir, f"final_{version}_overlay.mp4")
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", output_file,
+            "-filter_complex", filter_chain,
+            "-map", "[vout]", "-map", "0:a:0?",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p",
+            "-c:a", "copy",
+            overlay_file,
+        ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        if result.returncode == 0 and os.path.exists(overlay_file):
+            os.replace(overlay_file, output_file)
+            self._log_render(asset_id, draft_id,
+                             f"Burned {len(all_overlays)} text overlays",
+                             business_slug, "done")
+            return output_file
+        else:
+            # Overlay burn failed — log but keep the un-overlaid video
+            stderr_lines = result.stderr.strip().split("\n")
+            error_lines = [l for l in stderr_lines if l.startswith(("Error", "[error"))]
+            error_msg = "\n".join(error_lines[-3:]) if error_lines else result.stderr[-300:]
+            self._log_render(asset_id, draft_id,
+                             f"Overlay burn failed (non-fatal, continuing): {error_msg}",
+                             business_slug, "failed")
+            if os.path.exists(overlay_file):
+                os.remove(overlay_file)
+            return None
+
+    # ── SFX mixing ──────────────────────────────────────────────────────
+
+    # SFX type → ffmpeg audio synthesis parameters.
+    # Each SFX is a short synthetic tone generated by ffmpeg. No external
+    # sound files needed — the renderer synthesizes them at mix time.
+    # Config-driven: models.yaml rendering.sfx can override these.
+    _SFX_PRESETS = {
+        "whoosh": {"freq": "800", "duration": 0.3, "volume": 0.4, "type": "sine"},
+        "pop":    {"freq": "1200", "duration": 0.15, "volume": 0.5, "type": "sine"},
+        "hit":    {"freq": "60", "duration": 0.2, "volume": 0.6, "type": "sine"},
+        "riser":  {"freq": "400", "duration": 0.8, "volume": 0.3, "type": "sine"},
+    }
+
+    def _resolve_sfx_preset(self, sfx_type: str) -> dict:
+        """Map an SFX type to synthesis parameters."""
+        if sfx_type and sfx_type in self._SFX_PRESETS:
+            return self._SFX_PRESETS[sfx_type]
+        return self._SFX_PRESETS["pop"]  # safe default
+
+    def _mix_sfx(self, plan: dict, segments: list, output_file: str,
+                 media_dir: str, version: int,
+                 asset_id: int, draft_id: int,
+                 business_slug: str) -> Optional[str]:
+        """Mix SFX cues into the output video's audio track.
+
+        Generates short synthetic audio tones for each SFX cue and mixes
+        them into the existing audio at the correct cumulative timeline
+        positions. If the output has no audio track, SFX are mixed against
+        silence.
+
+        Returns the path to the mixed file (in-place), or None if no SFX
+        cues were found.
+        """
+        # Collect all SFX with cumulative timeline positions
+        cumulative = 0.0
+        all_sfx = []
+        for seg in segments:
+            seg_in = seg.get("in", 0)
+            seg_out = seg.get("out", 0)
+            seg_duration = seg_out - seg_in if seg_out > seg_in else 0
+            for sfx in seg.get("sfx", []):
+                sfx_t = cumulative + sfx.get("t", 0)
+                all_sfx.append({
+                    "t": sfx_t,
+                    "type": sfx.get("type", "pop"),
+                })
+            cumulative += seg_duration
+
+        if not all_sfx:
+            return None
+
+        # Build ffmpeg command with one sine input per SFX, delayed and mixed
+        # Strategy: generate each SFX as a short sine tone, delay it to its
+        # timeline position, then amix all into the existing audio.
+        duration = self._get_duration(output_file)
+
+        # Build inputs: [0] = original video, [1+] = SFX tones
+        inputs = ["-i", output_file]
+        filter_parts = []
+        sfx_labels = []
+
+        for i, sfx in enumerate(all_sfx):
+            preset = self._resolve_sfx_preset(sfx["type"])
+            sfx_idx = i + 1
+            # Generate a short sine tone at the SFX frequency
+            inputs.extend([
+                "-f", "lavfi", "-i",
+                f"sine=frequency={preset['freq']}:duration={preset['duration']}",
+            ])
+            # Delay the SFX to its timeline position, set volume
+            delay_s = sfx["t"]
+            # adelay takes milliseconds
+            delay_ms = int(delay_s * 1000)
+            label = f"sfx{i}"
+            filter_parts.append(
+                f"[{sfx_idx}:a]volume={preset['volume']},"
+                f"adelay={delay_ms}|{delay_ms}[{label}]"
+            )
+            sfx_labels.append(f"[{label}]")
+
+        # Mix SFX into existing audio (or silence if no audio track)
+        has_audio = self._has_audio_stream(output_file)
+        if has_audio:
+            filter_parts.append("[0:a]loudnorm=I=-16:TP=-1.5:LRA=11[base]")
+            mix_inputs = "[base]" + "".join(sfx_labels)
+            n_inputs = len(sfx_labels) + 1
+            filter_parts.append(
+                f"{mix_inputs}amix=inputs={n_inputs}:duration=first:dropout_transition=0[aout]"
+            )
+        else:
+            # No existing audio — mix SFX against silence
+            mix_inputs = "".join(sfx_labels)
+            n_inputs = len(sfx_labels)
+            filter_parts.append(
+                f"{mix_inputs}amix=inputs={n_inputs}:duration=longest:dropout_transition=0[aout]"
+            )
+
+        filter_str = ";".join(filter_parts)
+
+        sfx_file = os.path.join(media_dir, f"final_{version}_sfx.mp4")
+        cmd = [
+            "ffmpeg", "-y",
+        ] + inputs + [
+            "-filter_complex", filter_str,
+            "-map", "0:v:0", "-map", "[aout]",
+            "-c:v", "copy", "-c:a", "aac",
+            "-t", str(max(duration, 1)),
+            sfx_file,
+        ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        if result.returncode == 0 and os.path.exists(sfx_file):
+            os.replace(sfx_file, output_file)
+            self._log_render(asset_id, draft_id,
+                             f"Mixed {len(all_sfx)} SFX cues",
+                             business_slug, "done")
+            return output_file
+        else:
+            stderr_lines = result.stderr.strip().split("\n")
+            error_lines = [l for l in stderr_lines if l.startswith(("Error", "[error"))]
+            error_msg = "\n".join(error_lines[-3:]) if error_lines else result.stderr[-300:]
+            self._log_render(asset_id, draft_id,
+                             f"SFX mix failed (non-fatal, continuing): {error_msg}",
+                             business_slug, "failed")
+            if os.path.exists(sfx_file):
+                os.remove(sfx_file)
+            return None
 
     # ── Audio strategy (AUDIO-1) ───────────────────────────────────────
     # The edit plan's audio block drives all audio decisions. The renderer

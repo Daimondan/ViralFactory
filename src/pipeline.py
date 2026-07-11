@@ -108,6 +108,7 @@ CREATE TABLE IF NOT EXISTS assets (
     posts TEXT,                         -- JSON array of individual posts/slides (for thread/carousel)
     image_prompts TEXT,                 -- JSON array of image generation prompts used
     generated_images TEXT,              -- JSON array of generated image paths/URLs
+    vo_segments TEXT,                     -- JSON array of per-frame VO segments: [{frame, path, duration, text}]
     asset_state TEXT NOT NULL DEFAULT 'pending',  -- pending | approved | fix | killed | published
     publish_scheduled_at TEXT,          -- ISO timestamp for scheduled publish
     created_at TEXT NOT NULL,
@@ -145,6 +146,59 @@ CREATE INDEX IF NOT EXISTS idx_sources_hash ON sources(content_hash);
 """
 
 
+# ─── Idea Concept Schema (format-neutral first creative act) ──────────────────
+
+IDEA_CONCEPT_SCHEMA = {
+    "type": "object",
+    "required": ["cards"],
+    "properties": {
+        "cards": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "idea", "hook_options", "concept_basis", "origin", "source_refs"
+                ],
+                "properties": {
+                    "idea": {"type": "string"},
+                    "hook_options": {"type": "array", "items": {"type": "string"}},
+                    "concept_basis": {
+                        "type": "object",
+                        "required": [
+                            "core_claim", "audience_value", "narrative_shape",
+                            "available_evidence",
+                        ],
+                        "properties": {
+                            "core_claim": {"type": "string"},
+                            "audience_value": {"type": "string"},
+                            "narrative_shape": {"type": "string"},
+                            "available_evidence": {
+                                "type": "array", "items": {"type": "string"}
+                            },
+                        },
+                    },
+                    "origin": {"type": "string"},
+                    "source_refs": {
+                        "type": "array", "items": {"type": "integer"}, "minItems": 1
+                    },
+                    "source_notes": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "source_id": {"type": "integer"},
+                                "note": {"type": "string"},
+                            },
+                        },
+                    },
+                    "seed_text": {"type": "string"},
+                },
+            },
+        },
+    },
+}
+
+
 # ─── Idea Card Schema (for LLM validation) ───────────────────────────────────
 
 IDEA_CARD_SCHEMA = {
@@ -177,10 +231,31 @@ IDEA_CARD_SCHEMA = {
                             },
                             "format": {
                                 "type": "object",
-                                "required": ["format_name", "experimental"],
+                                "required": [
+                                    "primary_platform", "format_name", "experimental",
+                                    "constraint_source", "selection_reason",
+                                ],
                                 "properties": {
+                                    "primary_platform": {"type": "string"},
                                     "format_name": {"type": "string"},
                                     "experimental": {"type": "boolean"},
+                                    "constraint_source": {
+                                        "type": "string",
+                                        "enum": ["user_request", "llm_selected"],
+                                    },
+                                    "selection_reason": {"type": "string"},
+                                    "alternatives_considered": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "required": ["platform", "format_name", "reason_not_selected"],
+                                            "properties": {
+                                                "platform": {"type": "string"},
+                                                "format_name": {"type": "string"},
+                                                "reason_not_selected": {"type": "string"},
+                                            },
+                                        },
+                                    },
                                     "format_spec": {"type": "string"},  # full spec for experimental formats
                                 },
                             },
@@ -356,6 +431,17 @@ EDIT_PLAN_SCHEMA = {
                                 "end": {"type": "number"},
                                 "style_ref": {"type": "string"},  # ref to Visual Style caption sheet
                                 "position": {"type": "string"},   # top | center | bottom
+                            },
+                        },
+                    },
+                    "sfx": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": ["t", "type"],
+                            "properties": {
+                                "t": {"type": "number"},    # offset within segment (seconds)
+                                "type": {"type": "string"},  # whoosh | pop | hit | riser
                             },
                         },
                     },
@@ -581,9 +667,11 @@ MEDIA_PLAN_SCHEMA = {
             "minItems": 1,
             "items": {
                 "type": "object",
-                "required": ["capture_index", "generator"],
+                "required": ["generator"],
                 "properties": {
-                    "capture_index": {"type": "integer"},
+                    "capture_index": {"type": "integer"},  # legacy field — still accepted
+                    "frame": {"type": "integer"},  # v2: frame number from VO timeline
+                    "vo_duration": {"type": "number"},  # v2: real VO duration for this frame
                     "capture_task": {"type": "string"},
                     "generator": {"type": "string"},  # stock | ai_video:<model_name> | ai_video | ai_image | voice | animation
                     "search_query": {"type": "string"},  # for stock
@@ -592,6 +680,7 @@ MEDIA_PLAN_SCHEMA = {
                     "style_directive": {"type": "string"},
                     "fallback_generator": {"type": "string"},  # same format as generator
                     "fallback_prompt": {"type": "string"},
+                    "coverage_note": {"type": "string"},  # v2: how the full VO duration is covered
                 },
             },
         },
@@ -630,6 +719,10 @@ class PipelineStore:
             conn.execute("ALTER TABLE drafts ADD COLUMN review_history TEXT")
         if "review_converged" not in draft_cols:
             conn.execute("ALTER TABLE drafts ADD COLUMN review_converged TEXT")
+        # VO-master-timeline: add vo_segments column to assets if not present
+        asset_cols = [r[1] for r in conn.execute("PRAGMA table_info(assets)").fetchall()]
+        if "vo_segments" not in asset_cols:
+            conn.execute("ALTER TABLE assets ADD COLUMN vo_segments TEXT")
         conn.commit()
         conn.close()
 
@@ -1134,6 +1227,27 @@ class PipelineStore:
         conn.commit()
         conn.close()
         return self.get_asset(asset_id)
+
+    def save_vo_segments(self, asset_id: int, vo_segments_json: str):
+        """Store per-frame VO segments on the asset row."""
+        conn = sqlite3.connect(self.db_path)
+        ts = self._now()
+        conn.execute(
+            "UPDATE assets SET vo_segments = ?, updated_at = ? WHERE id = ?",
+            (vo_segments_json, ts, asset_id),
+        )
+        conn.commit()
+        conn.close()
+
+    def get_vo_segments(self, asset_id: int) -> str | None:
+        """Retrieve stored VO segments JSON for an asset."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT vo_segments FROM assets WHERE id = ?", (asset_id,)
+        ).fetchone()
+        conn.close()
+        return row["vo_segments"] if row else None
 
     # ── Feedback Log ──
 
