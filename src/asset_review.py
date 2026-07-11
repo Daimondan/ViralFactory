@@ -65,9 +65,12 @@ class AssetReviewer:
         # review = {"verdict": "pass", "summary": "...", "findings": {...}}
     """
 
-    def __init__(self, models_config: dict, db_path: str = "data/viralfactory.db"):
+    def __init__(self, models_config: dict, db_path: str = "data/viralfactory.db",
+                 prompts_dir: str = "prompts"):
         self.models_config = models_config
         self.db_path = db_path
+        self.prompts_dir = prompts_dir
+        self._prompts_dir = prompts_dir  # alias for consistency with LLMAdapter
         self.provenance = ProvenanceLog(db_path)
         self._init_tables()
 
@@ -1254,3 +1257,167 @@ class AssetReviewer:
             "findings": findings,
             "summary": summary,
         }
+
+    # ── ASSET-REVIEW-7: Final-output compliance review (T10.4 — AMENDMENT-008) ──
+
+    def run_compliance_review(
+        self,
+        asset_id: int,
+        media_id: int,
+        approved_script: str,
+        compliance_contract: dict,
+        edit_plan: dict,
+        final_file_path: str,
+        vo_transcript: str = "",
+        vo_duration: float = 0,
+        keyframe_descriptions: str = "",
+        prior_review_findings: list = None,
+        remediation_round: int = 0,
+        business_slug: str = None,
+        models_config: dict = None,
+    ) -> dict:
+        """T10.4: Final-output LLM compliance review.
+
+        Runs AFTER the existing ASSET-REVIEW-1 through 6 layers. Receives the
+        approved script, compliance contract, edit plan, final-file facts,
+        VO transcript/duration, keyframe descriptions, and all prior review
+        findings. Returns a schema-validated verdict + per-beat coverage.
+
+        Uses the LLM adapter (complete()) to call compliance_review_v1.md.
+        """
+        # Use the provided models_config or fall back to self.models_config
+        adapter_config = models_config or self.models_config
+
+        # Build final-file facts from mechanical checks
+        final_file_facts = "(not available)"
+        if final_file_path and os.path.exists(final_file_path):
+            ff_dur = self._get_duration(final_file_path)
+            ff_size = round(os.path.getsize(final_file_path) / 1024, 1)
+            has_video = self._has_stream(final_file_path, "video")
+            has_audio = self._has_stream(final_file_path, "audio")
+            final_file_facts = json.dumps({
+                "duration_s": round(ff_dur, 1),
+                "file_size_kb": ff_size,
+                "has_video_stream": has_video,
+                "has_audio_stream": has_audio,
+            }, indent=2)
+
+        # Build VO transcript info
+        vo_transcript_info = "(no VO transcript available)"
+        if vo_transcript:
+            vo_transcript_info = f"Duration: {vo_duration:.1f}s\nTranscript:\n{vo_transcript[:2000]}"
+
+        # Build prior review findings summary
+        prior_summary = "(no prior reviews)"
+        if prior_review_findings:
+            prior_lines = []
+            for pr in prior_review_findings:
+                rtype = pr.get("review_type", "?")
+                verdict = pr.get("verdict", "?")
+                summary = pr.get("summary", "")
+                prior_lines.append(f"- {rtype}: {verdict} — {summary}")
+            prior_summary = "\n".join(prior_lines)
+
+        # Build remediation round info
+        remediation_round_info = "(first review — no remediation rounds yet)"
+        if remediation_round > 0:
+            remediation_round_info = f"Remediation round {remediation_round} — this is a re-review after remediation actions were applied."
+
+        # Build the keyframe descriptions (already a string)
+        keyframe_desc = keyframe_descriptions or "(no keyframe descriptions available)"
+
+        try:
+            from llm_adapter import LLMAdapter, LLMAdapterError
+            from compliance_validators import validate_compliance_review
+
+            adapter = LLMAdapter(adapter_config, db_path=self.db_path, prompts_dir=self._prompts_dir)
+
+            result = adapter.complete(
+                prompt_file="assembly/compliance_review_v1.md",
+                variables={
+                    "approved_script": approved_script[:6000],
+                    "compliance_contract_json": json.dumps(compliance_contract, indent=2)[:4000],
+                    "edit_plan_json": json.dumps(edit_plan, indent=2)[:4000],
+                    "final_file_facts": final_file_facts,
+                    "vo_transcript_info": vo_transcript_info,
+                    "keyframe_descriptions": keyframe_desc[:3000],
+                    "prior_review_findings": prior_summary[:3000],
+                    "remediation_round_info": remediation_round_info,
+                },
+                schema=None,  # We validate with the domain-specific validator
+                backend="default",
+                context=f"T10.4 compliance review for asset {asset_id}, round {remediation_round}",
+                business_slug=business_slug,
+                profile="default",
+            )
+
+            # Domain-specific validation (includes generic schema + enum checks)
+            validated = validate_compliance_review(result)
+
+            verdict = validated["verdict"]
+            summary = validated["summary"]
+            coverage = validated["coverage"]
+            issues = validated["issues"]
+
+            # Save as a compliance review
+            review_id = self._save_review(
+                asset_id=asset_id, media_id=media_id, media_path=final_file_path or "",
+                review_type="compliance", status="complete",
+                verdict=verdict, findings=validated, summary=summary,
+                model=adapter_config.get("active", {}).get("default", ""),
+                prompt_file="assembly/compliance_review_v1.md",
+                prompt_version="1.0",
+            )
+
+            self._log_provenance(
+                asset_id, "compliance",
+                f"Compliance review: {verdict}. {summary}",
+                verdict,
+                prompt_file="assembly/compliance_review_v1.md",
+                prompt_version="1.0",
+                business_slug=business_slug,
+            )
+
+            return {
+                "review_id": review_id,
+                "review_type": "compliance",
+                "status": "complete",
+                "verdict": verdict,
+                "coverage": coverage,
+                "issues": issues,
+                "summary": summary,
+            }
+
+        except Exception as e:
+            # If LLM call fails, save a failed review and return needs_operator_decision
+            import logging
+            logging.warning(f"Compliance review LLM call failed: {e}")
+
+            fallback_findings = {
+                "verdict": "needs_operator_decision",
+                "coverage": [],
+                "issues": [{
+                    "severity": "high",
+                    "description": f"Compliance review LLM call failed: {str(e)[:200]}",
+                    "remediable": False,
+                }],
+                "safe_remediation_scope": [],
+                "summary": f"Compliance review failed — needs operator decision. Error: {str(e)[:200]}",
+            }
+
+            review_id = self._save_review(
+                asset_id=asset_id, media_id=media_id, media_path=final_file_path or "",
+                review_type="compliance", status="failed",
+                verdict="needs_operator_decision", findings=fallback_findings,
+                summary=fallback_findings["summary"],
+            )
+
+            return {
+                "review_id": review_id,
+                "review_type": "compliance",
+                "status": "failed",
+                "verdict": "needs_operator_decision",
+                "coverage": [],
+                "issues": fallback_findings["issues"],
+                "summary": fallback_findings["summary"],
+            }
