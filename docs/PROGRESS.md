@@ -392,3 +392,4 @@ Materials Library — editable source materials. DB migrations: `excluded` colum
 2026-07-11 · T10.2 · Edit-plan record extension done (compliance_contract_json, source_draft_hash, review_round_history columns + append_review_round + get_compliance_contract methods, migration from old schema, 9 tests) · Q: none
 2026-07-11 · T10.3 · Pre-render feasibility checks done (VO duration vs plan timeline, beat mapping, 92s/18s regression test caught, 19 tests) · Q: none
 2026-07-11 · T10.4 · Final-output LLM compliance review done (run_compliance_review method, domain-specific validation, fallback on LLM failure, 6 tests) · Q: none
+2026-07-11 · T10.5 · Bounded remediation loop done (text-boundary firewall, cost guard, max 3 rounds, 21 tests) · Q: none
