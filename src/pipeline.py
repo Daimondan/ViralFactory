@@ -1250,30 +1250,56 @@ class PipelineStore:
 
     # ── Edit Plans (Final Assembly) ──
 
-    def save_edit_plan(self, draft_id: int, asset_id: int, plan: dict) -> int:
-        """Save an edit plan for an asset. Returns edit_plan row ID."""
+    # T10.2: Extended edit_plans schema with compliance contract, source hash, round history
+    EDIT_PLAN_SCHEMA = """
+CREATE TABLE IF NOT EXISTS edit_plans (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    draft_id INTEGER NOT NULL,
+    asset_id INTEGER NOT NULL,
+    plan_json TEXT NOT NULL,
+    feedback TEXT,
+    status TEXT NOT NULL DEFAULT 'proposed',
+    compliance_contract_json TEXT,         -- T10.2: LLM-authored compliance contract
+    source_draft_hash TEXT,                -- T10.2: SHA-256 of platform_content at plan creation
+    review_round_history TEXT,             -- T10.2: JSON array of {round, verdict, actions, artifact_hashes}
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (draft_id) REFERENCES drafts(id),
+    FOREIGN KEY (asset_id) REFERENCES assets(id)
+);
+"""
+
+    def _ensure_edit_plan_columns(self, conn):
+        """T10.2: Migrate edit_plans table — add new columns if they don't exist."""
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(edit_plans)").fetchall()}
+        if "compliance_contract_json" not in cols:
+            conn.execute("ALTER TABLE edit_plans ADD COLUMN compliance_contract_json TEXT")
+        if "source_draft_hash" not in cols:
+            conn.execute("ALTER TABLE edit_plans ADD COLUMN source_draft_hash TEXT")
+        if "review_round_history" not in cols:
+            conn.execute("ALTER TABLE edit_plans ADD COLUMN review_round_history TEXT")
+        conn.commit()
+
+    def save_edit_plan(self, draft_id: int, asset_id: int, plan: dict,
+                       compliance_contract: dict = None, source_draft_hash: str = None) -> int:
+        """Save an edit plan for an asset. Returns edit_plan row ID.
+
+        T10.2: Optionally saves the compliance contract and source draft hash.
+        """
         conn = sqlite3.connect(self.db_path)
         ts = self._now()
         # Create edit_plans table if not exists
-        conn.executescript("""
-            CREATE TABLE IF NOT EXISTS edit_plans (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                draft_id INTEGER NOT NULL,
-                asset_id INTEGER NOT NULL,
-                plan_json TEXT NOT NULL,
-                feedback TEXT,
-                status TEXT NOT NULL DEFAULT 'proposed',
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                FOREIGN KEY (draft_id) REFERENCES drafts(id),
-                FOREIGN KEY (asset_id) REFERENCES assets(id)
-            );
-        """)
+        conn.executescript(self.EDIT_PLAN_SCHEMA)
+        self._ensure_edit_plan_columns(conn)
         cursor = conn.execute(
             """INSERT INTO edit_plans
-               (draft_id, asset_id, plan_json, status, created_at, updated_at)
-               VALUES (?, ?, ?, 'proposed', ?, ?)""",
-            (draft_id, asset_id, json.dumps(plan), ts, ts),
+               (draft_id, asset_id, plan_json, status, compliance_contract_json,
+                source_draft_hash, review_round_history, created_at, updated_at)
+               VALUES (?, ?, ?, 'proposed', ?, ?, '[]', ?, ?)""",
+            (draft_id, asset_id, json.dumps(plan),
+             json.dumps(compliance_contract) if compliance_contract else None,
+             source_draft_hash,
+             ts, ts),
         )
         plan_id = cursor.lastrowid
         conn.commit()
@@ -1293,21 +1319,9 @@ class PipelineStore:
     def list_edit_plans(self, asset_id: int) -> list[dict]:
         """List all edit plans for an asset."""
         conn = sqlite3.connect(self.db_path)
-        # Ensure edit_plans table exists (created lazily by save_edit_plan)
-        conn.executescript("""
-            CREATE TABLE IF NOT EXISTS edit_plans (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                draft_id INTEGER NOT NULL,
-                asset_id INTEGER NOT NULL,
-                plan_json TEXT NOT NULL,
-                feedback TEXT,
-                status TEXT NOT NULL DEFAULT 'proposed',
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                FOREIGN KEY (draft_id) REFERENCES drafts(id),
-                FOREIGN KEY (asset_id) REFERENCES assets(id)
-            );
-        """)
+        # Ensure edit_plans table exists with T10.2 columns
+        conn.executescript(self.EDIT_PLAN_SCHEMA)
+        self._ensure_edit_plan_columns(conn)
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             "SELECT * FROM edit_plans WHERE asset_id = ? ORDER BY id DESC",
@@ -1333,6 +1347,63 @@ class PipelineStore:
         conn.commit()
         conn.close()
         return self.get_edit_plan(plan_id)
+
+    def append_review_round(self, plan_id: int, round_entry: dict) -> dict:
+        """T10.2: Append a review round entry to review_round_history (append-only).
+
+        round_entry: {round, verdict, actions_taken, artifact_hashes, ...}
+        Returns the updated edit plan.
+        """
+        conn = sqlite3.connect(self.db_path)
+        ts = self._now()
+        self._ensure_edit_plan_columns(conn)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT review_round_history FROM edit_plans WHERE id = ?", (plan_id,)
+        ).fetchone()
+        if not row:
+            conn.close()
+            return None
+        history = json.loads(row["review_round_history"] or "[]")
+        history.append(round_entry)
+        conn.execute(
+            "UPDATE edit_plans SET review_round_history = ?, updated_at = ? WHERE id = ?",
+            (json.dumps(history), ts, plan_id),
+        )
+        conn.commit()
+        conn.close()
+        return self.get_edit_plan(plan_id)
+
+    def get_review_round_history(self, plan_id: int) -> list[dict]:
+        """T10.2: Get the review round history for an edit plan."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT review_round_history FROM edit_plans WHERE id = ?", (plan_id,)
+        ).fetchone()
+        conn.close()
+        if not row:
+            return []
+        return json.loads(row["review_round_history"] or "[]")
+
+    def get_compliance_contract(self, plan_id: int) -> dict | None:
+        """T10.2: Get the compliance contract for an edit plan."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT compliance_contract_json, source_draft_hash FROM edit_plans WHERE id = ?",
+            (plan_id,),
+        ).fetchone()
+        conn.close()
+        if not row:
+            return None
+        contract = None
+        if row["compliance_contract_json"]:
+            contract = json.loads(row["compliance_contract_json"])
+        return {
+            "contract": contract,
+            "source_draft_hash": row["source_draft_hash"],
+        }
 
     # ── Source Bank (T8.3) ──
 
