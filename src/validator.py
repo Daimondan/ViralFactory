@@ -76,6 +76,39 @@ def validate_json_schema(output: dict, schema: dict, context: str = "") -> dict:
             output[field] = ""
             value = ""
 
+        # T10.1: Handle union types (e.g., "type": ["object", "null"])
+        # If expected_type is a list, accept the value if it matches ANY of the listed types.
+        if isinstance(expected_type, list):
+            type_map = {
+                "string": str,
+                "integer": int,
+                "number": (int, float),
+                "boolean": bool,
+                "array": list,
+                "object": dict,
+                "null": type(None),
+            }
+            matched = False
+            for t in expected_type:
+                if t in type_map:
+                    check_type = type_map[t]
+                    # Don't let bool pass as int
+                    if t == "integer" and isinstance(value, bool):
+                        continue
+                    if isinstance(value, check_type):
+                        matched = True
+                        break
+            if not matched:
+                type_names = " | ".join(str(t) for t in expected_type)
+                raise ValidationError(
+                    f"Field '{field}' must be one of [{type_names}], "
+                    f"got {type(value).__name__} {context}"
+                )
+            # If the value matched "object" and has properties, validate nested
+            if isinstance(value, dict) and "properties" in field_schema:
+                validate_json_schema(value, field_schema, f"in '{field}' {context}")
+            continue
+
         type_map = {
             "string": str,
             "integer": int,
@@ -95,6 +128,16 @@ def validate_json_schema(output: dict, schema: dict, context: str = "") -> dict:
             if not isinstance(value, type_map[expected_type]):
                 raise ValidationError(
                     f"Field '{field}' must be {expected_type}, got {type(value).__name__} {context}"
+                )
+
+        # T10.1: Enum validation (skip empty strings — domain-specific
+        # validators handle the "required but empty" case; generic required
+        # check handles the "missing entirely" case)
+        if "enum" in field_schema and value is not None and value != "":
+            if value not in field_schema["enum"]:
+                raise ValidationError(
+                    f"Field '{field}' must be one of {field_schema['enum']}, "
+                    f"got '{value}' {context}"
                 )
 
         # Minimum check
@@ -141,7 +184,25 @@ def validate_json_schema(output: dict, schema: dict, context: str = "") -> dict:
                         if prop not in item:
                             continue
                         prop_type = prop_schema.get("type")
-                        if prop_type and prop_type in type_map:
+
+                        # T10.1: Handle union types in array item properties
+                        if isinstance(prop_type, list):
+                            matched = False
+                            for t in prop_type:
+                                if t in type_map:
+                                    check_type = type_map[t]
+                                    if t == "integer" and isinstance(item[prop], bool):
+                                        continue
+                                    if isinstance(item[prop], check_type):
+                                        matched = True
+                                        break
+                            if not matched:
+                                type_names = " | ".join(str(t) for t in prop_type)
+                                raise ValidationError(
+                                    f"Field '{field}[{i}].{prop}' must be one of [{type_names}], "
+                                    f"got {type(item[prop]).__name__} {context}"
+                                )
+                        elif prop_type and prop_type in type_map:
                             # Don't let bool pass as int
                             if prop_type == "integer" and isinstance(item[prop], bool):
                                 raise ValidationError(
@@ -151,6 +212,14 @@ def validate_json_schema(output: dict, schema: dict, context: str = "") -> dict:
                                 raise ValidationError(
                                     f"Field '{field}[{i}].{prop}' must be {prop_type}, "
                                     f"got {type(item[prop]).__name__} {context}"
+                                )
+                        # T10.1: Enum validation for array item properties
+                        # (skip empty strings — domain validators handle)
+                        if "enum" in prop_schema and item[prop] is not None and item[prop] != "":
+                            if item[prop] not in prop_schema["enum"]:
+                                raise ValidationError(
+                                    f"Field '{field}[{i}].{prop}' must be one of "
+                                    f"{prop_schema['enum']}, got '{item[prop]}' {context}"
                                 )
 
         # Nested object validation

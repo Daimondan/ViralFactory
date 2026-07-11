@@ -388,3 +388,4 @@ Materials Library — editable source materials. DB migrations: `excluded` colum
 **New DB table:** `asset_reviews`
 **New API endpoints:** `/api/assets/<id>/reviews`
 **Tests:** 69 new tests across 5 test files. All existing tests pass.
+2026-07-11 · T10.1 · Compliance contract prompts + schemas + validators done (3 prompts, 3 schemas, domain validators, union+enum support in generic validator, 37 tests) · Q: none

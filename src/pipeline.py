@@ -403,6 +403,173 @@ EDIT_PLAN_SCHEMA = {
 }
 
 
+# ─── Compliance Contract Schema (T10.1 — AMENDMENT-008) ─────────────────────
+# LLM-authored alongside the edit plan. Defines every required narrative beat
+# and its planned representation in the final output.
+
+COMPLIANCE_CONTRACT_SCHEMA = {
+    "type": "object",
+    "required": ["beats", "summary"],
+    "properties": {
+        "beats": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": [
+                    "beat_id",
+                    "source_excerpt",
+                    "requirement_type",
+                    "required",
+                    "planned_segment_ids",
+                    "verification_method",
+                ],
+                "properties": {
+                    "beat_id": {"type": "string"},          # b1, b2, ...
+                    "source_excerpt": {"type": "string"},    # exact text from the script
+                    "requirement_type": {
+                        "type": "string",
+                        "enum": [
+                            "spoken_dialogue",
+                            "caption_text",
+                            "visual_element",
+                            "hook",
+                            "cta",
+                            "duration_fit",
+                            "format_convention",
+                        ],
+                    },
+                    "required": {"type": "boolean"},        # true = must be present
+                    "planned_segment_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},         # segment indices/IDs from the plan
+                    },
+                    "planned_time_range": {                   # may be null if no mapping
+                        "type": ["object", "null"],
+                        "properties": {
+                            "start": {"type": "number"},
+                            "end": {"type": "number"},
+                        },
+                    },
+                    "verification_method": {
+                        "type": "string",
+                        "enum": [
+                            "audio_transcript_match",
+                            "caption_text_match",
+                            "keyframe_visual_match",
+                            "duration_measurement",
+                            "format_convention_check",
+                        ],
+                    },
+                },
+            },
+        },
+        "summary": {"type": "string"},
+    },
+}
+
+
+# ─── Final-Output Compliance Review Schema (T10.1 — AMENDMENT-008) ──────────
+# Post-render LLM review: receives approved script + contract + plan + facts +
+# VO transcript + keyframes + prior findings. Returns verdict + per-beat coverage.
+
+COMPLIANCE_REVIEW_SCHEMA = {
+    "type": "object",
+    "required": ["verdict", "coverage", "issues", "safe_remediation_scope", "summary"],
+    "properties": {
+        "verdict": {
+            "type": "string",
+            "enum": [
+                "compliant",
+                "revise_plan",
+                "regenerate_media",
+                "rerender",
+                "needs_operator_decision",
+            ],
+        },
+        "coverage": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["beat_id", "status", "evidence"],
+                "properties": {
+                    "beat_id": {"type": "string"},
+                    "status": {
+                        "type": "string",
+                        "enum": ["verified", "partial", "missing", "unverifiable"],
+                    },
+                    "evidence": {"type": "string"},
+                    "action_needed": {"type": ["string", "null"]},
+                },
+            },
+        },
+        "issues": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["severity", "description", "remediable"],
+                "properties": {
+                    "severity": {
+                        "type": "string",
+                        "enum": ["high", "medium", "low"],
+                    },
+                    "description": {"type": "string"},
+                    "beat_id": {"type": "string"},
+                    "remediable": {"type": "boolean"},
+                },
+            },
+        },
+        "safe_remediation_scope": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "summary": {"type": "string"},
+    },
+}
+
+
+# ─── Remediation Instruction Schema (T10.1 — AMENDMENT-008) ─────────────────
+# LLM produces specific remediation actions within the safe scope.
+
+REMEDIATION_INSTRUCTION_SCHEMA = {
+    "type": "object",
+    "required": ["escalate", "actions", "estimated_cost_usd", "summary"],
+    "properties": {
+        "escalate": {"type": "boolean"},               # true = needs_operator_decision
+        "actions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["action_id", "type", "reason", "beat_ids_affected"],
+                "properties": {
+                    "action_id": {"type": "string"},
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "revise_plan_timing",
+                            "regenerate_media_prompts",
+                            "replacement_media",
+                            "adjust_caption_rendering",
+                            "adjust_audio_mixing",
+                            "adjust_renderer_mechanics",
+                        ],
+                    },
+                    "target": {"type": "string"},       # what to change (path-like)
+                    "change": {"type": "object"},         # from/to or new value
+                    "reason": {"type": "string"},
+                    "beat_ids_affected": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+            },
+        },
+        "estimated_cost_usd": {"type": "number"},
+        "summary": {"type": "string"},
+    },
+}
+
+
 # ─── Media Plan Schema (LLM-driven missing-media generation) ────────────────
 
 MEDIA_PLAN_SCHEMA = {

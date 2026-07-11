@@ -59,6 +59,18 @@ class TestVOLineExtraction:
         assert "Your grandmother" in result
         assert "Growing up" in result
 
+    def test_json_encoded_posts_extract_only_spoken_lines(self, tmp_path):
+        """Database JSON must not turn later production directions into VO."""
+        gen = VOGenerator({}, db_path=str(tmp_path / "test.db"))
+        posts = json.dumps([
+            '[FRAME 1]\nVisual: Open the tin.\nVO: "First spoken line."',
+            '[FRAME 2]\nVisual: Show the phone.\nText overlay: "Not speech"\nVO: "Second spoken line."',
+        ])
+
+        result = gen._extract_vo_lines("Reel summary", posts)
+
+        assert result == "First spoken line. Second spoken line."
+
     def test_empty_content(self, tmp_path):
         gen = VOGenerator({}, db_path=str(tmp_path / "test.db"))
         assert gen._extract_vo_lines("") == ""
@@ -67,6 +79,22 @@ class TestVOLineExtraction:
 
 class TestGeminiTTSCall:
     """Test the Gemini TTS API call (mocked)."""
+
+    def test_empty_style_uses_neutral_tts_instruction(self, tmp_path):
+        """An omitted optional style should not yield a malformed style prompt."""
+        gen = VOGenerator({}, db_path=str(tmp_path / "test.db"))
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "candidates": [{"content": {"parts": [{"inlineData": {"data": ""}}]}}]
+        }
+
+        with patch("requests.post", return_value=mock_response) as request_post:
+            with pytest.raises(VOGenerationError, match="no audio data"):
+                gen._call_gemini_tts("Hello world", "Kore", "", "test-model", "test-key")
+
+        prompt = request_post.call_args.kwargs["json"]["contents"][0]["parts"][0]["text"]
+        assert prompt == "Say: Hello world"
 
     def test_tts_call_returns_audio(self, tmp_path, monkeypatch):
         """Mocked Gemini TTS should return PCM bytes."""
@@ -130,6 +158,12 @@ class TestWAVSave:
 
 class TestGenerateVO:
     """Test the full generate_vo flow with mocked API."""
+
+    def test_tts_style_has_no_tenant_specific_fallback(self, tmp_path):
+        """A missing TTS style must not inject a tenant dialect into generic code."""
+        gen = VOGenerator({}, db_path=str(tmp_path / "test.db"))
+
+        assert gen._get_gemini_tts_config()["style"] == ""
 
     def test_generate_vo_success(self, tmp_path, monkeypatch):
         """Full VO generation should create file, record in DB, log provenance."""

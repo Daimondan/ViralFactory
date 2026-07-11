@@ -63,7 +63,18 @@ class VOGenerator:
 
         Returns the concatenated VO text, or empty string if none found.
         """
-        text = (content or "") + "\n" + (posts or "")
+        posts_text = posts or ""
+        if isinstance(posts_text, str):
+            try:
+                decoded_posts = json.loads(posts_text)
+            except (json.JSONDecodeError, TypeError):
+                decoded_posts = None
+            if isinstance(decoded_posts, list):
+                posts_text = "\n".join(
+                    item for item in decoded_posts if isinstance(item, str)
+                )
+
+        text = (content or "") + "\n" + posts_text
         if not text.strip():
             return ""
 
@@ -83,14 +94,14 @@ class VOGenerator:
         return " ".join(vo_lines)
 
     def _get_gemini_tts_config(self) -> dict:
-        """Get TTS config from models.yaml, with defaults."""
+        """Get TTS configuration from models.yaml."""
         voice_config = self.models_config.get("voice_cloning", {})
         tts_config = voice_config.get("tts", {})
 
         return {
             "model": tts_config.get("model", "gemini-3.1-flash-tts-preview"),
             "voice": tts_config.get("voice", "Kore"),
-            "style": tts_config.get("style", "warm, authoritative, Caribbean-influenced English"),
+            "style": tts_config.get("style", ""),
             "api_key_env": tts_config.get("api_key_env", "GEMINI_API_KEY"),
             "sample_rate": tts_config.get("sample_rate", 24000),
         }
@@ -103,8 +114,9 @@ class VOGenerator:
         """
         import requests
 
-        # Build the prompt with style instructions
-        prompt = f"Say in a {style} voice: {text}"
+        # Style is optional. Its business-specific direction lives in config;
+        # without one, ask for neutral delivery instead of injecting a default.
+        prompt = f"Say in a {style} voice: {text}" if style else f"Say: {text}"
 
         payload = {
             "contents": [{
