@@ -15,7 +15,8 @@ After=network.target
 Type=notify
 WorkingDirectory=/home/daimon/ViralFactory
 EnvironmentFile=/etc/viralfactory/env
-ExecStart=/home/daimon/ViralFactory/.venv/bin/gunicorn --workers 2 --timeout 120 --bind 127.0.0.1:9121 --bind 100.96.184.48:9121 "src.app:create_app()"
+ExecStart=/home/daimon/ViralFactory/.venv/bin/gunicorn --workers 2 --timeout 900 --bind 127.0.0.1:9121 --bind 100.96.184.48:9121 "src.app:create_app()"
+Environment=PYTHONPATH=/home/daimon/ViralFactory/src
 Restart=always
 RestartSec=5
 
