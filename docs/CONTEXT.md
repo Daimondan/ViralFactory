@@ -1,6 +1,6 @@
 # Context: ViralFactory
 
-> **This is an operational mirror of `docs/CHARTER-v3.4.md`.** It captures
+> **This is an operational mirror of `docs/CHARTER-v3.5.md`.** It captures
 > current shared language, workflows, and implementation state. It conforms
 > to the charter and BUILD_PLAN; where it conflicts, that conflict is a bug
 > or a new divergence to file — never a silent override.
@@ -13,7 +13,7 @@
 > `docs/decisions/` if the change is non-obvious.
 
 **Updated:** 2026-07-04 (AI tells + voice deepening correction applied: voice-first ideation, shared AI-tells catalog with confidence levels, cognitive Voice Profile dimensions, and real self-audit fix application in the T9.5 AI review loop. Prior: AMENDMENT-007 ratified: Writer produces per-platform content, Assembler is media-only, AI review loop before Gate 2.)
-**Conforms to:** `docs/CHARTER-v3.4.md` (v3.4 — incorporates DIVERGENCE-001, DIVERGENCE-002, AMENDMENT-003 staged content pipeline, AMENDMENT-004 treatment block, AMENDMENT-005 process compositions, AMENDMENT-006 Writer/Assembler split + four-role nav, AMENDMENT-007 Writer per-platform + Assembler media-only + AI review loop, DIVERGENCE-008 Postiz→Buffer swap)
+**Conforms to:** `docs/CHARTER-v3.5.md` (v3.5 — incorporates DIVERGENCE-001, DIVERGENCE-002, AMENDMENT-003 staged content pipeline, AMENDMENT-004 treatment block, AMENDMENT-005 process compositions, AMENDMENT-006 Writer/Assembler split + four-role nav, AMENDMENT-007 Writer per-platform + Assembler media-only + AI review loop, DIVERGENCE-008 Postiz→Buffer swap, AMENDMENT-008 final-output compliance loop)
 
 ---
 

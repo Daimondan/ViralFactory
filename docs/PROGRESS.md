@@ -290,6 +290,7 @@ Materials Library — editable source materials. DB migrations: `excluded` colum
   5. Assembler is media-only — no LLM text calls, `fan_out_v2.md` and `structure_v1.md` retired from Assembler path
 - AMENDMENT-007 filed: `docs/decisions/AMENDMENT-007-writer-per-platform-assembler-media-only.md`
 - Charter v3.3 → v3.4: `docs/CHARTER-v3.4.md`
+- Charter v3.4 → v3.5: `docs/CHARTER-v3.5.md`
 
 ### 2026-07-04 — M9 implemented (T9.1–T9.6)
 
@@ -302,6 +303,7 @@ Materials Library — editable source materials. DB migrations: `excluded` colum
 - BUILD_PLAN v1.5 → v1.6: M9 tasks added (T9.1-T9.6)
 - CONTEXT.md updated: core loop diagram, idea card definition, business rules 13-15
 - All `CHARTER-v3.3` references updated to `CHARTER-v3.4`
+- All `CHARTER-v3.4` references updated to `CHARTER-v3.5` (AMENDMENT-008)
 - DIVERGENCE-010 file renamed from DIVERGENCE-009-writer... to DIVERGENCE-010-writer...
 - **Tests:** 711 passing. 0 failures. Q: none — builder to implement M9 tasks
 
