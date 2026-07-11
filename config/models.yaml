@@ -149,6 +149,9 @@ asset_review:
   vision_api_key_env: "OPENROUTER_API_KEY"
   max_keyframes: 5
   enabled: true
+  # T10.9 (AMENDMENT-008): Remediation cost guard
+  # max_remediation_cost_usd: 2.00   # cumulative cap per asset (UNCOMMENT to enable auto-remediation)
+  max_remediation_rounds: 3          # hard cap on render/review rounds
 
 # ── Stock library (Final Assembly Part 1) ──
 # Pexels (primary) + Pixabay (secondary). Both free, commercial-safe.

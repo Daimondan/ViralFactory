@@ -37,57 +37,82 @@ def _make_silent_video(path, duration=3):
 
 
 class TestScriptVODetection:
-    """Test _script_has_vo_or_dialogue detects VO/spoken content in scripts."""
+    """Test _script_has_vo_or_dialogue — T10.8: contract-based, not keyword-based.
 
-    def test_detects_vo_marker(self, tmp_path):
+    The keyword heuristic is RETIRED as a compliance decision (AMENDMENT-008).
+    The function now checks the compliance contract for spoken_dialogue beats.
+    Without a contract, it returns False (no compliance decision from keywords).
+    """
+
+    def test_contract_with_spoken_dialogue_detected(self, tmp_path):
         reviewer = AssetReviewer({}, db_path=str(tmp_path / "test.db"))
+        contract = {"beats": [
+            {"beat_id": "b1", "requirement_type": "spoken_dialogue", "required": True},
+        ]}
         assert reviewer._script_has_vo_or_dialogue(
-            "Script with VO: 'Your grandmother kept cash in a biscuit tin'"
+            "any content", compliance_contract=contract,
         ) is True
 
-    def test_detects_voiceover_marker(self, tmp_path):
+    def test_contract_without_spoken_dialogue_not_detected(self, tmp_path):
         reviewer = AssetReviewer({}, db_path=str(tmp_path / "test.db"))
+        contract = {"beats": [
+            {"beat_id": "b1", "requirement_type": "caption_text", "required": True},
+        ]}
         assert reviewer._script_has_vo_or_dialogue(
-            "Voiceover: The compound interest gap."
-        ) is True
-
-    def test_detects_narrator_marker(self, tmp_path):
-        reviewer = AssetReviewer({}, db_path=str(tmp_path / "test.db"))
-        assert reviewer._script_has_vo_or_dialogue(
-            "Narrator: Love is the entry point."
-        ) is True
-
-    def test_detects_vo_in_posts(self, tmp_path):
-        reviewer = AssetReviewer({}, db_path=str(tmp_path / "test.db"))
-        posts = json.dumps([
-            "[FRAME 1]\nVisual: hands\nVO: \"Your grandmother kept cash\"",
-            "[FRAME 2]\nVisual: phone\nVO: \"Growing up, saving meant one thing\"",
-        ])
-        assert reviewer._script_has_vo_or_dialogue("carousel about money", posts) is True
-
-    def test_no_vo_for_text_only_content(self, tmp_path):
-        reviewer = AssetReviewer({}, db_path=str(tmp_path / "test.db"))
-        assert reviewer._script_has_vo_or_dialogue(
-            "A carousel about Caribbean financial decisions. No audio needed."
+            "any content", compliance_contract=contract,
         ) is False
 
-    def test_no_vo_for_empty_content(self, tmp_path):
+    def test_no_contract_returns_false(self, tmp_path):
+        """T10.8: Without a compliance contract, no keyword-based decision."""
+        reviewer = AssetReviewer({}, db_path=str(tmp_path / "test.db"))
+        assert reviewer._script_has_vo_or_dialogue(
+            "Script with VO: 'Your grandmother kept cash in a biscuit tin'",
+        ) is False
+
+    def test_no_contract_empty_content(self, tmp_path):
         reviewer = AssetReviewer({}, db_path=str(tmp_path / "test.db"))
         assert reviewer._script_has_vo_or_dialogue("") is False
         assert reviewer._script_has_vo_or_dialogue(None) is False
 
-    def test_detects_say_marker(self, tmp_path):
+    def test_contract_with_duration_fit_detected(self, tmp_path):
+        """Duration fit beats may imply VO content."""
         reviewer = AssetReviewer({}, db_path=str(tmp_path / "test.db"))
+        contract = {"beats": [
+            {"beat_id": "b1", "requirement_type": "duration_fit", "required": True},
+        ]}
         assert reviewer._script_has_vo_or_dialogue(
-            "The speaker says: 'Money sitting still loses value.'"
+            "any content", compliance_contract=contract,
         ) is True
+
+    def test_contract_with_optional_beats_not_detected(self, tmp_path):
+        """Optional spoken_dialogue beats (required=false) don't trigger."""
+        reviewer = AssetReviewer({}, db_path=str(tmp_path / "test.db"))
+        contract = {"beats": [
+            {"beat_id": "b1", "requirement_type": "spoken_dialogue", "required": False},
+        ]}
+        assert reviewer._script_has_vo_or_dialogue(
+            "any content", compliance_contract=contract,
+        ) is False
 
 
 class TestAudioInspectionScriptCoherence:
-    """FIX-1: Audio inspection flags silent output when script has VO."""
+    """FIX-1: Audio inspection flags silent output when script has VO.
 
-    def test_silent_video_with_vo_script_flagged(self, tmp_path):
-        """Silent output + script has VO + no take_id + no music → issues_found."""
+    T10.8: The script-VO coherence check now uses the compliance contract,
+    not keyword matching. Tests pass a contract with spoken_dialogue beats
+    to trigger the coherence warning.
+    """
+
+    def _vo_contract(self):
+        """A compliance contract with spoken_dialogue beats."""
+        return {"beats": [
+            {"beat_id": "b1", "requirement_type": "spoken_dialogue", "required": True,
+             "source_excerpt": "Your grandmother kept cash in a biscuit tin",
+             "planned_segment_ids": ["seg_0"], "verification_method": "audio_transcript_match"},
+        ]}
+
+    def test_silent_video_with_vo_contract_flagged(self, tmp_path):
+        """Silent output + contract has spoken_dialogue + no take_id + no music → issues_found."""
         reviewer = AssetReviewer({}, db_path=str(tmp_path / "test.db"))
         video = _make_silent_video(str(tmp_path / "video.mp4"))
 
@@ -107,15 +132,15 @@ class TestAudioInspectionScriptCoherence:
         result = reviewer.run_audio_inspection(
             video, plan, asset_id=1, media_id=1,
             asset_content=content, asset_posts=posts,
+            compliance_contract=self._vo_contract(),
         )
 
         assert result["verdict"] == "issues_found"
         assert "silent" in result["summary"].lower()
-        assert "VO" in result["summary"] or "vo" in result["summary"].lower()
         assert result["findings"]["script_has_vo"] is True
 
-    def test_silent_video_without_vo_script_passes(self, tmp_path):
-        """Silent output + no VO in script → still passes."""
+    def test_silent_video_without_vo_contract_passes(self, tmp_path):
+        """Silent output + no VO in contract → passes (silent as specified)."""
         reviewer = AssetReviewer({}, db_path=str(tmp_path / "test.db"))
         video = _make_silent_video(str(tmp_path / "video.mp4"))
 
@@ -134,7 +159,7 @@ class TestAudioInspectionScriptCoherence:
         assert "silent as specified" in result["summary"]
 
     def test_silent_video_with_vo_take_in_plan_passes(self, tmp_path):
-        """Silent output + script has VO + plan has take_id → not flagged
+        """Silent output + contract has spoken_dialogue + plan has take_id → not flagged
         (the VO file just doesn't exist yet — that's the deferred pipeline)."""
         reviewer = AssetReviewer({}, db_path=str(tmp_path / "test.db"))
         video = _make_silent_video(str(tmp_path / "video.mp4"))
@@ -149,25 +174,18 @@ class TestAudioInspectionScriptCoherence:
         content = "Reel about biscuit tins"
         posts = json.dumps(["[FRAME 1]\nVO: \"Your grandmother kept cash\""])
 
-        # take_id is set but the file doesn't exist — the renderer would have
-        # degraded gracefully. The audio inspection should NOT flag this as
-        # a script-audio mismatch (the plan *tried* to use VO, it just wasn't ready)
         result = reviewer.run_audio_inspection(
             video, plan, asset_id=1, media_id=1,
             asset_content=content, asset_posts=posts,
+            compliance_contract=self._vo_contract(),
         )
 
         # With a take_id present, the coherence check should not trigger
-        # (the plan acknowledged the need for VO, even if the file is missing)
         assert result["verdict"] == "pass"
 
     def test_silent_video_with_music_in_plan_not_flagged_for_vo(self, tmp_path):
-        """Silent output + script has VO + plan has music ref → flagged as
-        'plan expects audio but silent', NOT as 'script has VO but no audio plan'.
-
-        The music ref means the plan had an audio strategy — the issue is that
-        music didn't resolve, not that the plan ignored the script's VO needs.
-        """
+        """Silent output + contract has spoken_dialogue + plan has music ref → flagged as
+        'plan expects audio but silent', NOT as 'script has VO but no audio plan'."""
         reviewer = AssetReviewer({}, db_path=str(tmp_path / "test.db"))
         video = _make_silent_video(str(tmp_path / "video.mp4"))
 
@@ -184,10 +202,11 @@ class TestAudioInspectionScriptCoherence:
         result = reviewer.run_audio_inspection(
             video, plan, asset_id=1, media_id=1,
             asset_content=content, asset_posts=posts,
+            compliance_contract=self._vo_contract(),
         )
 
         # Should be issues_found (silent when music expected) but NOT the
-        # script-VO coherence warning
+        # script-VO coherence warning (music ref means plan had an audio strategy)
         assert result["verdict"] == "issues_found"
         assert "Plan expects audio but output is silent" in result["summary"]
         # Should NOT have the script_has_vo coherence flag
@@ -206,6 +225,7 @@ class TestAudioInspectionScriptCoherence:
             video, plan, asset_id=1, media_id=1,
             asset_content=content, asset_posts=posts,
             business_slug="test",
+            compliance_contract=self._vo_contract(),
         )
 
         conn = sqlite3.connect(str(tmp_path / "test.db"))
@@ -253,8 +273,16 @@ class TestContentAlignmentLLM:
         assert "silent" in result["summary"].lower() or "VO" in result["summary"]
 
     def test_fallback_catches_vo_gap_without_llm(self, tmp_path):
-        """Fallback aggregation (no LLM) should still catch script-VO gap."""
+        """Fallback aggregation (no LLM) should still catch script-VO gap.
+
+        T10.8: Must pass a compliance contract with spoken_dialogue beats
+        for the coherence check to trigger (keyword heuristic retired).
+        """
         reviewer = AssetReviewer({}, db_path=str(tmp_path / "test.db"))
+
+        vo_contract = {"beats": [
+            {"beat_id": "b1", "requirement_type": "spoken_dialogue", "required": True},
+        ]}
 
         result = reviewer.run_content_alignment(
             asset_id=1, media_id=1,
@@ -264,6 +292,7 @@ class TestContentAlignmentLLM:
             asset_content="Reel about biscuit tins",
             asset_posts=json.dumps(["[FRAME 1]\nVO: \"Your grandmother kept cash\""]),
             plan={"audio": {"vo": {"take_id": ""}, "music": {}, "original_audio": False}},
+            compliance_contract=vo_contract,
         )
 
         assert result["verdict"] == "needs_rerender"

@@ -35,9 +35,14 @@ CREATE TABLE IF NOT EXISTS asset_reviews (
     asset_id INTEGER NOT NULL,
     media_id INTEGER NOT NULL,          -- asset_media row this review is about
     media_path TEXT NOT NULL,
-    review_type TEXT NOT NULL,           -- mechanical | visual | audio | alignment | image
+    review_type TEXT NOT NULL,           -- mechanical | visual | audio | alignment | image | compliance
     status TEXT NOT NULL,                -- pending | running | complete | failed
+                                         -- T10.6: compliance states also use:
+                                         -- reviewing | remediating (during loop)
     verdict TEXT,                        -- pass | issues_found | ready_for_operator | needs_rerender
+                                         -- T10.6: compliance verdicts:
+                                         -- compliant | non_convergent | needs_operator_decision
+                                         -- (none of these are publication approval)
     findings_json TEXT,                  -- full JSON findings
     summary TEXT,                        -- plain-language summary for operator
     model TEXT,                          -- model used (for LLM-based reviews)
@@ -347,8 +352,8 @@ class AssetReviewer:
         reviews = self.get_reviews_for_media(media_id)
         if not reviews:
             return None
-        # Prefer alignment > mechanical > visual > audio
-        type_priority = {"alignment": 0, "mechanical": 1, "visual": 2, "audio": 3, "image": 4}
+        # T10.6: compliance has highest priority, then alignment > mechanical > visual > audio
+        type_priority = {"compliance": 0, "alignment": 1, "mechanical": 2, "visual": 3, "audio": 4, "image": 5}
         reviews.sort(key=lambda r: type_priority.get(r.get("review_type", ""), 99))
         latest = reviews[0]
         return {
@@ -359,6 +364,39 @@ class AssetReviewer:
             "summary": latest["summary"],
             "findings": json.loads(latest.get("findings_json") or "{}"),
             "created_at": latest["created_at"],
+        }
+
+    def get_compliance_state(self, asset_id: int) -> Optional[dict]:
+        """T10.6: Get the compliance state for an asset.
+
+        Returns the latest compliance review's state, or None if no compliance
+        review has been run. The states are:
+        - compliant: all beats verified, ready for operator
+        - non_convergent: remediation loop exhausted without compliance
+        - needs_operator_decision: system cannot fix, needs human input
+        - reviewing: compliance review is running (not yet complete)
+        - remediating: remediation loop is running (not yet complete)
+
+        NONE of these states imply publication approval. The operator still
+        approves, fixes, or kills regardless of the compliance verdict.
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT * FROM asset_reviews WHERE asset_id = ? AND review_type = 'compliance' "
+            "ORDER BY created_at DESC LIMIT 1",
+            (asset_id,),
+        ).fetchone()
+        conn.close()
+        if not row:
+            return None
+        return {
+            "review_id": row["id"],
+            "status": row["status"],
+            "verdict": row["verdict"],
+            "summary": row["summary"],
+            "findings": json.loads(row.get("findings_json") or "{}"),
+            "created_at": row["created_at"],
         }
 
     # ── ASSET-REVIEW-2: Vision-based visual inspection ───────────────────
@@ -676,42 +714,39 @@ class AssetReviewer:
                 return True
         return False
 
-    def _script_has_vo_or_dialogue(self, asset_content: str, posts: str = None) -> bool:
+    def _script_has_vo_or_dialogue(self, asset_content: str, posts: str = None,
+                                    compliance_contract: dict = None) -> bool:
         """Check if the script/content contains VO or spoken dialogue.
 
-        Scans for VO markers, dialogue indicators, and spoken-content patterns
-        that mean the output should have audio — not be silent.
+        T10.8 (AMENDMENT-008): The keyword-based heuristic is RETIRED as a
+        compliance decision. If a compliance contract is available, it is the
+        authoritative source — we check if any beat has requirement_type
+        "spoken_dialogue" with required=true. If no contract is available,
+        we return False (no decision — the compliance review will catch it).
+        The keyword patterns below are kept ONLY as mechanical extraction
+        input for the VO generator (vo_generator.py), not as a compliance
+        decision in asset_review.py.
         """
-        text = (asset_content or "") + "\n" + (posts or "")
-        if not text.strip():
+        # T10.8: If a compliance contract exists, use it as the authoritative source
+        if compliance_contract:
+            for beat in compliance_contract.get("beats", []):
+                if beat.get("requirement_type") == "spoken_dialogue" and beat.get("required", False):
+                    return True
+                if beat.get("requirement_type") == "duration_fit" and beat.get("required", False):
+                    # Duration fit may imply VO content
+                    return True
             return False
 
-        text_lower = text.lower()
-
-        # Direct VO markers
-        vo_markers = ["vo:", "voiceover:", "voice over:", "voice-over:", "narrator:"]
-        for marker in vo_markers:
-            if marker in text_lower:
-                return True
-
-        # Dialogue/speech indicators
-        speech_markers = ["spoken:", "say:", "says:", "speaking:", "narrates:"]
-        for marker in speech_markers:
-            if marker in text_lower:
-                return True
-
-        # "Audio:" directives that aren't "audio: none" or "audio: silent"
-        for line in text_lower.split("\n"):
-            if line.strip().startswith("audio:") and "none" not in line and "silent" not in line:
-                return True
-
+        # T10.8: No contract — return False (no compliance decision from keywords)
+        # The compliance review (T10.4) will catch any VO/silence mismatch
         return False
 
     def run_audio_inspection(self, video_path: str, plan: dict,
                              asset_id: int, media_id: int,
                              business_slug: str = None,
                              asset_content: str = None,
-                             asset_posts: str = None) -> dict:
+                             asset_posts: str = None,
+                             compliance_contract: dict = None) -> dict:
         """ASSET-REVIEW-3: Audio inspection via whisper transcription.
 
         If the output has an audio stream:
@@ -722,6 +757,9 @@ class AssetReviewer:
         5. Check for silence when audio expected
         6. Cross-reference script: if script has VO/dialogue but plan has no
            audio strategy, flag as a silent failure
+
+        T10.8: The script-VO coherence check now uses the compliance contract
+        (if provided) instead of keyword matching.
         """
         if not self._has_stream(video_path, "audio"):
             return {
@@ -744,7 +782,8 @@ class AssetReviewer:
             # Cross-reference: does the script have VO or dialogue that should
             # produce audio? If so, a silent output is a silent failure — the
             # plan's audio strategy doesn't match the content's requirements.
-            script_has_vo = self._script_has_vo_or_dialogue(asset_content, asset_posts)
+            script_has_vo = self._script_has_vo_or_dialogue(
+                asset_content, asset_posts, compliance_contract=compliance_contract)
             vo_block = audio_block.get("vo", {})
             vo_take_id = vo_block.get("take_id", "") if vo_block else ""
 
@@ -921,7 +960,8 @@ class AssetReviewer:
                               business_slug: str = None,
                               asset_content: str = None,
                               asset_posts: str = None,
-                              plan: dict = None) -> dict:
+                              plan: dict = None,
+                              compliance_contract: dict = None) -> dict:
         """ASSET-REVIEW-4: LLM-based content alignment check.
 
         Uses an LLM to judge whether the final output is coherent given the
@@ -1068,7 +1108,8 @@ class AssetReviewer:
 
         # Script-audio coherence check (even without LLM)
         if asset_content or asset_posts:
-            script_has_vo = self._script_has_vo_or_dialogue(asset_content, asset_posts)
+            script_has_vo = self._script_has_vo_or_dialogue(
+                asset_content, asset_posts, compliance_contract=compliance_contract)
             if plan:
                 audio_block = plan.get("audio", {})
                 vo_block = audio_block.get("vo", {})
