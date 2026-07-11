@@ -4,8 +4,8 @@
 > blocked, or changed. Any agent should be able to read this and know
 > exactly where we are.
 
-**Last Updated:** 2026-07-10
-**Current Phase:** VIDEO GENERATOR FALLBACK + VEO API FIXES — System automatically falls back to next available video generator when requested generator's API key is missing. Veo duration clamping (only even values 4/6/8 accepted), Veo `video.uri` field extraction, Veo download URL `&key=` auth. Full pipeline tested end-to-end via UI: idea → approve → writer chain → draft review → ship → assembler → video generation (Veo fallback) → video displayed in UI. 808 tests passing.
+**Last Updated:** 2026-07-11
+**Current Phase:** DIVERGENCE-012 RATIFIED — AMENDMENT-008 filed, Charter v3.5 published. Final-output compliance contract + bounded remediation loop (max 3 rounds, cost-capped) approved for Assembler side. Builder may now implement. Three architect conditions: (1) text-boundary firewall — remediation never modifies `platform_content`, SHA-256 hash locked at loop entry; (2) config-driven cost guard — `max_remediation_cost_usd` in models.yaml; (3) operator visibility — full remediation history in Assets UI. 912 tests passing.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
@@ -25,6 +25,9 @@
 | 7. Generalization proof | ⬜ | Real near-term but not blocking v1. |
 
 ## What's Done
+- [x] 2026-07-11: DIVERGENCE-012 RATIFIED via AMENDMENT-008. Charter v3.4 → v3.5. Architect approved final-output compliance contract + bounded remediation loop (max 3 rounds). Three conditions: (1) text-boundary firewall (SHA-256 hash lock on `platform_content`), (2) config-driven cost guard (`max_remediation_cost_usd`), (3) operator visibility (full remediation history in Assets UI). Retires keyword-based VO detection as compliance decision. Builder may implement.
+- [x] 2026-07-11: Fixed VO extraction from JSON-encoded reel posts. The old parser swallowed frame labels and visual directions into TTS; real asset #2 now extracts only its five spoken lines (198 words). Added the production-shape regression test; 912 tests passing. Script/timeline completeness remains tracked in proposed DIVERGENCE-012.
+- [x] 2026-07-10: Fixed a full-suite tenant-string regression in generic VO generation. `src/vo_generator.py` no longer supplies a tenant dialect as a fallback; an omitted style produces a neutral TTS instruction while the configured business style remains authoritative. 911 tests passing.
 - [x] 2026-07-07: Fixed Assembler asset #1 wrong-video class. Edit plans now use only asset-scoped generated media and the idea card's own capture uploads; missing required visuals return `missing_media` instead of letting the LLM choose unrelated uploads. Stock missing-media results are registered as asset media. Reels without final cuts cannot be approved. 779 tests passing.
 - [x] 2026-07-04: AI tells + voice deepening correction applied. Added `prompts/shared/ai_tells_v1.md`, loaded into `draft/generate_v3.md`, moved voice upstream into `ideas/generate_v1.md`, added cognitive Voice Profile dimensions to prompt + playbook, fixed T9.5 self-audit no-op so `fix_applied` changes real `platform_content`, restored full module context during AI-review revisions, and added 3 regression tests. 761 tests passing.
 - [x] Repo created: https://github.com/Daimondan/ViralFactory (public — deliberate, so architect can read without auth)

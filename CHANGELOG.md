@@ -4,6 +4,18 @@
 
 All decisions — tech, logic, structure, strategy, ops — logged here with type tag + rationale.
 
+### 2026-07-11 — DIVERGENCE-012 ratified via AMENDMENT-008 (Charter v3.5)
+
+**STRATEGIC / STRUCTURE** — Architect approved DIVERGENCE-012 (final-output compliance loop). Filed AMENDMENT-008 (`docs/decisions/AMENDMENT-008-final-output-compliance-loop.md`) and published Charter v3.5 (`docs/CHARTER-v3.5.md`). The Assembler side gains a compliance contract (LLM-authored alongside the edit plan, defining every required narrative beat and its planned representation), a final-output compliance review (LLM checks rendered asset against approved script + contract), and a bounded remediation loop (max 3 rounds, config-driven cost cap). This is the Assembler-side counterpart to AMENDMENT-007 §3 (Writer-side AI review loop). Three architect conditions: (1) text-boundary firewall — remediation loop must never modify approved `platform_content`, enforced by SHA-256 hash lock at loop entry; (2) config-driven cost guard — `max_remediation_cost_usd` in `models.yaml`, absent = review-only no auto-fix; (3) operator visibility — full remediation history (rounds, changes, verdict, provenance) shown in Assets UI. Retires keyword-based VO/content detection (`asset_review.py:686-705`) as a compliance decision — it was judgment in code, a charter violation. The `_extract_vo_lines` regex in `vo_generator.py` remains as mechanical extraction input only. Supersedes the advisory-only rule from CORRECTION-final-output-review-and-audio-fix-v1.0 Part 2 (the existing ASSET-REVIEW-1 through ASSET-REVIEW-6 checks remain in force; the compliance loop builds on top of them).
+
+### 2026-07-11 — VO extraction decodes structured reel posts before parsing dialogue
+
+**FIX** — `assets.posts` is stored as a JSON array. VO generation previously ran its line-oriented regex against the encoded JSON string, where newlines were escaped; the first `VO:` match therefore swallowed later frame labels, visual directions, overlays, and dialogue into one 323-word TTS request. The extractor now decodes the array and joins its entries before selecting spoken lines. Real asset #2 now yields the five intended VO lines (198 words) with no frame or visual directions. This fixes extraction only; script-to-timeline feasibility remains governed by proposed `DIVERGENCE-012`.
+
+### 2026-07-10 — Generic VO fallback no longer imposes a tenant dialect
+
+**FIX** — Removed the tenant-specific default TTS style from `src/vo_generator.py`. Voice style remains tenant configuration in `config/models.yaml`; if an older or incomplete configuration omits it, the Gemini TTS instruction is neutral (`Say: …`) rather than injecting a business dialect. Regression coverage proves the generic source remains tenant-free and that the neutral prompt is well-formed.
+
 ### 2026-07-10 — Audio bed fix: plan-driven audio mixing (AUDIO-1)
 
 **FIX** — Removed the post-concat audio bed heuristic (assembly.py lines 454–518) that looped the first video clip's ambient audio to fill output duration. This was a charter violation — judgment in code (the code decided to loop audio without the LLM's direction). Replaced with `_apply_audio_strategy()` which reads `plan["audio"]` and executes the LLM's strategy: silent (original_audio=false, no music → strip + replace with silence), original (preserve concat audio, loudnorm), music (resolve stock ref, mix at specified volume), VO (duck under VO, deferred if no file). Provenance logs the audio strategy decision.
