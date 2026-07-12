@@ -561,6 +561,70 @@ queries: []
         assert resp.status_code == 200
         assert captured_backend == ["ideator"]
 
+    def test_exact_format_request_runs_concept_then_treatment_stage(self, app_with_ideator):
+        """User format constraints reach the separate treatment-selection call."""
+        from unittest.mock import patch
+        from llm_adapter import LLMAdapter
+
+        calls = []
+
+        def mock_complete(self, prompt_file, variables, schema, **kwargs):
+            calls.append((prompt_file, dict(variables)))
+            if prompt_file == "ideas/concepts_v1.md":
+                return {"cards": [{
+                    "idea": "A grounded concept",
+                    "hook_options": ["Hook"],
+                    "concept_basis": {
+                        "core_claim": "Claim",
+                        "audience_value": "Value",
+                        "narrative_shape": "Contrast then landing",
+                        "available_evidence": ["Source evidence"],
+                    },
+                    "origin": "ai_originated",
+                    "source_refs": [1],
+                }]}
+            return {"cards": [{
+                "idea": "A grounded concept",
+                "hook_options": ["Hook"],
+                "treatment": {
+                    "scope": {"type": "one_off"},
+                    "format": {
+                        "primary_platform": "Instagram",
+                        "format_name": "Instagram Reel Script",
+                        "experimental": False,
+                        "constraint_source": "user_request",
+                        "selection_reason": "Voice and motion strengthen the contrast.",
+                        "alternatives_considered": [],
+                    },
+                    "capture_required": [],
+                    "reuse": {},
+                    "rationale": "Exact user request honored.",
+                },
+                "origin": "ai_originated",
+                "source_refs": [1],
+            }]}
+
+        with patch.object(LLMAdapter, "complete", mock_complete):
+            response = app_with_ideator.test_client().post(
+                "/api/ideas/generate",
+                json={
+                    "count": 1,
+                    "distribution_intent": {
+                        "mode": "exact_format",
+                        "platforms": ["Instagram"],
+                        "formats": ["Instagram Reel Script"],
+                    },
+                },
+            )
+
+        assert response.status_code == 200
+        assert [call[0] for call in calls] == [
+            "ideas/concepts_v1.md",
+            "ideas/treatment_select_v1.md",
+        ]
+        assert '"mode": "exact_format"' in calls[1][1]["distribution_intent"]
+        assert "Instagram Reel Script" in calls[1][1]["distribution_intent"]
+
     def test_seed_uses_ideator_backend(self, app_with_ideator):
         """S1a: seed-based card generation uses backend='ideator'."""
         from unittest.mock import patch

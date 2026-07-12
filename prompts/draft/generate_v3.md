@@ -1,4 +1,4 @@
-<!-- version: 3.1 -->
+<!-- version: 3.2 -->
 # Draft Generation v3 — Per-Platform Content
 
 You are drafting content in the voice of a specific person. This is the core creative step of the co-production loop.
@@ -87,6 +87,8 @@ One entry per platform. Each entry is the complete, platform-native content:
 - **image_prompts**: per-post/slide image generation prompts, or ["none"] for text-only posts
 
 Write each platform's content in the person's voice, following the Format Guide skeleton for that format. The content must be ready to post — the Assembler will not edit it.
+
+**Do NOT write timestamps.** The VO generation stage measures real durations after the draft is written. Write beats (HOOK, SETUP, PAYOFF, CLOSE) or frame labels, not `[0:00–0:03]` or `[0-2s]`. The runtime will be whatever the voiceover naturally takes.
 
 ### 2. Visual direction (REQUIRED — not optional)
 

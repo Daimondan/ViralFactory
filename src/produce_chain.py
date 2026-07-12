@@ -312,8 +312,11 @@ class ProductionChain:
             return platform_content
 
     def run_assembler_chain(self, draft_id: int, card_id: int, business_slug: str):
-        """Assembler stage: fan-out from a shipped draft. Produces assets for Gate 3 review.
-        Card state: assembling → asset_ready | assembly_failed.
+        """Assembler stage: VO → media plan → media exec → edit plan → render.
+
+        VO is the master timeline — it generates first so the media plan sees
+        real durations and can plan coverage. Card state: assembling →
+        asset_ready | assembly_failed.
         """
         from pipeline import PipelineStore
         store = PipelineStore(db_path=self.db_path)
@@ -322,6 +325,11 @@ class ProductionChain:
 
         try:
             self._step_fanout(draft_id, card_id, business_slug, store)
+            self._step_vo(draft_id, card_id, business_slug, store)
+            self._step_media_plan(draft_id, card_id, business_slug, store)
+            self._step_media_exec(draft_id, card_id, business_slug, store)
+            self._step_edit_plan(draft_id, card_id, business_slug, store)
+            self._step_render(draft_id, card_id, business_slug, store)
 
             # Success — card is ready for asset review
             store.update_card_state(card_id, "asset_ready")
@@ -334,6 +342,80 @@ class ProductionChain:
                 "assembly_failed",
                 production_error={"step": step, "error": error_msg},
             )
+
+    def _step_vo(self, draft_id: int, card_id: int, business_slug: str, store):
+        """Generate per-frame VO segments before media planning.
+
+        VO is the master timeline. This step runs after fan-out (which creates
+        asset rows) and before media plan (which needs real durations to plan
+        visual coverage). For each asset with spoken content, generate one TTS
+        call per post/frame, measure durations, and store on the asset row.
+        """
+        from vo_generator import VOGenerator, VOGenerationError
+        from pipeline import PipelineStore
+
+        assets = store.list_assets(draft_id)
+        if not assets:
+            return
+
+        config = None
+        try:
+            from config_loader import load_all, ConfigError
+            config = load_all(self.config_dir)
+        except ConfigError:
+            config = None
+
+        vo_gen = VOGenerator(
+            db_path=self.db_path,
+            models_config=config.get("models", {}) if config else {},
+        )
+
+        for asset in assets:
+            # Only generate VO for formats that have spoken content (reels, story_series)
+            variant = asset.get("variant_type", "")
+            if variant not in ("reel", "story_series"):
+                continue
+
+            # Skip if VO segments already exist for this asset
+            existing = store.get_vo_segments(asset["id"])
+            if existing:
+                continue
+
+            posts = json.loads(asset.get("posts") or "[]")
+            if not posts:
+                continue
+
+            try:
+                result = vo_gen.generate_vo_per_frame(
+                    asset_id=asset["id"],
+                    posts=posts,
+                    business_slug=business_slug,
+                )
+                store.save_vo_segments(asset["id"], json.dumps(result["segments"]))
+            except VOGenerationError as e:
+                # Non-fatal — the asset can still be rendered without VO
+                # (silent or music-only). The edit plan will handle it.
+                import logging
+                logging.warning(f"VO generation failed for asset {asset['id']}: {e}")
+
+    def _step_media_plan(self, draft_id: int, card_id: int, business_slug: str, store):
+        """Generate a media plan with VO timeline as the master clock."""
+        # This is called from the route in app.py for now — but when the full
+        # assembler chain runs automatically, this method will hold the logic.
+        # For now it delegates to the existing route-based flow.
+        pass
+
+    def _step_media_exec(self, draft_id: int, card_id: int, business_slug: str, store):
+        """Execute the media plan — generate/fetch visuals."""
+        pass
+
+    def _step_edit_plan(self, draft_id: int, card_id: int, business_slug: str, store):
+        """Generate the edit plan with pre-aligned VO timeline."""
+        pass
+
+    def _step_render(self, draft_id: int, card_id: int, business_slug: str, store):
+        """Render the final video from the edit plan."""
+        pass
 
     def _step_draft(self, card_id: int, business_slug: str, store) -> int:
         """Step 1: Generate draft from the approved card. Returns draft_id.
@@ -541,7 +623,17 @@ class ProductionChain:
     def _identify_failed_step(self, error: Exception) -> str:
         """Identify which step failed from the exception traceback."""
         tb = traceback.format_exc()
-        if "_step_draft" in tb:
+        if "_step_vo" in tb:
+            return "vo_generation"
+        elif "_step_media_plan" in tb:
+            return "media_plan"
+        elif "_step_media_exec" in tb:
+            return "media_execution"
+        elif "_step_edit_plan" in tb:
+            return "edit_plan"
+        elif "_step_render" in tb:
+            return "render"
+        elif "_step_draft" in tb:
             return "draft_generation"
         elif "_step_fanout" in tb:
             return "fan_out"

@@ -1,251 +1,299 @@
-# Format Guide — v1.0
+# Format Guide — v2.0
 
 ## Summary
-This Format Guide maps StackPenni's content across X and Instagram using seven formats: X Thread, X Single Post, X Poll Post, Instagram Carousel, Instagram Reel Script, Instagram Single Image Post, and Instagram Story Series, plus a cross-platform Newsletter Section format. The core principle is that deep explainers and how-tos become threads on X and carousels on Instagram; hot takes and stats become single posts on X and either Reels or single image posts on Instagram; cultural and behind-the-scenes content leans into Reels and Stories on Instagram for personality and authenticity. Five formats are marked proven (thread, single post, carousel, reel, single image) based on established platform norms, while three are experimental (story series, poll post, newsletter) pending operator testing. Every format includes a mechanical skeleton for the drafter, reuse pathways showing how one piece spawns derivatives across platforms, and capture task specifications where human-captured footage is required. The decision table covers 11 message types across both platforms with clear rationale for each recommendation.
+A descriptive catalogue of StackPenni formats. Selection is contextual: the user may constrain a platform or exact format; otherwise the LLM chooses one primary destination by matching an idea’s expressive needs, evidence, audience experience, and production feasibility to these affordances. No message-type routing table applies.
+
+## Selection profiles
+
+### X Thread
+- **Platforms:** X
+- **Audience experience:** A reader follows a sequence of connected posts and may respond at any point.
+- **Native mechanics:** threaded reading; sequential text; per-post replies; shareable individual posts
+- **Expressive strengths:** carries layered reasoning; builds evidence step by step; preserves narrative sequence
+- **Limitations:** requires sustained reading attention; weak transitions make the sequence feel fragmented; too many points dilute the core claim
+- **Production demands:** concise writing; clear progression; each post must stand alone while serving the whole
+- **Effort / capture:** medium / none
+- **Performance evidence:** [platform_prior] General platform prior only; StackPenni tenant performance has not yet validated this entry.
+
+### X Single Post
+- **Platforms:** X
+- **Audience experience:** A reader encounters one self-contained thought in a fast text feed.
+- **Native mechanics:** single text unit; replies; reposts; quote posts
+- **Expressive strengths:** lands one idea with maximum concentration; invites immediate discussion; makes a claim easy to repeat
+- **Limitations:** cannot carry much qualification; compression can turn nuance into empty provocation; multiple ideas compete
+- **Production demands:** one strong sentence or compact paragraph; precise wording
+- **Effort / capture:** low / none
+- **Performance evidence:** [platform_prior] General platform prior only; StackPenni tenant performance has not yet validated this entry.
+
+### X Poll Post
+- **Platforms:** X
+- **Audience experience:** A reader makes a structured choice, then sees or discusses the group response.
+- **Native mechanics:** question; 2-4 selectable answers; time-bounded voting; reply discussion
+- **Expressive strengths:** collects structured audience response; surfaces disagreement; tests assumptions visibly
+- **Limitations:** leading options corrupt the signal; obvious answers create empty engagement; complex views do not fit fixed choices
+- **Production demands:** balanced answer options; a genuinely uncertain question; follow-up interpretation
+- **Effort / capture:** low / none
+- **Performance evidence:** [platform_prior] General platform prior only; StackPenni tenant performance has not yet validated this entry.
+
+### Instagram Carousel
+- **Platforms:** Instagram
+- **Audience experience:** A viewer swipes through a controlled visual sequence at their own pace.
+- **Native mechanics:** sequential slides; saveable visual pages; cover thumbnail; mixed text and imagery
+- **Expressive strengths:** carries visual sequence; supports comparison; lets viewers pause on evidence; makes layered information saveable
+- **Limitations:** dense slides become unreadable; generic templates flatten personality; too many slides weaken momentum
+- **Production demands:** designed slides; legible typography; coherent visual progression
+- **Effort / capture:** medium / optional
+- **Performance evidence:** [platform_prior] General platform prior only; StackPenni tenant performance has not yet validated this entry.
+
+### Instagram Reel Script
+- **Platforms:** Instagram
+- **Audience experience:** A viewer experiences a short vertical audiovisual piece in a continuous discovery feed.
+- **Native mechanics:** vertical moving image; spoken voice or natural sound; timed text overlays; performance and pacing
+- **Expressive strengths:** shows human presence; demonstrates a process in motion; uses voice and timing for emotional delivery; makes visual contrast tangible
+- **Limitations:** dense arguments feel rushed; weak visuals become a text post read aloud; forced movement distracts from the idea; audio failure damages comprehension
+- **Production demands:** purposeful footage or generated motion; clear audio when speech is used; editing paced to the idea; readable overlays where needed
+- **Effort / capture:** high / optional
+- **Performance evidence:** [platform_prior] General platform prior only; StackPenni tenant performance has not yet validated this entry.
+
+### Instagram Single Image Post
+- **Platforms:** Instagram
+- **Audience experience:** A viewer receives one visual statement, with optional depth in the caption.
+- **Native mechanics:** single feed image; thumbnail readability; caption; sharing and saving
+- **Expressive strengths:** concentrates one visual idea; makes a quote or image immediately legible; lets photography carry meaning
+- **Limitations:** cannot show progression; text-heavy graphics feel generic; the caption may be ignored
+- **Production demands:** one strong image or designed composition; mobile-legible message; supporting caption when useful
+- **Effort / capture:** low / optional
+- **Performance evidence:** [platform_prior] General platform prior only; StackPenni tenant performance has not yet validated this entry.
+
+### Instagram Story Series
+- **Platforms:** Instagram
+- **Audience experience:** A viewer taps through temporary vertical frames and can respond through native stickers.
+- **Native mechanics:** ephemeral vertical frames; polls and question stickers; direct replies; links; low-polish capture
+- **Expressive strengths:** creates immediacy; supports conversational participation; shows process with low ceremony; collects lightweight feedback
+- **Limitations:** disappears quickly; later frames lose viewers; small text is hard to read; overproduction can reduce intimacy
+- **Production demands:** 3-7 coherent frames; large overlays; native interaction where it serves the idea
+- **Effort / capture:** low / optional
+- **Performance evidence:** [platform_prior] General platform prior only; StackPenni tenant performance has not yet validated this entry.
+
+### Newsletter Section
+- **Platforms:** X
+- **Audience experience:** A reader spends sustained attention on a structured long-form argument or report.
+- **Native mechanics:** long-form sections; headings; links and citations; owned or semi-owned reading context
+- **Expressive strengths:** supports depth and qualification; connects several sources; builds a durable argument; allows reflective voice
+- **Limitations:** high attention cost; weak editing feels meandering; not all social surfaces support the same reading experience
+- **Production demands:** substantive writing; source integration; editing and hierarchy
+- **Effort / capture:** high / none
+- **Performance evidence:** [platform_prior] General platform prior only; StackPenni tenant performance has not yet validated this entry.
 
 ## Formats
 
 ### X Thread
 - **Platforms:** X
 - **Variant type:** thread
-- **Best for:** deep-dive explainers, contrarian takes, step-by-step frameworks, story-driven lessons, financial literacy breakdowns
-- **Length:** 5-12 tweets, ~200-280 chars each
+- **Audience experience:** A reader follows a sequence of connected posts and may respond at any point.
+- **Native mechanics:** threaded reading; sequential text; per-post replies; shareable individual posts
+- **Expressive strengths:** carries layered reasoning; builds evidence step by step; preserves narrative sequence
+- **Limitations:** requires sustained reading attention; weak transitions make the sequence feel fragmented; too many points dilute the core claim
+- **Production demands:** concise writing; clear progression; each post must stand alone while serving the whole
+- **Length:** 5-12 posts, usually 100-280 characters each
+- **Aspect ratio:** not_applicable
 - **Effort level:** medium
 - **Requires human capture:** none
 - **Status:** proven
-- **Reuse pathways:** Expand into Instagram carousel by converting each tweet into a slide, Compile top threads into a newsletter roundup, Extract best tweet as standalone X post, Turn framework tweets into Instagram Reel voiceover script
-- **Provenance:** Derived from general platform norms for X; established as default long-form format for text-based explainers
-- **Structure notes:** Hook tweet must stand alone as a complete, scroll-stopping claim. Each subsequent tweet delivers one idea, one example, or one step. Final tweet is a CTA or summary. No tweet should exceed 280 characters. Use line breaks for readability. Number tweets (1/n) only if thread exceeds 5 tweets.
+- **Performance evidence:** [platform_prior] General platform prior only; StackPenni tenant performance has not yet validated this entry. (updated 2026-07-11)
+- **Reuse pathways:** A single line may later become a separate X post; a visual sequence may later be adapted deliberately.
+- **Provenance:** Migrated from Format Guide v1.0 under user approval; affordances derived from native platform mechanics.
+- **Structure notes:** Open with a complete claim, develop one idea per post, then land the argument. Number only when navigation benefits.
 
 **Skeleton:**
 ```
-Tweet 1 (hook): [Bold contrarian or curiosity claim about AI/wealth/Caribbean business].
-Tweet 2 (context): [Why this matters now — tie to a current event, trend, or pain point].
-Tweet 3 (point 1): [First principle or step].
-Tweet 4 (evidence): [Concrete example, stat, or Caribbean-context anecdote].
-Tweet 5 (point 2): [Second principle or step].
-Tweet 6 (evidence): [Another example or counterexample].
-Tweet 7 (point 3): [Third principle or step].
-Tweet 8 (synthesis): [How the pieces fit together].
-Tweet 9 (CTA): [Follow @StackPenni for more on {topic}. What's your take?]
+Post 1: [complete hook]
+Posts 2-N: [one claim, example, or step each]
+Final post: [landing or invitation]
 ```
 
 ### X Single Post
 - **Platforms:** X
 - **Variant type:** single_post
-- **Best for:** hot takes, quick tips, stat drops, announcements, cultural commentary, one-liner wisdom
-- **Length:** 1 tweet, ~100-280 chars
+- **Audience experience:** A reader encounters one self-contained thought in a fast text feed.
+- **Native mechanics:** single text unit; replies; reposts; quote posts
+- **Expressive strengths:** lands one idea with maximum concentration; invites immediate discussion; makes a claim easy to repeat
+- **Limitations:** cannot carry much qualification; compression can turn nuance into empty provocation; multiple ideas compete
+- **Production demands:** one strong sentence or compact paragraph; precise wording
+- **Length:** Usually 100-280 characters
+- **Aspect ratio:** not_applicable
 - **Effort level:** low
 - **Requires human capture:** none
 - **Status:** proven
-- **Reuse pathways:** Use as Instagram caption for a single image post, Quote-tweet later with expanded thoughts, Collect into a 'best of' thread, Repurpose as Instagram Story text overlay
-- **Provenance:** Derived from general platform norms for X; default short-form format
-- **Structure notes:** Must be self-contained. Lead with the punchline or the most provocative claim. If using a stat, cite the source inline. One idea only — no sub-points. End with a question or a sharp closer if engagement is the goal.
+- **Performance evidence:** [platform_prior] General platform prior only; StackPenni tenant performance has not yet validated this entry. (updated 2026-07-11)
+- **Reuse pathways:** A proven line may later seed a longer treatment, but no derivative is required.
+- **Provenance:** Migrated from Format Guide v1.0 under user approval; affordances derived from native platform mechanics.
+- **Structure notes:** Lead with the thought itself. Keep one idea. Add context only when it strengthens rather than explains away the line.
 
 **Skeleton:**
 ```
-[Bold claim or stat about AI/wealth/tech/Caribbean culture].
-[One sentence of context or explanation].
-[Optional: question or CTA to @StackPenni].
-```
-
-### Instagram Carousel
-- **Platforms:** Instagram
-- **Variant type:** carousel
-- **Best for:** step-by-step guides, listicles, frameworks, before/after comparisons, financial literacy explainers, AI tool breakdowns
-- **Length:** 6-10 slides
-- **Effort level:** medium
-- **Requires human capture:** optional
-- **Capture tasks:**
-  - If featuring real Caribbean business context: photograph storefront, product, or screen of tool in use
-- **Status:** proven
-- **Reuse pathways:** Convert each slide into an X tweet to form a thread, Compile carousel slides into a Reel using slideshow format, Turn slide content into newsletter section, Extract cover slide as standalone Instagram post
-- **Provenance:** Derived from general platform norms for Instagram; primary educational format for the platform
-- **Structure notes:** Slide 1 is the cover — bold title text on branded background, must work as a thumbnail. Slides 2 through n-1 each carry one point with minimal text (max 30 words per slide). Final slide is CTA. Use consistent visual template. Text must be legible at thumbnail size.
-
-**Skeleton:**
-```
-Slide 1 (cover): [Big headline: e.g., '5 AI Tools Every Caribbean Entrepreneur Needs']
-Slide 2 (intro/context): [Why this matters — 1-2 sentences max]
-Slide 3 (point 1): [Tool/concept name + one-line description]
-Slide 4 (point 1 detail): [How to use it / Caribbean-specific application]
-Slide 5 (point 2): [Next tool/concept + one-line description]
-Slide 6 (point 2 detail): [Application or example]
-Slide 7 (point 3): [Next tool/concept]
-Slide 8 (point 3 detail): [Application or example]
-Slide 9 (summary): [Recap in one line per point]
-Slide 10 (CTA): [Follow @stackpenni. Save this for later. Share with a founder friend.]
-```
-
-### Instagram Reel Script
-- **Platforms:** Instagram
-- **Variant type:** reel
-- **Best for:** trend commentary, quick tips, cultural observations, behind-the-scenes, motivational messages, tool demos
-- **Length:** 15-60 seconds, ~40-120 words spoken
-- **Effort level:** high
-- **Requires human capture:** required
-- **Capture tasks:**
-  - Record 15-60s of talking-head footage with clear audio, or
-  - Record B-roll footage relevant to topic (e.g., street scenes, laptop screen, product shots)
-  - Capture in well-lit environment with minimal background noise
-- **Status:** proven
-- **Reuse pathways:** Extract audio as X text thread, Screenshot key frames as Instagram carousel slides, Clip best 5-10s as Instagram Story or Reel teaser, Transcribe and expand into newsletter section
-- **Provenance:** Derived from general platform norms for Instagram Reels; primary video format for the platform
-- **Structure notes:** First 2 seconds must hook — visual movement + spoken hook line. Script follows hook → tension → payoff → CTA. Text overlay reinforces spoken words. Trending audio optional but should not overpower voice. End with a clear CTA: follow, save, comment.
-
-**Skeleton:**
-```
-[0-2s HOOK — visual: bold text overlay + movement; spoken: '{Provocative question or claim about AI/wealth/Caribbean business}']
-[2-10s SETUP — spoken: 'Here's why {topic} matters for {audience}'; visual: B-roll or talking head]
-[10-30s PAYOFF — spoken: deliver 1-3 key points, one per sentence; visual: text overlays with each point]
-[30-45s CLOSE — spoken: 'Follow @stackpenni for more on {topic}'; visual: logo + CTA text]
-```
-
-### Instagram Single Image Post
-- **Platforms:** Instagram
-- **Variant type:** single_post
-- **Best for:** quotes, announcements, stat highlights, cultural pride posts, simple tips
-- **Length:** 1 image + caption (50-200 words)
-- **Effort level:** low
-- **Requires human capture:** optional
-- **Capture tasks:**
-  - If using real photography: capture relevant photo (e.g., Caribbean business scene, workspace, product)
-- **Status:** proven
-- **Reuse pathways:** Use image as X post with caption as tweet text, Convert to Instagram Story, Include in carousel as a slide, Use as newsletter header image
-- **Provenance:** Derived from general platform norms for Instagram; default static post format
-- **Structure notes:** Image carries the primary message — bold text on branded template or high-quality photo. Caption provides context, depth, and CTA. Image must make sense without reading the caption. Caption should be readable in the first 2 lines before the 'more' cutoff.
-
-**Skeleton:**
-```
-Image: [Bold quote, stat, or tip on branded background OR high-quality photo with text overlay]
-Caption line 1 (hook): [Scroll-stopping first line, must be visible before 'more']
-Caption body: [2-4 sentences expanding the image's message with Caribbean or AI/wealth context]
-Caption CTA: [Follow @stackpenni. Comment your thoughts. Save this.]
-```
-
-### Instagram Story Series
-- **Platforms:** Instagram
-- **Variant type:** story_series
-- **Best for:** behind-the-scenes, daily tips, event coverage, quick polls, time-sensitive commentary
-- **Length:** 3-7 story frames, each 5-15 seconds
-- **Effort level:** low
-- **Requires human capture:** optional
-- **Capture tasks:**
-  - If behind-the-scenes: capture real footage of workspace, event, or process
-  - If event coverage: capture photos/video at the event
-- **Status:** experimental
-- **Reuse pathways:** Compile story frames into a carousel for the main feed, Turn poll results into an X post or thread, Screenshot best frames for future reference, Expand into a Reel script
-- **Provenance:** Operator request to explore ephemeral content; not yet tested for StackPenni
-- **Structure notes:** Each frame must be self-contained but flow as a sequence. Use polls, questions, or sliders for engagement on at least one frame. Text overlays should be large and high-contrast. Final frame includes CTA to main feed or profile.
-
-**Skeleton:**
-```
-Frame 1 (hook): [Bold text overlay on solid color or photo: '{Question or bold statement}']
-Frame 2 (context): [Text: 'Here's the thing about {topic}...'; optional photo background]
-Frame 3 (point 1): [Text: key insight; optional poll sticker: 'Did you know this? Yes/No']
-Frame 4 (point 2): [Text: second insight; optional question sticker for audience input]
-Frame 5 (CTA): [Text: 'Follow @stackpenni for daily {topic} tips'; link sticker if applicable]
+[Self-contained claim]
+[Optional context or invitation]
 ```
 
 ### X Poll Post
 - **Platforms:** X
 - **Variant type:** poll
-- **Best for:** audience research, engagement bait, contrarian framing, cultural questions, market validation
-- **Length:** 1 tweet with poll, question + 2-4 options, ~100-200 chars
+- **Audience experience:** A reader makes a structured choice, then sees or discusses the group response.
+- **Native mechanics:** question; 2-4 selectable answers; time-bounded voting; reply discussion
+- **Expressive strengths:** collects structured audience response; surfaces disagreement; tests assumptions visibly
+- **Limitations:** leading options corrupt the signal; obvious answers create empty engagement; complex views do not fit fixed choices
+- **Production demands:** balanced answer options; a genuinely uncertain question; follow-up interpretation
+- **Length:** One question with 2-4 concise options
+- **Aspect ratio:** not_applicable
 - **Effort level:** low
 - **Requires human capture:** none
 - **Status:** experimental
-- **Reuse pathways:** Turn poll results into a follow-up X thread analyzing the outcome, Use poll question as Instagram Story poll, Compile recurring poll themes into a newsletter section, Quote-tweet final results with analysis
-- **Provenance:** Operator request to explore engagement-driven formats; not yet tested for StackPenni
-- **Structure notes:** Question must be genuinely interesting and not have an obvious answer. Options should be balanced — avoid leading. Add commentary after the poll in the same tweet. Polls run 24 hours by default.
+- **Performance evidence:** [platform_prior] General platform prior only; StackPenni tenant performance has not yet validated this entry. (updated 2026-07-11)
+- **Reuse pathways:** Results may justify a separate analysis after voting closes.
+- **Provenance:** Migrated from Format Guide v1.0 under user approval; affordances derived from native platform mechanics.
+- **Structure notes:** Ask one non-obvious question. Keep options balanced and mutually intelligible. Treat results as audience evidence, not universal truth.
 
 **Skeleton:**
 ```
-[Provocative question about AI/wealth/Caribbean business/tech]
-[Poll option 1: {common assumption}]
-[Poll option 2: {contrarian view}]
-[Poll option 3: {nuanced middle ground}]
-[Poll option 4: {wild card}]
-[Commentary: one line on why you're asking or what you predict]
+[Question]
+[Balanced options]
+[Optional reason for asking]
+```
+
+### Instagram Carousel
+- **Platforms:** Instagram
+- **Variant type:** carousel
+- **Audience experience:** A viewer swipes through a controlled visual sequence at their own pace.
+- **Native mechanics:** sequential slides; saveable visual pages; cover thumbnail; mixed text and imagery
+- **Expressive strengths:** carries visual sequence; supports comparison; lets viewers pause on evidence; makes layered information saveable
+- **Limitations:** dense slides become unreadable; generic templates flatten personality; too many slides weaken momentum
+- **Production demands:** designed slides; legible typography; coherent visual progression
+- **Length:** Usually 5-10 slides
+- **Aspect ratio:** 4:5
+- **Effort level:** medium
+- **Requires human capture:** optional
+- **Capture tasks:**
+  - Capture source-specific photography when visual proof materially strengthens the idea.
+- **Status:** proven
+- **Performance evidence:** [platform_prior] General platform prior only; StackPenni tenant performance has not yet validated this entry. (updated 2026-07-11)
+- **Reuse pathways:** An individual slide may stand alone later only if it remains truthful outside the sequence.
+- **Provenance:** Migrated from Format Guide v1.0 under user approval; affordances derived from native platform mechanics.
+- **Structure notes:** The cover earns the swipe. Each slide advances one beat. Use visual hierarchy and keep every page comprehensible on mobile.
+
+**Skeleton:**
+```
+Slide 1: [cover]
+Slides 2-N: [one beat each]
+Final slide: [landing or next action]
+```
+
+### Instagram Reel Script
+- **Platforms:** Instagram
+- **Variant type:** reel
+- **Audience experience:** A viewer experiences a short vertical audiovisual piece in a continuous discovery feed.
+- **Native mechanics:** vertical moving image; spoken voice or natural sound; timed text overlays; performance and pacing
+- **Expressive strengths:** shows human presence; demonstrates a process in motion; uses voice and timing for emotional delivery; makes visual contrast tangible
+- **Limitations:** dense arguments feel rushed; weak visuals become a text post read aloud; forced movement distracts from the idea; audio failure damages comprehension
+- **Production demands:** purposeful footage or generated motion; clear audio when speech is used; editing paced to the idea; readable overlays where needed
+- **Length:** Usually 15-90 seconds
+- **Aspect ratio:** 9:16
+- **Effort level:** high
+- **Requires human capture:** optional
+- **Capture tasks:**
+  - Record talking-head delivery or relevant original footage only when the chosen treatment calls for human presence.
+- **Status:** proven
+- **Performance evidence:** [platform_prior] General platform prior only; StackPenni tenant performance has not yet validated this entry. (updated 2026-07-11)
+- **Reuse pathways:** A strong spoken line may later be adapted separately; the Reel does not require a matching X post.
+- **Provenance:** Migrated from Format Guide v1.0 under user approval; affordances derived from native platform mechanics.
+- **Structure notes:** Open with immediate substance, develop one coherent idea, and let motion or voice do work that static text cannot.
+
+**Skeleton:**
+```
+HOOK: [visual/spoken entry]
+DEVELOPMENT: [one coherent progression]
+LANDING: [memorable close without padding]
+```
+
+### Instagram Single Image Post
+- **Platforms:** Instagram
+- **Variant type:** single_post
+- **Audience experience:** A viewer receives one visual statement, with optional depth in the caption.
+- **Native mechanics:** single feed image; thumbnail readability; caption; sharing and saving
+- **Expressive strengths:** concentrates one visual idea; makes a quote or image immediately legible; lets photography carry meaning
+- **Limitations:** cannot show progression; text-heavy graphics feel generic; the caption may be ignored
+- **Production demands:** one strong image or designed composition; mobile-legible message; supporting caption when useful
+- **Length:** One image; caption length follows the idea
+- **Aspect ratio:** 4:5
+- **Effort level:** low
+- **Requires human capture:** optional
+- **Capture tasks:**
+  - Capture a real photograph when authenticity or evidence is central.
+- **Status:** proven
+- **Performance evidence:** [platform_prior] General platform prior only; StackPenni tenant performance has not yet validated this entry. (updated 2026-07-11)
+- **Reuse pathways:** The visual may be reused only where its meaning and dimensions remain native.
+- **Provenance:** Migrated from Format Guide v1.0 under user approval; affordances derived from native platform mechanics.
+- **Structure notes:** The image must communicate before the caption. Use the caption to deepen, not rescue, the visual.
+
+**Skeleton:**
+```
+Image: [single visual statement]
+Caption: [optional context and landing]
+```
+
+### Instagram Story Series
+- **Platforms:** Instagram
+- **Variant type:** story_series
+- **Audience experience:** A viewer taps through temporary vertical frames and can respond through native stickers.
+- **Native mechanics:** ephemeral vertical frames; polls and question stickers; direct replies; links; low-polish capture
+- **Expressive strengths:** creates immediacy; supports conversational participation; shows process with low ceremony; collects lightweight feedback
+- **Limitations:** disappears quickly; later frames lose viewers; small text is hard to read; overproduction can reduce intimacy
+- **Production demands:** 3-7 coherent frames; large overlays; native interaction where it serves the idea
+- **Length:** Usually 3-7 frames
+- **Aspect ratio:** 9:16
+- **Effort level:** low
+- **Requires human capture:** optional
+- **Capture tasks:**
+  - Capture real-time footage when immediacy is part of the treatment.
+- **Status:** experimental
+- **Performance evidence:** [platform_prior] General platform prior only; StackPenni tenant performance has not yet validated this entry. (updated 2026-07-11)
+- **Reuse pathways:** Audience responses may become research input; no feed derivative is automatic.
+- **Provenance:** Migrated from Format Guide v1.0 under user approval; affordances derived from native platform mechanics.
+- **Structure notes:** Each frame must work quickly while advancing the sequence. Use interaction only when the response matters.
+
+**Skeleton:**
+```
+Frame 1: [entry]
+Frames 2-N: [progression or interaction]
+Final frame: [landing/link/reply invitation]
 ```
 
 ### Newsletter Section
-- **Platforms:** X, Instagram
+- **Platforms:** X
 - **Variant type:** newsletter
-- **Best for:** weekly roundups, deep analysis, curated links, long-form thought leadership, financial literacy courses
-- **Length:** 500-1500 words per section; full issue 1500-3000 words
+- **Audience experience:** A reader spends sustained attention on a structured long-form argument or report.
+- **Native mechanics:** long-form sections; headings; links and citations; owned or semi-owned reading context
+- **Expressive strengths:** supports depth and qualification; connects several sources; builds a durable argument; allows reflective voice
+- **Limitations:** high attention cost; weak editing feels meandering; not all social surfaces support the same reading experience
+- **Production demands:** substantive writing; source integration; editing and hierarchy
+- **Length:** Usually 500-1500 words per section
+- **Aspect ratio:** not_applicable
 - **Effort level:** high
 - **Requires human capture:** none
 - **Status:** experimental
-- **Reuse pathways:** Publish full issue on X as long-form post or thread, Extract each section as standalone Instagram carousel, Turn opening note into Instagram Reel script, Compile quick hits as X single posts throughout the week, Collect best sections into a downloadable guide
-- **Provenance:** Operator request to explore owned-audience content; not yet tested for StackPenni
-- **Structure notes:** Published via X (as a long-form post or thread of sections) and teased on Instagram (carousel or Reel). Each section has a clear subhead. Open with a personal note or hook. Sections should be skimmable — bold key terms, use bullet lists. End with a CTA to follow and share.
+- **Performance evidence:** [platform_prior] General platform prior only; StackPenni tenant performance has not yet validated this entry. (updated 2026-07-11)
+- **Reuse pathways:** Specific excerpts may later inspire independent social pieces; adaptation is a separate editorial decision.
+- **Provenance:** Migrated from Format Guide v1.0 under user approval; affordances derived from native platform mechanics.
+- **Structure notes:** Use a clear opening question or claim, develop sourced sections, and land with a conclusion earned by the body.
 
 **Skeleton:**
 ```
-Issue header: [StackPenni Weekly — Issue #X — {Date}]
-
-Opening note (100-200 words): [Personal hook — what's on your mind this week, tied to AI/wealth/Caribbean culture/entrepreneurship]
-
-Section 1 — {Topic headline}:
-[300-500 words: one deep insight, framework, or analysis. Include a Caribbean-specific example. Bold key terms.]
-
-Section 2 — {Topic headline}:
-[300-500 words: second piece. Could be a tool review, a contrarian take, or a reader Q&A.]
-
-Section 3 — {Quick hits}:
-[3-5 bullet points: links, stats, or one-liners worth knowing this week]
-
-Closing CTA: [Follow @StackPenni on X and @stackpenni on IG. Reply with your thoughts. Forward to a friend.]
+Opening: [specific question/claim]
+Sections: [evidence and development]
+Close: [synthesis or invitation]
 ```
 
-## Decision table
-- **deep-dive explainer (AI, financial literacy, digital transformation)** on X → **X Thread**
-  - Rationale: Threads are the native long-form on X and allow step-by-step breakdowns with engagement on each point. Best for frameworks, principles, and multi-step guides.
-- **deep-dive explainer (AI, financial literacy, digital transformation)** on Instagram → **Instagram Carousel**
-  - Rationale: Carousels are Instagram's native educational format, allow swipe-through engagement, and get algorithmic boost for saves. Ideal for step-by-step guides and frameworks.
-- **hot take / contrarian opinion** on X → **X Single Post**
-  - Rationale: Single posts maximize virality for sharp opinions. One idea, one punch. Threads dilute the take; single posts concentrate it.
-- **hot take / contrarian opinion** on Instagram → **Instagram Reel Script**
-  - Rationale: Reels favor personality-driven takes with high energy. A 15-30s spoken hot take with text overlay performs better than a static image for opinion content on Instagram.
-- **quick tip / one-liner wisdom** on X → **X Single Post**
-  - Rationale: Tips work best as single, quotable, shareable units. No need for a thread.
-- **quick tip / one-liner wisdom** on Instagram → **Instagram Single Image Post**
-  - Rationale: A bold text-on-image post is the most shareable and saveable format for quick tips on Instagram. Low effort, high reuse potential.
-- **stat drop / data highlight** on X → **X Single Post**
-  - Rationale: Stats are most impactful as single, punchy posts that get quote-tweeted. A thread would bury the number.
-- **stat drop / data highlight** on Instagram → **Instagram Single Image Post**
-  - Rationale: A stat on a branded visual is highly saveable and shareable. Caption can add Caribbean context.
-- **step-by-step guide / how-to** on X → **X Thread**
-  - Rationale: How-tos need sequential steps. Threads deliver each step as a discrete, engageable unit.
-- **step-by-step guide / how-to** on Instagram → **Instagram Carousel**
-  - Rationale: Carousels are purpose-built for sequential guides. Each slide = one step. High save rate.
-- **cultural commentary / Caribbean pride** on X → **X Single Post**
-  - Rationale: Cultural commentary is best as a single resonant statement that gets replies and quote-tweets. Keep it sharp.
-- **cultural commentary / Caribbean pride** on Instagram → **Instagram Reel Script**
-  - Rationale: Cultural content thrives with voice, energy, and visual context. Reels let the personality and Caribbean setting shine through.
-- **behind-the-scenes / personal story** on X → **X Thread**
-  - Rationale: Stories need narrative arc. Threads allow building tension across tweets.
-- **behind-the-scenes / personal story** on Instagram → **Instagram Story Series**
-  - Rationale: Stories are the native ephemeral format for behind-the-scenes content. Low production, high authenticity.
-- **tool review / resource roundup** on X → **X Thread**
-  - Rationale: Multiple tools need individual treatment. One tweet per tool with context.
-- **tool review / resource roundup** on Instagram → **Instagram Carousel**
-  - Rationale: One slide per tool with name, one-line description, and use case. Highly saveable.
-- **audience question / engagement bait** on X → **X Poll Post**
-  - Rationale: Polls are the highest-engagement native format on X for questions. They also provide market research data.
-- **audience question / engagement bait** on Instagram → **Instagram Story Series**
-  - Rationale: Story polls and question stickers are Instagram's native engagement tools. Low effort, high interaction.
-- **weekly roundup / curated digest** on X → **Newsletter Section**
-  - Rationale: Long-form posts on X can serve as a newsletter. Allows depth and curation in one piece.
-- **weekly roundup / curated digest** on Instagram → **Instagram Carousel**
-  - Rationale: A 'this week in AI/wealth/Caribbean tech' carousel is saveable, shareable, and positions StackPenni as a curator.
-- **announcement / milestone** on X → **X Single Post**
-  - Rationale: Announcements should be single, clear, celebratory posts. Easy to amplify.
-- **announcement / milestone** on Instagram → **Instagram Single Image Post**
-  - Rationale: A branded visual with the announcement and a caption with details. Simple, celebratory, shareable.
-
 ## Provenance
-- Version: 1.0
-- Generated: 2026-07-03T09:50:30.077750+00:00
-- Schema: format_guide_v1
+- Version: 2.0
+- Generated: 2026-07-11T18:17:55.201440+00:00
+- Schema: format_guide_v2

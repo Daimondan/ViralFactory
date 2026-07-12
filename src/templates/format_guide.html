@@ -31,7 +31,7 @@
     <div class="container">
     {% include "_nav.html" %}}
     <h1>Format Guide Starter</h1>
-    <p class="muted">Run #{{ run_id }} · Which format fits which message on which platform. Includes capture requirements and reuse pathways.</p>
+    <p class="muted">Run #{{ run_id }} · A descriptive catalogue of what each medium enables, its limits, evidence, and production demands.</p>
 
     <div class="card">
         <h2>1. Format Observations (optional)</h2>
@@ -51,7 +51,7 @@
 
     <div class="card">
         <h2>3. Generate Format Guide</h2>
-        <p class="muted">The AI builds a decision table with per-format skeletons, capture requirements, and reuse pathways.</p>
+        <p class="muted">The AI builds descriptive format profiles. It does not assign message categories to predetermined formats.</p>
         <button class="btn btn-primary" onclick="analyze()" id="analyze-btn">Run AI Analysis</button>
         <span id="analyze-status"></span>
     </div>
@@ -102,7 +102,11 @@
             h += `<span class="tag tag-effort-${esc(f.effort_level)}">${esc(f.effort_level)} effort</span>`;
             h += `<ul>`;
             h += `<li><strong>Platforms:</strong> ${esc(f.platforms.join(', '))}</li>`;
-            h += `<li><strong>Best for:</strong> ${esc(f.best_for.join(', '))}</li>`;
+            h += `<li><strong>Audience experience:</strong> ${esc(f.audience_experience)}</li>`;
+            h += `<li><strong>Native mechanics:</strong> ${esc((f.native_mechanics || []).join(', '))}</li>`;
+            h += `<li><strong>Expressive strengths:</strong> ${esc((f.expressive_strengths || []).join(', '))}</li>`;
+            h += `<li><strong>Limitations:</strong> ${esc((f.limitations || []).join(', '))}</li>`;
+            h += `<li><strong>Production demands:</strong> ${esc((f.production_demands || []).join(', '))}</li>`;
             h += `<li><strong>Length:</strong> ${esc(f.length)}</li>`;
             h += `<li><strong>Requires human capture:</strong> ${esc(f.requires_human_capture)}</li>`;
             if (f.capture_tasks && f.capture_tasks.length) {
@@ -111,22 +115,18 @@
                 h += `</ul></li>`;
             }
             h += `<li><strong>Reuse pathways:</strong> ${esc(f.reuse_pathways.join(', '))}</li>`;
+            if (f.performance_evidence) h += `<li><strong>Performance evidence:</strong> ${esc(f.performance_evidence.source)} — ${esc(f.performance_evidence.notes)}</li>`;
             h += `<li><strong>Provenance:</strong> ${esc(f.provenance)}</li>`;
             h += `<li><strong>Structure notes:</strong> ${esc(f.structure_notes)}</li>`;
             h += `</ul>`;
             h += `<pre>${esc(f.skeleton)}</pre>`;
         }
-        h += '<h3>Decision table</h3><ul>';
-        for (const dt of g.decision_table) {
-            h += `<li><strong>${esc(dt.message_type)}</strong> on ${esc(dt.platform)} → <strong>${esc(dt.recommended_format)}</strong> — ${esc(dt.rationale)}</li>`;
-        }
-        h += '</ul>';
         d.innerHTML = h;
     }
 
     async function store(approved) {
         const status = document.getElementById('store-status');
-        const resp = await fetch(`/api/run/{{ run_id }}/store-format-guide`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({approved, version: '1.0'}) });
+        const resp = await fetch(`/api/run/{{ run_id }}/store-format-guide`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({approved, version: '2.0'}) });
         const data = await resp.json();
         if (data.status === 'ok') { status.className = approved ? 'success' : 'loading'; status.textContent = approved ? '✓ format-guide module written.' : 'Parked.'; setTimeout(() => location.reload(), 1500); }
         else { status.className = 'error'; status.textContent = data.error; }

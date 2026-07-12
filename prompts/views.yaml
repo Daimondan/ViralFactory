@@ -5,13 +5,25 @@
 # Renaming or removing a ## heading in a *_to_markdown generator is a breaking
 # change — update this view map in the same commit.
 
+ideas/concepts_v1.md:
+  voice_profile:      {module: voice-profile,    mode: section, heading: "Identity line", budget: 2000,
+                       fallback: full}
+  viral_patterns:     {module: viral-patterns,   mode: full,  budget: 6000}
+  audience_insights:  {module: audience-insights, mode: full, budget: 4000}
+  story_frameworks:   {module: story-frameworks, mode: full,  budget: 4000}
+
+ideas/treatment_select_v1.md:
+  format_guide:       {module: format-guide, mode: section, heading: "Selection profiles", budget: 12000,
+                       fallback: index}
+
 ideas/generate_v1.md:
   voice_profile:      {module: voice-profile,    mode: section, heading: "Identity line", budget: 2000,
                        fallback: full}
   viral_patterns:     {module: viral-patterns,   mode: full,  budget: 6000}
   audience_insights:  {module: audience-insights, mode: full, budget: 4000}
   story_frameworks:   {module: story-frameworks, mode: full,  budget: 4000}
-  format_guide:       {module: format-guide,     mode: index, parent: Formats, budget: 3000}
+  format_guide:       {module: format-guide,     mode: section, heading: "Selection profiles", budget: 12000,
+                       fallback: index}
 
 draft/generate_v3.md:
   voice_profile:      {module: voice-profile,    mode: full,  budget: 8000}

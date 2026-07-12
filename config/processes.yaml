@@ -13,6 +13,38 @@
 # version: 1.0
 
 processes:
+  ideas_concepts_generate:
+    prompt_file: "ideas/concepts_v1.md"
+    backend: "ideator"
+    schema: "IDEA_CONCEPT_SCHEMA"
+    context_template: "Format-neutral concept generation ({num_cards} cards) | module_ctx: {module_prov}"
+    inputs:
+      business_name: {source: business, field: "business.name"}
+      subjects: {source: business, field: "subjects", transform: "join_comma"}
+      audience_description: {source: business, field: "audience_description"}
+      module_views: "ideas/concepts_v1.md"
+      origin_type: {source: dynamic, default: "ai_originated"}
+      distribution_intent: {source: dynamic, default: '{"mode":"open","platforms":[],"formats":[]}'}
+      source_material: {source: dynamic}
+      source_criteria: {source: dynamic}
+      num_cards: {source: dynamic, default: "3"}
+      existing_ideas: {source: dynamic, builder: "existing_ideas"}
+      kill_lessons: {source: dynamic, builder: "kill_lessons"}
+
+  ideas_treatment_select:
+    prompt_file: "ideas/treatment_select_v1.md"
+    backend: "ideator"
+    schema: "IDEA_CARD_SCHEMA"
+    context_template: "Treatment selection ({num_cards} cards) | module_ctx: {module_prov}"
+    inputs:
+      business_name: {source: business, field: "business.name"}
+      audience_description: {source: business, field: "audience_description"}
+      module_views: "ideas/treatment_select_v1.md"
+      distribution_intent: {source: dynamic}
+      concept_cards: {source: dynamic}
+      format_usage: {source: dynamic, builder: "format_usage"}
+      num_cards: {source: dynamic, default: "3"}
+
   ideas_generate:
     prompt_file: "ideas/generate_v1.md"
     backend: "ideator"
@@ -27,6 +59,7 @@ processes:
       module_views: "ideas/generate_v1.md"
       # Dynamic variables (built by route)
       origin_type: {source: dynamic, default: "ai_originated"}
+      distribution_intent: {source: dynamic, default: '{"mode":"open","platforms":[],"formats":[]}'}
       source_material: {source: dynamic}
       num_cards: {source: dynamic, default: "3"}
       existing_ideas: {source: dynamic, builder: "existing_ideas"}
@@ -44,6 +77,7 @@ processes:
       audience_description: {source: business, field: "audience_description"}
       module_views: "ideas/generate_v1.md"
       origin_type: {source: dynamic}
+      distribution_intent: {source: dynamic, default: '{"mode":"open","platforms":[],"formats":[]}'}
       source_material: {source: dynamic, template: "Operator seed: {seed}"}
       num_cards: {source: static, value: "1"}
       existing_ideas: {source: dynamic, builder: "existing_ideas"}
@@ -123,6 +157,7 @@ processes:
 
 # Schema registry — maps schema names to their Python locations
 schemas:
+  IDEA_CONCEPT_SCHEMA: "pipeline.IDEA_CONCEPT_SCHEMA"
   IDEA_CARD_SCHEMA: "pipeline.IDEA_CARD_SCHEMA"
   DRAFT_SCHEMA: "pipeline.DRAFT_SCHEMA"
   VARIANT_SCHEMA: "inline:variant_schema"

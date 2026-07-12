@@ -93,6 +93,10 @@ class VOGenerator:
 
         return " ".join(vo_lines)
 
+    def _get_engine(self) -> str:
+        """Get the configured voice cloning engine."""
+        return self.models_config.get("voice_cloning", {}).get("engine", "gemini_tts")
+
     def _get_gemini_tts_config(self) -> dict:
         """Get TTS configuration from models.yaml."""
         voice_config = self.models_config.get("voice_cloning", {})
@@ -105,6 +109,105 @@ class VOGenerator:
             "api_key_env": tts_config.get("api_key_env", "GEMINI_API_KEY"),
             "sample_rate": tts_config.get("sample_rate", 24000),
         }
+
+    def _get_chatterbox_config(self) -> dict:
+        """Get Chatterbox configuration from models.yaml."""
+        voice_config = self.models_config.get("voice_cloning", {})
+        cb_config = voice_config.get("chatterbox", {})
+        return {
+            "model": cb_config.get("model", "chatterbox_tts"),
+            "device": cb_config.get("device", "cpu"),
+            "exaggeration": cb_config.get("exaggeration", 0.5),
+            "cfg_weight": cb_config.get("cfg_weight", 0.5),
+            "sample_rate": voice_config.get("sample_rate", 24000),
+        }
+
+    def _get_default_reference_audio(self, business_slug: str = None) -> str:
+        """Find the best reference audio file for the business's cloned voice."""
+        voice_config = self.models_config.get("voice_cloning", {})
+        ref_dir_pattern = voice_config.get(
+            "reference_audio_dir", "modules/{business}/voice-samples/"
+        )
+        if business_slug:
+            ref_dir = ref_dir_pattern.replace("{business}", business_slug)
+        else:
+            ref_dir = ref_dir_pattern.replace("{business}", "stackpenni")
+
+        if not os.path.isdir(ref_dir):
+            return None
+
+        # Find the longest WAV file — longer clips give better cloning
+        wavs = [f for f in os.listdir(ref_dir) if f.endswith(".wav")]
+        if not wavs:
+            return None
+
+        # Sort by duration (longest first) — better for zero-shot cloning
+        def get_dur(f):
+            try:
+                r = subprocess.run(
+                    ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+                     "-of", "csv=p=0", os.path.join(ref_dir, f)],
+                    capture_output=True, text=True, timeout=10,
+                )
+                return float(r.stdout.strip() or 0)
+            except Exception:
+                return 0.0
+
+        wavs.sort(key=get_dur, reverse=True)
+        return os.path.join(ref_dir, wavs[0])
+
+    # Chatterbox model is loaded lazily and kept resident (same pattern as Whisper).
+    # Combined RAM budget is tight on the VPS — may need load/unload per job.
+    _chatterbox_model = None
+    _chatterbox_config_cache = None
+
+    def _load_chatterbox(self, config: dict):
+        """Load the Chatterbox model (lazy, cached)."""
+        if self._chatterbox_model is not None:
+            if self._chatterbox_config_cache == config["model"]:
+                return self._chatterbox_model
+            # Config changed — release old model
+            self._chatterbox_model = None
+
+        model_name = config["model"]
+        device = config["device"]
+
+        if model_name == "chatterbox_turbo_tts":
+            from chatterbox.tts_turbo import ChatterboxTurboTTS
+            self._chatterbox_model = ChatterboxTurboTTS.from_pretrained(device=device)
+        else:
+            from chatterbox.tts import ChatterboxTTS
+            self._chatterbox_model = ChatterboxTTS.from_pretrained(device=device)
+
+        self._chatterbox_config_cache = model_name
+        return self._chatterbox_model
+
+    def _call_chatterbox(self, text: str, reference_audio: str,
+                         config: dict) -> str:
+        """Call Chatterbox to generate speech and return the output WAV path.
+
+        Chatterbox generates to a temp file via torchaudio.save.
+        We return the path — the caller moves/renames it as needed.
+        """
+        import tempfile
+        import torchaudio as ta
+
+        model = self._load_chatterbox(config)
+
+        # Generate with cloned voice
+        wav = model.generate(
+            text,
+            audio_prompt_path=reference_audio,
+            exaggeration=config["exaggeration"],
+            cfg_weight=config["cfg_weight"],
+        )
+
+        # Save to temp file
+        tmp_fd, tmp_path = tempfile.mkstemp(suffix=".wav", dir="/tmp")
+        os.close(tmp_fd)
+        ta.save(tmp_path, wav, model.sr)
+
+        return tmp_path
 
     def _call_gemini_tts(self, text: str, voice: str, style: str,
                          model: str, api_key: str) -> bytes:
@@ -220,13 +323,150 @@ class VOGenerator:
             business_slug=business_slug,
         )
 
+    def generate_vo_per_frame(self, asset_id: int, posts: list,
+                              business_slug: str = None,
+                              take_id: str = None) -> dict:
+        """Generate one VO segment per frame/post.
+
+        VO is the master timeline — each post in the script's posts array is
+        one beat. This method generates a separate TTS call per post,
+        measures each segment's real duration, and returns the timeline.
+
+        Returns: {
+            "take_id": "take_...",
+            "segments": [
+                {"frame": 1, "path": "...", "duration": 6.2, "text": "..."},
+                ...
+            ],
+            "total_duration": 61.5,
+            "combined_path": "..."  # concatenated WAV for backward compat
+        }
+        """
+        if not take_id:
+            take_id = f"take_{int(time.time())}"
+
+        config = self._get_gemini_tts_config()
+        api_key = os.environ.get(config["api_key_env"], "")
+        if not api_key:
+            raise VOGenerationError(
+                f"{config['api_key_env']} not set — cannot generate VO via Gemini TTS"
+            )
+
+        media_dir = os.path.join("data", "media", str(asset_id))
+        os.makedirs(media_dir, exist_ok=True)
+
+        segments = []
+        segment_paths = []
+
+        for i, post in enumerate(posts, 1):
+            # Extract spoken lines from this post/frame
+            vo_text = self._extract_vo_lines(post, json.dumps([post]))
+            if not vo_text:
+                vo_text = post  # use the raw post if extraction finds nothing
+
+            seg_path = os.path.join(media_dir, f"vo_{take_id}_frame{i}.wav")
+
+            try:
+                pcm_data = self._call_gemini_tts(
+                    vo_text, config["voice"], config["style"],
+                    config["model"], api_key,
+                )
+            except Exception as e:
+                self._log_provenance(
+                    asset_id, take_id, f"VO frame {i} failed: {e}",
+                    "failed", config["model"], business_slug,
+                )
+                raise VOGenerationError(f"Gemini TTS call failed for frame {i}: {e}")
+
+            self._save_wav(pcm_data, seg_path, config["sample_rate"])
+            duration = self._get_duration(seg_path)
+
+            segments.append({
+                "frame": i,
+                "path": seg_path,
+                "duration": duration,
+                "text": vo_text[:200],
+            })
+            segment_paths.append(seg_path)
+
+            self._log_provenance(
+                asset_id, take_id,
+                f"VO frame {i}: {duration:.1f}s, text={len(vo_text)} chars",
+                "done", config["model"], business_slug,
+            )
+
+        # Concatenate all segments into one WAV for backward compatibility
+        combined_path = os.path.join(media_dir, f"vo_{take_id}.wav")
+        if segment_paths:
+            self._concat_wavs(segment_paths, combined_path)
+
+        total_duration = sum(s["duration"] for s in segments)
+
+        # Record the combined file in asset_media
+        self._record_vo_media(asset_id, combined_path, total_duration,
+                              config["model"], take_id)
+
+        self._log_provenance(
+            asset_id, take_id,
+            f"VO complete: {len(segments)} frames, {total_duration:.1f}s total, "
+            f"voice={config['voice']}",
+            "done", config["model"], business_slug,
+        )
+
+        return {
+            "take_id": take_id,
+            "segments": segments,
+            "total_duration": total_duration,
+            "combined_path": combined_path,
+        }
+
+    def _concat_wavs(self, wav_paths: list, output_path: str):
+        """Concatenate multiple WAV files into one using ffmpeg."""
+        try:
+            cmd = ["ffmpeg", "-y"]
+            for wp in wav_paths:
+                cmd.extend(["-i", wp])
+            cmd.extend([
+                "-filter_complex", "".join(
+                    f"[{i}:a]" for i in range(len(wav_paths))
+                ) + f"concat=n={len(wav_paths)}:v=0:a=1[out]",
+                "-map", "[out]",
+                "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "1",
+                output_path,
+            ])
+            subprocess.run(cmd, capture_output=True, timeout=60)
+        except Exception:
+            # Fallback: just copy the first segment as the combined file
+            if wav_paths and not os.path.exists(output_path):
+                import shutil
+                shutil.copy2(wav_paths[0], output_path)
+
+    def has_vo_segments_for_asset(self, asset_id: int) -> Optional[str]:
+        """Check if per-frame VO segments exist for an asset.
+
+        Returns the combined path if found, None otherwise.
+        """
+        media_dir = os.path.join("data", "media", str(asset_id))
+        if not os.path.exists(media_dir):
+            return None
+        # Look for frame segment files
+        for f in os.listdir(media_dir):
+            if f.startswith("vo_") and "_frame" in f and f.endswith(".wav"):
+                # Segments exist — return the combined file if available
+                for cf in os.listdir(media_dir):
+                    if cf.startswith("vo_") and "_frame" not in cf and cf.endswith(".wav"):
+                        return os.path.join(media_dir, cf)
+                return os.path.join(media_dir, f)  # at least segments exist
+        return None
+
     def generate_vo(self, asset_id: int, content: str,
                     posts: str = None, business_slug: str = None,
-                    take_id: str = None) -> dict:
+                    take_id: str = None,
+                    voice_id: int = None) -> dict:
         """Generate a VO take from script text.
 
         1. Extracts VO lines from content + posts
-        2. Sends to Gemini TTS with style instructions
+        2. Sends to configured TTS engine (chatterbox or gemini_tts)
         3. Saves as data/media/<asset_id>/vo_<take_id>.wav
         4. Records in asset_media + provenance
 
@@ -242,49 +482,79 @@ class VOGenerator:
         if not take_id:
             take_id = f"take_{int(time.time())}"
 
-        # Get TTS config
-        config = self._get_gemini_tts_config()
-        api_key = os.environ.get(config["api_key_env"], "")
-
-        if not api_key:
-            raise VOGenerationError(
-                f"{config['api_key_env']} not set — cannot generate VO via Gemini TTS"
-            )
-
         # Ensure output directory
         media_dir = os.path.join("data", "media", str(asset_id))
         os.makedirs(media_dir, exist_ok=True)
 
         output_path = os.path.join(media_dir, f"vo_{take_id}.wav")
 
-        # Call Gemini TTS
-        try:
-            pcm_data = self._call_gemini_tts(
-                vo_text, config["voice"], config["style"],
-                config["model"], api_key,
-            )
-        except Exception as e:
-            self._log_provenance(
-                asset_id, take_id, f"VO generation failed: {e}",
-                "failed", config["model"], business_slug,
-            )
-            raise VOGenerationError(f"Gemini TTS call failed: {e}")
+        engine = self._get_engine()
 
-        # Save as WAV
-        self._save_wav(pcm_data, output_path, config["sample_rate"])
+        if engine == "chatterbox":
+            # --- Chatterbox path (voice cloning) ---
+            config = self._get_chatterbox_config()
+
+            # Get reference audio — from voice_id or default
+            reference_audio = self._resolve_reference_audio(voice_id, business_slug)
+            if not reference_audio:
+                raise VOGenerationError(
+                    "No reference audio found for voice cloning. "
+                    "Upload voice samples to modules/{business}/voice-samples/ "
+                    "or select a voice in the voice registry."
+                )
+
+            try:
+                tmp_path = self._call_chatterbox(vo_text, reference_audio, config)
+            except Exception as e:
+                self._log_provenance(
+                    asset_id, take_id, f"VO generation failed: {e}",
+                    "failed", "chatterbox_tts", business_slug,
+                )
+                raise VOGenerationError(f"Chatterbox TTS call failed: {e}")
+
+            # Move temp file to output location
+            import shutil
+            shutil.move(tmp_path, output_path)
+
+            model_name = config["model"]
+
+        else:
+            # --- Gemini TTS path (fallback, preset voices) ---
+            config = self._get_gemini_tts_config()
+            api_key = os.environ.get(config["api_key_env"], "")
+
+            if not api_key:
+                raise VOGenerationError(
+                    f"{config['api_key_env']} not set — cannot generate VO via Gemini TTS"
+                )
+
+            try:
+                pcm_data = self._call_gemini_tts(
+                    vo_text, config["voice"], config["style"],
+                    config["model"], api_key,
+                )
+            except Exception as e:
+                self._log_provenance(
+                    asset_id, take_id, f"VO generation failed: {e}",
+                    "failed", config["model"], business_slug,
+                )
+                raise VOGenerationError(f"Gemini TTS call failed: {e}")
+
+            self._save_wav(pcm_data, output_path, config["sample_rate"])
+            model_name = config["model"]
 
         # Get duration
         duration = self._get_duration(output_path)
 
         # Record in asset_media
-        self._record_vo_media(asset_id, output_path, duration, config["model"], take_id)
+        self._record_vo_media(asset_id, output_path, duration, model_name, take_id)
 
         # Log to provenance
         self._log_provenance(
             asset_id, take_id,
-            f"VO generated: {duration:.1f}s, voice={config['voice']}, "
+            f"VO generated: {duration:.1f}s, engine={engine}, "
             f"text_length={len(vo_text)} chars",
-            "done", config["model"], business_slug,
+            "done", model_name, business_slug,
         )
 
         return {
@@ -294,16 +564,51 @@ class VOGenerator:
             "vo_text": vo_text[:200],
         }
 
+    def _resolve_reference_audio(self, voice_id: int = None,
+                                 business_slug: str = None) -> str:
+        """Resolve the reference audio path for voice cloning.
+
+        Priority:
+        1. If voice_id is given, look up the voices table for that voice's reference_path
+        2. If no voice_id, look up the default voice for this business
+        3. If no default, fall back to the longest file in voice-samples/
+        """
+        if voice_id:
+            conn = sqlite3.connect(self.db_path)
+            row = conn.execute(
+                "SELECT reference_path FROM voices WHERE id = ?", (voice_id,)
+            ).fetchone()
+            conn.close()
+            if row and row[0] and os.path.isfile(row[0]):
+                return row[0]
+
+        # Look for default voice in the registry
+        if business_slug:
+            conn = sqlite3.connect(self.db_path)
+            row = conn.execute(
+                "SELECT reference_path FROM voices WHERE business_slug = ? "
+                "AND is_default = 1 AND kind = 'cloned' LIMIT 1",
+                (business_slug,)
+            ).fetchone()
+            conn.close()
+            if row and row[0] and os.path.isfile(row[0]):
+                return row[0]
+
+        # Fall back to longest file in voice-samples dir
+        return self._get_default_reference_audio(business_slug)
+
     def has_vo_for_asset(self, asset_id: int) -> Optional[str]:
         """Check if a VO file already exists for an asset.
 
         Returns the path if found, None otherwise.
+        Skips per-frame segment files (vo_*_frame*.wav) — those are
+        intermediate segments, not the combined take.
         """
         media_dir = os.path.join("data", "media", str(asset_id))
         if not os.path.exists(media_dir):
             return None
         for ext in [".wav", ".mp3", ".m4a"]:
             for f in os.listdir(media_dir):
-                if f.startswith("vo_") and f.endswith(ext):
+                if f.startswith("vo_") and f.endswith(ext) and "_frame" not in f:
                     return os.path.join(media_dir, f)
         return None

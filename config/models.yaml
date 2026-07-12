@@ -72,19 +72,30 @@ transcription:
   compute_type: "int8"   # CPU-only VPS; float16 if GPU available
   language: "en"         # "auto" for auto-detect
 
-# ── Voice cloning (DIVERGENCE-003) ──────────────────────────────────
-# Open-source TTS with zero-shot voice cloning. Apache 2.0 licensed
+# ── Voice cloning (DIVERGENCE-003, DECISION-voice-cloning-vo-v1.0) ───
+# Open-source TTS with zero-shot voice cloning. MIT licensed Chatterbox
 # (commercially safe for paying customers). NOT XTTS-v2 (CPML = non-commercial).
 # Reference audio stored per-business in modules/{business}/voice-samples/.
 voice_cloning:
-  engine: "gemini_tts"                      # gemini_tts (uses GEMINI_API_KEY) | qwen3_tts (local, GPU)
-  model: "Qwen3-TTS-12Hz-1.7B-VoiceDesign"  # Apache 2.0, 3-second cloning (future)
+  # Engine selection: chatterbox (local, MIT, voice cloning) | gemini_tts (cloud, preset voices)
+  engine: "chatterbox"
   reference_audio_dir: "modules/{business}/voice-samples/"
   sample_rate: 24000
-  # TTS sub-config — controls how VO is generated
+  # Chatterbox config (DECISION-voice-cloning-vo-v1.0)
+  chatterbox:
+    model: "chatterbox_turbo_tts"        # chatterbox_tts (0.5B) | chatterbox_turbo_tts (350M, faster, better accent)
+    device: "cpu"                      # cpu | cuda (if GPU available)
+    exaggeration: 0.5                 # 0.0-2.0 (ignored by Turbo, kept for full model fallback)
+    cfg_weight: 0.5                    # 0.0-1.0 (ignored by Turbo, kept for full model fallback)
+    # Turbo ignores exaggeration/cfg_weight — uses its own internal voice matching.
+    # Turbo gave better Bajan accent + deeper male voice in operator listening test.
+    # Reference: PTT-20240310-WA0003.wav (41s, 67Hz F0 — deepest male clip)
+    # Models auto-download from HuggingFace on first use (~2 GB total, cached)
+    # On CPU-only VPS: Turbo RTF ~7-8x (faster than full model's ~10-13x).
+  # Gemini TTS fallback (preset voices only, no cloning)
   tts:
-    model: "gemini-3.1-flash-tts-preview"   # Google Gemini TTS model
-    voice: "Kore"                            # Prebuilt voice name
+    model: "gemini-3.1-flash-tts-preview"
+    voice: "Kore"
     style: "warm, authoritative, Caribbean-influenced English"
     api_key_env: "GEMINI_API_KEY"
     sample_rate: 24000

@@ -143,6 +143,21 @@ CREATE INDEX IF NOT EXISTS idx_feedback_draft ON feedback_log(draft_id);
 CREATE INDEX IF NOT EXISTS idx_sources_business ON sources(business_slug);
 CREATE INDEX IF NOT EXISTS idx_sources_status ON sources(status);
 CREATE INDEX IF NOT EXISTS idx_sources_hash ON sources(content_hash);
+
+-- Voice registry (DECISION-voice-cloning-vo-v1.0)
+-- Tracks cloned and stock voices for VO generation.
+-- Nothing business-specific in the schema — each tenant has their own voices.
+CREATE TABLE IF NOT EXISTS voices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    business_slug TEXT NOT NULL,
+    name TEXT NOT NULL,                -- human-friendly label
+    kind TEXT NOT NULL,               -- 'cloned' | 'stock'
+    engine TEXT NOT NULL,             -- 'chatterbox' | 'gemini_tts'
+    reference_path TEXT,              -- for cloned: path to reference audio file
+    is_default INTEGER NOT NULL DEFAULT 0,  -- 1 if this is the default voice for the business
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_voices_business ON voices(business_slug);
 """
 
 

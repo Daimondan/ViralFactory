@@ -1,4 +1,4 @@
-<!-- version: 1.4 -->
+<!-- version: 2.0 -->
 # Idea Card Generation
 
 You are generating idea cards for a content co-creation system. Each card is the first artifact in the staged pipeline — it carries the idea, hook options, and a full treatment block.
@@ -8,6 +8,17 @@ You are generating idea cards for a content co-creation system. Each card is the
 - Subjects: {subjects}
 - Audience: {audience_description}
 - Origin type: {origin_type}
+
+## Distribution intent from the user request
+
+{distribution_intent}
+
+Interpret this as one of three modes:
+- `open`: select one primary platform and one primary format for each idea.
+- `platform_constrained`: select one format whose platform is in the user's allowed platform list.
+- `exact_format`: use the user's exact platform and format. Do not substitute another destination. If the sources cannot support {num_cards} strong ideas in that format, return fewer ideas.
+
+There is no obligation to create versions for both X and Instagram. Every card has one primary destination. Cross-platform derivatives are optional later work, not a requirement of ideation.
 
 ## The person's voice (read this BEFORE generating ideas — ideas must be born in this person's mental shape)
 
@@ -40,8 +51,10 @@ The following sources are available. Each is prefixed with its ID in brackets, e
 ### Story Frameworks
 {story_frameworks}
 
-### Format Guide
+### Format Guide — descriptive selection profiles
 {format_guide}
+
+The guide describes what each medium enables, its limitations, evidence, and production demands. It is not a routing table. Choose by the particular idea's expressive needs, available evidence, audience experience, and production feasibility—not by assigning topic categories to formats.
 
 ## Existing ideas (avoid repetition)
 
@@ -72,8 +85,12 @@ Generate {num_cards} idea card(s) as JSON. Each card MUST include:
 3. **treatment** — the production decision:
    - **scope.type**: "one_off" | "series_of_n" | "pillar_with_derivatives"
      - If series_of_n: include "n" (number of pieces) and "cadence" (e.g. "weekly", "daily")
-   - **format.format_name**: a format from the Format Guide above
+   - **format.primary_platform**: the one platform this idea is primarily being made for
+   - **format.format_name**: one format from the Format Guide above
    - **format.experimental**: true if this is a new format debuting on this card, false if it's an existing Format Guide entry
+   - **format.constraint_source**: `user_request` when the user constrained the platform or exact format; otherwise `llm_selected`
+   - **format.selection_reason**: why this idea benefits from this medium's native mechanics and affordances
+   - **format.alternatives_considered**: optional alternatives and why they were not selected; omit for exact-format requests
    - **format.format_spec**: (only if experimental=true) the full format specification — what it is, structural mechanics, capture needs, effort
    - **capture_required**: list of human capture tasks (e.g. "Record 15s of street footage in Bridgetown"). Empty list if none.
    - **reuse.derived_from**: (optional) parent card ID if this is a derivative
@@ -96,7 +113,12 @@ Generate {num_cards} idea card(s) as JSON. Each card MUST include:
 - State in the rationale what each cited source contributes to the idea
 - Every idea MUST be materially distinct from the existing ideas listed above — different angle, not synonym-swapped
 - Do not repeat patterns that led to killed cards (see kill lessons above)
+- Every treatment has exactly one primary platform and one primary format
+- Honor `platform_constrained` and `exact_format` requests exactly; never silently switch platforms or formats
+- In `open` mode, reason from audience experience, expressive strengths, limitations, available source/capture material, and production feasibility
+- Do not use rigid mappings such as hot take → Reel or explainer → Carousel; the particular idea determines the fit
 - The treatment's format MUST come from the Format Guide (existing entry) OR be a new experimental format (experimental=true with full spec)
+- There is no obligation to target both X and Instagram, and reuse notes must not manufacture cross-platform derivatives
 - capture_required tasks must be specific and actionable — not vague
 - The rationale must cite which modules were consulted and why this format/scope fits
 - For ai_originated: cross-reference Source Bank items with Viral Patterns, Audience Insights, Story Frameworks, and Format Guide
@@ -122,8 +144,14 @@ Respond with ONLY valid JSON:
           "cadence": "string"
         },
         "format": {
+          "primary_platform": "string",
           "format_name": "string",
           "experimental": false,
+          "constraint_source": "user_request|llm_selected",
+          "selection_reason": "string",
+          "alternatives_considered": [
+            {"platform": "string", "format_name": "string", "reason_not_selected": "string"}
+          ],
           "format_spec": "string"
         },
         "capture_required": ["string"],

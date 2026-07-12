@@ -9,6 +9,7 @@ M1 scope: Onboarding surface (playbook runner UI).
 
 import os
 import json
+import hashlib
 import shutil
 from datetime import datetime, timezone
 from flask import Flask, render_template, request, redirect, url_for, jsonify, send_from_directory
@@ -1423,7 +1424,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             "viral-patterns-starter": ("viral_patterns/analyze_v2.md", VIRAL_PATTERNS_SCHEMA, "viral_patterns_starter"),
             "audience-insights-builder": ("audience_insights/analyze_v2.md", AUDIENCE_INSIGHTS_SCHEMA, "audience_insights_builder"),
             "story-frameworks-starter": ("story_frameworks/analyze_v3.md", STORY_FRAMEWORKS_SCHEMA, "story_frameworks_starter"),
-            "format-guide-starter": ("format_guide/analyze_v2.md", FORMAT_GUIDE_SCHEMA, "format_guide_starter"),
+            "format-guide-starter": ("format_guide/analyze_v3.md", FORMAT_GUIDE_SCHEMA, "format_guide_starter"),
             "visual-style-intake": ("visual_style/analyze_v2.md", VISUAL_STYLE_SCHEMA, "visual_style_intake"),
         }
 
@@ -1786,7 +1787,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             "viral-patterns-starter": ("viral_patterns/analyze_v2.md", VIRAL_PATTERNS_SCHEMA, "patterns"),
             "audience-insights-builder": ("audience_insights/analyze_v2.md", AUDIENCE_INSIGHTS_SCHEMA, "insights"),
             "story-frameworks-starter": ("story_frameworks/analyze_v3.md", STORY_FRAMEWORKS_SCHEMA, "frameworks"),
-            "format-guide-starter": ("format_guide/analyze_v2.md", FORMAT_GUIDE_SCHEMA, "guide"),
+            "format-guide-starter": ("format_guide/analyze_v3.md", FORMAT_GUIDE_SCHEMA, "guide"),
             "visual-style-intake": ("visual_style/analyze_v2.md", VISUAL_STYLE_SCHEMA, "style_guide"),
         }
 
@@ -3792,7 +3793,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             GateTokenError, generate_gate_token)
 
         approved = request.json.get("approved", False)
-        version = request.json.get("version", "1.0")
+        version = request.json.get("version", "2.0")
         note = request.json.get("note", "")
 
         runner = PlaybookRunner(app.config["DB_PATH"])
@@ -3825,7 +3826,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     version=version,
                     provenance={"version": version, "approved": True, "note": note,
                                 "run_id": run_id, "playbook": "format-guide-starter"},
-                    gate_token=gate_token, run_id=run_id)
+                    gate_token=gate_token, run_id=run_id, structured_data=guide)
                 paths["format_guide"] = path
             except GateTokenError as e:
                 return jsonify({"error": str(e)}), 403
@@ -4313,9 +4314,27 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         from config_loader import load_all, ConfigError
         try:
             config = load_all(app.config["CONFIG_DIR"])
-            business_name = config["business"]["business"]["name"]
+            business_config = config["business"]
+            business_name = business_config["business"]["name"]
+            platform_options = [
+                p.get("name") for p in business_config.get("platforms", []) if p.get("name")
+            ]
         except ConfigError:
             business_name = "Not configured"
+            platform_options = []
+
+        # Format names come from the living guide, not hardcoded UI options.
+        from module_store import ModuleStore
+        module_store = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
+        selection_profiles = module_store.get_section(
+            business_slug, "format-guide", "Selection profiles"
+        )
+        format_options = []
+        if selection_profiles:
+            format_options = [
+                heading.lstrip("#").strip()
+                for heading, _ in module_store._parse_entries(selection_profiles)
+            ]
 
         store = _get_pipeline_store()
 
@@ -4368,7 +4387,11 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             compact.append(f"Scope: {SCOPE_LABELS.get(scope.get('type', '?'), scope.get('type', '?'))}")
             if scope.get("type") == "series_of_n":
                 compact.append(f"({scope.get('n', '?')} × {scope.get('cadence', '?')})")
-            compact.append(f"Format: {fmt.get('format_name', '?')}")
+            primary_platform = fmt.get("primary_platform")
+            format_label = fmt.get("format_name", "?")
+            if primary_platform:
+                format_label = f"{primary_platform} · {format_label}"
+            compact.append(f"Format: {format_label}")
             if fmt.get("experimental"):
                 compact.append('<span class="capture-flag">EXPERIMENTAL</span>')
             if capture:
@@ -4383,11 +4406,15 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             if scope.get("n"):
                 full += f" — {scope['n']} pieces, {scope.get('cadence', '')}"
             full += "</dd>"
-            full += f"<dt>Format</dt><dd>{fmt.get('format_name', '?')}"
+            full += f"<dt>Format</dt><dd>{format_label}"
             if fmt.get("experimental"):
                 full += " (experimental debut)"
+            if fmt.get("constraint_source") == "user_request":
+                full += " — requested by user"
             if fmt.get("format_spec"):
                 full += f"<br><em>{fmt['format_spec']}</em>"
+            if fmt.get("selection_reason"):
+                full += f"<br>{fmt['selection_reason']}"
             full += "</dd>"
             if capture:
                 full += f"<dt>Capture required</dt><dd><ul>"
@@ -4449,7 +4476,69 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         return render_template("ideas.html",
             business_name=business_name, business_slug=business_slug,
             cards=cards, active_tab=active_tab, counts=counts_display,
-            scope_labels=SCOPE_LABELS)
+            scope_labels=SCOPE_LABELS, platform_options=platform_options,
+            format_options=format_options)
+
+    def _run_idea_concept_and_treatment_stages(
+        adapter, business_slug: str, business: dict, generation_vars: dict,
+        num_cards: int, format_usage: str,
+    ) -> tuple[dict, str]:
+        """Generate locked concepts first, then choose one treatment per concept."""
+        from context_assembly import assemble_module_context
+        from pipeline import IDEA_CARD_SCHEMA, IDEA_CONCEPT_SCHEMA
+
+        concept_modules, concept_prov = assemble_module_context(
+            "ideas/concepts_v1.md", business_slug,
+            db_path=app.config["DB_PATH"], modules_dir="modules",
+        )
+        concept_variables = {
+            "business_name": business["business"]["name"],
+            "subjects": ", ".join(business.get("subjects", [])),
+            "audience_description": business.get("audience_description", ""),
+            **generation_vars,
+            **concept_modules,
+            "format_usage": format_usage,
+            "num_cards": str(num_cards),
+        }
+        concept_result = adapter.complete(
+            prompt_file="ideas/concepts_v1.md",
+            variables=concept_variables,
+            schema=IDEA_CONCEPT_SCHEMA,
+            backend="ideator",
+            context=f"Format-neutral concept generation ({num_cards} cards) | module_ctx: {concept_prov}",
+            business_slug=business_slug,
+            profile="researcher",
+        )
+
+        concept_cards = concept_result.get("cards", [])
+        # Backward compatibility for old cached outputs and existing route mocks
+        # that already contain full treatments.
+        if concept_cards and all("treatment" in card for card in concept_cards):
+            return concept_result, concept_prov
+        if not concept_cards:
+            return {"cards": []}, concept_prov
+
+        treatment_modules, treatment_prov = assemble_module_context(
+            "ideas/treatment_select_v1.md", business_slug,
+            db_path=app.config["DB_PATH"], modules_dir="modules",
+        )
+        treatment_result = adapter.complete(
+            prompt_file="ideas/treatment_select_v1.md",
+            variables={
+                "business_name": business["business"]["name"],
+                "audience_description": business.get("audience_description", ""),
+                "distribution_intent": generation_vars["distribution_intent"],
+                "concept_cards": json.dumps(concept_cards, ensure_ascii=False),
+                "format_usage": format_usage,
+                **treatment_modules,
+            },
+            schema=IDEA_CARD_SCHEMA,
+            backend="ideator",
+            context=f"Treatment selection ({len(concept_cards)} cards) | module_ctx: {treatment_prov}",
+            business_slug=business_slug,
+            profile="researcher",
+        )
+        return treatment_result, f"{concept_prov} || {treatment_prov}"
 
     @app.route("/api/ideas/seed", methods=["POST"])
     def ideas_seed():
@@ -4458,8 +4547,14 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         if not business_slug:
             return jsonify({"error": "Business not configured"}), 500
 
-        seed = request.json.get("seed", "").strip()
-        origin = request.json.get("origin", "human_seeded")
+        payload = request.get_json(silent=True) or {}
+        seed = payload.get("seed", "").strip()
+        origin = payload.get("origin", "human_seeded")
+        from distribution_intent import normalize_distribution_intent
+        try:
+            distribution_intent = normalize_distribution_intent(payload)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
         if not seed:
             return jsonify({"error": "No seed provided"}), 400
         if origin not in ("human_seeded", "human_seeded_ai_developed"):
@@ -4470,14 +4565,20 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         if origin == "human_seeded":
             # Simple: the idea IS the seed; no AI development
             # Generate a basic treatment via LLM
-            card = _generate_card_from_seed(business_slug, seed, "human_seeded")
+            card = _generate_card_from_seed(
+                business_slug, seed, "human_seeded", distribution_intent
+            )
             return jsonify(card)
         else:
             # AI-developed: sharpen the seed via LLM
-            card = _generate_card_from_seed(business_slug, seed, "human_seeded_ai_developed")
+            card = _generate_card_from_seed(
+                business_slug, seed, "human_seeded_ai_developed", distribution_intent
+            )
             return jsonify(card)
 
-    def _generate_card_from_seed(business_slug: str, seed: str, origin: str) -> dict:
+    def _generate_card_from_seed(
+        business_slug: str, seed: str, origin: str, distribution_intent: dict
+    ) -> dict:
         """Generate an idea card from a human seed using the LLM.
         T8.4: Seed auto-registers as a 'manual' source so the card is grounded."""
         try:
@@ -4488,15 +4589,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             return {"status": "error", "error": f"Config error: {e}"}
 
         from llm_adapter import LLMAdapter, LLMAdapterError
-        from pipeline import IDEA_CARD_SCHEMA
-        from context_assembly import assemble_module_context
 
         adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
-
-        module_vars, module_prov = assemble_module_context(
-            "ideas/generate_v1.md", business_slug,
-            db_path=app.config["DB_PATH"], modules_dir="modules",
-        )
 
         # T8.4: Register the seed as a manual source so the card is grounded
         store = _get_pipeline_store()
@@ -4533,26 +4627,21 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             source_material = f"[S{seed_source_id}] Operator seed: {seed}"
 
         try:
-            result = adapter.complete(
-                prompt_file="ideas/generate_v1.md",
-                variables={
-                    "business_name": business["business"]["name"],
-                    "subjects": ", ".join(business.get("subjects", [])),
-                    "audience_description": business.get("audience_description", ""),
+            result, module_prov = _run_idea_concept_and_treatment_stages(
+                adapter=adapter,
+                business_slug=business_slug,
+                business=business,
+                generation_vars={
                     "origin_type": origin,
+                    "distribution_intent": json.dumps(distribution_intent),
                     "source_material": source_material,
                     "source_criteria": source_criteria,
                     "existing_ideas": _build_existing_ideas(business_slug),
                     "kill_lessons": _build_kill_lessons(business_slug),
-                    "format_usage": _build_format_usage(business_slug),
-                    **module_vars,
-                    "num_cards": "1",
+                    "seed_text": seed,
                 },
-                schema=IDEA_CARD_SCHEMA,
-                backend="ideator",
-                context=f"Idea card generation from seed ({origin}) | module_ctx: {module_prov}",
-                business_slug=business_slug,
-                profile="researcher",
+                num_cards=1,
+                format_usage=_build_format_usage(business_slug),
             )
         except (LLMAdapterError, Exception) as e:
             return {"status": "error", "error": str(e)}
@@ -4590,13 +4679,25 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         if not business_slug:
             return jsonify({"error": "Business not configured"}), 500
 
-        num_cards = request.json.get("count", 3)
+        payload = request.get_json(silent=True) or {}
+        num_cards = payload.get("count", 3)
         if num_cards < 1 or num_cards > 10:
             return jsonify({"error": "Count must be 1-10"}), 400
 
+        from distribution_intent import normalize_distribution_intent
+        try:
+            distribution_intent = normalize_distribution_intent(payload)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+
         # F1: Idempotency guard
-        is_running, job_info = _check_job_running("ideas_generate", entity_id=0,
-                                                   input_hash=f"count_{num_cards}")
+        intent_hash = hashlib.sha256(
+            json.dumps(distribution_intent, sort_keys=True).encode("utf-8")
+        ).hexdigest()[:12]
+        is_running, job_info = _check_job_running(
+            "ideas_generate", entity_id=0,
+            input_hash=f"count_{num_cards}_{intent_hash}",
+        )
         if is_running:
             return jsonify({
                 "status": "running",
@@ -4612,15 +4713,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             return jsonify({"error": f"Config error: {e}"}), 500
 
         from llm_adapter import LLMAdapter, LLMAdapterError
-        from pipeline import IDEA_CARD_SCHEMA
-        from context_assembly import assemble_module_context
 
         adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
-
-        module_vars, module_prov = assemble_module_context(
-            "ideas/generate_v1.md", business_slug,
-            db_path=app.config["DB_PATH"], modules_dir="modules",
-        )
 
         # T8.4: Build source material digest from the `sources` table (Source Bank)
         # Each item prefixed with its ID: [S14] title — summary
@@ -4657,26 +4751,20 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             source_material = "(no sources available yet — source bank empty)"
 
         try:
-            result = adapter.complete(
-                prompt_file="ideas/generate_v1.md",
-                variables={
-                    "business_name": business["business"]["name"],
-                    "subjects": ", ".join(business.get("subjects", [])),
-                    "audience_description": business.get("audience_description", ""),
+            result, module_prov = _run_idea_concept_and_treatment_stages(
+                adapter=adapter,
+                business_slug=business_slug,
+                business=business,
+                generation_vars={
                     "origin_type": "ai_originated",
+                    "distribution_intent": json.dumps(distribution_intent),
                     "source_material": source_material,
                     "source_criteria": source_criteria,
                     "existing_ideas": _build_existing_ideas(business_slug),
                     "kill_lessons": _build_kill_lessons(business_slug),
-                    "format_usage": _build_format_usage(business_slug),
-                    **module_vars,
-                    "num_cards": str(num_cards),
                 },
-                schema=IDEA_CARD_SCHEMA,
-                backend="ideator",
-                context=f"AI idea card generation ({num_cards} cards) | module_ctx: {module_prov}",
-                business_slug=business_slug,
-                profile="researcher",
+                num_cards=num_cards,
+                format_usage=_build_format_usage(business_slug),
             )
         except (LLMAdapterError, Exception) as e:
             return jsonify({"error": str(e)}), 500
@@ -6297,6 +6385,17 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         media_root = os.path.abspath(media_root)
         return send_from_directory(media_root, filepath)
 
+    @app.route("/media/voice-samples/<path:filepath>")
+    def serve_voice_sample(filepath):
+        """Serve voice sample files from modules/{business}/voice-samples/."""
+        business_slug = _get_business_slug() or "stackpenni"
+        samples_root = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "..", "modules", business_slug, "voice-samples"
+        )
+        samples_root = os.path.abspath(samples_root)
+        return send_from_directory(samples_root, filepath)
+
     # ── Final Assembly: Edit Plan + Render (CORRECTION-final-assembly Part 1) ──
 
     @app.route("/api/assets/<int:asset_id>/edit-plan", methods=["POST"])
@@ -7202,6 +7301,28 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         adapter_llm = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
 
+        # Build VO timeline and coverage gaps from stored VO segments
+        vo_timeline_text = "(no VO generated yet — plan visuals against the script beats)"
+        coverage_gaps_text = "(no VO duration data — estimate based on script structure)"
+        vo_segments_json = store.get_vo_segments(asset_id) if hasattr(store, 'get_vo_segments') else None
+        if vo_segments_json:
+            try:
+                vo_segments = json.loads(vo_segments_json)
+                timeline_lines = []
+                gap_lines = []
+                for seg in vo_segments:
+                    frame = seg.get("frame", "?")
+                    dur = seg.get("duration", 0)
+                    text_preview = seg.get("text", "")[:60]
+                    timeline_lines.append(f"  Frame {frame}: {dur:.1f}s — \"{text_preview}...\"")
+                    gap_lines.append(f"  Frame {frame}: needs {dur:.1f}s of visual coverage — no ingredient assigned yet")
+                vo_timeline_text = "\n".join(timeline_lines)
+                coverage_gaps_text = "\n".join(gap_lines)
+                total_dur = sum(s.get("duration", 0) for s in vo_segments)
+                vo_timeline_text += f"\n  TOTAL: {total_dur:.1f}s"
+            except (json.JSONDecodeError, TypeError):
+                pass
+
         try:
             result = adapter_llm.complete(
                 prompt_file="assembly/media_plan_v1.md",
@@ -7210,6 +7331,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     "platform_name": asset.get("platform", ""),
                     "format_name": draft.get("format") or "",
                     "asset_content": asset["content"][:2000],
+                    "vo_timeline": vo_timeline_text,
+                    "coverage_gaps": coverage_gaps_text,
                     "missing_captures": missing_text,
                     "available_generators": available_generators,
                     **module_vars,
@@ -7231,7 +7354,11 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         results = []
         for plan_item in result.get("media_plan", []):
             generator = plan_item.get("generator", "")
-            item_result = {"capture_index": plan_item.get("capture_index", 0), "generator": generator}
+            item_result = {
+                "capture_index": plan_item.get("capture_index", 0),
+                "frame": plan_item.get("frame"),
+                "generator": generator,
+            }
 
             try:
                 if generator == "stock":
@@ -8429,6 +8556,237 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
     def health():
         """Health check endpoint."""
         return jsonify({"status": "ok", "version": "0.2.0"})
+
+    # ── Voice Registry (DECISION-voice-cloning-vo-v1.0) ──────────────
+
+    @app.route("/setup/voices")
+    def voice_management():
+        """Voice management page — part of the VF setup section."""
+        import sqlite3
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return "Business not configured", 500
+
+        conn = sqlite3.connect(db_path)
+        voices = conn.execute(
+            "SELECT * FROM voices WHERE business_slug = ? ORDER BY is_default DESC, name ASC",
+            (business_slug,),
+        ).fetchall()
+
+        # Get available voice samples
+        models_config = app.config.get("MODELS_CONFIG", {})
+        voice_config = models_config.get("voice_cloning", {})
+        ref_dir_pattern = voice_config.get(
+            "reference_audio_dir", "modules/{business}/voice-samples/"
+        )
+        ref_dir = ref_dir_pattern.replace("{business}", business_slug)
+
+        voice_samples = []
+        if os.path.isdir(ref_dir):
+            for f in sorted(os.listdir(ref_dir)):
+                if f.endswith((".wav", ".mp3", ".m4a", ".opus", ".ogg")):
+                    fpath = os.path.join(ref_dir, f)
+                    dur = 0.0
+                    try:
+                        r = subprocess.run(
+                            ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+                             "-of", "csv=p=0", fpath],
+                            capture_output=True, text=True, timeout=10,
+                        )
+                        dur = float(r.stdout.strip() or 0)
+                    except Exception:
+                        pass
+                    voice_samples.append({
+                        "filename": f,
+                        "path": fpath,
+                        "duration": dur,
+                        "size_kb": os.path.getsize(fpath) // 1024,
+                    })
+
+        conn.close()
+
+        return render_template(
+            "voices.html",
+            voices=voices,
+            voice_samples=voice_samples,
+            voice_config=voice_config,
+            business_slug=business_slug,
+        )
+
+    @app.route("/api/voices", methods=["POST"])
+    def create_voice():
+        """Create a new voice in the registry."""
+        import sqlite3
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        data = request.get_json()
+        name = data.get("name", "").strip()
+        kind = data.get("kind", "cloned")
+        engine = data.get("engine", "chatterbox")
+        reference_path = data.get("reference_path", "")
+        is_default = int(data.get("is_default", 0))
+
+        if not name:
+            return jsonify({"error": "Name is required"}), 400
+
+        conn = sqlite3.connect(db_path)
+        ts = datetime.now(timezone.utc).isoformat()
+
+        # If is_default, unset all other defaults for this business
+        if is_default:
+            conn.execute(
+                "UPDATE voices SET is_default = 0 WHERE business_slug = ?",
+                (business_slug,),
+            )
+
+        cursor = conn.execute(
+            """INSERT INTO voices (business_slug, name, kind, engine, reference_path, is_default, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (business_slug, name, kind, engine, reference_path, is_default, ts),
+        )
+        voice_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+
+        return jsonify({"status": "ok", "voice_id": voice_id})
+
+    @app.route("/api/voices/<int:voice_id>", methods=["DELETE"])
+    def delete_voice(voice_id):
+        """Delete a voice from the registry."""
+        import sqlite3
+        conn = sqlite3.connect(db_path)
+        conn.execute("DELETE FROM voices WHERE id = ?", (voice_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({"status": "ok"})
+
+    @app.route("/api/voices/<int:voice_id>/default", methods=["POST"])
+    def set_default_voice(voice_id):
+        """Set a voice as the default for the business."""
+        import sqlite3
+        business_slug = _get_business_slug()
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            "UPDATE voices SET is_default = 0 WHERE business_slug = ?",
+            (business_slug,),
+        )
+        conn.execute(
+            "UPDATE voices SET is_default = 1 WHERE id = ? AND business_slug = ?",
+            (voice_id, business_slug),
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({"status": "ok"})
+
+    @app.route("/api/voices/upload-sample", methods=["POST"])
+    def upload_voice_sample():
+        """Upload a voice sample file to the business's voice-samples directory."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        if "file" not in request.files:
+            return jsonify({"error": "No file provided"}), 400
+
+        file = request.files["file"]
+        if file.filename == "":
+            return jsonify({"error": "No file selected"}), 400
+
+        models_config = app.config.get("MODELS_CONFIG", {})
+        voice_config = models_config.get("voice_cloning", {})
+        ref_dir_pattern = voice_config.get(
+            "reference_audio_dir", "modules/{business}/voice-samples/"
+        )
+        ref_dir = ref_dir_pattern.replace("{business}", business_slug)
+        os.makedirs(ref_dir, exist_ok=True)
+
+        filename = file.filename
+        filepath = os.path.join(ref_dir, filename)
+        file.save(filepath)
+
+        # Convert to 24kHz mono WAV if it's not already
+        if not filename.endswith(".wav"):
+            wav_path = os.path.splitext(filepath)[0] + ".wav"
+            try:
+                subprocess.run(
+                    ["ffmpeg", "-y", "-i", filepath, "-ar", "24000", "-ac", "1",
+                     "-acodec", "pcm_s16le", wav_path],
+                    capture_output=True, timeout=60,
+                )
+                os.remove(filepath)  # remove original
+                filepath = wav_path
+                filename = os.path.basename(wav_path)
+            except Exception as e:
+                return jsonify({"error": f"Conversion failed: {e}"}), 500
+
+        # Get duration
+        dur = 0.0
+        try:
+            r = subprocess.run(
+                ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+                 "-of", "csv=p=0", filepath],
+                capture_output=True, text=True, timeout=10,
+            )
+            dur = float(r.stdout.strip() or 0)
+        except Exception:
+            pass
+
+        return jsonify({
+            "status": "ok",
+            "filename": filename,
+            "path": filepath,
+            "duration": dur,
+        })
+
+    @app.route("/api/voices/test-clone", methods=["POST"])
+    def test_voice_clone():
+        """Generate a short test VO clip to preview a cloned voice.
+
+        Uses Chatterbox with the selected reference audio.
+        """
+        business_slug = _get_business_slug()
+        data = request.get_json()
+        text = data.get("text", "Testing the cloned voice. This is how it sounds.")
+        reference_path = data.get("reference_path")
+
+        if not reference_path or not os.path.isfile(reference_path):
+            return jsonify({"error": "Reference audio file not found"}), 400
+
+        models_config = app.config.get("MODELS_CONFIG", {})
+        from vo_generator import VOGenerator
+        vo_gen = VOGenerator(models_config, db_path=db_path)
+
+        cb_config = vo_gen._get_chatterbox_config()
+
+        try:
+            import time as _time
+            start = _time.time()
+            tmp_path = vo_gen._call_chatterbox(text, reference_path, cb_config)
+            elapsed = _time.time() - start
+
+            # Move to a preview location
+            preview_dir = os.path.join("data", "media", "voice_previews")
+            os.makedirs(preview_dir, exist_ok=True)
+            preview_filename = f"preview_{int(_time.time())}.wav"
+            preview_path = os.path.join(preview_dir, preview_filename)
+
+            import shutil
+            shutil.move(tmp_path, preview_path)
+
+            dur = vo_gen._get_duration(preview_path)
+
+            return jsonify({
+                "status": "ok",
+                "preview_path": preview_path,
+                "preview_url": f"/media/voice_previews/{preview_filename}",
+                "duration": dur,
+                "generation_time": elapsed,
+                "rtf": elapsed / dur if dur > 0 else 0,
+            })
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
     # P1-transcription: Start the transcription worker daemon thread
     try:

@@ -9,7 +9,7 @@
         <a href="/ideas" {% if active_page in ('pipeline', 'ideas', 'writer', 'assembler') %}class="active"{% endif %}>Pipeline{% if nav_counts and (nav_counts.new or nav_counts.ready_review or nav_counts.asset_ready) %} <span class="nav-count">{{ (nav_counts.new or 0) + (nav_counts.ready_review or 0) + (nav_counts.asset_ready or 0) }}</span>{% endif %}</a>
         <a href="/library" {% if active_page in ('knowledge', 'library', 'sources', 'materials') %}class="active"{% endif %}>Knowledge</a>
         <a href="/published" {% if active_page in ('results', 'published') %}class="active"{% endif %}>Results</a>
-        <a href="/onboard/hub" {% if active_page in ('setup', 'onboard', 'onboarding') %}class="active"{% endif %}>Setup</a>
+        <a href="/onboard/hub" {% if active_page in ('setup', 'onboard', 'onboarding', 'voices') %}class="active"{% endif %}>Setup</a>
     </nav>
     <span class="business-switcher">{{ business_name or "Not configured" }} <span class="arrow">▾</span></span>
 </div>

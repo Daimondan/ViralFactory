@@ -9,7 +9,15 @@
     <style>
         .seed-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-5); margin-bottom: var(--space-5); }
         .seed-box textarea { width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--text); font-size: 0.9rem; resize: vertical; min-height: 80px; font-family: var(--font-sans); }
-        .seed-options { display: flex; gap: var(--space-2); margin-top: var(--space-3); }
+        .seed-options { display: flex; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap; align-items: center; }
+        .distribution-controls { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; width: 100%; padding-top: var(--space-2); border-top: 1px solid var(--border); }
+        .distribution-label { flex: 0 0 78px; font-size: 0.78rem; color: var(--muted); }
+        .distribution-controls select, .distribution-controls input { flex: 1 1 180px; min-width: 0; padding: 5px 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--text); }
+        .distribution-note { flex: 0 0 100%; margin-left: 86px; font-size: 0.74rem; color: var(--muted); }
+        @media (max-width: 700px) {
+            .distribution-label { flex-basis: 100%; }
+            .distribution-note { margin-left: 0; }
+        }
         .gen-form { display: flex; gap: var(--space-3); align-items: center; }
         .gen-form input[type=number] { width: 50px; }
         .kill-reason { display: none; margin-top: 8px; gap: 6px; }
@@ -70,6 +78,23 @@
         <p style="color: var(--muted); font-size: 0.82rem; margin-bottom: var(--space-3);">Type or paste a raw idea. The Researcher will develop it into a card with treatment, sources, and format recommendation.</p>
         <textarea id="seedText" placeholder="e.g. BiMPay is killing it but nobody talking about how it changes the game for small vendors..."></textarea>
         <div class="seed-options">
+            <div class="distribution-controls">
+                <span class="distribution-label">Primary destination:</span>
+                <select id="distributionMode" onchange="updateDistributionControls()" aria-label="Distribution choice">
+                    <option value="open">Let the Researcher choose</option>
+                    <option value="platform_constrained">Choose a platform</option>
+                    <option value="exact_format">Choose an exact format</option>
+                </select>
+                <select id="distributionPlatform" style="display:none" aria-label="Primary platform">
+                    <option value="">Select platform</option>
+                    {% for platform in platform_options %}<option value="{{ platform }}">{{ platform }}</option>{% endfor %}
+                </select>
+                <input id="distributionFormat" list="formatOptions" style="display:none" placeholder="Select or type format" aria-label="Exact format">
+                <datalist id="formatOptions">
+                    {% for format_name in format_options %}<option value="{{ format_name }}"></option>{% endfor %}
+                </datalist>
+                <span class="distribution-note">One primary destination only. Derivatives come later.</span>
+            </div>
             <button class="btn btn-small" onclick="submitSeed('human_seeded')">Seed as-is</button>
             <button class="btn btn-small" onclick="submitSeed('human_seeded_ai_developed')">Seed + AI develop</button>
             <span style="flex: 1;"></span>
@@ -277,13 +302,37 @@ function actionCard(id, action, reason) {
     });
 }
 
+function updateDistributionControls() {
+    const mode = document.getElementById('distributionMode').value;
+    document.getElementById('distributionPlatform').style.display = mode === 'open' ? 'none' : 'inline-block';
+    document.getElementById('distributionFormat').style.display = mode === 'exact_format' ? 'inline-block' : 'none';
+}
+
+function distributionPayload() {
+    const mode = document.getElementById('distributionMode').value;
+    const platform = document.getElementById('distributionPlatform').value.trim();
+    const format = document.getElementById('distributionFormat').value.trim();
+    if (mode !== 'open' && !platform) throw new Error('Select a primary platform.');
+    if (mode === 'exact_format' && !format) throw new Error('Select or type the exact format.');
+    return {
+        distribution_intent: {
+            mode: mode,
+            platforms: mode === 'open' ? [] : [platform],
+            formats: mode === 'exact_format' ? [format] : []
+        }
+    };
+}
+
 function submitSeed(originType) {
     const text = document.getElementById('seedText').value.trim();
     if (!text) return alert('Enter a seed first.');
+    let destination;
+    try { destination = distributionPayload(); }
+    catch (e) { return alert(e.message); }
     fetch('/api/ideas/seed', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({seed: text, origin: originType}),
+        body: JSON.stringify(Object.assign({seed: text, origin: originType}, destination)),
     }).then(r => r.json()).then(data => {
         if (data.status === 'ok') window.location.reload();
         else alert('Error: ' + (data.error || 'unknown'));
@@ -294,12 +343,15 @@ function generateAI() {
     var btn = document.getElementById('genBtn');
     var count = document.getElementById('genCount').value;
     var status = document.getElementById('genStatus');
+    var destination;
+    try { destination = distributionPayload(); }
+    catch (e) { return alert(e.message); }
     status.style.display = 'inline';
     status.textContent = 'Generating…';
     busyAction(btn, '/api/ideas/generate', {
         busyLabel: 'Generating…',
         statusElem: status,
-        body: JSON.stringify({count: parseInt(count)}),
+        body: JSON.stringify(Object.assign({count: parseInt(count)}, destination)),
         reloadOnSuccess: true,
         onError: function(msg) { status.style.display = 'none'; alert('Error: ' + msg); }
     });

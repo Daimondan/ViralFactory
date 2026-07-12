@@ -116,7 +116,7 @@ class ModuleStore:
     def store(self, business_slug: str, module_name: str, content: str,
               version: str = "1.0", provenance: dict = None,
               gate_token: str = None, run_id: int = None,
-              status: str = "approved") -> str:
+              status: str = "approved", structured_data: dict = None) -> str:
         """
         Store a module as versioned markdown.
         Returns the path to the stored module.
@@ -150,10 +150,20 @@ class ModuleStore:
 
         path = self._module_path(business_slug, module_name)
         path.parent.mkdir(parents=True, exist_ok=True)
+        structured_path = path.with_suffix(".json")
 
-        # Archive previous version if it exists
+        # Archive previous markdown and its structured sidecar together.
         if path.exists():
+            previous_content = path.read_text()
+            match = re.search(r'v(\d+\.\d+)', previous_content)
+            previous_version = match.group(1) if match else "0.0"
+            ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
             self._archive_version(business_slug, module_name, path)
+            if structured_path.exists():
+                version_dir = self._version_dir(business_slug, module_name)
+                version_dir.mkdir(parents=True, exist_ok=True)
+                archived_json = version_dir / f"v{previous_version}_{ts}.json"
+                archived_json.write_text(structured_path.read_text())
 
         # P1-1: Prepend status marker for draft modules
         if status == "draft":
@@ -162,6 +172,8 @@ class ModuleStore:
 
         # Write the new version
         path.write_text(content)
+        if structured_data is not None:
+            structured_path.write_text(json.dumps(structured_data, indent=2, ensure_ascii=False))
 
         # Store provenance alongside
         if provenance:
@@ -239,7 +251,7 @@ class ModuleStore:
         VALID_SCHEMAS = {
             "voice_profile_v1", "brand_context_v1", "source_criteria_v1",
             "viral_patterns_v1", "audience_insights_v1", "story_frameworks_v1",
-            "format_guide_v1", "visual_style_v1", "shot_library_v1",
+            "format_guide_v1", "format_guide_v2", "visual_style_v1", "shot_library_v1",
         }
         if schema_name not in VALID_SCHEMAS:
             raise ValueError(
@@ -249,7 +261,14 @@ class ModuleStore:
         return content
 
     def load_json(self, business_slug: str, module_name: str) -> Optional[dict]:
-        """Load a module and parse its JSON metadata block (if present)."""
+        """Load a structured sidecar, falling back to a legacy markdown JSON block."""
+        sidecar = self._module_path(business_slug, module_name).with_suffix(".json")
+        if sidecar.exists():
+            try:
+                return json.loads(sidecar.read_text())
+            except json.JSONDecodeError:
+                return None
+
         content = self.load(business_slug, module_name)
         if not content:
             return None
@@ -1123,21 +1142,29 @@ def story_frameworks_to_markdown(data: dict, version: str = "1.0") -> str:
 
 FORMAT_GUIDE_SCHEMA = {
     "type": "object",
-    "required": ["formats", "decision_table", "summary"],
+    "required": ["formats", "summary"],
     "properties": {
         "formats": {
             "type": "array",
             "items": {
                 "type": "object",
-                "required": ["format_name", "platforms", "variant_type", "best_for", "length",
-                             "structure_notes", "skeleton", "requires_human_capture",
-                             "capture_tasks", "effort_level", "reuse_pathways",
-                             "status", "provenance"],
+                "required": [
+                    "format_name", "platforms", "variant_type", "audience_experience",
+                    "native_mechanics", "expressive_strengths", "limitations",
+                    "production_demands", "length", "structure_notes", "skeleton",
+                    "requires_human_capture", "capture_tasks", "effort_level",
+                    "reuse_pathways", "status", "performance_evidence", "aspect_ratio",
+                    "provenance",
+                ],
                 "properties": {
                     "format_name": {"type": "string"},
                     "platforms": {"type": "array", "items": {"type": "string"}},
                     "variant_type": {"type": "string"},
-                    "best_for": {"type": "array", "items": {"type": "string"}},
+                    "audience_experience": {"type": "string"},
+                    "native_mechanics": {"type": "array", "items": {"type": "string"}},
+                    "expressive_strengths": {"type": "array", "items": {"type": "string"}},
+                    "limitations": {"type": "array", "items": {"type": "string"}},
+                    "production_demands": {"type": "array", "items": {"type": "string"}},
                     "length": {"type": "string"},
                     "structure_notes": {"type": "string"},
                     "skeleton": {"type": "string"},
@@ -1146,20 +1173,17 @@ FORMAT_GUIDE_SCHEMA = {
                     "effort_level": {"type": "string"},
                     "reuse_pathways": {"type": "array", "items": {"type": "string"}},
                     "status": {"type": "string"},
+                    "performance_evidence": {
+                        "type": "object",
+                        "required": ["source", "notes", "last_updated"],
+                        "properties": {
+                            "source": {"type": "string", "enum": ["platform_prior", "tenant_data"]},
+                            "notes": {"type": "string"},
+                            "last_updated": {"type": "string"},
+                        },
+                    },
+                    "aspect_ratio": {"type": "string"},
                     "provenance": {"type": "string"},
-                },
-            },
-        },
-        "decision_table": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "required": ["message_type", "platform", "recommended_format", "rationale"],
-                "properties": {
-                    "message_type": {"type": "string"},
-                    "platform": {"type": "string"},
-                    "recommended_format": {"type": "string"},
-                    "rationale": {"type": "string"},
                 },
             },
         },
@@ -1168,19 +1192,44 @@ FORMAT_GUIDE_SCHEMA = {
 }
 
 
-def format_guide_to_markdown(data: dict, version: str = "1.0") -> str:
-    """Convert validated Format Guide JSON into the module markdown."""
+def format_guide_to_markdown(data: dict, version: str = "2.0") -> str:
+    """Convert a descriptive Format Guide into selection and production views."""
     lines = [f"# Format Guide — v{version}"]
-
     lines.append(f"\n## Summary\n{data.get('summary', '')}")
 
+    # Compact affordance profiles are injected at idea-selection time. They
+    # intentionally omit skeletons and contain no message-type routing table.
+    lines.append("\n## Selection profiles")
+    for f in data.get("formats", []):
+        evidence = f.get("performance_evidence", {})
+        lines.append(f"\n### {f['format_name']}")
+        lines.append(f"- **Platforms:** {', '.join(f.get('platforms', []))}")
+        lines.append(f"- **Audience experience:** {f.get('audience_experience', '')}")
+        lines.append(f"- **Native mechanics:** {'; '.join(f.get('native_mechanics', []))}")
+        lines.append(f"- **Expressive strengths:** {'; '.join(f.get('expressive_strengths', []))}")
+        lines.append(f"- **Limitations:** {'; '.join(f.get('limitations', []))}")
+        lines.append(f"- **Production demands:** {'; '.join(f.get('production_demands', []))}")
+        lines.append(f"- **Effort / capture:** {f.get('effort_level', '')} / {f.get('requires_human_capture', 'none')}")
+        lines.append(
+            f"- **Performance evidence:** [{evidence.get('source', 'platform_prior')}] "
+            f"{evidence.get('notes', '')}"
+        )
+
+    # The full entries remain available to drafting and assembly after one
+    # primary format has been selected.
     lines.append("\n## Formats")
     for f in data.get("formats", []):
+        evidence = f.get("performance_evidence", {})
         lines.append(f"\n### {f['format_name']}")
         lines.append(f"- **Platforms:** {', '.join(f.get('platforms', []))}")
         lines.append(f"- **Variant type:** {f.get('variant_type', 'single_post')}")
-        lines.append(f"- **Best for:** {', '.join(f.get('best_for', []))}")
+        lines.append(f"- **Audience experience:** {f.get('audience_experience', '')}")
+        lines.append(f"- **Native mechanics:** {'; '.join(f.get('native_mechanics', []))}")
+        lines.append(f"- **Expressive strengths:** {'; '.join(f.get('expressive_strengths', []))}")
+        lines.append(f"- **Limitations:** {'; '.join(f.get('limitations', []))}")
+        lines.append(f"- **Production demands:** {'; '.join(f.get('production_demands', []))}")
         lines.append(f"- **Length:** {f.get('length', '')}")
+        lines.append(f"- **Aspect ratio:** {f.get('aspect_ratio', '')}")
         lines.append(f"- **Effort level:** {f.get('effort_level', '')}")
         lines.append(f"- **Requires human capture:** {f.get('requires_human_capture', 'none')}")
         if f.get("capture_tasks"):
@@ -1188,20 +1237,18 @@ def format_guide_to_markdown(data: dict, version: str = "1.0") -> str:
             for task in f["capture_tasks"]:
                 lines.append(f"  - {task}")
         lines.append(f"- **Status:** {f.get('status', 'proven')}")
+        lines.append(
+            f"- **Performance evidence:** [{evidence.get('source', 'platform_prior')}] "
+            f"{evidence.get('notes', '')} (updated {evidence.get('last_updated', '')})"
+        )
         lines.append(f"- **Reuse pathways:** {', '.join(f.get('reuse_pathways', []))}")
         lines.append(f"- **Provenance:** {f.get('provenance', '')}")
         lines.append(f"- **Structure notes:** {f.get('structure_notes', '')}")
         lines.append(f"\n**Skeleton:**\n```\n{f.get('skeleton', '')}\n```")
 
-    lines.append("\n## Decision table")
-    for d in data.get("decision_table", []):
-        lines.append(f"- **{d['message_type']}** on {d['platform']} → **{d['recommended_format']}**")
-        lines.append(f'  - Rationale: {d["rationale"]}')
-
     lines.append(f"\n## Provenance\n- Version: {version}")
     lines.append(f"- Generated: {datetime.now(timezone.utc).isoformat()}")
-    lines.append(f"- Schema: format_guide_v1")
-
+    lines.append("- Schema: format_guide_v2")
     return "\n".join(lines)
 
 

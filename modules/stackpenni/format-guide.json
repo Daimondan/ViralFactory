@@ -1,0 +1,388 @@
+{
+  "formats": [
+    {
+      "format_name": "X Thread",
+      "platforms": [
+        "X"
+      ],
+      "variant_type": "thread",
+      "audience_experience": "A reader follows a sequence of connected posts and may respond at any point.",
+      "native_mechanics": [
+        "threaded reading",
+        "sequential text",
+        "per-post replies",
+        "shareable individual posts"
+      ],
+      "expressive_strengths": [
+        "carries layered reasoning",
+        "builds evidence step by step",
+        "preserves narrative sequence"
+      ],
+      "limitations": [
+        "requires sustained reading attention",
+        "weak transitions make the sequence feel fragmented",
+        "too many points dilute the core claim"
+      ],
+      "production_demands": [
+        "concise writing",
+        "clear progression",
+        "each post must stand alone while serving the whole"
+      ],
+      "length": "5-12 posts, usually 100-280 characters each",
+      "structure_notes": "Open with a complete claim, develop one idea per post, then land the argument. Number only when navigation benefits.",
+      "skeleton": "Post 1: [complete hook]\nPosts 2-N: [one claim, example, or step each]\nFinal post: [landing or invitation]",
+      "requires_human_capture": "none",
+      "capture_tasks": [],
+      "effort_level": "medium",
+      "reuse_pathways": [
+        "A single line may later become a separate X post; a visual sequence may later be adapted deliberately."
+      ],
+      "status": "proven",
+      "performance_evidence": {
+        "source": "platform_prior",
+        "notes": "General platform prior only; StackPenni tenant performance has not yet validated this entry.",
+        "last_updated": "2026-07-11"
+      },
+      "aspect_ratio": "not_applicable",
+      "provenance": "Migrated from Format Guide v1.0 under user approval; affordances derived from native platform mechanics."
+    },
+    {
+      "format_name": "X Single Post",
+      "platforms": [
+        "X"
+      ],
+      "variant_type": "single_post",
+      "audience_experience": "A reader encounters one self-contained thought in a fast text feed.",
+      "native_mechanics": [
+        "single text unit",
+        "replies",
+        "reposts",
+        "quote posts"
+      ],
+      "expressive_strengths": [
+        "lands one idea with maximum concentration",
+        "invites immediate discussion",
+        "makes a claim easy to repeat"
+      ],
+      "limitations": [
+        "cannot carry much qualification",
+        "compression can turn nuance into empty provocation",
+        "multiple ideas compete"
+      ],
+      "production_demands": [
+        "one strong sentence or compact paragraph",
+        "precise wording"
+      ],
+      "length": "Usually 100-280 characters",
+      "structure_notes": "Lead with the thought itself. Keep one idea. Add context only when it strengthens rather than explains away the line.",
+      "skeleton": "[Self-contained claim]\n[Optional context or invitation]",
+      "requires_human_capture": "none",
+      "capture_tasks": [],
+      "effort_level": "low",
+      "reuse_pathways": [
+        "A proven line may later seed a longer treatment, but no derivative is required."
+      ],
+      "status": "proven",
+      "performance_evidence": {
+        "source": "platform_prior",
+        "notes": "General platform prior only; StackPenni tenant performance has not yet validated this entry.",
+        "last_updated": "2026-07-11"
+      },
+      "aspect_ratio": "not_applicable",
+      "provenance": "Migrated from Format Guide v1.0 under user approval; affordances derived from native platform mechanics."
+    },
+    {
+      "format_name": "X Poll Post",
+      "platforms": [
+        "X"
+      ],
+      "variant_type": "poll",
+      "audience_experience": "A reader makes a structured choice, then sees or discusses the group response.",
+      "native_mechanics": [
+        "question",
+        "2-4 selectable answers",
+        "time-bounded voting",
+        "reply discussion"
+      ],
+      "expressive_strengths": [
+        "collects structured audience response",
+        "surfaces disagreement",
+        "tests assumptions visibly"
+      ],
+      "limitations": [
+        "leading options corrupt the signal",
+        "obvious answers create empty engagement",
+        "complex views do not fit fixed choices"
+      ],
+      "production_demands": [
+        "balanced answer options",
+        "a genuinely uncertain question",
+        "follow-up interpretation"
+      ],
+      "length": "One question with 2-4 concise options",
+      "structure_notes": "Ask one non-obvious question. Keep options balanced and mutually intelligible. Treat results as audience evidence, not universal truth.",
+      "skeleton": "[Question]\n[Balanced options]\n[Optional reason for asking]",
+      "requires_human_capture": "none",
+      "capture_tasks": [],
+      "effort_level": "low",
+      "reuse_pathways": [
+        "Results may justify a separate analysis after voting closes."
+      ],
+      "status": "experimental",
+      "performance_evidence": {
+        "source": "platform_prior",
+        "notes": "General platform prior only; StackPenni tenant performance has not yet validated this entry.",
+        "last_updated": "2026-07-11"
+      },
+      "aspect_ratio": "not_applicable",
+      "provenance": "Migrated from Format Guide v1.0 under user approval; affordances derived from native platform mechanics."
+    },
+    {
+      "format_name": "Instagram Carousel",
+      "platforms": [
+        "Instagram"
+      ],
+      "variant_type": "carousel",
+      "audience_experience": "A viewer swipes through a controlled visual sequence at their own pace.",
+      "native_mechanics": [
+        "sequential slides",
+        "saveable visual pages",
+        "cover thumbnail",
+        "mixed text and imagery"
+      ],
+      "expressive_strengths": [
+        "carries visual sequence",
+        "supports comparison",
+        "lets viewers pause on evidence",
+        "makes layered information saveable"
+      ],
+      "limitations": [
+        "dense slides become unreadable",
+        "generic templates flatten personality",
+        "too many slides weaken momentum"
+      ],
+      "production_demands": [
+        "designed slides",
+        "legible typography",
+        "coherent visual progression"
+      ],
+      "length": "Usually 5-10 slides",
+      "structure_notes": "The cover earns the swipe. Each slide advances one beat. Use visual hierarchy and keep every page comprehensible on mobile.",
+      "skeleton": "Slide 1: [cover]\nSlides 2-N: [one beat each]\nFinal slide: [landing or next action]",
+      "requires_human_capture": "optional",
+      "capture_tasks": [
+        "Capture source-specific photography when visual proof materially strengthens the idea."
+      ],
+      "effort_level": "medium",
+      "reuse_pathways": [
+        "An individual slide may stand alone later only if it remains truthful outside the sequence."
+      ],
+      "status": "proven",
+      "performance_evidence": {
+        "source": "platform_prior",
+        "notes": "General platform prior only; StackPenni tenant performance has not yet validated this entry.",
+        "last_updated": "2026-07-11"
+      },
+      "aspect_ratio": "4:5",
+      "provenance": "Migrated from Format Guide v1.0 under user approval; affordances derived from native platform mechanics."
+    },
+    {
+      "format_name": "Instagram Reel Script",
+      "platforms": [
+        "Instagram"
+      ],
+      "variant_type": "reel",
+      "audience_experience": "A viewer experiences a short vertical audiovisual piece in a continuous discovery feed.",
+      "native_mechanics": [
+        "vertical moving image",
+        "spoken voice or natural sound",
+        "timed text overlays",
+        "performance and pacing"
+      ],
+      "expressive_strengths": [
+        "shows human presence",
+        "demonstrates a process in motion",
+        "uses voice and timing for emotional delivery",
+        "makes visual contrast tangible"
+      ],
+      "limitations": [
+        "dense arguments feel rushed",
+        "weak visuals become a text post read aloud",
+        "forced movement distracts from the idea",
+        "audio failure damages comprehension"
+      ],
+      "production_demands": [
+        "purposeful footage or generated motion",
+        "clear audio when speech is used",
+        "editing paced to the idea",
+        "readable overlays where needed"
+      ],
+      "length": "Usually 15-90 seconds",
+      "structure_notes": "Open with immediate substance, develop one coherent idea, and let motion or voice do work that static text cannot.",
+      "skeleton": "HOOK: [visual/spoken entry]\nDEVELOPMENT: [one coherent progression]\nLANDING: [memorable close without padding]",
+      "requires_human_capture": "optional",
+      "capture_tasks": [
+        "Record talking-head delivery or relevant original footage only when the chosen treatment calls for human presence."
+      ],
+      "effort_level": "high",
+      "reuse_pathways": [
+        "A strong spoken line may later be adapted separately; the Reel does not require a matching X post."
+      ],
+      "status": "proven",
+      "performance_evidence": {
+        "source": "platform_prior",
+        "notes": "General platform prior only; StackPenni tenant performance has not yet validated this entry.",
+        "last_updated": "2026-07-11"
+      },
+      "aspect_ratio": "9:16",
+      "provenance": "Migrated from Format Guide v1.0 under user approval; affordances derived from native platform mechanics."
+    },
+    {
+      "format_name": "Instagram Single Image Post",
+      "platforms": [
+        "Instagram"
+      ],
+      "variant_type": "single_post",
+      "audience_experience": "A viewer receives one visual statement, with optional depth in the caption.",
+      "native_mechanics": [
+        "single feed image",
+        "thumbnail readability",
+        "caption",
+        "sharing and saving"
+      ],
+      "expressive_strengths": [
+        "concentrates one visual idea",
+        "makes a quote or image immediately legible",
+        "lets photography carry meaning"
+      ],
+      "limitations": [
+        "cannot show progression",
+        "text-heavy graphics feel generic",
+        "the caption may be ignored"
+      ],
+      "production_demands": [
+        "one strong image or designed composition",
+        "mobile-legible message",
+        "supporting caption when useful"
+      ],
+      "length": "One image; caption length follows the idea",
+      "structure_notes": "The image must communicate before the caption. Use the caption to deepen, not rescue, the visual.",
+      "skeleton": "Image: [single visual statement]\nCaption: [optional context and landing]",
+      "requires_human_capture": "optional",
+      "capture_tasks": [
+        "Capture a real photograph when authenticity or evidence is central."
+      ],
+      "effort_level": "low",
+      "reuse_pathways": [
+        "The visual may be reused only where its meaning and dimensions remain native."
+      ],
+      "status": "proven",
+      "performance_evidence": {
+        "source": "platform_prior",
+        "notes": "General platform prior only; StackPenni tenant performance has not yet validated this entry.",
+        "last_updated": "2026-07-11"
+      },
+      "aspect_ratio": "4:5",
+      "provenance": "Migrated from Format Guide v1.0 under user approval; affordances derived from native platform mechanics."
+    },
+    {
+      "format_name": "Instagram Story Series",
+      "platforms": [
+        "Instagram"
+      ],
+      "variant_type": "story_series",
+      "audience_experience": "A viewer taps through temporary vertical frames and can respond through native stickers.",
+      "native_mechanics": [
+        "ephemeral vertical frames",
+        "polls and question stickers",
+        "direct replies",
+        "links",
+        "low-polish capture"
+      ],
+      "expressive_strengths": [
+        "creates immediacy",
+        "supports conversational participation",
+        "shows process with low ceremony",
+        "collects lightweight feedback"
+      ],
+      "limitations": [
+        "disappears quickly",
+        "later frames lose viewers",
+        "small text is hard to read",
+        "overproduction can reduce intimacy"
+      ],
+      "production_demands": [
+        "3-7 coherent frames",
+        "large overlays",
+        "native interaction where it serves the idea"
+      ],
+      "length": "Usually 3-7 frames",
+      "structure_notes": "Each frame must work quickly while advancing the sequence. Use interaction only when the response matters.",
+      "skeleton": "Frame 1: [entry]\nFrames 2-N: [progression or interaction]\nFinal frame: [landing/link/reply invitation]",
+      "requires_human_capture": "optional",
+      "capture_tasks": [
+        "Capture real-time footage when immediacy is part of the treatment."
+      ],
+      "effort_level": "low",
+      "reuse_pathways": [
+        "Audience responses may become research input; no feed derivative is automatic."
+      ],
+      "status": "experimental",
+      "performance_evidence": {
+        "source": "platform_prior",
+        "notes": "General platform prior only; StackPenni tenant performance has not yet validated this entry.",
+        "last_updated": "2026-07-11"
+      },
+      "aspect_ratio": "9:16",
+      "provenance": "Migrated from Format Guide v1.0 under user approval; affordances derived from native platform mechanics."
+    },
+    {
+      "format_name": "Newsletter Section",
+      "platforms": [
+        "X"
+      ],
+      "variant_type": "newsletter",
+      "audience_experience": "A reader spends sustained attention on a structured long-form argument or report.",
+      "native_mechanics": [
+        "long-form sections",
+        "headings",
+        "links and citations",
+        "owned or semi-owned reading context"
+      ],
+      "expressive_strengths": [
+        "supports depth and qualification",
+        "connects several sources",
+        "builds a durable argument",
+        "allows reflective voice"
+      ],
+      "limitations": [
+        "high attention cost",
+        "weak editing feels meandering",
+        "not all social surfaces support the same reading experience"
+      ],
+      "production_demands": [
+        "substantive writing",
+        "source integration",
+        "editing and hierarchy"
+      ],
+      "length": "Usually 500-1500 words per section",
+      "structure_notes": "Use a clear opening question or claim, develop sourced sections, and land with a conclusion earned by the body.",
+      "skeleton": "Opening: [specific question/claim]\nSections: [evidence and development]\nClose: [synthesis or invitation]",
+      "requires_human_capture": "none",
+      "capture_tasks": [],
+      "effort_level": "high",
+      "reuse_pathways": [
+        "Specific excerpts may later inspire independent social pieces; adaptation is a separate editorial decision."
+      ],
+      "status": "experimental",
+      "performance_evidence": {
+        "source": "platform_prior",
+        "notes": "General platform prior only; StackPenni tenant performance has not yet validated this entry.",
+        "last_updated": "2026-07-11"
+      },
+      "aspect_ratio": "not_applicable",
+      "provenance": "Migrated from Format Guide v1.0 under user approval; affordances derived from native platform mechanics."
+    }
+  ],
+  "summary": "A descriptive catalogue of StackPenni formats. Selection is contextual: the user may constrain a platform or exact format; otherwise the LLM chooses one primary destination by matching an idea’s expressive needs, evidence, audience experience, and production feasibility to these affordances. No message-type routing table applies."
+}

@@ -154,7 +154,11 @@ def valid_format_guide():
                 "format_name": "X Thread",
                 "platforms": ["X"],
                 "variant_type": "thread",
-                "best_for": ["contrarian takes", "data drops"],
+                "audience_experience": "A sequential reading experience in the feed.",
+                "native_mechanics": ["threaded reading", "sequential text"],
+                "expressive_strengths": ["carries layered arguments", "preserves evidence sequence"],
+                "limitations": ["requires sustained reading attention"],
+                "production_demands": ["concise writing", "clear sequence"],
                 "length": "5-15 tweets",
                 "structure_notes": "Hook tweet → body tweets → CTA tweet",
                 "skeleton": "1. Hook: [contrarian claim]\n2-N. Evidence/support\nN+1. CTA: [what to do next]",
@@ -163,13 +167,19 @@ def valid_format_guide():
                 "effort_level": "low",
                 "reuse_pathways": ["Carousel on IG", "Newsletter section"],
                 "status": "proven",
+                "performance_evidence": {"source": "platform_prior", "notes": "General platform prior", "last_updated": "2026-07-11"},
+                "aspect_ratio": "not_applicable",
                 "provenance": "Derived from Viral Patterns analysis",
             },
             {
                 "format_name": "IG Reel with Footage",
                 "platforms": ["Instagram"],
                 "variant_type": "reel",
-                "best_for": ["cultural observations", "on-the-ground content"],
+                "audience_experience": "A short audiovisual experience in a vertical feed.",
+                "native_mechanics": ["vertical motion", "spoken audio", "text overlays"],
+                "expressive_strengths": ["shows human presence", "demonstrates visually"],
+                "limitations": ["dense arguments can feel rushed"],
+                "production_demands": ["purposeful footage", "clear audio"],
                 "length": "15-30 seconds",
                 "structure_notes": "Text overlay on real footage",
                 "skeleton": "1. Open: [street footage 3s]\n2. Text: [claim]\n3. Footage: [supporting visuals]\n4. Text: [takeaway]",
@@ -178,13 +188,12 @@ def valid_format_guide():
                 "effort_level": "medium",
                 "reuse_pathways": ["Extract single frame for carousel"],
                 "status": "experimental",
+                "performance_evidence": {"source": "platform_prior", "notes": "Tenant evidence pending", "last_updated": "2026-07-11"},
+                "aspect_ratio": "9:16",
                 "provenance": "Operator request for more visual content",
             },
         ],
-        "decision_table": [
-            {"message_type": "contrarian take", "platform": "X", "recommended_format": "X Thread", "rationale": "Threads allow building an argument"}
-        ],
-        "summary": "X threads for takes, IG reels for on-the-ground content.",
+        "summary": "Descriptive format profiles for contextual selection.",
     }
 
 
@@ -408,10 +417,9 @@ class TestFormatGuideSchema:
         with pytest.raises(ValidationError, match="formats"):
             validate_llm_output(json.dumps(valid_format_guide), FORMAT_GUIDE_SCHEMA, context="test")
 
-    def test_missing_decision_table_fails(self, valid_format_guide):
-        del valid_format_guide["decision_table"]
-        with pytest.raises(ValidationError, match="decision_table"):
-            validate_llm_output(json.dumps(valid_format_guide), FORMAT_GUIDE_SCHEMA, context="test")
+    def test_decision_table_is_not_required(self, valid_format_guide):
+        result = validate_llm_output(json.dumps(valid_format_guide), FORMAT_GUIDE_SCHEMA, context="test")
+        assert "decision_table" not in result
 
     # AMENDMENT-004 enrichment field tests
 
@@ -451,10 +459,10 @@ class TestFormatGuideSchema:
         with pytest.raises(ValidationError, match="provenance"):
             validate_llm_output(json.dumps(valid_format_guide), FORMAT_GUIDE_SCHEMA, context="test")
 
-    def test_best_for_present(self, valid_format_guide):
-        """Format Guide must have best_for field."""
-        del valid_format_guide["formats"][0]["best_for"]
-        with pytest.raises(ValidationError, match="best_for"):
+    def test_expressive_strengths_present(self, valid_format_guide):
+        """Format Guide must describe medium affordances."""
+        del valid_format_guide["formats"][0]["expressive_strengths"]
+        with pytest.raises(ValidationError, match="expressive_strengths"):
             validate_llm_output(json.dumps(valid_format_guide), FORMAT_GUIDE_SCHEMA, context="test")
 
     def test_variant_type_present(self, valid_format_guide):
@@ -472,8 +480,9 @@ class TestFormatGuideConverter:
         assert "## Formats" in md
         assert "### X Thread" in md
         assert "### IG Reel with Footage" in md
-        assert "## Decision table" in md
-        assert "format_guide_v1" in md
+        assert "## Selection profiles" in md
+        assert "## Decision table" not in md
+        assert "format_guide_v2" in md
 
     def test_markdown_has_amendment004_fields(self, valid_format_guide):
         """Converter output includes AMENDMENT-004 enrichment fields."""
@@ -513,9 +522,12 @@ class TestFormatGuideGateEnforcement:
         runner.set_gate_result(run_id, "3", "approve", "test")
         token = generate_gate_token(run_id)
 
-        path = store.store("testbrand", "format-guide", md, version="1.0",
-                           provenance={"version": "1.0"}, gate_token=token, run_id=run_id)
+        path = store.store("testbrand", "format-guide", md, version="2.0",
+                           provenance={"version": "2.0"}, gate_token=token, run_id=run_id,
+                           structured_data=valid_format_guide)
         assert os.path.exists(path)
+        assert os.path.exists(os.path.join(modules_dir, "testbrand", "format-guide.json"))
+        assert store.load_json("testbrand", "format-guide")["formats"][0]["format_name"] == "X Thread"
         loaded = store.load("testbrand", "format-guide")
         assert "X Thread" in loaded
         assert "Capture tasks" in loaded

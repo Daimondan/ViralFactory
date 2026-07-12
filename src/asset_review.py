@@ -85,6 +85,29 @@ class AssetReviewer:
         conn.commit()
         conn.close()
 
+    def _check_duration_advisory(self, vo_duration: float) -> dict | None:
+        """Check if VO duration exceeds typical Reel range (advisory, non-blocking).
+
+        Returns a finding dict if the duration is outside typical range,
+        None if it's fine. This is advisory only — it never blocks the asset
+        or changes the verdict. The human decides whether to ship, trim, or
+        re-record.
+        """
+        if vo_duration <= 0:
+            return None
+        if vo_duration > 60.0:
+            return {
+                "check": "duration_advisory",
+                "severity": "low",
+                "blocking": False,
+                "advisory": True,
+                "message": f"VO duration is {vo_duration:.1f}s — exceeds the typical "
+                           f"Instagram Reel range of 15-60s. The human may want to "
+                           f"trim or re-record. This is advisory only.",
+                "vo_duration": vo_duration,
+            }
+        return None
+
     # ── ffprobe helpers (shared with assembly.py but standalone) ─────────
 
     def _probe(self, file_path: str) -> dict:

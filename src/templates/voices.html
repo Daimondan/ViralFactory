@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/vf.css">
+    <title>Voice Cloning — {{ business_slug }}</title>
+    <script src="/static/busy.js"></script>
+    <style>
+        .voice-sample-row {
+            display: flex; align-items: center; gap: 1rem;
+            padding: 0.75rem; background: var(--surface-2);
+            border: 1px solid var(--border-dotted); border-radius: 6px;
+            margin-bottom: 0.5rem;
+        }
+        .voice-sample-row audio { height: 36px; }
+        .chip-ok { background: #d4edda; color: #155724; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; }
+        .btn-small { font-size: 0.75rem; padding: 4px 12px; }
+        .btn-danger { background: #dc3545; color: white; border: none; }
+        table.table { width: 100%; border-collapse: collapse; }
+        table.table th { text-align: left; padding: 0.5rem; border-bottom: 2px solid #ddd; }
+        table.table td { padding: 0.5rem; border-bottom: 1px solid #eee; }
+        .info-box {
+            margin: 1.5rem 0; padding: 1rem 1.5rem;
+            background: var(--surface-2); border-left: 4px solid var(--accent, #E54B2C);
+            border-radius: 4px;
+        }
+        .upload-box {
+            margin: 1rem 0; padding: 1rem; background: var(--surface-2);
+            border: 1px solid var(--border-dotted); border-radius: 6px;
+        }
+        .new-voice-form {
+            display: none; margin: 1rem 0; padding: 1rem;
+            background: var(--surface-2); border: 1px solid var(--border-dotted);
+            border-radius: 6px;
+        }
+        .new-voice-form div {
+            display: flex; flex-direction: column; gap: 0.5rem; max-width: 400px;
+        }
+        .new-voice-form label { font-size: 0.85rem; }
+        .new-voice-form input, .new-voice-form select {
+            width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+    {% set active_page = "voices" %}
+    {% include "_nav.html" %}
+
+    <div class="page-title-block">
+        <div>
+            <h1>Voice Cloning</h1>
+            <p class="subtitle">Manage voice cloning references · Chatterbox (MIT, self-hosted)</p>
+        </div>
+    </div>
+
+    <div class="tab-bar">
+        <a href="/onboard" class="">Overview</a>
+        <a href="/onboard" class="">Onboarding</a>
+        <a href="/onboarding-health" class="">Module health</a>
+        <a href="/setup/voices" class="tab-active">Voice cloning</a>
+    </div>
+
+    <div class="info-box">
+        <strong>Engine:</strong> {{ voice_config.get('engine', 'gemini_tts') }}
+        {% if voice_config.get('engine') == 'chatterbox' %}
+          <span class="chip-ok">Voice cloning active (Chatterbox)</span>
+        {% else %}
+          <span style="background: #e8e2d0; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem;">Preset voices (no cloning)</span>
+        {% endif %}
+        <br>
+        <span class="muted" style="font-size: 0.8rem;">
+            Chatterbox uses your voice samples as reference to generate VO in your voice.
+            On CPU-only VPS: generation is slow (~30-50x real-time) but runs async.
+        </span>
+    </div>
+
+    <!-- Voice Registry -->
+    <section style="margin: 2rem 0;">
+        <h2>Registered Voices</h2>
+        {% if voices %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Kind</th>
+                    <th>Engine</th>
+                    <th>Reference</th>
+                    <th>Default</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for v in voices %}
+                <tr>
+                    <td>{{ v[2] }}</td>
+                    <td>{{ v[3] }}</td>
+                    <td>{{ v[4] }}</td>
+                    <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis;">{{ v[5] or '—' }}</td>
+                    <td>{% if v[6] %} ✅ {% endif %}</td>
+                    <td>
+                        {% if not v[6] %}
+                        <button class="btn btn-small" onclick="setDefault({{ v[0] }})">Set Default</button>
+                        {% endif %}
+                        <button class="btn btn-small btn-danger" onclick="deleteVoice({{ v[0] }})">Delete</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="muted">No voices registered yet. Create one from your voice samples below.</p>
+        {% endif %}
+
+        <div style="margin: 1rem 0;">
+            <button class="btn" onclick="document.getElementById('new-voice-form').style.display='block'">+ Register New Voice</button>
+        </div>
+
+        <div id="new-voice-form" class="new-voice-form">
+            <h3>Register a Cloned Voice</h3>
+            <div>
+                <label>Name <input type="text" id="voice-name" placeholder="e.g., Daimon's Voice"></label>
+                <label>Reference Audio
+                    <select id="voice-ref">
+                        {% for s in voice_samples %}
+                        <option value="{{ s.path }}">{{ s.filename }} ({{ "%.1f"|format(s.duration) }}s)</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label><input type="checkbox" id="voice-default" checked> Set as default voice</label>
+                <button class="btn btn-approve" onclick="createVoice()">Register Voice</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Voice Samples -->
+    <section style="margin: 2rem 0;">
+        <h2>Voice Samples ({{ voice_samples|length }})</h2>
+        <p class="muted">Reference audio for voice cloning. Upload your best recordings — clean single-speaker, 10-30 seconds each.</p>
+
+        <div class="upload-box">
+            <h3>Upload New Sample</h3>
+            <input type="file" id="sample-file" accept=".wav,.mp3,.m4a,.opus,.ogg,.flac,.aac" style="margin: 0.5rem 0;">
+            <button class="btn" onclick="uploadSample()">Upload</button>
+            <span id="upload-status" class="muted"></span>
+        </div>
+
+        {% if voice_samples %}
+        <div style="margin-top: 1rem;">
+            {% for s in voice_samples %}
+            <div class="voice-sample-row">
+                <div style="flex: 1;">
+                    <strong>{{ s.filename }}</strong><br>
+                    <span class="muted" style="font-size: 0.8rem;">{{ "%.1f"|format(s.duration) }}s · {{ s.size_kb }}KB</span>
+                </div>
+                <audio controls preload="none">
+                    <source src="/media/voice-samples/{{ s.filename }}" type="audio/wav">
+                </audio>
+                <button class="btn btn-small" onclick="testClone('{{ s.path }}', '{{ s.filename }}')">Test Clone</button>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">No voice samples found. Upload some above, or add files to <code>modules/{{ business_slug }}/voice-samples/</code></p>
+        {% endif %}
+    </section>
+
+    <!-- Test Clone Result -->
+    <section id="test-clone-section" style="display: none; margin: 2rem 0;">
+        <h2>Clone Test Result</h2>
+        <div id="test-clone-status" class="muted">Generating... This may take a while on CPU (30-120 seconds for a short clip).</div>
+        <div id="test-clone-result" style="margin: 1rem 0;"></div>
+    </section>
+
+    </div>
+</body>
+</html>
+
+<script>
+function createVoice() {
+  const name = document.getElementById('voice-name').value;
+  const ref = document.getElementById('voice-ref').value;
+  const isDefault = document.getElementById('voice-default').checked ? 1 : 0;
+  if (!name) { alert('Name is required'); return; }
+  fetch('/api/voices', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name, kind: 'cloned', engine: 'chatterbox', reference_path: ref, is_default: isDefault})
+  }).then(r => r.json()).then(data => {
+    if (data.status === 'ok') { window.location.reload(); }
+    else { alert(data.error || 'Failed'); }
+  });
+}
+
+function deleteVoice(id) {
+  if (!confirm('Delete this voice?')) return;
+  fetch('/api/voices/' + id, {method: 'DELETE'}).then(r => r.json()).then(() => window.location.reload());
+}
+
+function setDefault(id) {
+  fetch('/api/voices/' + id + '/default', {method: 'POST'}).then(r => r.json()).then(() => window.location.reload());
+}
+
+function uploadSample() {
+  const fileInput = document.getElementById('sample-file');
+  const status = document.getElementById('upload-status');
+  if (!fileInput.files[0]) { alert('Select a file first'); return; }
+  status.textContent = 'Uploading...';
+  const formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+  fetch('/api/voices/upload-sample', {method: 'POST', body: formData})
+    .then(r => r.json()).then(data => {
+      if (data.status === 'ok') {
+        status.textContent = 'Uploaded: ' + data.filename + ' (' + data.duration.toFixed(1) + 's)';
+        window.location.reload();
+      } else {
+        status.textContent = 'Error: ' + data.error;
+      }
+    });
+}
+
+function testClone(refPath, filename) {
+  const section = document.getElementById('test-clone-section');
+  const status = document.getElementById('test-clone-status');
+  const result = document.getElementById('test-clone-result');
+  section.style.display = 'block';
+  status.textContent = 'Generating clone from ' + filename + '... This may take 30-120 seconds on CPU.';
+  result.textContent = '';
+  fetch('/api/voices/test-clone', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      text: "This is a test of the cloned voice. If it sounds like me, the cloning worked.",
+      reference_path: refPath
+    })
+  }).then(r => r.json()).then(data => {
+    if (data.status === 'ok') {
+      status.textContent = 'Generated in ' + data.generation_time.toFixed(1) + 's (RTF: ' + data.rtf.toFixed(1) + 'x, audio: ' + data.duration.toFixed(1) + 's)';
+      const audio = document.createElement('audio');
+      audio.controls = true;
+      audio.style.width = '100%';
+      const source = document.createElement('source');
+      source.src = data.preview_url;
+      source.type = 'audio/wav';
+      audio.appendChild(source);
+      result.textContent = '';
+      result.appendChild(audio);
+    } else {
+      status.textContent = 'Error: ' + data.error;
+    }
+  }).catch(err => {
+    status.textContent = 'Request failed: ' + err;
+  });
+}
+</script>
