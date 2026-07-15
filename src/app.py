@@ -6038,10 +6038,27 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         else:
             trail.append({"stage": "Assets", "state": "pending", "label": "No assets generated yet"})
 
+        # T11.1: Compute video cost estimate from config (per-unit costs, not hardcoded)
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            media_cfg = config["models"].get("media", {})
+            video_gens = media_cfg.get("video_generators", [])
+            costs = [vg.get("cost_per_second_usd", 0) for vg in video_gens if vg.get("cost_per_second_usd")]
+            if costs:
+                video_cost_min = round(min(costs) * 5, 2)  # 5s clip
+                video_cost_max = round(max(costs) * 8, 2)  # 8s clip
+            else:
+                video_cost_min = 0.05
+                video_cost_max = 0.15
+        except Exception:
+            video_cost_min = 0.05
+            video_cost_max = 0.15
+
         return render_template("assets.html",
             business_name=business_name, draft=_parse_draft_for_display(draft),
             assets=enriched_assets, visual_direction=visual_direction,
-            platforms=platforms, trail=trail, idea_card=display_card)
+            platforms=platforms, trail=trail, idea_card=display_card,
+            video_cost_min=video_cost_min, video_cost_max=video_cost_max)
 
     @app.route("/api/assets/<int:draft_id>/fan-out", methods=["POST"])
     def assets_fan_out(draft_id):
@@ -6388,7 +6405,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
     @app.route("/media/voice-samples/<path:filepath>")
     def serve_voice_sample(filepath):
         """Serve voice sample files from modules/{business}/voice-samples/."""
-        business_slug = _get_business_slug() or "stackpenni"
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return "Business not configured", 500
         samples_root = os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
             "..", "modules", business_slug, "voice-samples"

@@ -102,6 +102,6 @@ Respond with ONLY valid JSON:
 }
 ```
 
-**Generator format:** Use `stock` for stock search, `ai_video:<model_name>` to specify which video generator (e.g. `ai_video:veo`, `ai_video:grok-imagine-video`, `ai_video:sora`), `ai_image` for images, `voice` for narration, `animation` for 3D/motion graphics.
+**Generator format:** Use `stock` for stock search, `ai_video:<model_name>` to specify which video generator (e.g. `ai_video:kling-3`, `ai_video:veo-3.1-fast`, `ai_video:grok-imagine-video`), `ai_image` for images, `voice` for narration, `animation` for 3D/motion graphics.
 
 One entry per frame. The system will execute each plan item and register the result as an ingredient for the edit plan.

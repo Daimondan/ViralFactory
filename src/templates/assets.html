@@ -602,7 +602,7 @@
     </select>
     <label>Prompt (optional):</label>
     <input type="text" id="videoPrompt" style="width: 100%;" placeholder="Auto-generates from visual direction">
-    <div class="cost-estimate">Estimated cost: ~$0.05–0.15 per clip</div>
+    <div class="cost-estimate">Estimated cost: ~${{ "%.2f"|format(video_cost_min|default(0.05)) }}–{{ "%.2f"|format(video_cost_max|default(0.15)) }} per clip</div>
     <div class="dialog-actions">
         <button class="btn btn-render" id="videoConfirmBtn" onclick="confirmVideoGeneration()">Confirm & generate</button>
         <button class="btn btn-fix" onclick="closeVideoDialog()">Cancel</button>

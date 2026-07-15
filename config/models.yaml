@@ -100,23 +100,61 @@ voice_cloning:
     api_key_env: "GEMINI_API_KEY"
     sample_rate: 24000
 
-# ── Media generation (F4: CORRECTION-pipeline-ux-and-media-generation-v1.0) ──
-# Config-driven generator inventory. The LLM media plan prompt sees all
-# configured generators and decides which to use per segment.
+# ── Media generation (T11.1: CORRECTION-episode-format-and-reference-assets-v1.0 §5.2) ──
+# Config-driven generator inventory. Per-unit costs drive all gate cost estimates.
 # Add new generators here — they automatically appear in the LLM's options.
 #
 # Auth: set the env var for each provider you want active.
-# OPENROUTER_API_KEY routes to Gemini, Veo, and other OpenRouter models.
-# XAI_API_KEY for Grok video.
-# OPENAI_API_KEY for Sora/DALL-E.
-# GOOGLE_API_KEY for Veo direct (if not via OpenRouter).
+# FAL_API_KEY for fal.ai providers (kling, veo, flux, nano-banana).
+# OPENROUTER_API_KEY for legacy Gemini image generation via OpenRouter.
+# XAI_API_KEY for legacy Grok video (non-default named backend).
+# GOOGLE_API_KEY for legacy Google Veo direct (non-default named backend).
+#
+# Sora was retired (OpenAI API discontinued 2026-09-24).
 media:
-  # ── Image generators ──
-  image_default: "google/gemini-3.1-flash-image"
+  # ── Image generators (reference-conditioned) ──
+  image_generators:
+    - name: "nano-banana-2"
+      provider: "fal"
+      endpoint: "fal-ai/gemini-3.1-flash-image-preview"
+      api_key_env: "FAL_API_KEY"
+      cost_per_image_usd: 0.039
+      supports_reference_images: true
+      best_for: "recurring characters, identity-critical shots (up to 5 characters / 14 refs)"
+    - name: "flux2-pro"
+      provider: "fal"
+      endpoint: "fal-ai/flux-2-pro"
+      api_key_env: "FAL_API_KEY"
+      cost_per_image_usd: 0.03
+      supports_reference_images: true
+      best_for: "b-roll and non-character shots, highest photorealism"
+  image_default: "nano-banana-2"
+
+  # ── Legacy image generator (OpenRouter — kept as non-default named backend) ──
   image_base_url: "https://openrouter.ai/api/v1"
 
-  # ── Video generators (list — LLM chooses) ──
+  # ── Video generators (image-to-video from approved stills) ──
+  # New fal providers (default path) + legacy providers (named backends, non-default).
+  # The fallback code scans this list for the first generator with its API key set.
   video_generators:
+    # ── fal providers (default path — reference-conditioned, image-to-video) ──
+    - name: "kling-3"
+      provider: "fal"
+      endpoint: "fal-ai/kling-video/v3/standard/image-to-video"
+      api_key_env: "FAL_API_KEY"
+      cost_per_second_usd: 0.10
+      mode: "image_to_video"
+      native_audio: false
+      best_for: "all standard shots"
+    - name: "veo-3.1-fast"
+      provider: "fal"
+      endpoint: "fal-ai/veo3.1/fast/image-to-video"
+      api_key_env: "FAL_API_KEY"
+      cost_per_second_usd: 0.15
+      mode: "image_to_video"
+      native_audio: false
+      best_for: "hook/hero shots"
+    # ── Legacy providers (named backends — not default, kept for compatibility) ──
     - name: "grok-imagine-video"
       provider: "xai"
       model: "grok-imagine-video"
@@ -129,18 +167,19 @@ media:
       base_url: "https://generativelanguage.googleapis.com"
       api_key_env: "GOOGLE_API_KEY"
       best_for: "cinematic, photorealistic, long clips"
-    - name: "sora"
-      provider: "openai"
-      model: "sora"
-      base_url: "https://api.openai.com"
-      api_key_env: "OPENAI_API_KEY"
-      best_for: "complex scenes, multi-subject, high quality"
+  video_default: "kling-3"
 
-  # ── Legacy single-generator config (kept for backward compat) ──
-  video_default: "grok-imagine-video"
-  video_provider: "xai"
-  video_base_url: "https://api.x.ai"
+  # ── Legacy single-generator compat (for code paths not yet updated) ──
+  video_provider: "fal"
+  video_base_url: "https://fal.run"
   base_url: "https://openrouter.ai/api/v1"
+
+  # ── Music generators (registry beds only — licensed, commercial-safe) ──
+  music_generators:
+    - name: "eleven-music"
+      provider: "elevenlabs"
+      api_key_env: "ELEVENLABS_API_KEY"
+      best_for: "registry music beds only — licensed training data, clean commercial rights"
 
   # ── Animation/3D (disabled by default — enable when installed) ──
   animation:
