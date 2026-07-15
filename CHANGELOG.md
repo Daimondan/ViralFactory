@@ -6,6 +6,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-14
+
+**[STRUCTURE/STRATEGIC] M11 — Episode format + reference assets correction filed and added to BUILD_PLAN (v1.8)**
+Architect correction `CORRECTION-episode-format-and-reference-assets-v1.0` filed to `docs/corrections/`. BUILD_PLAN.md bumped to v1.8 with M11 addendum (10 tasks + checkpoint). Core architectural shift: the harness gains one generic capability — reference-conditioned, beat-structured episode production. All show-specific content lives in gated per-tenant assets (episode-format module, reference asset registry, storyboard gate). Media generation becomes stills-first (cheap, operator-approved) then animation of approved stills only (expensive). Sora retired (API discontinued 2026-09-24). fal.ai added as media provider with config-driven per-unit costs. Four validation layers (deterministic lints, embedding/histogram QC, gated critic rubric, golden-episode fixtures). ElevenLabs Music for one-time registry music beds. Sequencing: Sora retirement + Layer-1 lints (P0 immediate) → registry + fal provider → format module + bootstrap → EpisodePlan + Writer/media-plan v2 → storyboard gate → validation layers 2–3 + goldens.
+Rationale: Operator diagnosed that rendered videos have no recurring character, style, or format — each output is a different genre. Root cause: no reference conditioning in the media path, no beat structure, no stills-before-animation ordering, stale models.yaml. The correction introduces the "episode of a show" paradigm (vs "a video") where freshness comes from the story seed, never format drift.
+
+---
+
 ## 2026-07-11
 
 **[OPS] Pipeline cleanup — full reset for fresh generation**
