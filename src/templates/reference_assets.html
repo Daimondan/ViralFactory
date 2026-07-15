@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/vf.css">
+    <title>Reference Assets — {{ business_slug }}</title>
+    <script src="/static/busy.js"></script>
+    <style>
+        .asset-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: var(--space-4);
+            margin-bottom: var(--space-4);
+            transition: box-shadow 0.2s;
+        }
+        .asset-card:hover { box-shadow: var(--shadow); }
+        .asset-card.proposed { border-left: 4px solid var(--yellow); }
+        .asset-card.approved { border-left: 4px solid var(--green); }
+        .asset-card.retired { border-left: 4px solid var(--muted); opacity: 0.65; }
+
+        .asset-header {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            margin-bottom: var(--space-3);
+        }
+        .asset-title { font-family: var(--font-serif); font-size: 1.1rem; font-weight: bold; }
+        .asset-subtitle { color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
+
+        .status-badge {
+            display: inline-block; padding: 2px 10px; border-radius: 12px;
+            font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .status-badge.proposed { background: rgba(212,168,67,0.15); color: var(--yellow); }
+        .status-badge.approved { background: rgba(74,124,58,0.15); color: var(--green); }
+        .status-badge.retired { background: rgba(138,133,124,0.15); color: var(--muted); }
+
+        .kind-badge {
+            display: inline-block; padding: 2px 8px; border-radius: 4px;
+            font-size: 0.72rem; font-family: var(--font-mono); font-weight: 500;
+            background: var(--surface-3); color: var(--text-secondary);
+        }
+
+        .payload-section {
+            margin-top: var(--space-3); padding-top: var(--space-3);
+            border-top: 1px solid var(--border);
+        }
+        .payload-section h4 { margin: var(--space-3) 0 var(--space-2); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+        .payload-text {
+            font-family: var(--font-mono); font-size: 0.82rem; white-space: pre-wrap;
+            background: var(--surface-2); padding: var(--space-3); border-radius: var(--radius-sm);
+            border: 1px solid var(--border); max-height: 400px; overflow-y: auto; line-height: 1.5;
+        }
+        .payload-text.editable {
+            outline: none; cursor: text;
+        }
+        .payload-text.editable:focus {
+            border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-tint);
+        }
+
+        .asset-files { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+        .file-chip {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 4px 10px; background: var(--surface-2);
+            border: 1px solid var(--border); border-radius: var(--radius-sm);
+            font-size: 0.8rem; font-family: var(--font-mono);
+        }
+        .file-chip img { width: 32px; height: 32px; object-fit: cover; border-radius: 2px; }
+
+        .asset-actions { display: flex; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap; }
+        .btn-approve { background: var(--green); color: white; }
+        .btn-retire { background: var(--red); color: white; }
+        .btn-edit { background: var(--blue); color: white; }
+        .btn-save { background: var(--accent); color: white; }
+        .btn-cancel { background: var(--surface-3); color: var(--text); }
+        .btn-small { font-size: 0.8rem; padding: 5px 14px; }
+
+        .kind-group { margin-bottom: var(--space-6); }
+        .kind-group h2 {
+            font-family: var(--font-serif); font-size: 1.25rem;
+            margin-bottom: var(--space-2); padding-bottom: var(--space-2);
+            border-bottom: 2px solid var(--border);
+        }
+        .kind-group .kind-count { color: var(--muted); font-size: 0.9rem; font-weight: normal; }
+
+        .info-box {
+            margin: var(--space-5) 0; padding: var(--space-4) var(--space-5);
+            background: var(--surface-2); border-left: 4px solid var(--accent);
+            border-radius: var(--radius-sm);
+        }
+
+        .propose-form {
+            display: none; margin: var(--space-3) 0; padding: var(--space-4);
+            background: var(--surface-2); border: 1px solid var(--border);
+            border-radius: var(--radius);
+        }
+        .propose-form label {
+            display: flex; flex-direction: column; gap: var(--space-1);
+            margin-bottom: var(--space-3); font-size: 0.85rem; font-weight: 500;
+        }
+        .propose-form input, .propose-form select, .propose-form textarea {
+            width: 100%; padding: 8px 10px; border: 1px solid var(--border);
+            border-radius: var(--radius-sm); font-family: var(--font-sans); font-size: 0.9rem;
+            background: var(--surface);
+        }
+        .propose-form textarea { font-family: var(--font-mono); min-height: 80px; }
+
+        .grade-token-display {
+            font-family: var(--font-serif); font-style: italic; font-size: 0.95rem;
+            background: var(--surface-2); padding: var(--space-4); border-radius: var(--radius-sm);
+            border: 1px solid var(--border); line-height: 1.6; margin: var(--space-3) 0;
+        }
+
+        .reference-image {
+            max-width: 200px; max-height: 200px; border-radius: var(--radius-sm);
+            border: 1px solid var(--border); cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .reference-image:hover { transform: scale(1.05); }
+
+        .lightbox {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 9999; justify-content: center; align-items: center;
+            cursor: pointer;
+        }
+        .lightbox img { max-width: 90%; max-height: 90%; border-radius: var(--radius); }
+
+        .notes-display { font-size: 0.85rem; color: var(--text-secondary); font-style: italic; margin-top: var(--space-2); }
+        .version-tag { font-size: 0.75rem; color: var(--muted); font-family: var(--font-mono); }
+    </style>
+</head>
+<body>
+    <div class="container">
+    {% set active_page = 'reference-assets' %}
+    {% include "_nav.html" %}
+
+    <div class="page-title-block">
+        <div>
+            <h1>Reference Assets</h1>
+            <p class="subtitle">Brand identity registry — characters, locations, grade, music, card styles · {{ business_slug }}</p>
+        </div>
+    </div>
+
+    <div class="tab-bar">
+        <a href="/onboard/hub" class="">Overview</a>
+        <a href="/onboarding-health" class="">Module health</a>
+        <a href="/setup/voices" class="">Voice cloning</a>
+        <a href="/setup/reference-assets" class="tab-active">Reference assets</a>
+    </div>
+
+    <div class="info-box">
+        <strong>What this is:</strong> The system of record for every recurring visual and audio element.
+        Characters, locations, the grade string, music beds, and card styles all live here.
+        Each asset goes through a <em>propose → approve → retire</em> gate — nothing is used in content
+        creation until you approve it. Approved assets are locked; changes require a new version through the same gate.
+        <br><br>
+        <span class="muted" style="font-size: 0.8rem;">
+            These assets are referenced automatically when content is created: the grade string is injected into
+            every image prompt, character refs condition face consistency, location refs anchor scene plates.
+        </span>
+    </div>
+
+    <!-- Stats summary -->
+    <section style="margin: var(--space-5) 0;">
+        <div style="display: flex; gap: var(--space-4); flex-wrap: wrap;">
+            {% for kind, counts in stats.items() %}
+            <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-3) var(--space-4);">
+                <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted);">{{ kind }}</div>
+                <div style="font-size: 1.3rem; font-weight: bold;">
+                    {{ counts.get('approved', 0) }} approved
+                    {% if counts.get('proposed', 0) %}<span style="color: var(--yellow);"> · {{ counts.get('proposed', 0) }} pending</span>{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            {% if not stats %}
+            <p class="muted">No reference assets yet. Propose one below.</p>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- Propose new asset -->
+    <section style="margin: var(--space-5) 0;">
+        <button class="btn" onclick="document.getElementById('propose-form').style.display='block'">+ Propose New Asset</button>
+        <div id="propose-form" class="propose-form">
+            <h3>Propose a Reference Asset</h3>
+            <label>Kind
+                <select id="propose-kind">
+                    <option value="character_ref">Character Reference</option>
+                    <option value="location_ref">Location Reference</option>
+                    <option value="grade_token">Grade Token</option>
+                    <option value="music_bed">Music Bed</option>
+                    <option value="card_style">Card Style</option>
+                    <option value="lockup_svg">Lockup / Brand SVG</option>
+                </select>
+            </label>
+            <label>Name (unique identifier, e.g. "fitzroy", "kitchen_dawn", "default")
+                <input type="text" id="propose-name" placeholder="asset_name">
+            </label>
+            <label>Payload (JSON — see schema per kind)
+                <textarea id="propose-payload" placeholder='{"grade_string": "warm golden-hour light, painterly realism, ..."}'></textarea>
+            </label>
+            <label>Notes (optional)
+                <input type="text" id="propose-notes" placeholder="Rationale or description">
+            </label>
+            <button class="btn btn-approve" onclick="proposeAsset()">Submit Proposal</button>
+            <button class="btn btn-cancel" onclick="document.getElementById('propose-form').style.display='none'">Cancel</button>
+        </div>
+    </section>
+
+    <!-- Asset groups by kind -->
+    {% for kind, kind_label in kind_labels.items() %}
+    <div class="kind-group" id="kind-{{ kind }}">
+        <h2>{{ kind_label }} <span class="kind-count">({{ assets_by_kind[kind]|length if kind in assets_by_kind else 0 }})</span></h2>
+
+        {% if kind in assets_by_kind %}
+        {% for asset in assets_by_kind[kind] %}
+        <div class="asset-card {{ asset.status }}" id="asset-{{ asset.id }}">
+            <div class="asset-header">
+                <div>
+                    <div class="asset-title">{{ asset.name }}</div>
+                    <div class="asset-subtitle">
+                        <span class="kind-badge">{{ asset.kind }}</span>
+                        <span class="version-tag">v{{ asset.version }}</span>
+                        {% if asset.created_at %}· created {{ asset.created_at[:10] }}{% endif %}
+                        {% if asset.approved_at %}· approved {{ asset.approved_at[:10] }}{% endif %}
+                    </div>
+                </div>
+                <span class="status-badge {{ asset.status }}">{{ asset.status }}</span>
+            </div>
+
+            {% if asset.notes %}
+            <div class="notes-display">{{ asset.notes }}</div>
+            {% endif %}
+
+            <!-- Payload display -->
+            <div class="payload-section">
+                <h4>Payload</h4>
+                <div class="payload-text" id="payload-{{ asset.id }}">{{ asset.payload_json }}</div>
+            </div>
+
+            <!-- Grade token special display -->
+            {% if kind == 'grade_token' and asset.status == 'approved' %}
+            {% set payload = asset.payload_json | from_json %}
+            {% if payload.grade_string %}
+            <div class="payload-section">
+                <h4>Grade String (injected into every image prompt)</h4>
+                <div class="grade-token-display">{{ payload.grade_string }}</div>
+            </div>
+            {% endif %}
+            {% endif %}
+
+            <!-- Character ref special display -->
+            {% if kind == 'character_ref' %}
+            {% set payload = asset.payload_json | from_json %}
+            {% if payload.canon_text %}
+            <div class="payload-section">
+                <h4>Character Canon</h4>
+                <div class="payload-text">{{ payload.canon_text }}</div>
+            </div>
+            {% endif %}
+            {% if payload.face_canon %}
+            <div class="payload-section">
+                <h4>Face Canon (prompt block)</h4>
+                <div class="payload-text">{{ payload.face_canon }}</div>
+            </div>
+            {% endif %}
+            {% if payload.wardrobe_canon %}
+            <div class="payload-section">
+                <h4>Wardrobe Canon (prompt block)</h4>
+                <div class="payload-text">{{ payload.wardrobe_canon }}</div>
+            </div>
+            {% endif %}
+            {% endif %}
+
+            <!-- Reference images -->
+            {% set payload = asset.payload_json | from_json %}
+            {% if payload.files %}
+            <div class="payload-section">
+                <h4>Reference Files ({{ payload.files|length }})</h4>
+                <div class="asset-files">
+                    {% for f in payload.files %}
+                    <div class="file-chip">
+                        {% if f.endswith(('.png', '.jpg', '.jpeg', '.svg')) %}
+                        <img src="/media/reference/{{ business_slug }}/{{ kind }}/{{ asset.name }}/{{ f }}" alt="{{ f }}" class="reference-image" onclick="openLightbox(this.src)">
+                        {% endif %}
+                        <span>{{ f }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Actions -->
+            <div class="asset-actions">
+                {% if asset.status == 'proposed' %}
+                <button class="btn btn-approve btn-small" onclick="approveAsset({{ asset.id }})">✓ Approve</button>
+                <button class="btn btn-edit btn-small" onclick="editPayload({{ asset.id }})">Edit Payload</button>
+                <button class="btn btn-small" onclick="savePayload({{ asset.id }})" id="save-btn-{{ asset.id }}" style="display:none;">Save</button>
+                <button class="btn btn-cancel btn-small" onclick="cancelEdit({{ asset.id }})" id="cancel-btn-{{ asset.id }}" style="display:none;">Cancel</button>
+                {% elif asset.status == 'approved' %}
+                <button class="btn btn-retire btn-small" onclick="retireAsset({{ asset.id }})">Retire</button>
+                <button class="btn btn-small" onclick="editNotes({{ asset.id }})">Edit Notes</button>
+                <button class="btn btn-small" onclick="newVersion({{ asset.id }})">Propose New Version</button>
+                {% elif asset.status == 'retired' %}
+                <span class="muted" style="font-size: 0.8rem;">Retired — preserved for provenance. Propose a new version to replace.</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+    </div>
+    {% endfor %}
+
+    <!-- Lightbox -->
+    <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+        <img src="" id="lightbox-img">
+    </div>
+
+    </div>
+
+<script>
+function openLightbox(src) {
+    document.getElementById('lightbox-img').src = src;
+    document.getElementById('lightbox').style.display = 'flex';
+}
+function closeLightbox() {
+    document.getElementById('lightbox').style.display = 'none';
+}
+
+function proposeAsset() {
+    const kind = document.getElementById('propose-kind').value;
+    const name = document.getElementById('propose-name').value.trim();
+    const payloadText = document.getElementById('propose-payload').value.trim();
+    const notes = document.getElementById('propose-notes').value.trim();
+    if (!name) { alert('Name is required'); return; }
+    if (!payloadText) { alert('Payload is required'); return; }
+    try { JSON.parse(payloadText); } catch(e) { alert('Payload must be valid JSON: ' + e.message); return; }
+    fetch('/api/reference-assets', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({kind, name, payload: payloadText, notes})
+    }).then(r => r.json()).then(data => {
+        if (data.status === 'ok') { window.location.reload(); }
+        else { alert(data.error || 'Failed'); }
+    });
+}
+
+function approveAsset(id) {
+    if (!confirm('Approve this asset? The payload will be locked. Changes will require a new version.')) return;
+    fetch('/api/reference-assets/' + id + '/approve', {method: 'POST'})
+        .then(r => r.json()).then(data => {
+            if (data.status === 'ok') { window.location.reload(); }
+            else { alert(data.error || 'Failed'); }
+        });
+}
+
+function retireAsset(id) {
+    if (!confirm('Retire this asset? It will be preserved for provenance but no longer used in content creation.')) return;
+    fetch('/api/reference-assets/' + id + '/retire', {method: 'POST'})
+        .then(r => r.json()).then(data => {
+            if (data.status === 'ok') { window.location.reload(); }
+            else { alert(data.error || 'Failed'); }
+        });
+}
+
+function editPayload(id) {
+    const el = document.getElementById('payload-' + id);
+    el.classList.add('editable');
+    el.contentEditable = true;
+    el.focus();
+    document.getElementById('save-btn-' + id).style.display = 'inline-block';
+    document.getElementById('cancel-btn-' + id).style.display = 'inline-block';
+}
+
+function savePayload(id) {
+    const el = document.getElementById('payload-' + id);
+    const text = el.textContent.trim();
+    try { JSON.parse(text); } catch(e) { alert('Must be valid JSON: ' + e.message); return; }
+    fetch('/api/reference-assets/' + id, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({payload: text})
+    }).then(r => r.json()).then(data => {
+        if (data.status === 'ok') { window.location.reload(); }
+        else { alert(data.error || 'Failed'); }
+    });
+}
+
+function cancelEdit(id) {
+    window.location.reload();
+}
+
+function editNotes(id) {
+    const notes = prompt('Enter new notes:');
+    if (notes === null) return;
+    fetch('/api/reference-assets/' + id + '/notes', {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({notes})
+    }).then(r => r.json()).then(data => {
+        if (data.status === 'ok') { window.location.reload(); }
+        else { alert(data.error || 'Failed'); }
+    });
+}
+
+function newVersion(id) {
+    if (!confirm('Create a new proposed version from this approved asset? You can edit the payload before approving.')) return;
+    fetch('/api/reference-assets/' + id + '/new-version', {method: 'POST'})
+        .then(r => r.json()).then(data => {
+            if (data.status === 'ok') { window.location.reload(); }
+            else { alert(data.error || 'Failed'); }
+        });
+}
+</script>
+</body>
+</html>

@@ -8807,6 +8807,176 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+    # ── Reference Asset Registry (T11.3 — CORRECTION-episode-format-and-reference-assets-v1.0 §2) ──
+
+    @app.route("/setup/reference-assets")
+    def reference_assets_page():
+        """Reference asset registry management page — brand identity assets for content creation."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return "Business not configured", 500
+
+        from reference_assets import ReferenceAssetStore
+        store = ReferenceAssetStore(db_path)
+        all_assets = store.list_assets(business_slug)
+        stats = store.stats(business_slug)
+
+        # Group by kind
+        kind_labels = {
+            "character_ref": "Character References",
+            "location_ref": "Location References",
+            "grade_token": "Grade Token",
+            "music_bed": "Music Beds",
+            "card_style": "Card Styles",
+            "lockup_svg": "Lockup / Brand SVGs",
+        }
+        assets_by_kind: dict[str, list] = {}
+        for a in all_assets:
+            kind = a["kind"]
+            if kind not in assets_by_kind:
+                assets_by_kind[kind] = []
+            assets_by_kind[kind].append(a)
+
+        store.close()
+        return render_template(
+            "reference_assets.html",
+            business_slug=business_slug,
+            assets_by_kind=assets_by_kind,
+            stats=stats,
+            kind_labels=kind_labels,
+        )
+
+    @app.route("/api/reference-assets", methods=["POST"])
+    def create_reference_asset():
+        """Propose a new reference asset."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        data = request.get_json()
+        kind = data.get("kind", "").strip()
+        name = data.get("name", "").strip()
+        payload_text = data.get("payload", "").strip()
+        notes = data.get("notes", "").strip()
+
+        if not kind or not name or not payload_text:
+            return jsonify({"error": "kind, name, and payload are required"}), 400
+
+        try:
+            payload = json.loads(payload_text)
+        except json.JSONDecodeError as e:
+            return jsonify({"error": f"Payload must be valid JSON: {e}"}), 400
+
+        from reference_assets import ReferenceAssetStore, VALID_KINDS
+        if kind not in VALID_KINDS:
+            return jsonify({"error": f"Invalid kind: {kind}"}), 400
+
+        store = ReferenceAssetStore(db_path)
+        try:
+            asset = store.propose(business_slug, kind, name, payload, notes)
+            return jsonify({"status": "ok", "asset": asset})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+        finally:
+            store.close()
+
+    @app.route("/api/reference-assets/<int:asset_id>/approve", methods=["POST"])
+    def approve_reference_asset(asset_id):
+        """Approve a proposed reference asset — locks the payload."""
+        from reference_assets import ReferenceAssetStore
+        store = ReferenceAssetStore(db_path)
+        try:
+            asset = store.approve(asset_id, approved_by="operator")
+            return jsonify({"status": "ok", "asset": asset})
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+        finally:
+            store.close()
+
+    @app.route("/api/reference-assets/<int:asset_id>/retire", methods=["POST"])
+    def retire_reference_asset(asset_id):
+        """Retire an approved reference asset."""
+        from reference_assets import ReferenceAssetStore
+        store = ReferenceAssetStore(db_path)
+        try:
+            asset = store.retire(asset_id)
+            return jsonify({"status": "ok", "asset": asset})
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+        finally:
+            store.close()
+
+    @app.route("/api/reference-assets/<int:asset_id>", methods=["PUT"])
+    def update_reference_asset_payload(asset_id):
+        """Update payload of a PROPOSED asset only (approved assets are locked)."""
+        data = request.get_json()
+        payload_text = data.get("payload", "").strip()
+        notes = data.get("notes", "").strip()
+        if not payload_text:
+            return jsonify({"error": "payload is required"}), 400
+
+        try:
+            payload = json.loads(payload_text)
+        except json.JSONDecodeError as e:
+            return jsonify({"error": f"Payload must be valid JSON: {e}"}), 400
+
+        from reference_assets import ReferenceAssetStore
+        store = ReferenceAssetStore(db_path)
+        try:
+            asset = store.update_payload(asset_id, payload, notes)
+            return jsonify({"status": "ok", "asset": asset})
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+        finally:
+            store.close()
+
+    @app.route("/api/reference-assets/<int:asset_id>/notes", methods=["PUT"])
+    def update_reference_asset_notes(asset_id):
+        """Update notes on any asset (proposed or approved). Notes are not payload."""
+        data = request.get_json()
+        notes = data.get("notes", "").strip()
+
+        from reference_assets import ReferenceAssetStore
+        store = ReferenceAssetStore(db_path)
+        try:
+            asset = store.update_notes(asset_id, notes)
+            return jsonify({"status": "ok", "asset": asset})
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+        finally:
+            store.close()
+
+    @app.route("/api/reference-assets/<int:asset_id>/new-version", methods=["POST"])
+    def new_version_reference_asset(asset_id):
+        """Propose a new version from an approved asset — copies payload, status = proposed."""
+        from reference_assets import ReferenceAssetStore
+        store = ReferenceAssetStore(db_path)
+        try:
+            asset = store.get_asset(asset_id)
+            if not asset:
+                return jsonify({"error": "Asset not found"}), 404
+            if asset["status"] != "approved":
+                return jsonify({"error": "Can only create new version from approved asset"}), 400
+
+            payload = json.loads(asset["payload_json"])
+            notes = (asset["notes"] or "") + " — new version from v" + str(asset["version"])
+            new_asset = store.propose(
+                asset["business_slug"], asset["kind"], asset["name"], payload, notes
+            )
+            return jsonify({"status": "ok", "asset": new_asset})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+        finally:
+            store.close()
+
     # P1-transcription: Start the transcription worker daemon thread
     try:
         from transcription import TranscriptionWorker
