@@ -151,6 +151,22 @@ class MediaAdapter:
         os.makedirs(media_dir, exist_ok=True)
         return media_dir
 
+    def _compute_cost(self, model: str, kind: str, duration_seconds: int = None) -> float:
+        """Compute the USD cost of a media generation from config (cost_per_image_usd /
+        cost_per_second_usd). Returns 0 if the model isn't found in config.
+        This is the deterministic source of truth for cost — APIs often return 0."""
+        media = self.media_config
+        if kind == "image":
+            for gen in media.get("image_generators", []):
+                if gen.get("name") == model or gen.get("endpoint") == model:
+                    return float(gen.get("cost_per_image_usd", 0))
+        elif kind == "video":
+            for gen in media.get("video_generators", []):
+                if gen.get("name") == model or gen.get("endpoint") == model:
+                    rate = float(gen.get("cost_per_second_usd", 0))
+                    return rate * (duration_seconds or 5)
+        return 0
+
     def _log_provenance(self, model: str, prompt: str, cost_usd: float = None,
                         context: str = "", business_slug: str = None,
                         provider: str = "openrouter"):
@@ -325,13 +341,17 @@ class MediaAdapter:
             import base64
             with open(file_path, "wb") as f:
                 f.write(base64.b64decode(image_b64))
+        cost_usd = data.get("cost", 0)
+        # If the API didn't return a cost, compute from config
+        if not cost_usd:
+            cost_usd = self._compute_cost(model, "image")
 
-        # Cache and record
         self._cache_image(prompt, model, file_path, cost_usd)
         self._record_media(asset_id, "image", file_path, model, prompt, cost_usd, owner_type=owner_type)
         self._log_provenance(model, prompt, cost_usd=cost_usd,
                             context=context, business_slug=business_slug)
 
+        print(f"[media] Image generated: {model} — ${cost_usd:.4f} — {file_path}")
         return {"path": file_path, "model": model, "prompt": prompt, "cost_usd": cost_usd}
 
     # ── Video generation (async) ──
@@ -392,10 +412,14 @@ class MediaAdapter:
             data = response.json()
             external_job_id = data.get("name") or data.get("operationId")
             cost_usd = 0
+            # Compute from config
+            cost_usd = self._compute_cost(model, "video", duration_seconds=duration)
 
             self._log_provenance(model, prompt, cost_usd=cost_usd,
                                 context=f"{context} (submitted, ext_job={external_job_id})",
                                 business_slug=business_slug, provider="google")
+
+            print(f"[media] Video submitted: {model} (google) — ${cost_usd:.4f} ({duration}s × rate from config) — ext_job={external_job_id}")
 
             return {
                 "model": model,
@@ -447,11 +471,15 @@ class MediaAdapter:
         data = response.json()
         external_job_id = data.get("request_id") or data.get("id") or data.get("job_id")
         cost_usd = data.get("cost", 0)
+        # If the API didn't return a cost, compute from config
+        if not cost_usd:
+            cost_usd = self._compute_cost(model, "video", duration_seconds=duration)
 
         self._log_provenance(model, prompt, cost_usd=cost_usd,
                             context=f"{context} (submitted, ext_job={external_job_id})",
                             business_slug=business_slug, provider=video_provider)
 
+        print(f"[media] Video submitted: {model} — ${cost_usd:.4f} ({duration}s × rate from config) — ext_job={external_job_id}")
         return {
             "model": model,
             "prompt": prompt,
@@ -600,7 +628,8 @@ class MediaAdapter:
                             context=f"Video download (ext_job={external_job_id})",
                             business_slug=business_slug)
 
-        return {"file_path": file_path, "media_id": media_id}
+        print(f"[media] Video downloaded: {model} — ${cost_usd:.4f} — {file_path}")
+        return {"file_path": file_path, "media_id": media_id, "cost_usd": cost_usd}
 
     # ── Discovery ──
 

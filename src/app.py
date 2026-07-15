@@ -5914,6 +5914,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             "images_generated": len(results),
             "errors": errors,
             "image_paths": [r["path"] for r in results],
+            "cost_usd": sum(r.get("cost_usd", 0) for r in results),
         })
 
     @app.route("/api/draft/<int:draft_id>/visuals", methods=["GET"])
@@ -6288,6 +6289,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             "regenerate": regenerate,
             "errors": errors,
             "image_paths": generated_paths,
+            "cost_usd": sum(r.get("cost_usd", 0) for r in results),
         })
 
     @app.route("/api/assets/<int:asset_id>/generate-video", methods=["POST"])
@@ -6368,6 +6370,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 "status": "ok",
                 "external_job_id": result.get("external_job_id"),
                 "model": result.get("model"),
+                "cost_usd": result.get("cost_usd", 0),
                 "estimated_cost": result.get("cost_usd", 0),
             }
             if fell_back:
