@@ -252,6 +252,7 @@ class ModuleStore:
             "voice_profile_v1", "brand_context_v1", "source_criteria_v1",
             "viral_patterns_v1", "audience_insights_v1", "story_frameworks_v1",
             "format_guide_v1", "format_guide_v2", "visual_style_v1", "shot_library_v1",
+            "episode_format_v1",
         }
         if schema_name not in VALID_SCHEMAS:
             raise ValueError(

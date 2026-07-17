@@ -1322,6 +1322,73 @@ class AssetReviewer:
             "summary": summary,
         }
 
+    # ── T11.8: Layer-2 asset QC (advisory flags, never auto-reject) ─────────
+
+    def run_layer2_qc(
+        self,
+        media_path: str,
+        character_ref_paths: list[str],
+        location_plate_path: str,
+        asset_id: int = 0,
+        media_id: int = 0,
+        business_slug: str = None,
+        embedder=None,
+    ) -> dict:
+        """T11.8: Layer-2 asset QC — face-embedding identity + color-histogram grade.
+
+        Advisory post-generation checks on returned stills and animation frames.
+        Flags (qc_flag: identity_drift, qc_flag: grade_break) are advisory — they
+        render as warnings on storyboard cards and enter AMENDMENT-008 review
+        evidence. They NEVER auto-reject.
+
+        Thresholds come from config/models.yaml episode_qc block.
+
+        Args:
+            media_path: path to the returned still image or video file.
+            character_ref_paths: canonical character_ref image file paths.
+            location_plate_path: canonical location plate image file path.
+            asset_id: asset ID for DB storage.
+            media_id: media ID for DB storage.
+            business_slug: business slug for provenance.
+            embedder: optional FaceEmbedder (for testing).
+
+        Returns:
+            dict with: review_id, review_type, status, flags, findings, summary.
+        """
+        # Support both package and direct imports
+        try:
+            from .layer2_qc import run_layer2_qc as _run_qc
+        except ImportError:
+            from layer2_qc import run_layer2_qc as _run_qc
+
+        qc_config = self.models_config.get("episode_qc", None)
+
+        result = _run_qc(
+            media_path=media_path,
+            character_ref_paths=character_ref_paths,
+            location_plate_path=location_plate_path,
+            qc_config=qc_config,
+            asset_id=asset_id,
+            media_id=media_id,
+            db_path=self.db_path,
+            embedder=embedder,
+            business_slug=business_slug,
+        )
+
+        # Log to provenance
+        self._log_provenance(
+            asset_id, "layer2_qc",
+            f"Layer-2 QC: {result.get('summary', '')}. Flags: {result.get('flags', [])}",
+            "advisory",
+            model="insightface-onnx",
+            provider="local",
+            prompt_file="(layer2_qc)",
+            prompt_version="1.0",
+            business_slug=business_slug,
+        )
+
+        return result
+
     # ── ASSET-REVIEW-7: Final-output compliance review (T10.4 — AMENDMENT-008) ──
 
     def run_compliance_review(

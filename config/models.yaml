@@ -204,6 +204,43 @@ asset_review:
   # max_remediation_cost_usd: 2.00   # cumulative cap per asset (UNCOMMENT to enable auto-remediation)
   max_remediation_rounds: 3          # hard cap on render/review rounds
 
+# ── Episode format Layer-2 asset QC (T11.8: CORRECTION-episode-format-and-reference-assets-v1.0 §7.2) ──
+# Advisory post-generation checks on returned stills and animation frames.
+# Flags are NEVER auto-reject — they render as warnings on storyboard cards
+# and enter AMENDMENT-008 review evidence. The operator decides.
+episode_qc:
+  # Face-embedding identity check
+  # Uses a self-hosted insightface-class ONNX model on CPU — NO per-call API cost.
+  # If the model file isn't available, the identity check is skipped gracefully.
+  identity:
+    enabled: true
+    # Model path (relative to project root or absolute). If not found, check is skipped.
+    model_path: "models/insightface/buffalo_l/w600k_r50.onnx"
+    # Minimum cosine similarity between a returned still/frame face embedding
+    # and the canonical character_ref embeddings. Below this → qc_flag: identity_drift
+    min_cosine_similarity: 0.45
+    # Which frames to check from animated clips: first, middle, last
+    frame_positions: ["first", "middle", "last"]
+    # Minimum face detection confidence (0-1). Faces below this are treated as "no face detected"
+    min_face_confidence: 0.5
+  # Color-histogram grade check
+  # Compares the color distribution of returned stills/frames vs the location plate.
+  # Uses PIL + numpy (no OpenCV required). Histogram distance above max → qc_flag: grade_break
+  grade:
+    enabled: true
+    # Histogram distance metric: "correlation" | "chi_square" | "bhattacharyya" | "intersection"
+    # "correlation": higher = more similar. Threshold is a minimum.
+    # "chi_square" / "bhattacharyya": lower = more similar. Threshold is a maximum.
+    histogram_metric: "correlation"
+    # Threshold for the histogram distance. Breach → qc_flag: grade_break
+    # For correlation: below this value = grade break
+    # For chi_square/bhattacharyya: above this value = grade break
+    histogram_threshold: 0.30
+    # Number of histogram bins per channel (RGB)
+    histogram_bins: 32
+    # Frame positions to extract from animated clips for grade check
+    frame_positions: ["first", "middle", "last"]
+
 # ── Episode format Layer-1 lints (T11.2: CORRECTION-episode-format §7.1) ──
 # Deterministic pre-spend checks. A plan that fails any lint cannot trigger
 # a paid media call. The banned-token list is config, not code — a second

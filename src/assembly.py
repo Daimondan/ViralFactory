@@ -576,7 +576,7 @@ class AssemblyRenderer:
             audio_block = plan.get("audio", {})
             self._apply_audio_strategy(
                 output_file, audio_block, media_dir, version,
-                asset_id, draft_id, business_slug,
+                asset_id, draft_id, business_slug, plan,
             )
 
             # Get final duration
@@ -890,8 +890,13 @@ class AssemblyRenderer:
 
         # Mix SFX into existing audio (or silence if no audio track)
         has_audio = self._has_audio_stream(output_file)
+        # Episode-format plans carry an enforced loudnorm target (I=-14)
+        ln = (plan or {}).get("loudnorm_target") or {}
+        ln_I = ln.get("I", -16.0)
+        ln_TP = ln.get("TP", -1.5)
+        ln_LRA = ln.get("LRA", 11.0)
         if has_audio:
-            filter_parts.append("[0:a]loudnorm=I=-16:TP=-1.5:LRA=11[base]")
+            filter_parts.append(f"[0:a]loudnorm=I={ln_I}:TP={ln_TP}:LRA={ln_LRA}[base]")
             mix_inputs = "[base]" + "".join(sfx_labels)
             n_inputs = len(sfx_labels) + 1
             filter_parts.append(
@@ -976,7 +981,7 @@ class AssemblyRenderer:
     def _apply_audio_strategy(self, output_file: str, audio_block: dict,
                               media_dir: str, version: int,
                               asset_id: int, draft_id: int,
-                              business_slug: str):
+                              business_slug: str, plan: dict = None):
         """Apply the edit plan's audio strategy to the rendered output.
 
         Per CORRECTION-final-output-review-and-audio-fix-v1.0 AUDIO-1:
@@ -984,7 +989,15 @@ class AssemblyRenderer:
         - original_audio == true, no music  → keep concat audio as-is (each segment's source audio)
         - music stock_ref present           → mix music at specified volume
         - vo take_id present                → duck clip/music under VO (deferred: if no VO file, proceed as empty)
+
+        Episode-format plans carry a loudnorm_target in the plan dict —
+        enforced I=-14 for this format (§3.3 + §6), not the default I=-16.
         """
+        # Episode-format loudnorm target (enforced I=-14) or default (-16)
+        ln = (plan or {}).get("loudnorm_target") or {}
+        loudnorm_I = ln.get("I", -16.0)
+        loudnorm_TP = ln.get("TP", -1.5)
+        loudnorm_LRA = ln.get("LRA", 11.0)
         original_audio = audio_block.get("original_audio", False)
         music = audio_block.get("music", {})
         vo = audio_block.get("vo", {})
@@ -1004,21 +1017,25 @@ class AssemblyRenderer:
         elif strategy == "original":
             # Concat already preserved each segment's source audio.
             # Just loudnorm for consistent levels.
-            self._apply_loudnorm(output_file, media_dir, version)
+            self._apply_loudnorm(output_file, media_dir, version,
+                                 loudnorm_I, loudnorm_TP, loudnorm_LRA)
         elif strategy == "music":
             music_volume = music.get("volume", 0.3) if music else 0.3
             music_path = self._resolve_music_path(music_ref)
             if music_path and os.path.exists(music_path):
                 if original_audio:
                     self._mix_music_with_original(
-                        output_file, music_path, music_volume, media_dir, version)
+                        output_file, music_path, music_volume, media_dir, version,
+                        loudnorm_I, loudnorm_TP, loudnorm_LRA)
                 else:
                     self._apply_music_only(
-                        output_file, music_path, music_volume, media_dir, version)
+                        output_file, music_path, music_volume, media_dir, version,
+                        loudnorm_I, loudnorm_TP, loudnorm_LRA)
             else:
                 # Music ref unresolved — fall back to loudnorm or silent
                 if original_audio:
-                    self._apply_loudnorm(output_file, media_dir, version)
+                    self._apply_loudnorm(output_file, media_dir, version,
+                                         loudnorm_I, loudnorm_TP, loudnorm_LRA)
                 else:
                     self._apply_silent_audio(output_file, media_dir, version)
         elif strategy == "vo":
@@ -1031,7 +1048,8 @@ class AssemblyRenderer:
                 music_path = self._resolve_music_path(music_ref)
             self._mix_vo(
                 output_file, vo_path, music_path, music_volume,
-                original_audio, media_dir, version)
+                original_audio, media_dir, version,
+                loudnorm_I, loudnorm_TP, loudnorm_LRA)
 
     def _resolve_vo_path(self, take_id: str, asset_id: int) -> Optional[str]:
         """Resolve a VO take_id to a file path.
@@ -1103,14 +1121,20 @@ class AssemblyRenderer:
         elif os.path.exists(normalized):
             os.remove(normalized)
 
-    def _apply_loudnorm(self, output_file: str, media_dir: str, version: int):
-        """Apply loudnorm normalization to the output's audio track."""
+    def _apply_loudnorm(self, output_file: str, media_dir: str, version: int,
+                        loudnorm_I: float = -16.0, loudnorm_TP: float = -1.5,
+                        loudnorm_LRA: float = 11.0):
+        """Apply loudnorm normalization to the output's audio track.
+
+        Episode-format plans pass loudnorm_I=-14 (enforced per §3.3 + §6).
+        Default remains -16 for non-episode formats.
+        """
         if not self._has_audio_stream(output_file):
             return
         normalized = os.path.join(media_dir, f"final_{version}_norm.mp4")
         cmd = [
             "ffmpeg", "-y", "-i", output_file,
-            "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
+            "-af", f"loudnorm=I={loudnorm_I}:TP={loudnorm_TP}:LRA={loudnorm_LRA}",
             "-c:v", "copy", "-c:a", "aac",
             normalized,
         ]
@@ -1121,7 +1145,9 @@ class AssemblyRenderer:
             os.remove(normalized)
 
     def _apply_music_only(self, output_file: str, music_path: str,
-                          volume: float, media_dir: str, version: int):
+                          volume: float, media_dir: str, version: int,
+                          loudnorm_I: float = -16.0, loudnorm_TP: float = -1.5,
+                          loudnorm_LRA: float = 11.0):
         """Replace audio with music track, trimmed/looped to output duration."""
         duration = self._get_duration(output_file)
         normalized = os.path.join(media_dir, f"final_{version}_music.mp4")
@@ -1131,7 +1157,7 @@ class AssemblyRenderer:
             "-i", music_path,
             "-filter_complex",
             f"[1:a]aloop=loop=-1:size=2e9,atrim=0:{duration},"
-            f"volume={volume},loudnorm=I=-16:TP=-1.5:LRA=11[music]",
+            f"volume={volume},loudnorm=I={loudnorm_I}:TP={loudnorm_TP}:LRA={loudnorm_LRA}[music]",
             "-map", "0:v:0", "-map", "[music]",
             "-c:v", "copy", "-c:a", "aac",
             "-t", str(max(duration, 1)),
@@ -1144,7 +1170,9 @@ class AssemblyRenderer:
             os.remove(normalized)
 
     def _mix_music_with_original(self, output_file: str, music_path: str,
-                                 volume: float, media_dir: str, version: int):
+                                 volume: float, media_dir: str, version: int,
+                                 loudnorm_I: float = -16.0, loudnorm_TP: float = -1.5,
+                                 loudnorm_LRA: float = 11.0):
         """Mix original clip audio with music bed at specified volume."""
         duration = self._get_duration(output_file)
         normalized = os.path.join(media_dir, f"final_{version}_mix.mp4")
@@ -1153,9 +1181,9 @@ class AssemblyRenderer:
             "-i", output_file,
             "-i", music_path,
             "-filter_complex",
-            f"[0:a]loudnorm=I=-16:TP=-1.5:LRA=11[main];"
+            f"[0:a]loudnorm=I={loudnorm_I}:TP={loudnorm_TP}:LRA={loudnorm_LRA}[main];"
             f"[1:a]aloop=loop=-1:size=2e9,atrim=0:{duration},"
-            f"volume={volume},loudnorm=I=-20:TP=-1.5:LRA=11[bed];"
+            f"volume={volume},loudnorm=I={loudnorm_I - 4}:TP={loudnorm_TP}:LRA={loudnorm_LRA}[bed];"
             f"[main][bed]amix=inputs=2:duration=first:dropout_transition=0[aout]",
             "-map", "0:v:0", "-map", "[aout]",
             "-c:v", "copy", "-c:a", "aac",
@@ -1169,7 +1197,9 @@ class AssemblyRenderer:
 
     def _mix_vo(self, output_file: str, vo_path: str,
                 music_path: Optional[str], music_volume: float,
-                original_audio: bool, media_dir: str, version: int):
+                original_audio: bool, media_dir: str, version: int,
+                loudnorm_I: float = -16.0, loudnorm_TP: float = -1.5,
+                loudnorm_LRA: float = 11.0):
         """Mix VO as primary audio, ducking clip/music under it."""
         duration = self._get_duration(output_file)
         normalized = os.path.join(media_dir, f"final_{version}_vo.mp4")
@@ -1178,7 +1208,7 @@ class AssemblyRenderer:
         # Only process [0:a] (concat audio) if we'll actually use it
         # — i.e., when original_audio is true (we mix clip audio under VO)
         if original_audio:
-            filter_parts = ["[0:a]loudnorm=I=-16:TP=-1.5:LRA=11[main]"]
+            filter_parts = [f"[0:a]loudnorm=I={loudnorm_I}:TP={loudnorm_TP}:LRA={loudnorm_LRA}[main]"]
         else:
             filter_parts = []
 
@@ -1187,11 +1217,11 @@ class AssemblyRenderer:
             music_idx = 2
             filter_parts.append(
                 f"[{music_idx}:a]aloop=loop=-1:size=2e9,atrim=0:{duration},"
-                f"volume={music_volume},loudnorm=I=-24:TP=-1.5:LRA=11[bed]"
+                f"volume={music_volume},loudnorm=I={loudnorm_I - 8}:TP={loudnorm_TP}:LRA={loudnorm_LRA}[bed]"
             )
             if original_audio:
                 filter_parts.append(
-                    "[1:a]loudnorm=I=-16:TP=-1.5:LRA=11[vo]")
+                    f"[1:a]loudnorm=I={loudnorm_I}:TP={loudnorm_TP}:LRA={loudnorm_LRA}[vo]")
                 filter_parts.append(
                     "[main][bed]amix=inputs=2:duration=first:dropout_transition=0[ducked]")
                 filter_parts.append(
@@ -1199,7 +1229,7 @@ class AssemblyRenderer:
                     "volume=1.5[aout]")
             else:
                 filter_parts.append(
-                    "[1:a]loudnorm=I=-16:TP=-1.5:LRA=11[vo]")
+                    f"[1:a]loudnorm=I={loudnorm_I}:TP={loudnorm_TP}:LRA={loudnorm_LRA}[vo]")
                 filter_parts.append(
                     "[bed][vo]amix=inputs=2:duration=first:dropout_transition=0,"
                     "volume=1.5[aout]")
@@ -1207,7 +1237,7 @@ class AssemblyRenderer:
             # VO only (no music, no original audio)
             if original_audio:
                 filter_parts.append(
-                    "[1:a]loudnorm=I=-16:TP=-1.5:LRA=11[vo]")
+                    f"[1:a]loudnorm=I={loudnorm_I}:TP={loudnorm_TP}:LRA={loudnorm_LRA}[vo]")
                 filter_parts.append(
                     "[main][vo]amix=inputs=2:duration=first:dropout_transition=0,"
                     "volume=1.5[aout]")
@@ -1215,7 +1245,7 @@ class AssemblyRenderer:
                 # VO replaces audio entirely — trim VO to video duration,
                 # normalize, map directly to [aout]
                 filter_parts.append(
-                    f"[1:a]atrim=0:{duration},loudnorm=I=-16:TP=-1.5:LRA=11[aout]")
+                    f"[1:a]atrim=0:{duration},loudnorm=I={loudnorm_I}:TP={loudnorm_TP}:LRA={loudnorm_LRA}[aout]")
 
         filter_str = ";".join(filter_parts)
         cmd = [

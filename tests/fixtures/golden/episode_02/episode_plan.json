@@ -1,0 +1,67 @@
+{
+  "format_module": "episode-format-parable@v1",
+  "beats": [
+    {
+      "id": "b01",
+      "role": "hook",
+      "vo_text": "Everybody wants the result. Nobody wants the process.",
+      "register": "wry",
+      "staged_action": "the man leans against a rum shop wall, watching tourists pass with shopping bags",
+      "character_ref": "fitzroy",
+      "location_ref": "rum_shop",
+      "duration_s": 3.0
+    },
+    {
+      "id": "b02",
+      "role": "setup",
+      "vo_text": "I was the same way. Wanted the wealth without the work.",
+      "register": "somber",
+      "staged_action": "the man sits on the beach at dusk, staring at the horizon",
+      "character_ref": "fitzroy",
+      "location_ref": "beach_dusk",
+      "duration_s": 12.0
+    },
+    {
+      "id": "b03",
+      "role": "struggle",
+      "vo_text": "I bought the course. I bought the tools. I skipped the reps.",
+      "register": "wry",
+      "staged_action": "the man at his desk, surrounded by unused notebooks and unopened courses",
+      "character_ref": "fitzroy",
+      "location_ref": "desk_evening",
+      "duration_s": 15.0,
+      "graphics": [{"type": "number_card", "text": "0 REPS", "style": "title_card_v1"}]
+    },
+    {
+      "id": "b04",
+      "role": "turn",
+      "vo_text": "Then I realized: the process IS the result. There is no shortcut to reps.",
+      "register": "hopeful",
+      "staged_action": "the man picks up a single notebook and opens it to the first page",
+      "character_ref": "fitzroy",
+      "location_ref": "porch_afternoon",
+      "duration_s": 15.0
+    },
+    {
+      "id": "b05",
+      "role": "lesson",
+      "vo_text": "Do the work. The result follows the reps, not the wishing.",
+      "register": "hopeful",
+      "staged_action": "the man writes in the notebook, steady and focused",
+      "character_ref": "fitzroy",
+      "location_ref": "kitchen_dawn",
+      "duration_s": 15.0
+    },
+    {
+      "id": "b06",
+      "role": "cta",
+      "vo_text": "Start today. One rep at a time.",
+      "register": "hopeful",
+      "staged_action": "the man closes the notebook with a firm nod, stands up",
+      "character_ref": "fitzroy",
+      "location_ref": "kitchen_dawn",
+      "duration_s": 12.0
+    }
+  ],
+  "total_duration_s": 72.0
+}

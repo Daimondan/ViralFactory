@@ -61,6 +61,36 @@ assembly/edit_plan_v1.md:
 assembly/media_plan_v1.md:
   visual_style:       {module: visual-style,     mode: full,  budget: 5000}
 
+# T11.5: Episode format module — the show bible. Available to Writer and
+# Assembler prompts. Full module: cast, world, grade, beat grammar, delivery
+# mode, audio registers, graphics vocabulary, critic rubric.
+draft/generate_v4.md:
+  voice_profile:      {module: voice-profile,    mode: full,  budget: 8000}
+  tells_checklist:    {module: voice-profile,    mode: section, heading: Tells Checklist, budget: 2000}
+  ai_tells:           {file: shared/ai_tells_v1.md, budget: 8000}
+  story_frameworks:   {module: story-frameworks, mode: full,  budget: 5000}
+  audience_insights:  {module: audience-insights, mode: full, budget: 4000}
+  viral_patterns:     {module: viral-patterns,   mode: full,  budget: 5000}
+  visual_style:       {module: visual-style,     mode: full,  budget: 5000}
+  format_guide:       {module: format-guide,     mode: entry, parent: Formats,
+                       key: "{treatment.format_name}", budget: 4000,
+                       fallback: index}
+  episode_format:     {module: episode-format-parable, mode: full, budget: 8000,
+                       fallback: full}
+
+assembly/media_plan_v2.md:
+  visual_style:       {module: visual-style,     mode: full,  budget: 5000}
+  episode_format:     {module: episode-format-parable, mode: full, budget: 8000,
+                       fallback: full}
+
+assembly/edit_plan_v2.md:
+  viral_patterns:     {module: viral-patterns,   mode: full,  budget: 3000}
+  format_guide:       {module: format-guide,     mode: entry, parent: Formats,
+                       key: "{format_name}", budget: 3000, fallback: index}
+  visual_style:       {module: visual-style,     mode: full,  budget: 4000}
+  episode_format:     {module: episode-format-parable, mode: full, budget: 8000,
+                       fallback: full}
+
 # F3: series breakdown — added by CORRECTION-feedback-plumbing-and-pipeline-fixes
 ideas/series_breakdown_v1.md:
   viral_patterns:     {module: viral-patterns,   mode: full,  budget: 4000}

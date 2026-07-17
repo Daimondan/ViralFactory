@@ -1,0 +1,68 @@
+{
+  "format_module": "episode-format-parable@v1",
+  "beats": [
+    {
+      "id": "b01",
+      "role": "hook",
+      "vo_text": "I worked fifty years and retired with nothing.",
+      "register": "somber",
+      "staged_action": "the man sits alone at the kitchen table at dawn, hands folded around a cooling cup",
+      "character_ref": "fitzroy",
+      "location_ref": "kitchen_dawn",
+      "duration_s": 3.0,
+      "graphics": [{"type": "number_card", "text": "50 YEARS", "style": "title_card_v1"}]
+    },
+    {
+      "id": "b02",
+      "role": "setup",
+      "vo_text": "Nobody told me that saving early was the real currency.",
+      "register": "somber",
+      "staged_action": "the man walks through a quiet market, stalls half-empty",
+      "character_ref": "fitzroy",
+      "location_ref": "market_morning",
+      "duration_s": 12.0
+    },
+    {
+      "id": "b03",
+      "role": "struggle",
+      "vo_text": "I tried to catch up, but compound interest waits for no one.",
+      "register": "wry",
+      "staged_action": "the man sits at a desk with papers spread out, rubbing his temples",
+      "character_ref": "fitzroy",
+      "location_ref": "desk_evening",
+      "duration_s": 15.0,
+      "graphics": [{"type": "number_card", "text": "0 TIME", "style": "title_card_v1"}]
+    },
+    {
+      "id": "b04",
+      "role": "turn",
+      "vo_text": "Then I learned: the best time to plant a tree was twenty years ago. The second best time is now.",
+      "register": "hopeful",
+      "staged_action": "the man opens a small notebook and writes a number, determined expression",
+      "character_ref": "fitzroy",
+      "location_ref": "porch_afternoon",
+      "duration_s": 15.0
+    },
+    {
+      "id": "b05",
+      "role": "lesson",
+      "vo_text": "Save before you spend. Even a little. Even now.",
+      "register": "hopeful",
+      "staged_action": "the man places a few coins into a jar on the kitchen shelf",
+      "character_ref": "fitzroy",
+      "location_ref": "kitchen_dawn",
+      "duration_s": 15.0
+    },
+    {
+      "id": "b06",
+      "role": "cta",
+      "vo_text": "Start today. Your future self will thank you.",
+      "register": "hopeful",
+      "staged_action": "the man steps out into warm morning light, face lit with quiet resolve",
+      "character_ref": "fitzroy",
+      "location_ref": "porch_afternoon",
+      "duration_s": 12.0
+    }
+  ],
+  "total_duration_s": 72.0
+}
