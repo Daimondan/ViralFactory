@@ -8,6 +8,11 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-17
 
+### T10.10 — Compliance test suite [TECH]
+**What:** 45-test consolidated suite covering all 8 acceptance criteria: 92s/18s regression, coverage proof, generic content corpus (no tenant strings), three-round cap, cost cap, text-boundary firewall, approval integrity, real rendered asset validation.
+**Why:** T10.10 requires a dedicated test suite proving the compliance loop catches real failures, never auto-publishes, never changes approved text, and works with all format types without tenant-specific code.
+**Rationale:** Individual pieces were already tested across multiple files (test_feasibility_t10, test_compliance_review_t10, test_remediation_loop_t10, test_vf_au_401_404). This suite consolidates them and adds the missing pieces: no-tenant-strings scan across 14 generic source files, approval integrity state-model checks, and operator-facing review panel integration test.
+
 ### T10.7 — Assets UI: remediation history + coverage [TECH]
 **What:** New `/api/assets/<id>/compliance` API endpoint + compliance panel in `assets.html`. The panel shows per-beat coverage (status + evidence), remediation round history (verdict, actions, cost per round), total remediation spend, issues (severity + description + beat), and a plain-language stop reason. Technical JSON is available in a collapsible details section — not the default view. All user-generated content is escaped via `escapeHtml()` using `textContent` (XSS-safe).
 **Why:** Acceptance criteria require the operator to see the full remediation history without reading JSON, with per-beat coverage human-readable and the stop reason in plain language.
