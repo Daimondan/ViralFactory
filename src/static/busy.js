@@ -65,7 +65,7 @@ function busyAction(btn, url, options) {
     var busyLabel = options.busyLabel || 'Working…';
     var statusElem = options.statusElem || null;
     var onSuccess = options.onSuccess || function(data) { window.location.reload(); };
-    var onError = options.onError || function(msg) { alert('Error: ' + msg); };
+    var onError = options.onError || function(msg) { vfToastError('Something went wrong', msg); };
     var reloadOnSuccess = options.reloadOnSuccess !== false;  // default true
 
     // If button is already busy, do nothing

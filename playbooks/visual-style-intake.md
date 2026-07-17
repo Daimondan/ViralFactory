@@ -1,5 +1,7 @@
 # Playbook: Visual Style Intake
 
+<!-- playbook_type: onboarding -->
+
 *Repo location: `playbooks/visual-style-intake.md` · Executed by the system's AI during onboarding, through the console. v1.0*
 
 <!-- run_order: 8 -->

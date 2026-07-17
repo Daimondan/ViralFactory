@@ -1,5 +1,7 @@
 # Playbook: Sources Engine
 
+<!-- playbook_type: onboarding -->
+
 *Repo location: `playbooks/sources-engine.md` · Executed by the system's AI during onboarding (Part A) and continuously (Part B). v1.0*
 
 <!-- run_order: 3 -->

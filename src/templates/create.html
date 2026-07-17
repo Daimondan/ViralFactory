@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="/static/vf.css">
     <title>Pipeline · Drafting — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
+    <script src="/static/vf-ui.js"></script>
     <style>
         .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(74,111,165,0.2); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 4px; vertical-align: middle; }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -179,8 +180,11 @@
 
     {% if not review_cards and not writing_cards and not in_motion and not failed_cards %}
     <div class="card">
-        <div class="empty-state">
-            <p>No drafts yet. <a href="/ideas">Generate ideas →</a> to start the pipeline.</p>
+        <div class="vf-empty">
+            <div class="vf-empty-icon">✦</div>
+            <p class="vf-empty-title">No drafts yet</p>
+            <p class="vf-empty-desc">Generate ideas to start the pipeline — approved ideas flow here for writing.</p>
+            <div class="vf-empty-action"><a href="/ideas" class="btn btn-small">Generate ideas →</a></div>
         </div>
     </div>
     {% endif %}
@@ -193,9 +197,9 @@ function retryProduction(cardId) {
         .then(r => r.json())
         .then(data => {
             if (data.status === 'ok') location.reload();
-            else alert('Error: ' + (data.error || 'Unknown error'));
+            else vfToastError('Error', data.error || 'Unknown error');
         })
-        .catch(err => alert('Network error: ' + err));
+        .catch(err => vfToastError('Network error', String(err)));
 }
 
 // Auto-refresh when any card is in writing or assembling state

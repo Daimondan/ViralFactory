@@ -57,6 +57,7 @@
         }
         .hidden { display: none; }
     </style>
+    <script src="/static/vf-ui.js"></script>
 </head>
 <body>
     <div class="container">
@@ -97,7 +98,7 @@
     async function loadNextQuestion() {
         const resp = await fetch(`/api/run/${runId}/interview-question`, { method: 'POST' });
         const data = await resp.json();
-        if (data.error) { alert(data.error); return; }
+        if (data.error) { vfToastError('Error', data.error || 'Unknown error'); return; }
 
         questionNum = data.question_number;
         document.getElementById('q-progress').textContent = `Question ${questionNum}`;
@@ -107,7 +108,7 @@
 
     async function submitAnswer(runId) {
         const answer = document.getElementById('answer-text').value.trim();
-        if (!answer) { alert('Write something first'); return; }
+        if (!answer) { vfToastWarning('Input needed', 'Write something first'); return; }
 
         // Store the answer as a material
         const resp = await fetch(`/api/run/${runId}/paste`, {
@@ -121,7 +122,7 @@
             }),
         });
         const data = await resp.json();
-        if (data.error) { alert(data.error); return; }
+        if (data.error) { vfToastError('Error', data.error || 'Unknown error'); return; }
 
         // Add to the answers list
         const list = document.getElementById('answers-list');
@@ -154,13 +155,13 @@
 
     async function finishInterview(runId) {
         if (totalWords < 50) {
-            alert('Need at least a few answers. Write a bit more.');
+            vfToastWarning('More input needed', 'Write a bit more before analyzing.');
             return;
         }
         // Redirect to the voice analysis
         const resp = await fetch(`/api/run/${runId}/analyze-voice`, { method: 'POST' });
         const data = await resp.json();
-        if (data.error) { alert(data.error); return; }
+        if (data.error) { vfToastError('Error', data.error || 'Unknown error'); return; }
 
         // Show the profile (safe DOM construction — no innerHTML with untrusted data)
         const section = document.getElementById('question-section');

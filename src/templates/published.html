@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="/static/vf.css">
     <title>Results — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
+    <script src="/static/vf-ui.js"></script>
     <style>
         .published-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-4); }
         .platform { font-size: 0.85rem; font-weight: 600; color: var(--blue); }
@@ -112,8 +113,10 @@
     {% endfor %}
     {% else %}
     <div class="card">
-        <div class="empty-state">
-            <p>Nothing published yet. Approve assets at Gate 3, then schedule them at Gate 4.</p>
+        <div class="vf-empty">
+            <div class="vf-empty-icon">🚀</div>
+            <p class="vf-empty-title">Nothing published yet</p>
+            <p class="vf-empty-desc">Approve assets at Gate 3, then schedule them at Gate 4 to see published content here.</p>
         </div>
     </div>
     {% endif %}

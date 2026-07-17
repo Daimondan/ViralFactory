@@ -6,6 +6,7 @@
     <title>ViralFactory — {{ business_name }}</title>
     <link rel="stylesheet" href="/static/vf.css">
     <script src="/static/busy.js"></script>
+    <script src="/static/vf-ui.js"></script>
 </head>
 <body>
     <div class="container">
@@ -100,8 +101,14 @@
                         {% endfor %}
                     </div>
                     {% else %}
-                    <div class="empty-state">
-                        <p>No activity yet. Start by <a href="/onboard">onboarding</a> or <a href="/ideas">generating ideas</a>.</p>
+                    <div class="vf-empty">
+                        <div class="vf-empty-icon">○</div>
+                        <p class="vf-empty-title">No activity yet</p>
+                        <p class="vf-empty-desc">Start by onboarding your business or generating ideas to see the pipeline in action.</p>
+                        <div class="vf-empty-action">
+                            <a href="/onboard" class="btn btn-small">Start onboarding</a>
+                            <a href="/ideas" class="btn btn-small" style="margin-left: 6px;">Generate ideas</a>
+                        </div>
                     </div>
                     {% endif %}
                 </div>

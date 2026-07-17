@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="/static/vf.css">
     <title>Publish — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
+    <script src="/static/vf-ui.js"></script>
     <style>
 
         .asset-card { background: #FFFFFF; border-radius: 10px; padding: 16px; border: 1px solid #D8D4C8; margin-bottom: 12px; }
@@ -106,7 +107,7 @@ function postNow(id, btn) {
 
 function schedule(id, btn) {
     var dt = document.getElementById('schedule-' + id).value;
-    if (!dt) return alert('Select a date/time first.');
+    if (!dt) return vfToastWarning('Input needed', 'Select a date/time first.');
     var errDiv = document.getElementById('error-' + id);
     errDiv.innerHTML = '';
     busyAction(btn, '/api/assets/' + id + '/schedule', {
@@ -124,8 +125,8 @@ function hold(id, btn) {
         busyLabel: 'Holding…',
         body: JSON.stringify({scheduled_at: ''}),
         reloadOnSuccess: false,
-        onSuccess: function() { alert('Held — not scheduled'); },
-        onError: function(msg) { alert('Error: ' + msg); }
+        onSuccess: function() { vfToastInfo('Held', 'Not scheduled'); },
+        onError: function(msg) { vfToastError('Error', String(msg)); }
     });
 }
 </script>

@@ -1,4 +1,4 @@
-# config/processes.yaml — Process Registry (AMENDMENT-005)
+# config/processes.yaml — Process Registry (AMENDMENT-005, updated per AMENDMENT-009)
 #
 # Processes are module compositions: each process declares which prompt to use,
 # which backend (LLM role), which JSON schema to validate against, and which
@@ -10,7 +10,10 @@
 # Versioned data: gate-only writes. Bumping a process spec is a versioned change
 # with provenance, just like module updates.
 #
-# version: 1.0
+# version: 2.0 — 2026-07-17 — AMENDMENT-009: retired draft/generate_v2.md,
+# fan_out_v2.md, structure_v1.md from active runtime. Registered Writer v4,
+# media plan v2, edit plan v2, compliance review, remediation, performance
+# analysis. Added playbook_type metadata support.
 
 processes:
   ideas_concepts_generate:
@@ -51,13 +54,10 @@ processes:
     schema: "IDEA_CARD_SCHEMA"
     context_template: "AI idea card generation ({num_cards} cards) | module_ctx: {module_prov}"
     inputs:
-      # Business config fields
       business_name: {source: business, field: "business.name"}
       subjects: {source: business, field: "subjects", transform: "join_comma"}
       audience_description: {source: business, field: "audience_description"}
-      # Module views (resolved via views.yaml)
       module_views: "ideas/generate_v1.md"
-      # Dynamic variables (built by route)
       origin_type: {source: dynamic, default: "ai_originated"}
       distribution_intent: {source: dynamic, default: '{"mode":"open","platforms":[],"formats":[]}'}
       source_material: {source: dynamic}
@@ -84,48 +84,138 @@ processes:
       kill_lessons: {source: dynamic, builder: "kill_lessons"}
       format_usage: {source: dynamic, builder: "format_usage"}
 
+  # ── Writer (AMENDMENT-007, updated to v4 per AMENDMENT-009) ──
+  # Writer v3 remains active for backward compatibility; Writer v4 is the new
+  # Production Contract v2 path. Both are registered; the route/chain selects
+  # which to call based on the contract version in use.
+
   draft_generate:
-    prompt_file: "draft/generate_v2.md"
+    prompt_file: "draft/generate_v3.md"
     backend: "drafter"
     schema: "DRAFT_SCHEMA"
     context_template: "Draft generation for card {card_id} ({origin}, {format_name}) | module_ctx: {module_prov}"
     inputs:
       business_name: {source: business, field: "business.name"}
       audience_description: {source: business, field: "audience_description"}
-      module_views: "draft/generate_v2.md"
+      module_views: "draft/generate_v3.md"
       origin: {source: dynamic}
       format_name: {source: dynamic}
       scope: {source: dynamic}
       idea: {source: dynamic}
       hook_options: {source: dynamic, transform: "join_newline_bullet"}
       capture_material: {source: dynamic, transform: "truncate_2000"}
+      capture_policy: {source: dynamic, default: "legacy_unclassified"}
       previous_draft: {source: dynamic}
       revision_feedback: {source: dynamic}
+
+  writer_contract_v4:
+    prompt_file: "draft/generate_v4.md"
+    backend: "drafter"
+    schema: "PRODUCTION_CONTRACT_V2_SCHEMA"
+    context_template: "Writer v4 Production Contract for card {card_id} ({origin}, {format_name}) | module_ctx: {module_prov}"
+    inputs:
+      business_name: {source: business, field: "business.name"}
+      audience_description: {source: business, field: "audience_description"}
+      module_views: "draft/generate_v4.md"
+      origin: {source: dynamic}
+      format_name: {source: dynamic}
+      scope: {source: dynamic}
+      idea: {source: dynamic}
+      hook_options: {source: dynamic, transform: "join_newline_bullet"}
+      capture_material: {source: dynamic, transform: "truncate_2000"}
+      capture_policy: {source: dynamic}
+      previous_draft: {source: dynamic}
+      revision_feedback: {source: dynamic}
+
+  # ── Retired processes (AMENDMENT-007 retired these from active Assembler path) ──
 
   fan_out_adapt:
     prompt_file: "assets/fan_out_v2.md"
     backend: "default"
     schema: "VARIANT_SCHEMA"
-    context_template: "Asset fan-out for draft {draft_id} → {platform_name} (adapted) | module_ctx: {module_prov}"
+    retired: true
+    context_template: "RETIRED — Asset fan-out (AMENDMENT-007: Writer produces per-platform content)"
     inputs:
       business_name: {source: business, field: "business.name"}
-      module_views: "assets/fan_out_v2.md"
-      platform_name: {source: dynamic}
-      platform_handle: {source: dynamic}
-      draft_text: {source: dynamic, transform: "truncate_4000"}
-      visual_direction: {source: dynamic, transform: "json_truncate_1000"}
-      format: {source: dynamic}
 
   native_structure:
     prompt_file: "assets/structure_v1.md"
     backend: "default"
     schema: "VARIANT_SCHEMA"
-    context_template: "Native structuring for draft {draft_id} → {platform_name} ({variant_type}) | module_ctx: {module_prov}"
+    retired: true
+    context_template: "RETIRED — Native structuring (AMENDMENT-007: Writer produces structured posts)"
     inputs:
       platform_name: {source: dynamic}
-      format_name: {source: dynamic}
-      variant_type: {source: dynamic}
-      draft_text: {source: dynamic, transform: "truncate_4000"}
+
+  # ── Assembler processes (new per AMENDMENT-009) ──
+
+  media_plan_v2:
+    prompt_file: "assembly/media_plan_v2.md"
+    backend: "drafter"
+    schema: "MEDIA_PLAN_SCHEMA"
+    context_template: "Media plan v2 for asset {asset_id} | module_ctx: {module_prov}"
+    inputs:
+      business_name: {source: business, field: "business.name"}
+      module_views: "assembly/media_plan_v2.md"
+      contract_beats: {source: dynamic}
+      measured_vo: {source: dynamic}
+      visual_style: {source: dynamic}
+      format_guide: {source: dynamic}
+      references: {source: dynamic}
+      inventory: {source: dynamic}
+      available_providers: {source: dynamic}
+      costs: {source: dynamic}
+
+  edit_plan_v2:
+    prompt_file: "assembly/edit_plan_v2.md"
+    backend: "drafter"
+    schema: "EDIT_PLAN_SCHEMA"
+    context_template: "Edit plan v2 for asset {asset_id} | module_ctx: {module_prov}"
+    inputs:
+      business_name: {source: business, field: "business.name"}
+      module_views: "assembly/edit_plan_v2.md"
+      contract: {source: dynamic}
+      media_recipes: {source: dynamic}
+      compiled_cues: {source: dynamic}
+      render_ready_inventory: {source: dynamic}
+      measured_source_facts: {source: dynamic}
+
+  compliance_review:
+    prompt_file: "assembly/compliance_review_v1.md"
+    backend: "drafter"
+    schema: "COMPLIANCE_REVIEW_SCHEMA"
+    context_template: "Compliance review for asset {asset_id} | module_ctx: {module_prov}"
+    inputs:
+      approved_script: {source: dynamic}
+      compliance_contract: {source: dynamic}
+      edit_plan: {source: dynamic}
+      final_file_facts: {source: dynamic}
+      vo_transcript: {source: dynamic}
+      keyframes: {source: dynamic}
+      prior_findings: {source: dynamic}
+
+  remediation:
+    prompt_file: "assembly/remediation_instruction_v1.md"
+    backend: "drafter"
+    schema: "REMEDIATION_INSTRUCTION_SCHEMA"
+    context_template: "Remediation instruction for asset {asset_id} (round {round}) | module_ctx: {module_prov}"
+    inputs:
+      compliance_review: {source: dynamic}
+      edit_plan: {source: dynamic}
+      writer_contract_hash: {source: dynamic}
+      max_rounds: {source: dynamic, default: "3"}
+      max_cost_usd: {source: dynamic}
+
+  performance_analysis:
+    prompt_file: "analysis/performance_analysis_v1.md"
+    backend: "analyst"
+    schema: "PERFORMANCE_ANALYSIS_SCHEMA"
+    context_template: "Performance analysis for contract {contract_id} | module_ctx: {module_prov}"
+    inputs:
+      performance_record: {source: dynamic}
+      creative_fingerprint: {source: dynamic}
+      tenant_baseline: {source: dynamic}
+      matched_formats: {source: dynamic}
 
   series_breakdown:
     prompt_file: "ideas/series_breakdown_v1.md"
@@ -163,3 +253,9 @@ schemas:
   VARIANT_SCHEMA: "inline:variant_schema"
   SERIES_BREAKDOWN_SCHEMA: "pipeline.SERIES_BREAKDOWN_SCHEMA"
   ANALYSIS_SCHEMA: "inline:analysis_schema"
+  PRODUCTION_CONTRACT_V2_SCHEMA: "production_contract.PRODUCTION_CONTRACT_V2_SCHEMA"
+  MEDIA_PLAN_SCHEMA: "inline:media_plan_schema"
+  EDIT_PLAN_SCHEMA: "pipeline.EDIT_PLAN_SCHEMA"
+  COMPLIANCE_REVIEW_SCHEMA: "pipeline.COMPLIANCE_REVIEW_SCHEMA"
+  REMEDIATION_INSTRUCTION_SCHEMA: "pipeline.REMEDIATION_INSTRUCTION_SCHEMA"
+  PERFORMANCE_ANALYSIS_SCHEMA: "inline:performance_analysis_schema"

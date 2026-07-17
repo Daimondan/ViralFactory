@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="/static/vf.css">
     <title>Reference Assets — {{ business_slug }}</title>
     <script src="/static/busy.js"></script>
+    <script src="/static/vf-ui.js"></script>
     <style>
         .asset-card {
             background: var(--surface);
@@ -332,16 +333,16 @@ function proposeAsset() {
     const name = document.getElementById('propose-name').value.trim();
     const payloadText = document.getElementById('propose-payload').value.trim();
     const notes = document.getElementById('propose-notes').value.trim();
-    if (!name) { alert('Name is required'); return; }
-    if (!payloadText) { alert('Payload is required'); return; }
-    try { JSON.parse(payloadText); } catch(e) { alert('Payload must be valid JSON: ' + e.message); return; }
+    if (!name) { vfToastWarning('Input needed', 'Name is required'); return; }
+    if (!payloadText) { vfToastWarning('Input needed', 'Payload is required'); return; }
+    try { JSON.parse(payloadText); } catch(e) { vfToastWarning('Invalid JSON', 'Payload must be valid JSON: ' + e.message); return; }
     fetch('/api/reference-assets', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({kind, name, payload: payloadText, notes})
     }).then(r => r.json()).then(data => {
         if (data.status === 'ok') { window.location.reload(); }
-        else { alert(data.error || 'Failed'); }
+        else { vfToastError('Error', data.error || 'Failed'); }
     });
 }
 
@@ -350,7 +351,7 @@ function approveAsset(id) {
     fetch('/api/reference-assets/' + id + '/approve', {method: 'POST'})
         .then(r => r.json()).then(data => {
             if (data.status === 'ok') { window.location.reload(); }
-            else { alert(data.error || 'Failed'); }
+            else { vfToastError('Error', data.error || 'Failed'); }
         });
 }
 
@@ -359,7 +360,7 @@ function retireAsset(id) {
     fetch('/api/reference-assets/' + id + '/retire', {method: 'POST'})
         .then(r => r.json()).then(data => {
             if (data.status === 'ok') { window.location.reload(); }
-            else { alert(data.error || 'Failed'); }
+            else { vfToastError('Error', data.error || 'Failed'); }
         });
 }
 
@@ -375,14 +376,14 @@ function editPayload(id) {
 function savePayload(id) {
     const el = document.getElementById('payload-' + id);
     const text = el.textContent.trim();
-    try { JSON.parse(text); } catch(e) { alert('Must be valid JSON: ' + e.message); return; }
+    try { JSON.parse(text); } catch(e) { vfToastWarning('Invalid JSON', 'Must be valid JSON: ' + e.message); return; }
     fetch('/api/reference-assets/' + id, {
         method: 'PUT',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({payload: text})
     }).then(r => r.json()).then(data => {
         if (data.status === 'ok') { window.location.reload(); }
-        else { alert(data.error || 'Failed'); }
+        else { vfToastError('Error', data.error || 'Failed'); }
     });
 }
 
@@ -399,7 +400,7 @@ function editNotes(id) {
         body: JSON.stringify({notes})
     }).then(r => r.json()).then(data => {
         if (data.status === 'ok') { window.location.reload(); }
-        else { alert(data.error || 'Failed'); }
+        else { vfToastError('Error', data.error || 'Failed'); }
     });
 }
 
@@ -408,7 +409,7 @@ function newVersion(id) {
     fetch('/api/reference-assets/' + id + '/new-version', {method: 'POST'})
         .then(r => r.json()).then(data => {
             if (data.status === 'ok') { window.location.reload(); }
-            else { alert(data.error || 'Failed'); }
+            else { vfToastError('Error', data.error || 'Failed'); }
         });
 }
 </script>

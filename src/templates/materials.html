@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="/static/vf.css">
     <title>Knowledge · Materials — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
+    <script src="/static/vf-ui.js"></script>
     <style>
         .material-row { display: grid; grid-template-columns: 1fr auto auto; gap: var(--space-4); align-items: center; padding: var(--space-3) var(--space-5); border-bottom: 1px dotted var(--border-dotted); font-size: 0.82rem; }
         .material-row:last-child { border-bottom: none; }
@@ -61,9 +62,11 @@
     </div>
     {% else %}
     <div class="card">
-        <div class="empty-state">
-            <p>No materials yet. Materials appear here after onboarding uploads.</p>
-            <p style="margin-top: 0.5rem;"><a href="/onboard" style="color: var(--accent);">Start onboarding →</a></p>
+        <div class="vf-empty">
+            <div class="vf-empty-icon">📎</div>
+            <p class="vf-empty-title">No materials yet</p>
+            <p class="vf-empty-desc">Materials appear here after onboarding uploads.</p>
+            <div class="vf-empty-action"><a href="/onboard" class="btn btn-small">Start onboarding →</a></div>
         </div>
     </div>
     {% endif %}

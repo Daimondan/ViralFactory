@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="/static/vf.css">
     <title>Assembler — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
+    <script src="/static/vf-ui.js"></script>
     <style>
 
         .asset-grid { display: grid; grid-template-columns: minmax(380px, 760px); gap: 20px; justify-content: center; }
@@ -885,8 +886,8 @@ function confirmVideoGeneration() {
                 s.textContent = 'Video ingredient ready. Loading final-cut step…';
             }
             setTimeout(function() { window.location.reload(); }, 1000);
-        } else { alert('Error: ' + (data.error || 'Video generation failed')); }
-    }).catch(function(err) { unbusyBtn(btn); closeVideoDialog(); alert('Error: ' + err); });
+        } else { vfToastError('Error', data.error || 'Video generation failed'); }
+    }).catch(function(err) { unbusyBtn(btn); closeVideoDialog(); vfToastError('Error', String(err)); });
 }
 
 // ── Missing captures: load and offer LLM-driven generation ──

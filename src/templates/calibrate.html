@@ -71,6 +71,7 @@
         }
         .error { color: var(--red); }
     </style>
+    <script src="/static/vf-ui.js"></script>
 </head>
 <body>
     <div class="container">
@@ -175,7 +176,7 @@
             chips: getSelectedChips(),
             text: document.getElementById('feedback-text').value,
         };
-        if (!feedback.selected) { alert('Pick a sample first'); return; }
+        if (!feedback.selected) { vfToastWarning('Input needed', 'Pick a sample first'); return; }
 
         if (round >= 3) {
             storeV09();
@@ -190,7 +191,7 @@
             body: JSON.stringify({feedback: feedback}),
         });
         const data = await resp.json();
-        if (data.error) { alert(data.error); return; }
+        if (data.error) { vfToastError('Error', data.error || 'Unknown error'); return; }
         displaySamples(data.samples);
         // Clear feedback
         document.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
@@ -206,7 +207,7 @@
             body: JSON.stringify({version: '1.0', approved: true}),
         });
         const data = await resp.json();
-        if (data.error) { alert(data.error); return; }
+        if (data.error) { vfToastError('Error', data.error || 'Unknown error'); return; }
         document.getElementById('samples-section').classList.add('hidden');
         document.getElementById('approved-section').classList.remove('hidden');
         document.getElementById('stored-version').textContent = `Voice Profile v${data.version} stored.`;
@@ -220,7 +221,7 @@
             body: JSON.stringify({version: '0.9', approved: false, note: '3 rounds did not converge — refine via Feedback Log'}),
         });
         const data = await resp.json();
-        if (data.error) { alert(data.error); return; }
+        if (data.error) { vfToastError('Error', data.error || 'Unknown error'); return; }
         document.getElementById('samples-section').classList.add('hidden');
         document.getElementById('approved-section').classList.remove('hidden');
         document.getElementById('stored-version').textContent = `Voice Profile v0.9 stored (needs refinement).`;

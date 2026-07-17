@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="/static/vf.css">
     <title>Pipeline · Ideas — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
+    <script src="/static/vf-ui.js"></script>
     <style>
         .seed-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-5); margin-bottom: var(--space-5); }
         .seed-box textarea { width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--text); font-size: 0.9rem; resize: vertical; min-height: 80px; font-family: var(--font-sans); }
@@ -270,8 +271,10 @@
 
     {% else %}
     <div class="card">
-        <div class="empty-state">
-            <p>No cards in this view yet. Seed an idea above or generate AI ideas.</p>
+        <div class="vf-empty">
+            <div class="vf-empty-icon">✸</div>
+            <p class="vf-empty-title">No cards in this view yet</p>
+            <p class="vf-empty-desc">Seed an idea above or generate AI ideas to get the pipeline moving.</p>
         </div>
     </div>
     {% endif %}
@@ -298,7 +301,7 @@ function actionCard(id, action, reason) {
         body: JSON.stringify({action: action, kill_reason: reason || ''}),
     }).then(r => r.json()).then(data => {
         if (data.status === 'ok') window.location.reload();
-        else alert('Error: ' + (data.error || 'unknown'));
+        else vfToastError('Error', data.error || 'unknown');
     });
 }
 
@@ -325,17 +328,17 @@ function distributionPayload() {
 
 function submitSeed(originType) {
     const text = document.getElementById('seedText').value.trim();
-    if (!text) return alert('Enter a seed first.');
+    if (!text) return vfToastWarning('Input needed', 'Enter a seed first.');
     let destination;
     try { destination = distributionPayload(); }
-    catch (e) { return alert(e.message); }
+    catch (e) { return vfToastWarning('Input needed', e.message); }
     fetch('/api/ideas/seed', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(Object.assign({seed: text, origin: originType}, destination)),
     }).then(r => r.json()).then(data => {
         if (data.status === 'ok') window.location.reload();
-        else alert('Error: ' + (data.error || 'unknown'));
+        else vfToastError('Error', data.error || 'unknown');
     });
 }
 
@@ -345,15 +348,34 @@ function generateAI() {
     var status = document.getElementById('genStatus');
     var destination;
     try { destination = distributionPayload(); }
-    catch (e) { return alert(e.message); }
+    catch (e) { return vfToastWarning('Input needed', e.message); }
     status.style.display = 'inline';
     status.textContent = 'Generating…';
+    // Show skeleton placeholders while AI generates ideas
+    var cardList = document.querySelector('.container');
+    var skeletonContainer = document.createElement('div');
+    skeletonContainer.id = 'skeleton-loading';
+    for (var i = 0; i < parseInt(count); i++) {
+        skeletonContainer.appendChild(vfSkeleton.card());
+    }
+    // Insert after the seed box
+    var seedBox = document.querySelector('.seed-box');
+    if (seedBox && seedBox.nextSibling) {
+        seedBox.parentNode.insertBefore(skeletonContainer, seedBox.nextSibling);
+    } else {
+        cardList.appendChild(skeletonContainer);
+    }
     busyAction(btn, '/api/ideas/generate', {
         busyLabel: 'Generating…',
         statusElem: status,
         body: JSON.stringify(Object.assign({count: parseInt(count)}, destination)),
         reloadOnSuccess: true,
-        onError: function(msg) { status.style.display = 'none'; alert('Error: ' + msg); }
+        onError: function(msg) {
+            status.style.display = 'none';
+            var sk = document.getElementById('skeleton-loading');
+            if (sk) sk.remove();
+            vfToastError('Error', String(msg));
+        }
     });
 }
 
@@ -363,10 +385,10 @@ function bulkApproveChildren(parentId) {
         headers: {'Content-Type': 'application/json'},
     }).then(r => r.json()).then(data => {
         if (data.status === 'ok') {
-            alert('Approved ' + data.count + ' part(s).');
+            vfToastSuccess('Done', 'Approved ' + data.count + ' part(s)');
             window.location.reload();
         } else {
-            alert('Error: ' + (data.error || 'unknown'));
+            vfToastError('Error', data.error || 'unknown');
         }
     });
 }

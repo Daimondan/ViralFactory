@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="/static/vf.css">
     <title>Writer — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
+    <script src="/static/vf-ui.js"></script>
     <style>
 
         h3 { font-size: 0.95rem; margin: 15px 0 8px; color: #8A857C; }
@@ -508,7 +509,7 @@ function sendText() {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({feedback_type: 'text', feedback_text: text}),
     }).then(r => r.json()).then(data => {
-        if (data.status === 'ok') { document.getElementById('feedbackText').value = ''; alert('Feedback sent'); }
+        if (data.status === 'ok') { document.getElementById('feedbackText').value = ''; vfToastSuccess('Feedback sent', ''); }
     });
 }
 
@@ -541,7 +542,7 @@ function saveEditPlatform(idx, btn) {
     var raw = textarea.value;
     // Split on the post break delimiter
     var posts = raw.split('---POST BREAK---').map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
-    if (posts.length === 0) { alert('Cannot save empty content.'); return; }
+    if (posts.length === 0) { vfToastWarning('Cannot save', 'Content is empty.'); return; }
     busyAction(btn, '/api/draft/{{ draft.id }}/edit-platform/' + idx, {
         busyLabel: 'Saving…',
         statusElem: status,
@@ -597,7 +598,7 @@ function applyAllRemaining() {
             pending.push(i);
         }
     });
-    if (pending.length === 0) { alert('No pending flags to apply.'); return; }
+    if (pending.length === 0) { vfToastInfo('Nothing to do', 'No pending flags to apply.'); return; }
     var idx = 0;
     function applyNext() {
         if (idx >= pending.length) { window.location.reload(); return; }

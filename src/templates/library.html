@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="/static/vf.css">
     <title>Knowledge — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
+    <script src="/static/vf-ui.js"></script>
     <style>
         .module-preview {
             background: var(--bg); border-radius: var(--radius); padding: var(--space-3) var(--space-4);
@@ -68,9 +69,11 @@
     <p style="font-size: 0.72rem; color: var(--muted-dim); font-style: italic; margin-bottom: var(--space-6);">Modules are never summarized by AI — prompts read approved sections directly via view maps.</p>
     {% else %}
     <div class="card">
-        <div class="empty-state">
-            <p>No modules yet. Complete onboarding to build your living documents.</p>
-            <p style="margin-top: 0.5rem;"><a href="/onboard" style="color: var(--accent);">Start onboarding →</a></p>
+        <div class="vf-empty">
+            <div class="vf-empty-icon">📁</div>
+            <p class="vf-empty-title">No modules yet</p>
+            <p class="vf-empty-desc">Complete onboarding to build your living documents.</p>
+            <div class="vf-empty-action"><a href="/onboard" class="btn btn-small">Start onboarding →</a></div>
         </div>
     </div>
     {% endif %}
@@ -102,8 +105,8 @@ async function approveModule(name) {
         });
         const data = await resp.json();
         if (data.status === 'ok') window.location.reload();
-        else alert('Error: ' + (data.error || 'unknown'));
-    } catch (err) { alert('Connection error'); }
+        else vfToastError('Error', data.error || 'unknown');
+    } catch (err) { vfToastError('Connection error', 'Could not reach the server.'); }
 }
 
 async function editModule(name) {
@@ -125,7 +128,7 @@ async function editModule(name) {
             <button class="btn btn-small" onclick="saveEdit('${name}')">Save</button>
             <button class="btn btn-small" onclick="cancelEdit('${name}')">Cancel</button>
         `;
-    } catch (err) { alert('Failed to load module content'); }
+    } catch (err) { vfToastError('Load failed', 'Failed to load module content.'); }
 }
 
 async function saveEdit(name) {
@@ -138,8 +141,8 @@ async function saveEdit(name) {
         });
         const data = await resp.json();
         if (data.status === 'ok') location.reload();
-        else alert('Error: ' + (data.error || 'unknown'));
-    } catch (err) { alert('Connection error'); }
+        else vfToastError('Error', data.error || 'unknown');
+    } catch (err) { vfToastError('Connection error', 'Could not reach the server.'); }
 }
 
 function cancelEdit(name) { location.reload(); }

@@ -137,6 +137,7 @@
             text-align: center; padding: 2rem; color: var(--green); font-size: 1.1rem;
         }
     </style>
+    <script src="/static/vf-ui.js"></script>
 </head>
 <body>
     <div class="container">
@@ -386,9 +387,9 @@ async function uploadFile() {
             if (!contentType.includes('application/json')) {
                 loadingChip.remove();
                 if (resp.status === 413) {
-                    alert('File too large. Maximum upload size is 2GB.');
+                    vfToastError('File too large', 'Maximum upload size is 2GB.');
                 } else {
-                    alert('Upload failed (HTTP ' + resp.status + '). The server returned an error page.');
+                    vfToastError('Upload failed', 'HTTP ' + resp.status + ' — server returned an error page.');
                 }
                 continue;
             }
@@ -400,14 +401,14 @@ async function uploadFile() {
                 pendingFiles.push(file.name);
             } else {
                 loadingChip.remove();
-                alert('Upload failed: ' + (data.error || 'unknown'));
+                vfToastError('Upload failed', data.error || 'Unknown error');
             }
         } catch (e) {
             loadingChip.remove();
             if (e.name === 'TimeoutError' || e.message.includes('timed out')) {
-                alert('Upload timed out. The file may be too large for your connection. Try a smaller file or a zip.');
+                vfToastError('Upload timed out', 'The file may be too large for your connection. Try a smaller file or a zip.');
             } else {
-                alert('Upload error: ' + e.message);
+                vfToastError('Upload error', e.message);
             }
         }
     }
@@ -482,7 +483,7 @@ async function approveGate() {
     if (data.status === 'ok') {
         window.location.reload();
     } else {
-        alert('Error: ' + (data.error || 'unknown'));
+        vfToastError('Error', data.error || 'unknown');
     }
 }
 

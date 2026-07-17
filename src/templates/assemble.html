@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="/static/vf.css">
     <title>Pipeline · Assets — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
+    <script src="/static/vf-ui.js"></script>
     <style>
         .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(74,111,165,0.2); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 4px; vertical-align: middle; }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -88,8 +89,11 @@
     {% endif %}
     {% else %}
     <div class="card">
-        <div class="empty-state">
-            <p>No shipped scripts yet. <a href="/create">Ship a draft from Writer →</a></p>
+        <div class="vf-empty">
+            <div class="vf-empty-icon">✎</div>
+            <p class="vf-empty-title">No shipped scripts yet</p>
+            <p class="vf-empty-desc">Ship a draft from Writer to see it here for asset assembly.</p>
+            <div class="vf-empty-action"><a href="/create" class="btn btn-small">Go to Writer →</a></div>
         </div>
     </div>
     {% endif %}

@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="/static/vf.css">
     <title>Research — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
+    <script src="/static/vf-ui.js"></script>
     <style>
 
         h3 { font-size: 0.95rem; margin: 8px 0; }
@@ -102,8 +103,10 @@
         {% endif %}
 
         {% if not pending_items and not analyzed_items %}
-        <section class="empty-state">
-            <p>No research items yet. Click "Scan YouTube channels now" to discover videos from your configured sources.</p>
+        <section class="vf-empty">
+            <div class="vf-empty-icon">🔍</div>
+            <p class="vf-empty-title">No research items yet</p>
+            <p class="vf-empty-desc">Click "Scan YouTube channels now" to discover videos from your configured sources.</p>
         </section>
         {% endif %}
     </div>
@@ -143,12 +146,12 @@
                     setTimeout(() => location.reload(), 1500);
                 } else {
                     btn.textContent = 'Analyze';
-                    alert('Error: ' + (data.error || 'Unknown'));
+                    vfToastError('Error', data.error || 'Unknown');
                 }
             })
             .catch(e => {
                 btn.textContent = 'Analyze';
-                alert('Request failed: ' + e);
+                vfToastError('Request failed', String(e));
             });
     }
 
@@ -160,15 +163,15 @@
             .then(data => {
                 if (data.status === 'ok') {
                     btn.textContent = 'Proposed ✓';
-                    alert('Experiment proposal created! Check the Gate Queue page to approve it.');
+                    vfToastSuccess('Experiment proposed', 'Check the Gate Queue page to approve it.');
                 } else {
                     btn.textContent = 'Propose experiment';
-                    alert('Error: ' + (data.error || 'Unknown'));
+                    vfToastError('Error', data.error || 'Unknown');
                 }
             })
             .catch(e => {
                 btn.textContent = 'Propose experiment';
-                alert('Request failed: ' + e);
+                vfToastError('Request failed', String(e));
             });
     }
 
@@ -183,12 +186,12 @@
                     data.proposals.forEach(function(p) {
                         msg += '\\n' + p.source_name + ': ' + p.avg_relevance + '/10 (' + p.recommendation + ', ' + p.video_count + ' videos)';
                     });
-                    alert(msg);
+                    vfToastError('Error', String(msg));
                 } else {
-                    alert('Error: ' + (data.error || 'Unknown'));
+                    vfToastError('Error', data.error || 'Unknown');
                 }
             })
-            .catch(e => alert('Request failed: ' + e))
+            .catch(e => vfToastError('Request failed', String(e)))
             .finally(() => {
                 btn.disabled = false;
                 btn.textContent = 'Evaluate sources';

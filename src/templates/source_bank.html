@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="/static/vf.css">
     <title>Knowledge · Source Bank — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
+    <script src="/static/vf-ui.js"></script>
     <style>
         .source-card-row { display: grid; grid-template-columns: auto 1fr auto auto auto; gap: var(--space-4); align-items: center; padding: var(--space-3) var(--space-5); border-bottom: 1px dotted var(--border-dotted); font-size: 0.82rem; }
         .source-card-row:last-child { border-bottom: none; }
@@ -133,12 +134,12 @@ function bulkUpdateSources(newStatus) {
         body: JSON.stringify({from_status: 'new', to_status: newStatus}),
     }).then(function(r) { return r.json(); }).then(function(data) {
         if (data.status === 'ok') {
-            alert('Updated ' + data.updated + ' source(s).');
+            vfToastSuccess('Done', 'Updated ' + data.updated + ' source(s).');
             window.location.reload();
         } else {
-            alert('Error: ' + (data.error || 'unknown'));
+            vfToastError('Error', data.error || 'unknown');
         }
-    }).catch(function(err) { alert('Network error: ' + err); });
+    }).catch(function(err) { vfToastError('Network error', String(err)); });
 }
 </script>
 </body>

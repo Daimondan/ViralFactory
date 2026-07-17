@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="/static/vf.css">
     <title>Metrics — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
+    <script src="/static/vf-ui.js"></script>
     <style>
 
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -122,7 +123,7 @@ function retryPublish(assetId, btn) {
     busyAction(btn, '/api/publish/' + assetId + '/retry', {
         busyLabel: 'Retrying…',
         reloadOnSuccess: true,
-        onError: function(msg) { alert('Retry failed: ' + msg); }
+        onError: function(msg) { vfToastError('Retry failed', msg); }
     });
 }
 </script>

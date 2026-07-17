@@ -73,6 +73,7 @@
         .gate-approved { background: rgba(63,185,80,0.1); color: var(--green); }
         .gate-rejected { background: rgba(248,81,73,0.1); color: var(--red); }
     </style>
+    <script src="/static/vf-ui.js"></script>
 </head>
 <body>
     <div class="container">
@@ -169,7 +170,7 @@
             textarea.value = '';
             location.reload();
         } else {
-            alert('Error: ' + (data.error || 'Unknown'));
+            vfToastError('Error', data.error || 'Unknown');
         }
     }
 
@@ -184,7 +185,7 @@
         if (data.status === 'ok') {
             location.reload();
         } else {
-            alert('Error: ' + (data.error || 'Unknown'));
+            vfToastError('Error', data.error || 'Unknown');
         }
     }
     </script>

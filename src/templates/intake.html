@@ -57,6 +57,7 @@
             margin-bottom: 0.8rem;
         }
     </style>
+    <script src="/static/vf-ui.js"></script>
 </head>
 <body>
     <div class="container">
@@ -148,7 +149,7 @@
     async function uploadFile(runId) {
         const fileInput = document.getElementById('file-upload');
         const file = fileInput.files[0];
-        if (!file) { alert('Select a file first'); return; }
+        if (!file) { vfToastWarning('Input needed', 'Select a file first'); return; }
 
         const formData = new FormData();
         formData.append('file', file);
@@ -165,13 +166,13 @@
             fileInput.value = '';
             loadCorpus(runId);
         } else {
-            alert('Error: ' + (data.error || 'Upload failed'));
+            vfToastError('Error', data.error || 'Upload failed');
         }
     }
 
     async function pasteText(runId) {
         const content = document.getElementById('paste-content').value.trim();
-        if (!content) { alert('Paste some text first'); return; }
+        if (!content) { vfToastWarning('Input needed', 'Paste some text first'); return; }
 
         const resp = await fetch(`/api/run/${runId}/paste`, {
             method: 'POST',
@@ -188,7 +189,7 @@
             document.getElementById('paste-content').value = '';
             loadCorpus(runId);
         } else {
-            alert('Error: ' + (data.error || 'Paste failed'));
+            vfToastError('Error', data.error || 'Paste failed');
         }
     }
 

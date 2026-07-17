@@ -1,5 +1,7 @@
 # Playbook: Voice Profile Builder
 
+<!-- playbook_type: onboarding -->
+
 *Repo location: `playbooks/voice-profile-builder.md` · Executed by the system's AI during onboarding, through the console. v1.1*
 
 <!-- run_order: 2 -->

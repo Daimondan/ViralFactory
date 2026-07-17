@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="/static/vf.css">
     <title>Voice Cloning — {{ business_slug }}</title>
     <script src="/static/busy.js"></script>
+    <script src="/static/vf-ui.js"></script>
     <style>
         .voice-sample-row {
             display: flex; align-items: center; gap: 1rem;
@@ -182,14 +183,14 @@ function createVoice() {
   const name = document.getElementById('voice-name').value;
   const ref = document.getElementById('voice-ref').value;
   const isDefault = document.getElementById('voice-default').checked ? 1 : 0;
-  if (!name) { alert('Name is required'); return; }
+  if (!name) { vfToastWarning('Input needed', 'Name is required'); return; }
   fetch('/api/voices', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({name, kind: 'cloned', engine: 'chatterbox', reference_path: ref, is_default: isDefault})
   }).then(r => r.json()).then(data => {
     if (data.status === 'ok') { window.location.reload(); }
-    else { alert(data.error || 'Failed'); }
+    else { vfToastError('Error', data.error || 'Failed'); }
   });
 }
 
@@ -205,7 +206,7 @@ function setDefault(id) {
 function uploadSample() {
   const fileInput = document.getElementById('sample-file');
   const status = document.getElementById('upload-status');
-  if (!fileInput.files[0]) { alert('Select a file first'); return; }
+  if (!fileInput.files[0]) { vfToastWarning('Input needed', 'Select a file first'); return; }
   status.textContent = 'Uploading...';
   const formData = new FormData();
   formData.append('file', fileInput.files[0]);

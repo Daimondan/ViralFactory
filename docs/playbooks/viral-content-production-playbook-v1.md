@@ -1,5 +1,7 @@
 # Viral Content Production Playbook v1
 
+<!-- playbook_type: production -->
+
 **Purpose:** convert a source-grounded idea into a complete script, media recipe, renderable edit plan, and measurable learning record. This playbook is generic; tenant voice, audience, visual style, formats, and evidence come from living modules.
 
 **Evidence source:** `docs/research/viral-content-meta-analysis-v2.md`.

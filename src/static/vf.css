@@ -931,6 +931,125 @@ label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 
 .muted-section { opacity: 0.75; }
 .muted-row { opacity: 0.6; }
 
+/* ── Toast Notifications ─────────────────────────────────────────────────── */
+/* Ported from Astryx's Toast pattern — non-blocking, auto-dismissing,
+   stacks bottom-right. Pure CSS + vanilla JS, no framework dependency. */
+.vf-toast-container {
+    position: fixed;
+    bottom: var(--space-5);
+    right: var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    z-index: 9999;
+    max-width: 380px;
+    pointer-events: none;
+}
+.vf-toast {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--muted);
+    box-shadow: var(--shadow-lg);
+    font-size: 0.85rem;
+    color: var(--text);
+    pointer-events: auto;
+    animation: vf-toast-in 200ms ease;
+    transition: opacity 200ms ease, transform 200ms ease;
+}
+.vf-toast.vf-toast-success { border-left-color: var(--green); }
+.vf-toast.vf-toast-error { border-left-color: var(--red); }
+.vf-toast.vf-toast-info { border-left-color: var(--accent); }
+.vf-toast.vf-toast-warning { border-left-color: var(--yellow); }
+.vf-toast-icon {
+    flex-shrink: 0;
+    font-weight: 700;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+.vf-toast-success .vf-toast-icon { color: var(--green); }
+.vf-toast-error .vf-toast-icon { color: var(--red); }
+.vf-toast-info .vf-toast-icon { color: var(--accent); }
+.vf-toast-warning .vf-toast-icon { color: #8A6D20; }
+.vf-toast-body { flex: 1; line-height: 1.5; }
+.vf-toast-title { font-weight: 600; margin-bottom: 2px; }
+.vf-toast-close {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--muted-dim);
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0 0 0 var(--space-2);
+}
+.vf-toast-close:hover { color: var(--text); }
+.vf-toast.vf-toast-dismissing { opacity: 0; transform: translateX(20px); }
+@keyframes vf-toast-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 768px) {
+    .vf-toast-container { left: var(--space-3); right: var(--space-3); bottom: var(--space-3); max-width: none; }
+}
+
+/* ── Skeleton Loaders ─────────────────────────────────────────────────── */
+/* Ported from Astryx's Skeleton pattern — animated placeholder shapes that
+   match the content layout. Pure CSS animation, no JS framework. */
+.vf-skeleton {
+    background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
+    background-size: 200% 100%;
+    animation: vf-shimmer 1.5s ease-in-out infinite;
+    border-radius: var(--radius-sm);
+    display: block;
+}
+.vf-skeleton-line { height: 14px; margin-bottom: var(--space-2); width: 100%; }
+.vf-skeleton-line.short { width: 60%; }
+.vf-skeleton-line.wide { width: 100%; }
+.vf-skeleton-title { height: 22px; width: 70%; margin-bottom: var(--space-3); }
+.vf-skeleton-avatar { width: 32px; height: 32px; border-radius: 50%; display: inline-block; margin-right: var(--space-2); }
+.vf-skeleton-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    margin-bottom: var(--space-4);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+}
+.vf-skeleton-row { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
+.vf-skeleton-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-5); }
+@keyframes vf-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* ── Structured Empty States ────────────────────────────────────────────── */
+/* Ported from Astryx's Empty State pattern — icon + title + description +
+   optional action button. Guides the user to the next step instead of just
+   saying "nothing here." */
+.vf-empty {
+    text-align: center;
+    padding: var(--space-8) var(--space-5);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+}
+.vf-empty-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    color: var(--muted-dim);
+    margin-bottom: var(--space-2);
+}
+.vf-empty-title { font-size: 1rem; font-weight: 600; color: var(--text-secondary); margin: 0; }
+.vf-empty-desc { font-size: 0.85rem; color: var(--muted); margin: 0; max-width: 420px; line-height: 1.5; }
+.vf-empty-action { margin-top: var(--space-3); }
+
 /* ── Utility ──────────────────────────────────────────────────────────── */
 .text-center { text-align: center; }
 .text-muted { color: var(--muted); }

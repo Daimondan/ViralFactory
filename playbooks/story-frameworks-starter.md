@@ -1,5 +1,7 @@
 # Playbook: Story Frameworks Starter
 
+<!-- playbook_type: onboarding -->
+
 *Repo location: `playbooks/story-frameworks-starter.md` · Executed by the system's AI during onboarding, through the console. v1.0*
 
 <!-- run_order: 6 -->

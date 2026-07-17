@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="/static/vf.css">
     <title>Setup · Module Health — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
+    <script src="/static/vf-ui.js"></script>
     <style>
         .input-row { display: flex; align-items: center; gap: var(--space-2); padding: 5px 0; font-size: 0.82rem; }
         .input-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
@@ -93,7 +94,7 @@ function fillFromSources(inputName, sourcePlaybook) {
         busyLabel: 'Mining sources…',
         body: JSON.stringify({input_name: inputName, source_playbook: sourcePlaybook}),
         reloadOnSuccess: true,
-        onError: function(msg) { alert('Source mining failed: ' + msg); }
+        onError: function(msg) { vfToastError('Source mining failed', msg); }
     });
 }
 
@@ -104,7 +105,7 @@ function fillManual(inputName) {
         busyLabel: 'Saving…',
         body: JSON.stringify({input_name: inputName, value: value}),
         reloadOnSuccess: true,
-        onError: function(msg) { alert('Save failed: ' + msg); }
+        onError: function(msg) { vfToastError('Save failed', msg); }
     });
 }
 </script>

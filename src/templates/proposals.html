@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="/static/vf.css">
     <title>Gate Queue — {{ business_name }}</title>
     <script src="/static/busy.js"></script>
+    <script src="/static/vf-ui.js"></script>
     <style>
 
         .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
@@ -174,7 +175,7 @@ function approve(id, btn) {
         method: 'POST',
         body: '{}',
         reloadOnSuccess: true,
-        onError: function(msg) { alert('Error: ' + msg); }
+        onError: function(msg) { vfToastError('Error', String(msg)); }
     });
 }
 
@@ -190,24 +191,24 @@ function rejectProposal(id, reason) {
         body: JSON.stringify({reason: reason})
     }).then(function(r) { return r.json(); }).then(function() {
         location.reload();
-    }).catch(function(e) { alert('Error: ' + e); });
+    }).catch(function(e) { vfToastError('Error', String(e)); });
 }
 
 function bulkApprove() {
     var ids = Array.from(document.querySelectorAll('.proposal-checkbox:checked')).map(function(cb) { return parseInt(cb.value); });
-    if (ids.length === 0) return alert('Select at least one proposal.');
+    if (ids.length === 0) return vfToastWarning('Input needed', 'Select at least one proposal.');
     fetch('/api/proposals/bulk-approve', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ids: ids})
     }).then(function(r) { return r.json(); }).then(function() {
         location.reload();
-    }).catch(function(e) { alert('Error: ' + e); });
+    }).catch(function(e) { vfToastError('Error', String(e)); });
 }
 
 function bulkReject() {
     var ids = Array.from(document.querySelectorAll('.proposal-checkbox:checked')).map(function(cb) { return parseInt(cb.value); });
-    if (ids.length === 0) return alert('Select at least one proposal.');
+    if (ids.length === 0) return vfToastWarning('Input needed', 'Select at least one proposal.');
     var reason = prompt('Reject reason for all selected:');
     if (!reason) return;
     fetch('/api/proposals/bulk-reject', {
@@ -216,7 +217,7 @@ function bulkReject() {
         body: JSON.stringify({ids: ids, reason: reason})
     }).then(function(r) { return r.json(); }).then(function() {
         location.reload();
-    }).catch(function(e) { alert('Error: ' + e); });
+    }).catch(function(e) { vfToastError('Error', String(e)); });
 }
 
 document.getElementById('select-all').addEventListener('change', function() {

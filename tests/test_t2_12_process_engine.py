@@ -232,8 +232,9 @@ class TestComposeAndRun:
         """T2.12 AC: magic truncation slices gone from process specs.
         Truncation is now declared in processes.yaml via transforms, not hardcoded in routes."""
         reg = load_process_registry("config")
-        # Verify truncation transforms are declared in the registry, not magic
-        fan_out = reg["processes"]["fan_out_adapt"]
-        draft_text_spec = fan_out["inputs"]["draft_text"]
-        assert "transform" in draft_text_spec
-        assert "truncate" in draft_text_spec["transform"]
+        # fan_out_adapt is retired (AMENDMENT-009); check draft_generate instead
+        # which has truncation transforms on capture_material
+        draft = reg["processes"]["draft_generate"]
+        capture_spec = draft["inputs"]["capture_material"]
+        assert "transform" in capture_spec
+        assert "truncate" in capture_spec["transform"]
