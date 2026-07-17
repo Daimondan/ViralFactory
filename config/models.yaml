@@ -87,6 +87,7 @@ voice_cloning:
     device: "cpu"                      # cpu | cuda (if GPU available)
     exaggeration: 0.5                 # 0.0-2.0 (ignored by Turbo, kept for full model fallback)
     cfg_weight: 0.5                    # 0.0-1.0 (ignored by Turbo, kept for full model fallback)
+    preferred_reference: "PTT-20240310-WA0003.wav"  # operator-calibrated clip (41s, 67Hz F0)
     # Turbo ignores exaggeration/cfg_weight — uses its own internal voice matching.
     # Turbo gave better Bajan accent + deeper male voice in operator listening test.
     # Reference: PTT-20240310-WA0003.wav (41s, 67Hz F0 — deepest male clip)

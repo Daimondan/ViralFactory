@@ -242,6 +242,19 @@ class ProductionChain:
                     if isinstance(post, str) and original in post:
                         revised_posts.append(post.replace(original, fix))
                         changed = True
+                    elif isinstance(post, dict):
+                        # Frame object (v4): fix in vo_text and text_on_screen.text
+                        vo = post.get("vo_text", "")
+                        if original in vo:
+                            post["vo_text"] = vo.replace(original, fix)
+                            changed = True
+                        tos = post.get("text_on_screen") or {}
+                        tos_text = tos.get("text", "")
+                        if original in tos_text:
+                            tos["text"] = tos_text.replace(original, fix)
+                            post["text_on_screen"] = tos
+                            changed = True
+                        revised_posts.append(post)
                     else:
                         revised_posts.append(post)
                 pc["posts"] = revised_posts

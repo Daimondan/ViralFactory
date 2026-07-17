@@ -1,0 +1,133 @@
+version: "1.0"
+evidence_labels: [observed, measured, hypothesis, house_rule]
+
+content_contract:
+  core_claim: ""
+  audience_value: ""
+  evidence_refs: []
+  primary_emotional_job: ""
+  primary_audience_action: "finish"
+  format_name: ""
+  platform: ""
+  authenticity_anchor: ""
+  performance_hypothesis: ""
+  evidence_label: hypothesis
+
+beats:
+  - beat_id: b01
+    role: hook
+    required: true
+    vo_text: ""
+    register: plain
+    evidence_refs: []
+    intended_duration_sec:
+      min: 0.0
+      max: 0.0
+    viewer_state_before: ""
+    viewer_state_after: ""
+    staged_action: ""
+    text_intents:
+      - overlay_id: o01
+        function: hook
+        text: ""
+        required: true
+
+media_recipe:
+  - beat_id: b01
+    media_function: context
+    source_policy: generated_allowed
+    primary:
+      kind: generated_video
+      ingredient_id: null
+      subject: ""
+      action: ""
+      shot: ""
+      movement: ""
+      duration_needed_sec: 0.0
+      original_audio: false
+    fallback:
+      kind: generated_image
+      reason: ""
+    continuity:
+      character_ref: null
+      location_ref: null
+      grade_ref: null
+    disclosure: ai_generated
+
+audio_recipe:
+  mode: vo_only
+  narrative_reason: ""
+  voice:
+    take_id: null
+    intelligibility_priority: true
+  original_audio:
+    preserve: false
+    reason: ""
+  music:
+    required: false
+    ingredient_id: null
+    mood: ""
+    energy_curve: flat
+    duck_under_voice: true
+  silence_events: []
+  sfx: []
+
+edit_plan_requirements:
+  every_segment_has_beat_ids: true
+  exact_inventory_ids_only: true
+  source_relative_in_out: true
+  measured_vo_is_master_timeline: true
+  overlays_reference_text_intents: true
+  transition_requires_reason: true
+  approved_copy_is_immutable: true
+
+qa:
+  mechanical:
+    - file_probeable
+    - expected_streams_present
+    - duration_matches_timeline
+    - source_bounds_valid
+    - overlays_inside_safe_area
+    - audio_not_clipped
+    - faststart_enabled
+  compliance:
+    - all_required_beats_verified
+    - transcript_matches_approved_vo
+    - exact_overlay_text_matches
+    - required_visuals_present
+  creative:
+    - opening_orients_immediately
+    - every_beat_advances_meaning
+    - media_is_relevant_not_decorative
+    - visual_hierarchy_is_clear
+    - emotional_landing_has_room
+    - brand_voice_and_style_hold
+
+performance_record:
+  platform_post_id: null
+  published_at: null
+  metrics:
+    views: {value: null, confidence: unknown, captured_at: null}
+    likes: {value: null, confidence: unknown, captured_at: null}
+    comments: {value: null, confidence: unknown, captured_at: null}
+    shares: {value: null, confidence: unknown, captured_at: null}
+    saves: {value: null, confidence: unknown, captured_at: null}
+    average_watch_time: {value: null, confidence: unknown, captured_at: null}
+    completion_rate: {value: null, confidence: unknown, captured_at: null}
+  creative_fingerprint:
+    format: ""
+    narrative_pattern: ""
+    hook_mechanism: ""
+    emotional_job: ""
+    primary_action: ""
+    text_functions: []
+    audio_mode: ""
+    media_mix: []
+  operator_feedback:
+    direct_edits: []
+    keep: []
+    change: []
+  analysis:
+    observed: []
+    hypotheses: []
+    proposed_module_change: null

@@ -4,8 +4,10 @@
 # Install: sudo cp deploy/viralfactory.service /etc/systemd/system/viralfactory.service
 # Then: sudo systemctl daemon-reload && sudo systemctl enable viralfactory && sudo systemctl start viralfactory
 #
-# Environment file: /etc/viralfactory/env (create manually — holds OLLAMA_API_KEY)
+# Environment file: /etc/viralfactory/env (create manually — holds deployment
+# secrets: OLLAMA_API_KEY, FAL_KEY, and any provider keys the pipeline needs).
 # Create with: sudo mkdir -p /etc/viralfactory && sudo tee /etc/viralfactory/env <<< 'OLLAMA_API_KEY=your_key_here'
+# Add more keys one per line, e.g.: FAL_KEY=id:secret  (chmod 600, root:root)
 
 [Unit]
 Description=ViralFactory Flask app (gunicorn)

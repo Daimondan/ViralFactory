@@ -417,7 +417,7 @@ class TestPromptVersion:
         import re
         m = re.search(r'<!-- version: ([\d.]+) -->', content)
         assert m, "No version tag in prompt"
-        assert m.group(1) == "1.4", f"Expected v1.4, got v{m.group(1)}"
+        assert m.group(1) == "1.5", f"Expected v1.5, got v{m.group(1)}"
 
     def test_prompt_has_audio_strategy_section(self):
         """Prompt must contain audio strategy guidance."""

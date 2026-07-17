@@ -339,9 +339,61 @@ DRAFT_SCHEMA = {
                     "platform": {"type": "string"},
                     "variant_type": {"type": "string"},
                     "content": {"type": "string"},
+                    # posts accepts strings (backward-compat) OR frame objects
+                    # (enriched per-frame production instructions for the assembler)
                     "posts": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "oneOf": [
+                                {"type": "string"},
+                                {
+                                    "type": "object",
+                                    "required": ["label", "vo_text"],
+                                    "properties": {
+                                        "label": {"type": "string"},  # HOOK, SETUP, BUILD, TURN, PAYOFF, CLOSE
+                                        "vo_text": {"type": "string"},  # the spoken text for this frame
+                                        "text_on_screen": {
+                                            "type": "object",
+                                            "properties": {
+                                                "text": {"type": "string"},
+                                                "position": {"type": "string"},  # top | center | bottom | bottom-third
+                                                "style": {"type": "string"},  # ref to Visual Style caption sheet
+                                                "animation": {"type": "string"},  # fade-in | word-by-word-sync | slide-in
+                                            },
+                                        },
+                                        "visual": {
+                                            "type": "object",
+                                            "properties": {
+                                                "shot_type": {"type": "string"},  # medium close-up, over-the-shoulder, etc.
+                                                "movement": {"type": "string"},  # static, slow push-in, whip pan
+                                                "b_roll": {"type": "string"},  # none or description
+                                                "image_prompt": {"type": "string"},  # generation-ready prompt for this frame
+                                            },
+                                        },
+                                        "transition_in": {"type": "string"},  # cut | crossfade | slide | whip
+                                        "sfx": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "required": ["type"],
+                                                "properties": {
+                                                    "type": {"type": "string"},  # whoosh | pop | hit | riser | silence
+                                                    "timing": {"type": "string"},  # on_text_appear | pre-beat | post-beat
+                                                },
+                                            },
+                                        },
+                                        "music": {
+                                            "type": "object",
+                                            "properties": {
+                                                "action": {"type": "string"},  # continue | duck | silence | introduce
+                                                "duck": {"type": "boolean"},
+                                                "silence_gap_sec": {"type": "number"},
+                                            },
+                                        },
+                                    },
+                                },
+                            ]
+                        },
                     },
                     "image_prompts": {
                         "type": "array",
@@ -367,6 +419,46 @@ DRAFT_SCHEMA = {
                     "type": "array",
                     "items": {"type": "string"},
                     "minItems": 1,
+                },
+                # Enriched production-level direction (optional — backward compat)
+                "music": {
+                    "type": "object",
+                    "properties": {
+                        "mood": {"type": "string"},
+                        "genre": {"type": "string"},
+                        "tempo_bpm": {"type": "number"},
+                        "energy_curve": {"type": "string"},  # build → peak → settle
+                        "ducking": {"type": "boolean"},
+                        "silence_drops": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "at_frame": {"type": "string"},
+                                    "duration_sec": {"type": "number"},
+                                },
+                            },
+                        },
+                    },
+                },
+                "captions": {
+                    "type": "object",
+                    "properties": {
+                        "burned_in": {"type": "boolean"},
+                        "source": {"type": "string"},  # vo_script | transcript
+                        "style_ref": {"type": "string"},
+                        "font": {"type": "string"},
+                        "position_default": {"type": "string"},
+                        "animation": {"type": "string"},
+                    },
+                },
+                "canvas": {
+                    "type": "object",
+                    "properties": {
+                        "aspect_ratio": {"type": "string"},  # 9:16 | 1:1 | 16:9
+                        "resolution": {"type": "string"},  # 1080x1920 | 1080x1080 | 1920x1080
+                        "duration_target": {"type": "number"},  # target duration in seconds
+                    },
                 },
             },
         },

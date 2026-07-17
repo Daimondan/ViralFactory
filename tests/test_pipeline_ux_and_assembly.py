@@ -227,7 +227,7 @@ class TestVisualDirection:
         assert os.path.exists(prompt_path)
         with open(prompt_path) as f:
             content = f.read()
-        assert "version: 3." in content
+        assert "version: 3." in content or "version: 4." in content
         assert "platform_content" in content
 
     def test_validator_minitems_support(self):

@@ -263,6 +263,8 @@ class AssemblyRenderer:
         canvas = plan.get("canvas", {})
         resolution = canvas.get("resolution", "1080x1920")
         width, height = resolution.split("x")
+        width_i = int(width)
+        height_i = int(height)
 
         # Ensure output directory
         media_dir = os.path.join("data", "media", str(asset_id))
@@ -331,22 +333,45 @@ class AssemblyRenderer:
                 seg_file = os.path.join(media_dir, f"seg_{i}.mp4")
 
                 if is_image:
-                    # Create a video clip from the image with the specified duration
-                    # Add silent audio so concat has both streams from every segment.
-                    # setsar=1 normalises SAR to 1:1 so the concat filter doesn't reject
-                    # segments whose source images had different aspect ratios (which
-                    # produces different SARs after scale+pad — ffmpeg demands matching
-                    # SAR across all concat inputs).
+                    # Create a video clip from the image with Ken Burns motion.
+                    # The movement field from the enriched frame schema drives
+                    # the zoompan direction: slow push-in (default), static, or
+                    # pull-back. zoompan needs the image pre-scaled to a larger
+                    # canvas so the zoom has pixels to work with.
+                    movement = seg.get("movement", "slow push-in")
+                    clip_dur = max(duration, 1)
+                    fps = 30
+                    total_frames = int(clip_dur * fps)
+
+                    if movement == "static":
+                        # No motion — scale and pad only
+                        vf = (f"scale={width_i}:{height_i}:force_original_aspect_ratio=decrease,"
+                              f"pad={width_i}:{height_i}:(ow-iw)/2:(oh-ih)/2,setsar=1")
+                    else:
+                        # Ken Burns: pre-scale to 2x, then zoompan back to target.
+                        # Use force_original_aspect_ratio=decrease + pad to ensure
+                        # the 2x canvas is fully filled (zoompan needs filled frames).
+                        if movement == "pull-back":
+                            z_expr = "min(zoom+0.0005,1.5)"
+                        else:
+                            # Default: slow push-in (zoom from 1.0 to 1.15)
+                            z_expr = "min(zoom+0.0003,1.15)"
+                        vf = (f"scale={width_i*2}:{height_i*2}:force_original_aspect_ratio=decrease,"
+                              f"pad={width_i*2}:{height_i*2}:(ow-iw)/2:(oh-ih)/2,setsar=1,"
+                              f"zoompan=z='{z_expr}':d={total_frames}:"
+                              f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+                              f"s={width_i}x{height_i}:fps={fps}")
+
                     cmd = [
                         "ffmpeg", "-y",
                         "-loop", "1", "-i", src_path,
                         "-f", "lavfi", "-i", f"anullsrc=channel_layout=stereo:sample_rate=44100",
-                        "-t", str(max(duration, 1)),
-                        "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                        "-t", str(clip_dur),
+                        "-vf", vf,
                         "-map", "0:v:0", "-map", "1:a:0",
                         "-c:v", "libx264", "-pix_fmt", "yuv420p",
                         "-c:a", "aac",
-                        "-r", "30",
+                        "-r", str(fps),
                         "-shortest",
                         seg_file,
                     ]
@@ -410,18 +435,92 @@ class AssemblyRenderer:
 
                 temp_files.append(seg_file)
 
-            # Concatenate segments
-            # For v1: simple concat (cut transitions). Crossfade/slide/whip are future enhancements.
+            # Concatenate segments with transitions
+            # Reads transition_in from each segment (cut, crossfade, slide, whip)
+            # and applies xfade transitions between segments. Falls back to hard
+            # cut concat for "cut" or when there are only 1-2 segments.
             version = 1
             existing_finals = [f for f in os.listdir(media_dir) if f.startswith("final_")]
             version = len(existing_finals) + 1
             output_file = os.path.join(media_dir, f"final_{version}.mp4")
 
+            # Collect transition types (segment[0] has no transition_in — it's the first)
+            transition_types = []
+            for i, seg in enumerate(segments):
+                if i == 0:
+                    continue  # first segment has no incoming transition
+                transition_types.append(seg.get("transition_in", "cut"))
+
+            # Check if any non-cut transitions exist
+            has_transitions = any(t in ("crossfade", "slide", "whip") for t in transition_types)
+
             if len(temp_files) == 1:
                 # Single segment — just copy
                 cmd = ["ffmpeg", "-y", "-i", temp_files[0], "-c", "copy", output_file]
+            elif has_transitions and len(temp_files) >= 2:
+                # Use xfade transitions between segments
+                # xfade offset = cumulative duration minus transition duration
+                xfade_dur = 0.5  # 500ms transitions
+                xfade_map = {
+                    "crossfade": "fade",
+                    "slide": "slideleft",
+                    "whip": "wipeleft",
+                }
+
+                # Get durations of each segment
+                seg_durations = []
+                for tf in temp_files:
+                    sd = self._get_duration(tf)
+                    seg_durations.append(sd)
+
+                # Build xfade chain
+                # [0:v][1:v]xfade=transition=fade:duration=0.5:offset=d0-0.5[v01]
+                # [v01][2:v]xfade=transition=slideleft:duration=0.5:offset=d0+d1-1.0[v012]
+                # etc.
+                concat_inputs = []
+                for tf in temp_files:
+                    concat_inputs.extend(["-i", tf])
+
+                filter_parts = []
+                # Start with first video + audio
+                prev_v_label = "0:v"
+                prev_a_label = "0:a"
+                cumulative_dur = seg_durations[0]
+
+                for idx, trans_type in enumerate(transition_types):
+                    seg_idx = idx + 1
+                    xfade_type = xfade_map.get(trans_type, "fade")
+                    offset = max(cumulative_dur - xfade_dur, 0)
+
+                    v_out_label = f"vt{idx}" if idx < len(transition_types) - 1 else "vout"
+                    a_out_label = f"at{idx}" if idx < len(transition_types) - 1 else "aout"
+
+                    filter_parts.append(
+                        f"[{prev_v_label}][{seg_idx}:v]xfade=transition={xfade_type}:"
+                        f"duration={xfade_dur}:offset={offset:.3f}[{v_out_label}]"
+                    )
+                    # Audio crossfade (acrossfade) or simple concat
+                    filter_parts.append(
+                        f"[{prev_a_label}][{seg_idx}:a]acrossfade=d={xfade_dur}[{a_out_label}]"
+                    )
+
+                    prev_v_label = v_out_label
+                    prev_a_label = a_out_label
+                    cumulative_dur += seg_durations[seg_idx] - xfade_dur
+
+                filter_str = ";".join(filter_parts)
+
+                cmd = [
+                    "ffmpeg", "-y",
+                ] + concat_inputs + [
+                    "-filter_complex", filter_str,
+                    "-map", "[vout]", "-map", "[aout]",
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                    "-c:a", "aac",
+                    output_file,
+                ]
             else:
-                # Concat via filter
+                # Simple concat (cut transitions only)
                 concat_inputs = []
                 for f in temp_files:
                     concat_inputs.extend(["-i", f])

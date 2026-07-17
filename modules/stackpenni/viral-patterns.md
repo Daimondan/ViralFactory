@@ -1,148 +1,113 @@
-# Viral Patterns Playbook — v2.0
+# Viral Patterns Playbook — v3.0
 
-## Summary
+## Runtime rules
 
-Researched viral content mechanics from 4,000+ short-form video analyses, MrBeast's leaked production handbook, neuroscience-backed hook studies, and platform-specific data (TikTok, Reels, YouTube Shorts). Patterns are framed as actionable rules for the content drafter and edit plan generator. Each is a hypothesis grounded in data, not a guarantee.
+These are gated StackPenni production rules derived from an admired-content corpus of 91 analyzed rows representing 90 unique pieces: 80 videos, 10 thumbnail/static analyses, and one duplicate row. Thumbnail-only items do not support audio, pacing, transition, or full-storyline claims. These rules are not guarantees of virality.
 
-## Hook Mechanics (first 3 seconds = 70% of swipe-vs-watch decision)
+### Evidence labels
 
-### The 3-Part Hook Formula
-1. **Pattern Interrupt (0–0.8s):** Something unexpected in the first frame — rapid motion, mid-action start, bold text overlay, unexpected visual. Break the viewer's mental state.
-2. **Identity Signal (0.8–1.5s):** A few words confirming "this is for me" — targets the audience explicitly.
-3. **Open Loop (1.5–3s):** A question, claim, or tease that creates an information gap the brain must resolve.
+- **OBSERVED:** directly visible or audible in a source.
+- **MEASURED:** captured platform metric.
+- **HYPOTHESIS:** plausible explanation that must be tested.
+- **HOUSE RULE:** an editorial or production choice.
 
-### Hook Archetypes (by performance, 2026 data)
-- **Hot Take** (~140K avg views): Bold opinionated first sentence. Best for commentary/POV.
-- **Investigator** (~140K): Question or unfolding mystery. Best for stories, reveals.
-- **Proof Drop** (~90K views, **1,761 saves** — highest): Screenshot, chart, specific number. Best for educational/reference.
-- **Contrarian** (~120K): "Stop doing X..." Inverts consensus. Best for myth-busting.
-- **Stat/Number** (~115K): "I lost $10K in 30 seconds." Specific results.
-- **Before/After** (~100K): Visual transformation.
+Never describe a hypothesis or platform prior as tenant performance evidence.
 
-**AVOID:** Story hooks ("So the other day...", "Let me tell you about...") — only 7K avg views. The algorithm decides in 1.5 seconds.
+### Content contract
 
-### What This Means for Drafting
-- Open mid-action, not at the beginning of a story
-- First line should be a claim or question, not a greeting
-- The hook text should appear as a burned-in text overlay in the first 2 seconds
-- 85% of views are muted — the text overlay is the hook for sound-off viewers
+Every piece must establish:
 
-## Retention Mechanics
+1. one source-grounded core claim;
+2. one audience value or change;
+3. one primary emotional job;
+4. one primary audience action (finish, share, save, comment, follow, or click);
+5. one approved format and production-feasible treatment;
+6. at least one particular detail, scene, receipt, quote, or lived observation.
 
-### Pacing
-- **Visual change every 2–4 seconds.** Cut, text overlay, B-roll, zoom. Visual monotony kills retention.
-- **Max segment duration: 4 seconds** without a visual change (cut, overlay, or transition).
-- **Breathing room matters:** After rapid cuts, allow 3–5 seconds where music drops and emotion lands. The "low" makes the "high" feel high.
+### Opening
 
-### The Payoff Ladder (structure)
-Each video is a series of mini-stories, each 30–60 seconds (compressed for 30–60s Reels):
-```
-0–3s    Hook (pattern interrupt + open loop + text overlay)
-3–10s   Problem / stakes (what's at risk, what's possible)
-10–45s  Build / solution (value delivery, scene changes every 2-4s)
-45–60s+ Payoff + implied CTA (end on the result, not the ask)
-```
+Orient immediately. In the first meaningful beat, make at least two clear: who/what this concerns, the tension or claim, why it matters, and the emotional register. The opening can be quiet; forced movement and false suspense are not hooks.
 
-### Text on Screen
-- **Every segment should have at least one text overlay** — a key phrase from the VO
-- Word-by-word or phrase-by-phrase, synced to VO cadence
-- Never full sentences at once — viewers have scrolled past
-- Text overlays boost watch time by up to 37%
-- Use `style_ref: "hook"` for the opening, `"highlight"` for key stats, `"default"` for body text
+### Development
 
-### Sound Design (50% of retention)
-- **Every visual change should have an audio cue:** text pop → whoosh, cut → hit, transition → riser
-- **Risers before transitions:** build tension, then SNAP — cut happens, tension releases
-- **Strategic silence:** music cuts for key moments — absence of sound is a pattern interrupt
-- **SFX cues in the edit plan:** `whoosh`, `pop`, `hit`, `riser` at segment-level timestamps
+Choose the narrative movement that fits the idea. Useful patterns include:
 
-## Emotional Triggers (what drives shares, saves, comments)
+- proof-first: claim → receipt → mechanism → implication → move;
+- emotional reframe: recognizable moment → interpretation → deeper meaning → landing;
+- contrarian: claim → conventional view → evidence → boundary/nuance → verdict;
+- story: cold open → context → pressure → choice → consequence → meaning;
+- practical list: promise → ordered utility → synthesis;
+- reaction: source claim → reaction → context/evidence → own position → invitation;
+- candid moment: real event → minimal orientation/reframe → natural payoff;
+- curated excerpt: strongest quote → source label → essential excerpt → landing.
 
-### The Emotion Hierarchy (from 4,000 video analysis)
-| Emotion | Avg Views | Avg Shares | Avg Saves | Best For |
-|---|---|---|---|---|
-| Fear | 264K | 480 | 393 | Awareness, reach |
-| Empathy | 170K | **2,139** | 975 | Distribution, shares |
-| Outrage | 168K | 616 | 313 | Comments, engagement |
-| Curiosity | 98K | 720 | 532 | Balanced all-around |
-| Humor | 92K | 645 | 276 | Entertainment |
-| Trust | 42K | 691 | **1,294** | Authority, return viewers |
-| Aspiration | 29K | 255 | 151 | (weak — avoid defaulting here) |
-| Hope | 5K | 91 | 39 | (weakest — avoid) |
+Do not force every idea into Hook–Tension–Reframe–Payoff. Each beat must create an earned change in understanding or feeling.
 
-**Key insight:** Fear, Empathy, and Outrage are 3–5x the views of Curiosity. Most creators default to Aspiration or Hope, which are the two worst-performing.
+### Text on screen
 
-### What Drives Each Action
-- **Views:** High-arousal emotions (Fear > Empathy > Outrage)
-- **Shares:** Empathy (people share what they relate to)
-- **Comments:** Outrage (the fight in the comments IS the point)
-- **Saves:** Trust (people bookmark what they believe)
+Every overlay needs a declared function: hook, orientation, accessibility caption, emphasis, proof, reframe, or CTA. Remove decorative text. Do not require text on every segment. Keep captions phrase-level and VO-synced; preserve safe areas and visual hierarchy. Never ask a generator to render accurate text, numbers, logos, screens, charts, or evidence — the renderer owns those layers.
 
-### CTA Strategy
-**Implied CTAs beat direct CTAs by 2x** (138K vs 72K avg views).
-- Implied: end on the payoff, let the comment section do the work
-- Direct: "follow for more," "link in bio" — signals extraction, depresses back-half watch time
-- **End on payoff, not ask.**
+### Audio
 
-## Platform Differences
+Choose audio by narrative function: voice-only for clarity/intimacy; original sound for proof, atmosphere, or humor; music for pace, contrast, tension, continuity, or emotional color; silence for an intentional landing. SFX are optional and motivated, never a blanket whoosh-per-caption rule. Voice intelligibility wins.
 
-| Factor | TikTok | Instagram Reels | YouTube Shorts |
-|---|---|---|---|
-| Decision window | 1.3s | 1.3s | 2.1s |
-| Best hook type | Pattern interrupt | Direct address | Authority interrupt |
-| Top metric | Completion rate | Watch-through, saves | CTR + completion |
-| Ideal duration | 15–30s (completion) | Under 90s | 38–47s |
-| Key insight | Rewatches = strongest signal | Trending audio = boost | Search = evergreen |
+### Visual assembly
 
-### Duration Data
-| Duration | Avg Views |
-|---|---|
-| 90s+ | 170K (31x more than 0–15s) |
-| 61–90s | 126K |
-| 31–60s | 28K |
-| 0–15s | 5K |
+Preserve useful authenticity. A hold is valid when expression, proof, or silence needs time. A cut is valid when the semantic beat, evidence, perspective, or energy changes. Do not impose a universal 2–4 second cut rule.
 
-**Note:** Longer videos produce more watch time per view, which the algorithm rewards. 60–90s should be the target for Reels, not 30–60s.
+Media order: required real capture/evidence → approved archive/reference assets → stock for generic context → generated media for metaphor or deliberate art direction → text card when words should carry the frame. Every source must be local, registered, permitted, and referenced by its exact inventory ID.
 
-## Format Types That Work
+### Ending
 
-- **Commentary** (POV + opinion) = highest. Viewers want a point of view, not a lecture.
-- **Educational + Commentary hybrid** = 124K avg. Education wrapped in opinion.
-- **Greenscreen** (creator + source material) = high. Higher information density = more watch time.
-- **Myth-Busting** = 8K (collapsed from 2023-24 dominance).
-- **Promotional** = 26K (weak).
+End when the meaning lands. A CTA is optional. If used, it must serve the declared audience action and must not replace the payoff.
 
-## Patterns
+## Observed patterns from the admired corpus
 
-### Pattern: Hook-First Structure
-Always open with the hook (pattern interrupt + open loop) in the first 3 seconds. Do not start with context, greetings, or backstory. The hook text must be burned in as a text overlay.
+The 91 analyzable winners span candid UGC, talking heads, lectures, interviews, podcasts, archive/film clips, reactions, skits, montages, animations, and minimal text-led treatments. No single format dominates as a universal answer.
 
-### Pattern: Text Overlay on Every Segment
-Every segment gets at least one text overlay with a key phrase from the VO. This is non-negotiable for muted viewing (85% of views). Use style_ref to vary visual hierarchy: "hook" (large), "default" (body), "highlight" (stats/numbers).
+Recurring observations:
 
-### Pattern: Pacing Variety
-No segment exceeds 4 seconds without a visual change. If a clip runs longer, insert a text overlay partway through. The edit plan should have a visual change (cut, overlay, transition) every 2–4 seconds.
+- specific human moments, lines, evidence, and contradictions carry more meaning than generic encouragement;
+- many pieces make an assumption, emotion, or event newly legible through reframe, proof, or consequence;
+- faces, voices, room tone, pauses, and imperfect real footage often supply human texture;
+- text commonly orients, captions speech, emphasizes, reframes, labels proof, or invites interaction;
+- successful audio treatments include voice-only, original sound, silence, music, and produced mixes;
+- long and short pieces both appear among winners, so duration must follow sustained value rather than a fixed target.
 
-### Pattern: Emotional Trigger Selection
-Each idea should tag a primary emotional trigger. Prioritize Fear, Empathy, Outrage, Curiosity. Avoid defaulting to Aspiration or Hope. The draft structure should serve the chosen emotion.
+## Performance hypotheses to test
 
-### Pattern: Payoff Ending
-End on the result, not the ask. No "follow for more." The final frame should be the proof, the punchline, or the resolution. Let the comment section be the CTA.
+- Immediate orientation may reduce early confusion.
+- A concrete, source-grounded particular may improve recall and sharing.
+- A clear change in viewer understanding or feeling may improve completion.
+- Real human texture may increase trust when authenticity is central.
+- Split-screen dialogue may increase comments when two defensible perspectives are present.
+- Minimal text-led footage may increase sharing when one line genuinely reframes the moment.
 
-### Pattern: SFX Layer
-Every text overlay pop gets a whoosh. Every hard cut gets a subtle hit. Before transitions, add a riser. Sound design is 50% of retention — the edit plan must include SFX cues.
+These are hypotheses. Test against StackPenni baselines and matched formats before promoting them to tenant evidence.
 
 ## Never list
-- Never open with "Hey guys," "So basically," or "Let me tell you about..."
-- Never use direct CTAs ("follow for more," "link in bio") as the ending
-- Never leave a segment >4 seconds without a visual change
-- Never produce a video without text overlays (85% of views are muted)
-- Never default to Aspiration or Hope as the emotional trigger
-- Never use the "myth-busting" format (collapsed to 8K avg views)
-- Never bait-and-switch: the hook must match the content
+
+- Never invent facts, quotes, metrics, screens, or documentary scenes.
+- Never use a greeting or long preamble before the substance.
+- Never bait-and-switch: the opening promise and payoff must match.
+- Never add movement, B-roll, music, overlays, transitions, or SFX without a job.
+- Never bake accurate text or interfaces into generated media.
+- Never substitute unrelated uploads or unregistered stock for missing required captures.
+- Never rewrite approved copy during assembly.
+- Never call a pattern causal without a matched comparison and relevant performance metrics.
+
+## Learning-loop fields
+
+For each published piece, store the creative fingerprint: format, narrative pattern, hook mechanism, emotional job, primary audience action, text functions, audio mode, media mix, operator edits, and reliable platform metrics with capture date/confidence. Aggregate before proposing an exact gated module diff.
+
+## Evidence limits
+
+The source set is a selected collection of winners, not a controlled sample. Likes/comments are incomplete performance signals; views, reach, watch time, completion, saves, shares, and creator baselines were generally unavailable. Free-form AI analyses are scene/beat-level and may contain transcription or interpretation errors. Use the corpus to generate production hypotheses, not universal laws.
 
 ## Provenance
-- Version: 2.0
-- Generated: 2026-07-11T19:50:00Z
-- Source: docs/research/viral-content-mechanics-2026-07-11.md
+
+- Version: 3.0
+- Updated: 2026-07-16
+- Source: `docs/research/viral-content-meta-analysis-v2.md`
+- Production playbook: `docs/playbooks/viral-content-production-playbook-v1.md`
 - Schema: viral_patterns_v1

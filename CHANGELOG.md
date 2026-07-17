@@ -6,6 +6,32 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-16
+
+**[RESEARCH/LOGIC] Winner-corpus meta-analysis redone with evidence boundaries**
+
+Replaced the prior keyword-frequency and raw-average interpretation with `docs/research/viral-content-meta-analysis-v2.md`. The new analysis explicitly separates OBSERVED, MEASURED, HYPOTHESIS, and HOUSE RULE claims; documents winner-only selection bias, missing retention/share/save/reach metrics, category confounding, small groups, and scene-level rather than literal frame-by-frame analysis; and removes unsupported causal claims including universal format/audio rankings, fixed cut cadence, overlay-every-segment, SFX-every-change, implied-CTA lift, and uncited muted-view percentages.
+
+Rationale: the prior sheet and runtime module converted a useful admired-content corpus into false precision. Likes/comments and free-form AI mention counts cannot establish which treatment caused performance. The corrected standard preserves useful creative observations while preventing hypotheses from masquerading as tenant evidence.
+
+**[STRUCTURE/CONTENT] Evidence-bounded production playbook, contract, and StackPenni runtime module v3**
+
+Added `docs/playbooks/viral-content-production-playbook-v1.md` and machine-readable example `docs/playbooks/viral-content-production-contract-v1.yaml.example`. The contract defines one content brief, stable semantic beat IDs, functional text intents, function/provenance-based media recipes, explicit audio modes, source-resolved edit plans, mechanical/compliance/creative gates, and a post-publication creative fingerprint. Replaced `modules/stackpenni/viral-patterns.md` v2 with v3 so existing `prompts/views.yaml` projections immediately supply the corrected rules to ideation, drafting, series breakdown, and edit planning. The first 3,000 characters contain the runtime assembler rules so the edit-plan view budget does not truncate them. Updated `prompts/draft/generate_v3.md` to v4.1 and `prompts/assembly/edit_plan_v1.md` to v1.5, removing the conflicting hardcoded overlay-every-segment, cut-every-2–4-seconds, CTA-every-piece, music-preferred, and SFX-every-change directives.
+
+Rationale: the Writer must own approved words and semantic intent; the Media Planner must choose feasible media from available tools; the Assembler must resolve real ingredients and timing without inventing copy. Stable beat IDs are the handoff that lets compliance and learning trace the same content contract end to end.
+
+**[ARCHITECTURE AUDIT] Full playbook automation gaps documented**
+
+The production playbook now distinguishes prompt-level integration from end-to-end automation. `ProductionChain._step_media_plan`, `_step_media_exec`, `_step_edit_plan`, and `_step_render` remain stubs while equivalent behavior lives in route handlers. P0 gaps are stable beat IDs, deterministic text/audio translation, registry drift between draft v2/v3 paths, and comprehensive pre-render feasibility. P1 gaps are config-driven overlay/SFX styles, reference-asset injection/provenance, post-render module context, performance ingestion, and human-gated learning proposals. These are documented in the playbook and the Sheet's `Implementation Gaps v1` tab; no claim is made that the autonomous assembler already consumes the full contract.
+
+**[RESEARCH/OPS] Google Sheet v2 analysis and production tabs written and verified**
+
+Added four live tabs to the existing analysis workbook: `Meta-Analysis v2` (52 rows), `Production Contract v1` (42 rows), `Assembler QA v1` (23 rows), and `Implementation Gaps v1` (14 rows). The original Meta-Analysis tab remains as an audit trail. A second audit added explicit modality and corpus-hygiene findings: 9 unavailable ranks, 10 thumbnail-only rows, one duplicate pair (32/98), uneven batch depth, overlapping/contradictory coding, and the Rank 23 Caribbean misclassification. Read-back verification confirmed all required markers and confirmed the removed unsupported claims are absent from v2.
+
+Rationale: the Sheet remains the primary analysis artifact, while the repository documents and runtime module keep the same conclusions executable.
+
+---
+
 ## 2026-07-14
 
 **[STRUCTURE/STRATEGIC] M11 — Episode format + reference assets correction filed and added to BUILD_PLAN (v1.8)**

@@ -1,7 +1,7 @@
-<!-- version: 3.2 -->
-# Draft Generation v3 — Per-Platform Content
+<!-- version: 4.1 -->
+# Draft Generation v4 — Per-Platform Content + Full Production Instructions
 
-You are drafting content in the voice of a specific person. This is the core creative step of the co-production loop.
+You are drafting content in the voice of a specific person. This is the core creative step of the co-production loop. The Assembler will receive your output and mechanically produce media + assemble the final asset — so your output must be complete enough that the Assembler does NOT need to guess, invent, or make creative decisions.
 
 ## Context
 - Business: {business_name}
@@ -81,22 +81,67 @@ The Writer produces ALL platform text in one pass. The Assembler will NOT do any
 One entry per platform. Each entry is the complete, platform-native content:
 
 - **platform**: the platform name (from the Format Guide entry's Platforms field)
-- **variant_type**: the structural type for THIS platform's variant — thread, carousel, reel, single_post, story_series, poll, newsletter. This must match how you structured the posts for THIS platform, not the format name. If the format is "Newsletter Section" but you wrote 8 tweets for X, variant_type is "thread". If you wrote 8 slides for Instagram, variant_type is "carousel". The Format Guide entry's Variant type field is a hint, not a copy — the actual variant_type is determined by the structure of the posts array you produced.
+- **variant_type**: the structural type for THIS platform's variant — thread, carousel, reel, single_post, story_series, poll, newsletter. This must match how you structured the posts for THIS platform, not the format name.
 - **content**: a summary line or the full text for single-post formats
-- **posts**: the actual posts/slides/frames as an array of strings. For a thread, each tweet. For a carousel, each slide's text. For a single post, a one-element array. For a reel, the script text.
+- **posts**: the actual posts/slides/frames. For text formats (thread, single_post, newsletter), each post is a string. For video formats (reel, story_series), each post is a FRAME OBJECT (see below).
 - **image_prompts**: per-post/slide image generation prompts, or ["none"] for text-only posts
 
-Write each platform's content in the person's voice, following the Format Guide skeleton for that format. The content must be ready to post — the Assembler will not edit it.
+#### FRAME OBJECTS (for reel and story_series variants ONLY)
 
-**Do NOT write timestamps.** The VO generation stage measures real durations after the draft is written. Write beats (HOOK, SETUP, PAYOFF, CLOSE) or frame labels, not `[0:00–0:03]` or `[0-2s]`. The runtime will be whatever the voiceover naturally takes.
+For video formats, each frame in the `posts` array MUST be an object with these fields:
+
+```json
+{
+  "label": "HOOK",
+  "vo_text": "The exact words spoken in this frame. This is what the voiceover will read.",
+  "text_on_screen": {
+    "text": "Short text overlay for this frame (sound-off viewing)",
+    "position": "center | bottom-third | top",
+    "style": "bold-prosperity-gold | deep-ocean-teal | split-screen-coral-divider",
+    "animation": "fade-in | word-by-word-sync | slide-in-from-left | typewriter"
+  },
+  "visual": {
+    "shot_type": "medium close-up talking head | over-the-shoulder | tight close-up | wide establishing",
+    "movement": "static | slow push-in | whip pan | pull-back",
+    "b_roll": "none | description of B-roll insert (e.g. '1s cut to phone screen showing AI chat')",
+    "image_prompt": "Generation-ready prompt: subject, composition, style anchors from Visual Style module, aspect ratio, lighting"
+  },
+  "transition_in": "cut | crossfade | slide | whip",
+  "sfx": [
+    {"type": "pop | whoosh | hit | riser | silence", "timing": "on_text_appear | pre-beat | post-beat"}
+  ],
+  "music": {
+    "action": "continue | duck | silence | introduce",
+    "duck": false,
+    "silence_gap_sec": 0
+  }
+}
+```
+
+**Rules for frame objects:**
+- `label` and `vo_text` are REQUIRED on every frame
+- `text_on_screen` is optional per frame. When used, it must perform one function: hook, orientation, accessibility caption, emphasis, proof, reframe, or CTA. Do not add decorative text merely to fill a frame.
+- `visual.image_prompt` is REQUIRED for reels — the Assembler generates media from this
+- `transition_in` is REQUIRED for reels — the Assembler cuts segments together using this
+- `sfx` may be empty `[]` if no SFX for this frame
+- `music` is required only when the frame changes an established audio treatment. Voice-only, meaningful original sound, and intentional silence are valid choices.
+- Write `vo_text` as the EXACT words to be spoken. Do NOT write timestamps. The VO generation stage measures real durations after the draft is written.
+- Aim for the `duration_target` using the Voice Profile's natural pace. Do not force a generic words-per-second target; the VO generation stage measures the real take and becomes the master timeline.
+
+#### TEXT FORMATS (thread, carousel, single_post, newsletter, poll)
+
+For text formats, `posts` is an array of strings — each post/slide as it would appear. No frame objects needed.
 
 ### 2. Visual direction (REQUIRED — not optional)
 
 A cross-platform master set of visual direction, written against the approved Visual Style module:
 
-- **image_prompts** (at least 1, required): generation-ready prompts for the assets stage. Each prompt must include: subject, composition, style anchors from the Visual Style module, and aspect ratio for the primary platform. A talking-head reel gets shot/beat direction; a carousel gets per-slide image prompts. Write prompts that an image generator can execute directly.
+- **image_prompts** (at least 1, required): generation-ready prompts for the assets stage. Each prompt must include: subject, composition, style anchors from the Visual Style module, and aspect ratio for the primary platform. For reels, aggregate the per-frame `visual.image_prompt` values here too.
 - **reference_notes** (may be empty): visual references — colors, mood, composition notes, existing brand visuals to match.
 - **shot_format_choices** (at least 1, required): concrete shot or format choices per the Visual Style Guide — camera angle, movement, transition style, text overlay position, etc.
+- **music** (when used): narrative job, mood, genre, tempo BPM, energy curve, ducking, and intentional silence drops
+- **captions** (when speech or the Format Guide calls for them): burned_in, source, style_ref, font, position_default, animation
+- **canvas** (required for reels): aspect_ratio (9:16), resolution (1080x1920), duration_target (seconds)
 
 Do NOT leave these empty. If the format calls for images, produce image prompts. If it's a talking-head video, produce shot/beat direction. If it's a carousel, produce per-slide visual prompts.
 
@@ -139,6 +184,7 @@ For each flag, include:
 - Each platform_content entry must have at least one post in the posts array
 - The variant_type must match the structure of the posts array you wrote for that platform — thread for multi-post X, carousel for multi-slide Instagram, reel for video scripts, single_post for one post. Do not copy the Format Guide entry's Variant type field blindly when the format spans multiple platforms with different structures.
 - Use only the standard variant_type values: thread, carousel, reel, single_post, story_series, poll, newsletter
+- For reels: every frame MUST have label and vo_text. Add text_on_screen, visual direction, transition, SFX, and music only when they perform a named production function. The Assembler resolves real media and builds the final edit plan; it must not invent or rewrite approved copy.
 
 ## Output format
 
@@ -149,16 +195,61 @@ Respond with ONLY valid JSON:
   "platform_content": [
     {
       "platform": "string — platform name from the Format Guide",
-      "variant_type": "string — thread | carousel | reel | single_post | story_series | poll | newsletter — matches the structure of the posts array for this platform",
+      "variant_type": "string — thread | carousel | reel | single_post | story_series | poll | newsletter",
       "content": "string — summary line or full text for single-post formats",
-      "posts": ["string — each post/slide/frame as it would appear"],
-      "image_prompts": ["string — per-post image prompt, or 'none' for text-only"]
+      "posts": [
+        {
+          "label": "HOOK | SETUP | BUILD | TURN | PAYOFF | CLOSE",
+          "vo_text": "string — exact words spoken in this frame",
+          "text_on_screen": {
+            "text": "string — short overlay text for sound-off viewing",
+            "position": "center | bottom-third | top",
+            "style": "string — Visual Style caption sheet ref",
+            "animation": "fade-in | word-by-word-sync | slide-in-from-left | typewriter"
+          },
+          "visual": {
+            "shot_type": "string — camera shot type",
+            "movement": "string — camera movement",
+            "b_roll": "string — none or B-roll description",
+            "image_prompt": "string — generation-ready prompt"
+          },
+          "transition_in": "cut | crossfade | slide | whip",
+          "sfx": [{"type": "whoosh | pop | hit | riser | silence", "timing": "on_text_appear | pre-beat | post-beat"}],
+          "music": {
+            "action": "continue | duck | silence | introduce",
+            "duck": false,
+            "silence_gap_sec": 0
+          }
+        }
+      ],
+      "image_prompts": ["string — per-frame image prompts aggregated, or 'none' for text-only"]
     }
   ],
   "visual_direction": {
     "image_prompts": ["string — generation-ready prompts: subject, composition, style anchors, aspect ratio"],
     "reference_notes": ["string — visual references (colors, mood, composition notes)"],
-    "shot_format_choices": ["string — shot/format choices per the Visual Style Guide"]
+    "shot_format_choices": ["string — shot/format choices per the Visual Style Guide"],
+    "music": {
+      "mood": "string",
+      "genre": "string",
+      "tempo_bpm": 95,
+      "energy_curve": "string — build → peak → settle",
+      "ducking": true,
+      "silence_drops": [{"at_frame": "TURN", "duration_sec": 2.0}]
+    },
+    "captions": {
+      "burned_in": true,
+      "source": "vo_script",
+      "style_ref": "string — Visual Style caption sheet ref",
+      "font": "Georgia",
+      "position_default": "bottom-third",
+      "animation": "word-by-word-sync"
+    },
+    "canvas": {
+      "aspect_ratio": "9:16",
+      "resolution": "1080x1920",
+      "duration_target": 45
+    }
   },
   "self_audit_flags": [
     {
@@ -171,3 +262,5 @@ Respond with ONLY valid JSON:
   ]
 }
 ```
+
+For text formats (thread, carousel, single_post, newsletter, poll), `posts` is an array of strings and `visual_direction.music`, `visual_direction.captions`, and `visual_direction.canvas` are optional.
