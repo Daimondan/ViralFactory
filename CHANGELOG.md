@@ -8,6 +8,11 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-17
 
+### T11.5-T11.10 — Episode format complete [TECH]
+**What:** Six tasks completing the episode format capability: (T11.5) episode-format module schema + bootstrap flow + StackPenni show bible + visual-style amendment (pending gate); (T11.6) EpisodePlan schema + Writer beats + mechanical shot spec assembly + edit plan with beat_id + enforced loudnorm I=-14; (T11.7) storyboard gate infrastructure; (T11.8) Layer-2 asset QC — face-embedding identity check + color-histogram grade check, thresholds from config, flags advisory; (T11.9) Layer-3 critic — rubric in module, advisory scores, never blocks; (T11.10) golden episode fixtures + Layer-1 pass-rate metric.
+**Why:** The episode format enables recurring-character, beat-structured, reference-conditioned episode production — the target genre. All show-specific content lives in gated tenant assets; the harness knows the schema, never the character.
+**Rationale:** Three subagents worked in parallel on T11.5 (module+bootstrap), T11.6 (plan schema+Writer), and T11.8 (asset QC). T11.9 (critic) and T11.10 (goldens) were built directly. 168 new tests, 1,598 total passing.
+
 ### T11.4 — fal provider in MediaAdapter [TECH]
 **What:** Added fal.ai provider to MediaAdapter: `generate_image(reference_images=[...])` uploads local reference files to fal storage and passes URLs for reference-conditioned image generation. `submit_video(mode="image_to_video", source_image=...)` uploads the source still and submits an image-to-video job. `check_fal_job()` polls via `fal_client.status`/`result`. All endpoints read from `config/models.yaml` — zero hardcoded. Cost from config `cost_per_image_usd`/`cost_per_second_usd`. Provenance logged with `provider="fal"`.
 **Why:** Reference conditioning (character sheets, location plates) is the mechanism that makes recurring character/visual consistency possible. Image-to-video from approved stills is the cheap-to-expensive ordering (storyboard → animation).
