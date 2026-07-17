@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-17
-**Current Phase:** Assembler Full Upgrade — Phase 0 COMPLETE. VF-AU-001 done (baseline audit). VF-AU-002 done (DIVERGENCE-013 filed). VF-AU-003 done (AMENDMENT-009 ratified, Charter v3.5 → v3.6, all cross-references updated). Phase 1 (Production Contract v2 schemas) is next: VF-AU-101 through VF-AU-105. 1,084 tests passing.
+**Current Phase:** Assembler Full Upgrade — Phase 1 in progress. VF-AU-101 done (Production Contract v2 schemas: 31 tests, stable IDs, capture policies, hash-lock). 1,115 tests passing. Next: VF-AU-102 (cross-document validators).
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
