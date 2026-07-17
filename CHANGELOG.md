@@ -8,6 +8,11 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-17
 
+### T11.4 — fal provider in MediaAdapter [TECH]
+**What:** Added fal.ai provider to MediaAdapter: `generate_image(reference_images=[...])` uploads local reference files to fal storage and passes URLs for reference-conditioned image generation. `submit_video(mode="image_to_video", source_image=...)` uploads the source still and submits an image-to-video job. `check_fal_job()` polls via `fal_client.status`/`result`. All endpoints read from `config/models.yaml` — zero hardcoded. Cost from config `cost_per_image_usd`/`cost_per_second_usd`. Provenance logged with `provider="fal"`.
+**Why:** Reference conditioning (character sheets, location plates) is the mechanism that makes recurring character/visual consistency possible. Image-to-video from approved stills is the cheap-to-expensive ordering (storyboard → animation).
+**Rationale:** The fal_client library (v1.0.0) provides submit/poll/result with file upload — matching the existing async pattern. The adapter routes by config `provider: "fal"` — no code changes needed to switch between fal and legacy providers.
+
 ### T11.2 — EpisodePlan Layer-1 lints [TECH]
 **What:** New `src/episode_lints.py` module with 6 deterministic pre-spend lints: registry referential integrity (approved assets only), beat grammar (hook first, ≤3s, lesson+cta present), duration budget (±10%), banned-token scan (config-driven), grade-token-present, numbers→graphics. Banned tokens read from `config/models.yaml` `episode_lint.banned_prompt_tokens` — config, not code.
 **Why:** A plan violating any lint cannot trigger a paid media call. The mush-image failure class (text/screens/logos in generated images) is eliminated by construction, not by review.

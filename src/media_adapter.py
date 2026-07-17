@@ -246,6 +246,25 @@ class MediaAdapter:
 
     # ── Image generation (synchronous-ish) ──
 
+    def _resolve_fal_image_generator(self, model: str) -> dict:
+        """Find a fal image generator config by name or endpoint."""
+        for gen in self.media_config.get("image_generators", []):
+            if gen.get("provider") == "fal" and (gen.get("name") == model or gen.get("endpoint") == model):
+                return gen
+        return None
+
+    def _resolve_fal_video_generator(self, model: str) -> dict:
+        """Find a fal video generator config by name or endpoint."""
+        for gen in self.media_config.get("video_generators", []):
+            if gen.get("provider") == "fal" and (gen.get("name") == model or gen.get("endpoint") == model):
+                return gen
+        return None
+
+    def _get_fal_api_key(self, gen_config: dict) -> str:
+        """Get the FAL API key from env var specified in config."""
+        env_var = gen_config.get("api_key_env", "FAL_API_KEY") if gen_config else "FAL_API_KEY"
+        return os.environ.get(env_var, "")
+
     def generate_image(
         self,
         prompt: str,
@@ -255,14 +274,162 @@ class MediaAdapter:
         context: str = "Image generation",
         business_slug: str = None,
         owner_type: str = "asset",
+        reference_images: list = None,
     ) -> dict:
         """
-        Generate an image via OpenRouter Image API.
+        Generate an image. Supports fal.ai (reference-conditioned) and
+        OpenRouter (text-only) providers.
+
+        Args:
+            reference_images: List of local file paths to use as reference
+                             (fal providers only). Files are uploaded to fal
+                             storage and passed as reference_image URLs.
+
         Returns dict: {path, model, prompt, cost_usd}.
         Raises MediaAdapterError on failure.
 
         Synchronous-ish (seconds). Content-hash cached — same prompt+model = cached file.
         """
+        model = model or self.media_config.get("image_default", "google/gemini-3.1-flash-image")
+
+        # Check if this is a fal provider
+        fal_gen = self._resolve_fal_image_generator(model)
+        if fal_gen:
+            return self._generate_image_fal(
+                prompt=prompt, asset_id=asset_id, model=model,
+                fal_gen=fal_gen, aspect_ratio=aspect_ratio,
+                context=context, business_slug=business_slug,
+                owner_type=owner_type, reference_images=reference_images,
+            )
+
+        # Fall back to OpenRouter path (existing code)
+        return self._generate_image_openrouter(
+            prompt=prompt, asset_id=asset_id, model=model,
+            aspect_ratio=aspect_ratio, context=context,
+            business_slug=business_slug, owner_type=owner_type,
+        )
+
+    def _generate_image_fal(
+        self,
+        prompt: str,
+        asset_id: int,
+        model: str,
+        fal_gen: dict,
+        aspect_ratio: str,
+        context: str,
+        business_slug: str,
+        owner_type: str,
+        reference_images: list,
+    ) -> dict:
+        """Generate an image via fal.ai provider."""
+        import fal_client
+
+        api_key = self._get_fal_api_key(fal_gen)
+        if not api_key:
+            raise MediaAdapterError(f"FAL_API_KEY not set — cannot generate image with fal provider '{model}'")
+
+        endpoint = fal_gen.get("endpoint", model)
+
+        # Build cache key including reference images
+        cache_key_parts = [prompt, model]
+        if reference_images:
+            for ref in reference_images:
+                cache_key_parts.append(os.path.basename(ref))
+        cache_key = hashlib.sha256("|".join(cache_key_parts).encode()).hexdigest()
+
+        # Check cache
+        cached = self._get_cached_image(prompt, model)
+        if cached:
+            self._log_provenance(model, prompt, cost_usd=0,
+                                 context=f"{context} (cached)", business_slug=business_slug,
+                                 provider="fal")
+            return {"path": cached, "model": model, "prompt": prompt, "cost_usd": 0, "cached": True}
+
+        media_dir = self._ensure_media_dir(asset_id)
+
+        # Upload reference images if provided
+        ref_urls = []
+        if reference_images:
+            for ref_path in reference_images:
+                if os.path.exists(ref_path):
+                    try:
+                        url = fal_client.upload_file(ref_path)
+                        ref_urls.append(url)
+                    except Exception as e:
+                        raise MediaAdapterError(f"Failed to upload reference image {ref_path}: {e}")
+                else:
+                    raise MediaAdapterError(f"Reference image not found: {ref_path}")
+
+        # Build fal arguments
+        arguments = {"prompt": prompt}
+        if ref_urls:
+            # fal image endpoints accept reference images as image_url or reference_images
+            # The exact parameter name depends on the endpoint. We use "image_url" for
+            # single ref and "reference_images" for multiple. The endpoint config
+            # can specify the parameter name via "ref_param" if needed.
+            ref_param = fal_gen.get("ref_param", "image_url" if len(ref_urls) == 1 else "reference_images")
+            arguments[ref_param] = ref_urls[0] if len(ref_urls) == 1 else ref_urls
+
+        # Add aspect ratio if the endpoint supports it
+        if aspect_ratio:
+            arguments["aspect_ratio"] = aspect_ratio
+
+        start = time.time()
+        try:
+            result = fal_client.run(endpoint, arguments=arguments, timeout=120)
+        except Exception as e:
+            self._log_provenance(model, prompt, context=f"{context} (failed)",
+                                 business_slug=business_slug, provider="fal")
+            raise MediaAdapterError(f"fal.ai image generation failed: {e}")
+
+        # Extract image URL from fal response
+        # fal responses typically have: {images: [{url: "..."}]} or {image: {url: "..."}}
+        image_url = None
+        if isinstance(result, dict):
+            images = result.get("images", [])
+            if isinstance(images, list) and len(images) > 0:
+                image_url = images[0].get("url") if isinstance(images[0], dict) else images[0]
+            elif "image" in result:
+                img = result["image"]
+                image_url = img.get("url") if isinstance(img, dict) else img
+            elif "url" in result:
+                image_url = result["url"]
+
+        if not image_url:
+            raise MediaAdapterError(f"fal.ai returned no image: {json.dumps(result)[:500]}")
+
+        # Download the image
+        file_hash = hashlib.sha256(prompt.encode()).hexdigest()[:16]
+        filename = f"image_{file_hash}.png"
+        file_path = os.path.join(media_dir, filename)
+
+        img_response = requests.get(image_url, timeout=60)
+        img_response.raise_for_status()
+        with open(file_path, "wb") as f:
+            f.write(img_response.content)
+
+        cost_usd = fal_gen.get("cost_per_image_usd", 0)
+
+        self._cache_image(prompt, model, file_path, cost_usd)
+        self._record_media(asset_id, "image", file_path, model, prompt, cost_usd, owner_type=owner_type)
+        self._log_provenance(model, prompt, cost_usd=cost_usd,
+                            context=context, business_slug=business_slug,
+                            provider="fal")
+
+        print(f"[media] Image generated (fal): {model} — ${cost_usd:.4f} — {file_path}")
+        return {"path": file_path, "model": model, "prompt": prompt, "cost_usd": cost_usd}
+
+    def _generate_image_openrouter(
+        self,
+        prompt: str,
+        asset_id: int,
+        model: str,
+        aspect_ratio: str,
+        context: str,
+        business_slug: str,
+        owner_type: str,
+    ) -> dict:
+        """Generate an image via OpenRouter Image API (legacy path)."""
         model = model or self.media_config.get("image_default", "google/gemini-3.1-flash-image")
 
         # Check cache
@@ -366,15 +533,36 @@ class MediaAdapter:
         context: str = "Video generation",
         business_slug: str = None,
         provider: str = None,
+        source_image: str = None,
+        mode: str = None,
     ) -> dict:
         """
         Submit a video generation job (async).
-        Supports xAI (Grok), Google (Veo), and OpenRouter providers.
+        Supports fal.ai (image-to-video), xAI (Grok), Google (Veo), and
+        OpenRouter providers.
+
+        Args:
+            source_image: Local file path of the source image for
+                         image-to-video mode (fal providers only).
+            mode: Generation mode — "image_to_video" or "text_to_video".
+                  If None, uses the config-specified mode for fal providers.
+
         Returns dict: {model, prompt, external_job_id, status, cost_usd, provider}.
         """
         model = model or self.media_config.get("video_default", "grok-imagine-video")
         video_provider = provider or self.media_config.get("video_provider", "openrouter")
         video_base_url = self.media_config.get("video_base_url", self.base_url)
+
+        # Check if this is a fal provider
+        fal_gen = self._resolve_fal_video_generator(model)
+        if fal_gen:
+            return self._submit_video_fal(
+                prompt=prompt, asset_id=asset_id, model=model,
+                fal_gen=fal_gen, aspect_ratio=aspect_ratio,
+                duration=duration, context=context,
+                business_slug=business_slug,
+                source_image=source_image, mode=mode,
+            )
 
         if video_provider == "google":
             # Google Veo — Generative Language API (long-running operation)
@@ -581,6 +769,108 @@ class MediaAdapter:
             "download_url": download_url if status == "completed" else None,
             "cost_usd": cost_usd,
         }
+
+    def _submit_video_fal(
+        self,
+        prompt: str,
+        asset_id: int,
+        model: str,
+        fal_gen: dict,
+        aspect_ratio: str,
+        duration: int,
+        context: str,
+        business_slug: str,
+        source_image: str,
+        mode: str,
+    ) -> dict:
+        """Submit a video generation job to fal.ai (image-to-video or text-to-video)."""
+        import fal_client
+
+        api_key = self._get_fal_api_key(fal_gen)
+        if not api_key:
+            raise MediaAdapterError(f"FAL_API_KEY not set — cannot generate video with fal provider '{model}'")
+
+        endpoint = fal_gen.get("endpoint", model)
+        gen_mode = mode or fal_gen.get("mode", "image_to_video")
+
+        arguments = {
+            "prompt": prompt,
+            "aspect_ratio": aspect_ratio,
+            "duration": str(duration) if duration else "5",
+        }
+
+        # Image-to-video: upload source image and add to arguments
+        if gen_mode == "image_to_video":
+            if not source_image:
+                raise MediaAdapterError(
+                    f"fal video provider '{model}' is image-to-video mode — source_image is required"
+                )
+            if not os.path.exists(source_image):
+                raise MediaAdapterError(f"Source image not found: {source_image}")
+            try:
+                image_url = fal_client.upload_file(source_image)
+            except Exception as e:
+                raise MediaAdapterError(f"Failed to upload source image {source_image}: {e}")
+            # fal image-to-video endpoints use "image_url" parameter
+            arguments["image_url"] = image_url
+
+        try:
+            handle = fal_client.submit(endpoint, arguments=arguments)
+        except Exception as e:
+            self._log_provenance(model, prompt, context=f"{context} (submit failed)",
+                                 business_slug=business_slug, provider="fal")
+            raise MediaAdapterError(f"fal.ai video submit failed: {e}")
+
+        request_id = handle.request_id
+        cost_usd = self._compute_cost(model, "video", duration_seconds=duration)
+
+        self._log_provenance(model, prompt, cost_usd=cost_usd,
+                            context=f"{context} (submitted, ext_job={request_id})",
+                            business_slug=business_slug, provider="fal")
+
+        print(f"[media] Video submitted (fal): {model} — ${cost_usd:.4f} ({duration}s × rate from config) — ext_job={request_id}")
+        return {
+            "model": model,
+            "prompt": prompt,
+            "external_job_id": request_id,
+            "status": "submitted",
+            "cost_usd": cost_usd,
+            "provider": "fal",
+        }
+
+    def check_fal_job(self, endpoint: str, request_id: str) -> dict:
+        """Poll a fal.ai video job. Returns {status, download_url, cost_usd}."""
+        import fal_client
+
+        try:
+            status = fal_client.status(endpoint, request_id)
+        except Exception as e:
+            raise MediaAdapterError(f"fal.ai status check failed: {e}")
+
+        # Status objects: Queued, InProgress, Completed (dataclass instances)
+        if isinstance(status, fal_client.Completed):
+            try:
+                result = fal_client.result(endpoint, request_id)
+            except Exception as e:
+                raise MediaAdapterError(f"fal.ai result fetch failed: {e}")
+
+            # Extract video URL from result
+            video_url = None
+            if isinstance(result, dict):
+                video_url = result.get("video", {}).get("url") if isinstance(result.get("video"), dict) else None
+                if not video_url:
+                    # Try other common response shapes
+                    video_url = result.get("url") or result.get("output_url")
+
+            return {
+                "status": "completed",
+                "download_url": video_url,
+                "cost_usd": 0,
+            }
+        elif isinstance(status, (fal_client.Queued, fal_client.InProgress)):
+            return {"status": "processing", "download_url": None, "cost_usd": 0}
+        else:
+            return {"status": "failed", "download_url": None, "cost_usd": 0}
 
     def download_video(self, external_job_id: str, download_url: str, asset_id: int,
                        model: str, prompt: str, cost_usd: float = 0,
