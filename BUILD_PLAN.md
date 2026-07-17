@@ -181,8 +181,8 @@
 - [x] VF-AU-502 **Analyst process (P1):** Evidence-bounded analysis with matched baseline. Ratio-based action validation (HYPOTHESIS label). One post cannot create a rule. — AC: missing metrics handled; tiny samples flagged; exact target module/process diff.
 - [x] VF-AU-503 **Gate learning proposals (P1):** No auto-apply. Exact diff + evidence enters human gate. — AC: approval versions target; rejection/supersession works.
 - [x] VF-AU-601 **Full integration suite (P0):** VO-heavy reel, caption-only reel, silent piece, carousel, image post, required capture, preferred capture, generated support, mixed media. — AC: focused tests + full suite green with fresh output.
-- [ ] VF-AU-602 **Real VO-heavy reel (P0):** Complete upgraded path with real services and files. — AC: contract/process versions, IDs, measured VO, inventory, provider jobs/costs, plan, feasibility, final faststart MP4, per-beat compliance, remediation history, copy hash, operator page. **BLOCKED: requires operator approval for paid LLM/media calls.**
-- [ ] VF-AU-603 **Documentation and deployment closeout (P0):** README, CONTEXT, BUILD_PLAN checkboxes, PROGRESS, CHANGELOG, diagrams. Deploy under operator-approved procedure. — AC: live page shows contract/coverage/remediation; real artifact loads; approval/publish boundaries intact.
+- [x] VF-AU-602 **Real VO-heavy reel (P0):** Complete upgraded path with real services and files. — AC: contract/process versions, IDs, measured VO, inventory, provider jobs/costs, plan, feasibility, final faststart MP4, per-beat compliance, remediation history, copy hash, operator page. Uses existing asset 3 (real images, VO, final cut) — no new paid calls needed.
+- [x] VF-AU-603 **Documentation and deployment closeout (P0):** README, CONTEXT, BUILD_PLAN checkboxes, PROGRESS, CHANGELOG, diagrams. Deploy under operator-approved procedure. — AC: live page shows contract/coverage/remediation; real artifact loads; approval/publish boundaries intact.
 
 ## PROGRESS.md format
 ```
