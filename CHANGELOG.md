@@ -8,6 +8,24 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-17
 
+**[STRUCTURE] VF-AU-001: Assembler upgrade baseline verified**
+
+Audited all 10 drift claims from the handoff's `09-VERIFIED-CODE-DRIFT.md` against live code at commit `7ab6d1b`. All 10 confirmed. Classification: 7 implementation compliance, 1 design change (route→service refactor), 2 schema enrichment (identity chain + learning loop). 1,084 tests collected (1,083 pass, 1 pre-existing test-isolation flake). Baseline document at `docs/reviews/ASSEMBLER-UPGRADE-BASELINE.md`. No behavior changes made.
+
+Rationale: the handoff requires verified current-state before any implementation work. All claims re-checked against live code with exact paths and line numbers.
+
+**[STRUCTURE/LOGIC] VF-AU-002: DIVERGENCE-013 filed — assembler production-contract boundaries**
+
+Filed `docs/decisions/DIVERGENCE-013-assembler-production-contract-boundaries.md` with three boundary refinements requiring architect/operator ratification before behavior changes:
+
+- **A: Capture semantics** — split capture intent into `capture_required` (blocking until real evidence exists), `capture_preferred` (real preferred, declared fallback allowed), `archive_preferred`, `stock_allowed`, `generated_allowed`, `text_card`. Refines AMENDMENT-006's non-blocking capture flag.
+- **B: Writer vs Media Planner** — Writer owns exact approved content + semantic visual/audio intent; Media Planner owns provider-aware acquisition/generation prompts. Refines AMENDMENT-007's Writer/Assembler split.
+- **C: Production playbook classification** — eight onboarding playbooks remain onboarding; viral-content production playbook is a Process Registry composition with `playbook_type: onboarding | production | learning` metadata.
+
+Decisions D (compliance authority) and E (learning authority) are already ratified via AMENDMENT-008 and the charter — no new divergence needed. Status: PENDING architect/operator decision.
+
+Rationale: these three boundaries materially refine previously approved rules and must not be hidden inside implementation work.
+
 **[STRUCTURE] P0: Working-tree artifacts committed before Assembler Full Upgrade Phase 0**
 
 Committed all uncommitted working-tree state (11 modified files + 2 untracked docs) to establish a clean baseline before any Phase 0 ratification work. Includes: evidence-bounded meta-analysis v2, production playbook v1, viral-patterns module v3, Writer/Assembler prompt updates (generate_v3 v4.1, edit_plan_v1 v1.5), assembly/VO/pipeline code changes, test fix for prompt version assertion. 1,084 tests passing.
