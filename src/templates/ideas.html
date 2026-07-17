@@ -28,6 +28,13 @@
         .series-badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; background: rgba(123, 91, 166, 0.12); color: var(--purple); font-weight: 600; margin-bottom: 6px; display: inline-block; }
         .child-card { border-left: 3px solid rgba(123, 91, 166, 0.3); margin-left: 12px; }
         .empty { color: var(--muted-dim); font-style: italic; padding: var(--space-5); text-align: center; }
+        .expand-toggle { font-size: 0.72rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .expanded-card-wrapper > summary { list-style: none; }
+        .expanded-card-wrapper > summary::-webkit-details-marker { display: none; }
+        .expanded-card-wrapper > summary::marker { display: none; }
+        .expanded-card-wrapper[open] .expand-toggle { display: none; }
+        .expanded-card-wrapper > .expanded-card { border-top: none; }
+        .expanded-card-wrapper > summary > .expanded-card { border-radius: var(--radius-lg) var(--radius-lg) 0 0; margin-bottom: 0; }
     </style>
 </head>
 <body>
@@ -110,9 +117,12 @@
     {% if cards %}
     {% set has_expanded = cards | length > 0 %}
     {% for card in cards %}
-    {% if loop.first and card.card_state == 'new' and active_tab == 'queue' %}
-    {# Expanded Gate 1 card — first card gets the full treatment #}
-    <div class="expanded-card" id="card-{{ card.id }}">
+    {% if card.card_state == 'new' and active_tab == 'queue' %}
+    {# Gate 1 card — all new cards get the full detail, first one expanded by default #}
+    <details class="expanded-card-wrapper" {% if loop.first %}open{% endif %} id="card-{{ card.id }}-wrapper">
+    <summary class="expanded-card-summary" onclick="return false;">
+    <div class="expanded-card" style="cursor: {% if not loop.first %}pointer{% else %}default{% endif %};"
+         {% if not loop.first %}onclick="this.closest('details').open = !this.closest('details').open;"{% endif %}>
         <div class="expanded-head">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-4);">
                 <div>
@@ -123,9 +133,15 @@
                         {% if card.treatment.get('scope', {}).get('type') == 'series_of_n' %} · series of {{ card.treatment.get('scope', {}).get('n', '?') }}{% endif %}
                     </p>
                 </div>
-                <span class="badge badge-gate">Gate 1</span>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    {% if not loop.first %}<span class="expand-toggle">▼ expand</span>{% endif %}
+                    <span class="badge badge-gate">Gate 1</span>
+                </div>
             </div>
         </div>
+    </div>
+    </summary>
+    <div class="expanded-card" id="card-{{ card.id }}">
         <div class="expanded-body" style="margin: 0; padding: var(--space-4) var(--space-5);">
             {% if card.hook_options %}
             <p class="expanded-detail-row"><span class="expanded-detail-label">Hook options:</span></p>
@@ -181,6 +197,7 @@
             <button class="btn btn-small" onclick="confirmKill({{ card.id }})">Confirm</button>
         </div>
     </div>
+    </details>
     {% else %}
     {# Compact card row #}
     <div class="queue-card" id="card-{{ card.id }}" style="margin-bottom: 0;">
