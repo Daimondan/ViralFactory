@@ -154,6 +154,10 @@ For future analyzed posts, capture a structured record rather than free-form pro
 
 A matched set of average/failed posts from the same creators is required before claiming a mechanic “outperforms.”
 
+### Cross-tab contrast-set opportunity
+
+The current analysis is limited to single-dimension tabulations (format × likes, audio × likes, topic × likes). The next evidence pass should capture cross-tab contrast sets: e.g., format × audio mode × comment-to-like ratio, or hook mechanism × emotional job × completion rate (when available). Cross-tabs reveal interaction effects that single-dimension averages mask — a format that looks weak overall may perform strongly within a specific audio mode and emotional job combination. Structured per-piece fields (see the list above) enable future cross-tab analysis without re-coding.
+
 ## Corrected essence
 
 > Create one clear, source-grounded change in the viewer. Orient them immediately, make the idea particular, use the medium for something text alone cannot do, preserve human texture, and let every visual, word, caption, sound, and cut earn its place.

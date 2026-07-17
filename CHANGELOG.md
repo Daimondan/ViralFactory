@@ -6,6 +6,34 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-17
+
+**[STRUCTURE] P0: Working-tree artifacts committed before Assembler Full Upgrade Phase 0**
+
+Committed all uncommitted working-tree state (11 modified files + 2 untracked docs) to establish a clean baseline before any Phase 0 ratification work. Includes: evidence-bounded meta-analysis v2, production playbook v1, viral-patterns module v3, Writer/Assembler prompt updates (generate_v3 v4.1, edit_plan_v1 v1.5), assembly/VO/pipeline code changes, test fix for prompt version assertion. 1,084 tests passing.
+
+Rationale: the authority hierarchy requires a clean repo before any ratification or boundary-change work proceeds. The handoff package (00-READ-ME-FIRST.md) explicitly warns the builder to reconcile local state before designing against the repo.
+
+**[LOGIC] Viral-patterns module v3.0 → v3.1: five operator amendments**
+
+Five amendments to `modules/stackpenni/viral-patterns.md` per operator review of the Assembler Full Upgrade handoff:
+
+1. **Corpus-bias caveat (borrowed authority):** The corpus is a borrowed-authority set — every piece was already a public winner selected by third-party rankings, not a StackPenni-matched sample. Patterns observed in winners may reflect what ranking sources valued (outrage-driven engagement bait, celebrity reach, algorithm-favored controversy) rather than what serves StackPenni's brand. All corpus-derived patterns are transferable hypotheses requiring tenant validation.
+
+2. **StackPenni-accessible patterns note:** The corpus includes formats not currently accessible to StackPenni's production capabilities (celebrity interviews, multi-camera studio, high-budget animation, licensed music). Patterns requiring unavailable resources are flagged as aspirational and excluded from active production rules. Only patterns achievable with current tools (VO, generated imagery, text overlays, licensed SFX/music, reference-conditioned generation) drive active Writer/Assembler decisions.
+
+3. **Polarization house rule:** Outrage and polarization mechanics (us-vs-them framing, manufactured conflict, identity-group attacks) appear in the corpus as high-comment drivers but are not approved StackPenni production patterns. StackPenni's brand is Caribbean AI + wealth — authority, trust, and community are the assets. Pieces whose primary comment driver is manufactured outrage must be flagged for operator review before drafting. Debate and contrarian takes are allowed; caricature and bad-faith provocation are not.
+
+4. **Comment-ratio performance hypothesis:** Added comment-to-like ratio (comments ÷ likes) as a performance hypothesis. A high ratio suggests debate-driven reach; a low ratio suggests passive agreement. StackPenni should track this ratio per piece to learn which treatments generate discussion versus approval, and whether discussion serves the brand's authority goal.
+
+5. **Cross-tab contrast-set note:** The corpus currently supports only single-dimension tabulations. The next evidence pass should capture cross-tab contrast sets (format × audio mode × comment-to-like ratio, hook mechanism × emotional job × completion). Cross-tabs reveal interaction effects that single-dimension averages mask. Added to both viral-patterns module (Evidence limits section) and meta-analysis v2 (Recommended next evidence pass section).
+
+Also updated production playbook v1 with `derived_ratios` block (comment_to_like, share_to_like, save_to_like) in the performance record schema, and added a comment-ratio-based action validation section to the Analyst analysis spec.
+
+Rationale: the operator identified that the v3.0 module, while evidence-bounded, still carried implicit assumptions about borrowed authority, accessible patterns, and brand alignment. These five amendments make the module's scope explicit and prevent corpus-derived patterns from silently overriding brand judgment.
+
+---
+
 ## 2026-07-16
 
 **[RESEARCH/LOGIC] Winner-corpus meta-analysis redone with evidence boundaries**

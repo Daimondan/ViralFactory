@@ -4,8 +4,8 @@
 > blocked, or changed. Any agent should be able to read this and know
 > exactly where we are.
 
-**Last Updated:** 2026-07-14
-**Current Phase:** M11 — Episode format + reference assets. Correction filed, BUILD_PLAN v1.8. T11.1 done: Sora retired, models.yaml media block restructured (image_generators, video_generators, music_generators with per-unit costs), UI cost estimate config-driven. 1,042 tests passing.
+**Last Updated:** 2026-07-17
+**Current Phase:** Assembler Full Upgrade — Phase 0 baseline established. Working-tree artifacts committed (P0). Viral-patterns module v3.1 with five operator amendments (corpus-bias caveat, accessible-patterns note, polarization house rule, comment-ratio hypothesis, cross-tab contrast-set note). Production playbook v1 amended with derived ratios and Analyst comment-ratio validation spec. 1,084 tests passing. Next: VF-AU-001 baseline audit + VF-AU-002 divergence filing.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
@@ -25,6 +25,7 @@
 | 7. Generalization proof | ⬜ | Real near-term but not blocking v1. |
 
 ## What's Done
+- [x] 2026-07-17: P0 — Committed all working-tree artifacts (11 modified + 2 untracked docs) to establish clean baseline before Assembler Full Upgrade Phase 0. 1,084 tests passing. Viral-patterns module v3.0 → v3.1 with five operator amendments: corpus-bias caveat (borrowed authority), StackPenni-accessible patterns note, polarization house rule near never-list, comment-ratio performance hypothesis, cross-tab contrast-set note in next-evidence-pass. Production playbook v1 amended with derived_ratios block in performance record schema and comment-ratio-based action validation in Analyst spec. Meta-analysis v2 amended with cross-tab contrast-set opportunity note.
 - [x] 2026-07-11: Replaced deterministic format routing with affordance-based Format Guide v2. Idea generation now separates locked concepts from treatment selection, supports explicit open/platform/exact user constraints, chooses one primary destination, and treats cross-platform derivatives as optional. Migrated StackPenni guide, persisted structured JSON, left architect note, ran two real LLM experiments, and restarted the live service. 1,015 tests passing.
 - [x] 2026-07-11: DIVERGENCE-012 RATIFIED via AMENDMENT-008. Charter v3.4 → v3.5. Architect approved final-output compliance contract + bounded remediation loop (max 3 rounds). Three conditions: (1) text-boundary firewall (SHA-256 hash lock on `platform_content`), (2) config-driven cost guard (`max_remediation_cost_usd`), (3) operator visibility (full remediation history in Assets UI). Retires keyword-based VO detection as compliance decision. Builder may implement.
 - [x] 2026-07-11: Fixed VO extraction from JSON-encoded reel posts. The old parser swallowed frame labels and visual directions into TTS; real asset #2 now extracts only its five spoken lines (198 words). Added the production-shape regression test; 912 tests passing. Script/timeline completeness remains tracked in proposed DIVERGENCE-012.

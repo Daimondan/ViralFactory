@@ -257,6 +257,10 @@ performance_record:
     saves: {value: null, confidence: unknown, captured_at: null}
     average_watch_time: {value: null, confidence: unknown, captured_at: null}
     completion_rate: {value: null, confidence: unknown, captured_at: null}
+  derived_ratios:
+    comment_to_like: {value: null, confidence: unknown, captured_at: null}
+    share_to_like: {value: null, confidence: unknown, captured_at: null}
+    save_to_like: {value: null, confidence: unknown, captured_at: null}
   creative_fingerprint:
     format: "..."
     narrative_pattern: "..."
@@ -277,6 +281,17 @@ performance_record:
 ```
 
 Never update a living module from one post automatically. Aggregate evidence, compare with tenant baseline and matched formats, then propose an exact diff for operator approval.
+
+### Comment-ratio-based action validation
+
+The Analyst should compute and interpret comment-to-like, share-to-like, and save-to-like ratios per piece to validate whether the declared primary audience action was achieved:
+
+- **High comment-to-like ratio** suggests the piece provoked debate or response — validates a `comment` primary action. If the declared action was `share` or `save`, a high comment ratio may indicate the treatment mis-served the intent.
+- **High share-to-like ratio** suggests the piece resonated enough to forward — validates a `share` primary action.
+- **High save-to-like ratio** suggests reference value — validates a `save` primary action.
+- **Low ratios across all three** suggest passive consumption — may validate a `finish`/`watch` action but flags weak engagement for the declared action.
+
+Ratio interpretation requires a tenant baseline (what is "high" for StackPenni?). Early ratios establish the baseline; do not over-interpret single posts. The Analyst must label ratio-based conclusions as HYPOTHESIS until repeated evidence confirms the pattern. Cross-tab contrast sets (ratio × format × audio mode × emotional job) are the target analysis shape for the next evidence pass.
 
 ## Current ViralFactory integration
 
