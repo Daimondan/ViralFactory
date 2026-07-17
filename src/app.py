@@ -5196,6 +5196,110 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         return jsonify({"status": "ok", "material_id": material_id})
 
+    @app.route("/api/ideas/<int:card_id>/generate-capture", methods=["POST"])
+    def generate_capture_media(card_id):
+        """Generate missing capture material using the AI creative director.
+
+        Analyzes the idea, visual style, and missing capture tasks, then generates
+        style-consistent media (images via the configured image generator).
+        Each generated image is registered as a capture upload, fulfilling the
+        capture task.
+        """
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        store = _get_pipeline_store()
+        card = store.get_idea_card(card_id)
+        if not card:
+            return jsonify({"error": "Card not found"}), 404
+
+        treatment = json.loads(card.get("treatment") or "{}")
+        capture_required = treatment.get("capture_required") or []
+        uploads = json.loads(card.get("capture_uploads") or "[]")
+        missing = capture_required[len(uploads):] if len(uploads) < len(capture_required) else []
+
+        if not missing:
+            return jsonify({"status": "ok", "message": "No missing captures", "fulfilled_count": 0})
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+        except ConfigError as e:
+            return jsonify({"error": f"Config error: {e}"}), 500
+
+        # Assemble visual style context
+        from context_assembly import assemble_module_context
+        module_vars, module_prov = assemble_module_context(
+            "assembly/media_plan_v1.md", business_slug,
+            db_path=app.config["DB_PATH"], modules_dir="modules",
+        )
+
+        visual_style = module_vars.get("module_visual_style", "")
+        business_name = module_vars.get("business_name", "")
+
+        # Get the idea text and format
+        idea_text = card.get("idea", "")
+        format_name = treatment.get("format", {}).get("format_name", "")
+
+        from media_adapter import MediaAdapter, MediaAdapterError
+        media_adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
+
+        # Get default image model from config
+        media_config = models_config.get("media", {})
+        image_default = media_config.get("image_default", "nano-banana-2")
+
+        results = []
+        fulfilled = 0
+
+        for i, task in enumerate(missing):
+            # Build a generation prompt from the task description + idea + visual style
+            prompt = (
+                f"Cinematic still for a {format_name}. "
+                f"Idea: {idea_text[:300]}. "
+                f"Required shot: {task}. "
+                f"Visual style: {visual_style[:500]}. "
+                f"9:16 vertical, high quality, no text overlays."
+            )
+
+            try:
+                result = media_adapter.generate_image(
+                    prompt=prompt,
+                    asset_id=card_id,
+                    model=image_default,
+                    aspect_ratio="9:16",
+                    context=f"Capture generation for card {card_id}, task {i+1}",
+                    business_slug=business_slug,
+                    owner_type="asset",
+                )
+                # Register as a capture upload
+                from materials import MaterialsIntake
+                intake = MaterialsIntake(db_path=app.config["DB_PATH"])
+                material_id = intake.store_text(
+                    business_slug=business_slug,
+                    content=f"AI-generated capture: {task}\nImage: {result['path']}",
+                    channel="capture_upload",
+                    filepath=result["path"],
+                    run_id=None,
+                )
+                store.add_capture_upload(card_id, material_id)
+                fulfilled += 1
+                results.append({"task": task, "status": "ok", "path": result["path"]})
+            except MediaAdapterError as e:
+                results.append({"task": task, "status": "failed", "error": str(e)[:200]})
+            except Exception as e:
+                results.append({"task": task, "status": "failed", "error": str(e)[:200]})
+
+        # Check if all capture tasks are now fulfilled
+        if store.check_capture_fulfilled(card_id):
+            store.update_card_state(card_id, "capture_fulfilled")
+
+        return jsonify({
+            "status": "ok",
+            "fulfilled_count": fulfilled,
+            "results": results,
+        })
+
     # ── T3.5: Drafter ──
 
     @app.route("/create/draft/<int:card_id>")
