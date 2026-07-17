@@ -418,7 +418,7 @@ class AssetReviewer:
             "status": row["status"],
             "verdict": row["verdict"],
             "summary": row["summary"],
-            "findings": json.loads(row.get("findings_json") or "{}"),
+            "findings": json.loads(row["findings_json"] if row["findings_json"] else "{}"),
             "created_at": row["created_at"],
         }
 

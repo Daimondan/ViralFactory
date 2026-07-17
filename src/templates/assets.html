@@ -115,6 +115,63 @@
         .ai-review-loading { color: #8A857C; font-style: italic; }
         .ai-review-details { font-size: 0.76rem; line-height: 1.4; color: #8A857C; margin-top: 6px; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }
 
+        /* ── T10.7: Compliance & remediation history panel ── */
+        .compliance-panel { background: #FFFFFF; border-radius: 10px; padding: 16px; margin: 8px 0; border: 1px solid #D8D4C8; }
+        .compliance-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .compliance-title { font-size: 0.88rem; font-weight: 600; color: #2C2823; }
+        .compliance-verdict { font-size: 0.78rem; padding: 2px 10px; border-radius: 10px; font-weight: 600; }
+        .compliance-verdict.compliant { background: rgba(74, 124, 58, 0.15); color: #4A7C3A; }
+        .compliance-verdict.non_convergent { background: rgba(192, 57, 43, 0.12); color: #C0392B; }
+        .compliance-verdict.needs_operator_decision { background: rgba(229, 75, 44, 0.12); color: #E54B2C; }
+        .compliance-verdict.revise_plan, .compliance-verdict.regenerate_media, .compliance-verdict.rerender { background: rgba(212, 168, 67, 0.15); color: #8A6D20; }
+        .compliance-verdict.not_reviewed { background: #D8D4C8; color: #8A857C; }
+
+        .compliance-stop-reason { font-size: 0.82rem; line-height: 1.5; color: #5A554C; margin-bottom: 12px; padding: 10px 12px; background: #F5F2E9; border-radius: 8px; }
+
+        .beat-coverage-list { margin-bottom: 12px; }
+        .beat-coverage-header { font-size: 0.78rem; font-weight: 600; color: #8A857C; margin-bottom: 6px; }
+        .beat-row { display: flex; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #F0EDE4; align-items: flex-start; }
+        .beat-row:last-child { border-bottom: none; }
+        .beat-status-icon { font-size: 0.85rem; flex-shrink: 0; width: 20px; text-align: center; padding-top: 1px; }
+        .beat-status-icon.verified { color: #4A7C3A; }
+        .beat-status-icon.missing { color: #C0392B; }
+        .beat-status-icon.partial { color: #E54B2C; }
+        .beat-status-icon.unverifiable { color: #8A857C; }
+        .beat-body { flex: 1; }
+        .beat-id { font-size: 0.76rem; font-weight: 600; color: #4A6FA5; margin-bottom: 2px; }
+        .beat-evidence { font-size: 0.82rem; line-height: 1.45; color: #1A1A1A; }
+        .beat-action { font-size: 0.76rem; color: #8A6D20; margin-top: 4px; }
+
+        .remediation-rounds-list { margin-top: 10px; }
+        .remediation-rounds-header { font-size: 0.78rem; font-weight: 600; color: #8A857C; margin-bottom: 6px; }
+        .round-row { padding: 8px 10px; border-bottom: 1px solid #F0EDE4; font-size: 0.82rem; line-height: 1.5; }
+        .round-row:last-child { border-bottom: none; }
+        .round-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .round-num { font-weight: 600; color: #2C2823; }
+        .round-verdict { font-size: 0.74rem; padding: 1px 8px; border-radius: 10px; }
+        .round-verdict.compliant { background: rgba(74, 124, 58, 0.12); color: #4A7C3A; }
+        .round-verdict.needs_operator_decision, .round-verdict.non_convergent { background: rgba(229, 75, 44, 0.12); color: #E54B2C; }
+        .round-verdict.rerender, .round-verdict.revise_plan, .round-verdict.regenerate_media { background: rgba(212, 168, 67, 0.15); color: #8A6D20; }
+        .round-verdict.cost_cap { background: rgba(192, 57, 43, 0.12); color: #C0392B; }
+        .round-summary { color: #5A554C; font-size: 0.8rem; }
+        .round-actions { font-size: 0.76rem; color: #8A857C; margin-top: 4px; }
+        .round-cost { font-size: 0.74rem; color: #8A857C; }
+        .total-cost { font-size: 0.78rem; font-weight: 600; color: #2C2823; margin-top: 8px; padding-top: 8px; border-top: 1px solid #D8D4C8; }
+
+        .compliance-loading { color: #8A857C; font-style: italic; font-size: 0.82rem; padding: 8px 0; }
+
+        /* Issues list */
+        .issues-list { margin-bottom: 12px; }
+        .issues-header { font-size: 0.78rem; font-weight: 600; color: #8A857C; margin-bottom: 6px; }
+        .issue-row { padding: 6px 10px; border-bottom: 1px solid #F0EDE4; font-size: 0.82rem; line-height: 1.45; }
+        .issue-row:last-child { border-bottom: none; }
+        .issue-severity { font-size: 0.72rem; padding: 1px 6px; border-radius: 8px; margin-right: 6px; }
+        .issue-severity.high { background: rgba(192, 57, 43, 0.12); color: #C0392B; }
+        .issue-severity.medium { background: rgba(212, 168, 67, 0.15); color: #8A6D20; }
+        .issue-severity.low { background: #D8D4C8; color: #8A857C; }
+        .issue-desc { color: #1A1A1A; }
+        .issue-beat { font-size: 0.74rem; color: #4A6FA5; margin-top: 2px; }
+
         /* Spinner */
         .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(74,111,165,0.2); border-top-color: #4A6FA5; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 4px; vertical-align: middle; }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -398,8 +455,39 @@
             </div>
             {% endif %}
 
+            {# ── T10.7: Compliance & remediation history panel ── #}
+            {% if has_final %}
+            <div id="compliance-panel-{{ asset.id }}" class="compliance-panel" style="display: none;">
+                <div class="compliance-header">
+                    <span class="compliance-title">Compliance & Remediation History</span>
+                    <span class="compliance-verdict not_reviewed" id="compliance-verdict-{{ asset.id }}">Loading…</span>
+                </div>
+                <div id="compliance-body-{{ asset.id }}">
+                    <div class="compliance-loading"><span class="spinner"></span> Checking compliance…</div>
+                </div>
+                <details style="margin-top: 8px;" id="compliance-details-{{ asset.id }}" style="display: none;">
+                    <summary style="cursor: pointer; font-size: 0.78rem; color: #8A857C;">View technical details</summary>
+                    <div id="compliance-technical-{{ asset.id }}" style="font-size: 0.74rem; line-height: 1.4; color: #8A857C; margin-top: 6px; white-space: pre-wrap; max-height: 300px; overflow-y: auto;"></div>
+                </details>
+            </div>
+            {% endif %}
+
             <div style="padding: 12px 16px;">
-                {% set reel_excerpt = asset.posts_parsed[0] if has_posts else asset.content %}
+                {% set reel_excerpt = '' %}
+                {% if has_posts %}
+                    {% set first_post = asset.posts_parsed[0] %}
+                    {% if first_post is string %}
+                        {% set reel_excerpt = first_post %}
+                    {% elif first_post is mapping and first_post.vo_text %}
+                        {% set reel_excerpt = first_post.vo_text %}
+                    {% elif first_post is mapping and first_post.text %}
+                        {% set reel_excerpt = first_post.text %}
+                    {% elif first_post is mapping and first_post.label %}
+                        {% set reel_excerpt = first_post.label ~ ': ' ~ (first_post.vo_text or first_post.text or '') %}
+                    {% endif %}
+                {% elif asset.content %}
+                    {% set reel_excerpt = asset.content %}
+                {% endif %}
                 <div class="post-meta" style="margin-bottom: 4px;">Script excerpt</div>
                 <div class="post-text">{{ reel_excerpt[:300] }}{% if reel_excerpt|length > 300 %}…{% endif %}</div>
                 <div class="post-meta" style="margin-top: 4px;">
@@ -1060,6 +1148,142 @@ function displayAIReview(assetId, reviews) {
 
 // Load AI reviews on page load
 document.addEventListener('DOMContentLoaded', loadAIReviews);
+
+// ── T10.7: Compliance & remediation history ──
+function loadCompliancePanels() {
+    var panels = document.querySelectorAll('[id^="compliance-panel-"]');
+    panels.forEach(function(panel) {
+        var assetId = panel.id.replace('compliance-panel-', '');
+        fetchComplianceData(assetId);
+    });
+}
+
+function fetchComplianceData(assetId) {
+    fetch('/api/assets/' + assetId + '/compliance')
+        .then(function(r) { return r.json(); })
+        .then(function(data) { displayCompliancePanel(assetId, data); })
+        .catch(function(err) {
+            // Silently fail — compliance is advisory
+        });
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    var div = document.createElement('div');
+    div.textContent = text;  // textContent escapes HTML — XSS safe
+    return div.innerHTML;
+}
+
+function displayCompliancePanel(assetId, data) {
+    var panel = document.getElementById('compliance-panel-' + assetId);
+    if (!panel) return;
+    panel.style.display = 'block';
+
+    var verdictElem = document.getElementById('compliance-verdict-' + assetId);
+    var bodyElem = document.getElementById('compliance-body-' + assetId);
+    if (!bodyElem) return;
+
+    // No data — show "not reviewed"
+    if (!data.has_data) {
+        if (verdictElem) {
+            verdictElem.textContent = 'Not reviewed';
+            verdictElem.className = 'compliance-verdict not_reviewed';
+        }
+        bodyElem.innerHTML = '<div style="font-size: 0.82rem; color: #8A857C; padding: 4px 0;">No compliance review has been run for this asset yet.</div>';
+        return;
+    }
+
+    // Set verdict badge
+    if (verdictElem) {
+        verdictElem.textContent = data.compliance_verdict_label || 'Unknown';
+        var verdictClass = data.compliance_verdict || 'not_reviewed';
+        verdictElem.className = 'compliance-verdict ' + verdictClass;
+    }
+
+    var html = '';
+
+    // Stop reason — plain language
+    html += '<div class="compliance-stop-reason">' + escapeHtml(data.stop_reason) + '</div>';
+
+    // Beat coverage
+    if (data.beat_coverage && data.beat_coverage.length > 0) {
+        html += '<div class="beat-coverage-list">';
+        html += '<div class="beat-coverage-header">Beat coverage (' + data.beat_coverage.length + ' beats' + (data.has_contract ? ', ' + data.contract_beat_count + ' in contract' : '') + ')</div>';
+        data.beat_coverage.forEach(function(beat) {
+            var icon = beat.status === 'verified' ? '✓' :
+                      beat.status === 'missing' ? '✗' :
+                      beat.status === 'partial' ? '◐' : '○';
+            html += '<div class="beat-row">';
+            html += '<div class="beat-status-icon ' + beat.status + '">' + icon + '</div>';
+            html += '<div class="beat-body">';
+            html += '<div class="beat-id">' + escapeHtml(beat.beat_id) + ' — ' + escapeHtml(beat.status) + '</div>';
+            html += '<div class="beat-evidence">' + escapeHtml(beat.evidence) + '</div>';
+            if (beat.action_needed) {
+                html += '<div class="beat-action">Action needed: ' + escapeHtml(beat.action_needed) + '</div>';
+            }
+            html += '</div></div>';
+        });
+        html += '</div>';
+    }
+
+    // Issues
+    if (data.issues && data.issues.length > 0) {
+        html += '<div class="issues-list">';
+        html += '<div class="issues-header">Issues found (' + data.issues.length + ')</div>';
+        data.issues.forEach(function(issue) {
+            html += '<div class="issue-row">';
+            html += '<span class="issue-severity ' + issue.severity + '">' + escapeHtml(issue.severity) + '</span>';
+            html += '<span class="issue-desc">' + escapeHtml(issue.description) + '</span>';
+            if (issue.beat_id) {
+                html += '<div class="issue-beat">Beat: ' + escapeHtml(issue.beat_id) + (issue.remediable ? ' — remediable' : '') + '</div>';
+            }
+            html += '</div>';
+        });
+        html += '</div>';
+    }
+
+    // Remediation rounds
+    if (data.remediation_rounds && data.remediation_rounds.length > 0) {
+        html += '<div class="remediation-rounds-list">';
+        html += '<div class="remediation-rounds-header">Remediation history (' + data.remediation_rounds.length + ' round' + (data.remediation_rounds.length > 1 ? 's' : '') + ')</div>';
+        data.remediation_rounds.forEach(function(rd) {
+            html += '<div class="round-row">';
+            html += '<div class="round-header">';
+            html += '<span class="round-num">Round ' + rd.round + '</span>';
+            var vclass = rd.verdict || 'not_reviewed';
+            html += '<span class="round-verdict ' + vclass + '">' + escapeHtml(rd.verdict || '—') + '</span>';
+            html += '</div>';
+            if (rd.summary) {
+                html += '<div class="round-summary">' + escapeHtml(rd.summary) + '</div>';
+            }
+            if (rd.actions_taken && rd.actions_taken.length > 0) {
+                var actionDescs = rd.actions_taken.map(function(a) {
+                    return escapeHtml(a.type || a.action_id || 'action') + (a.target ? ': ' + escapeHtml(a.target) : '');
+                });
+                html += '<div class="round-actions">Actions: ' + actionDescs.join(', ') + '</div>';
+            }
+            if (rd.cost_usd && rd.cost_usd > 0) {
+                html += '<div class="round-cost">Cost: $' + rd.cost_usd.toFixed(2) + '</div>';
+            }
+            html += '</div>';
+        });
+        if (data.total_cost_usd > 0) {
+            html += '<div class="total-cost">Total remediation cost: $' + data.total_cost_usd.toFixed(2) + '</div>';
+        }
+    }
+
+    bodyElem.innerHTML = html;
+
+    // Technical details (collapsible) — raw JSON for debugging
+    var detailsElem = document.getElementById('compliance-details-' + assetId);
+    var techElem = document.getElementById('compliance-technical-' + assetId);
+    if (detailsElem && techElem) {
+        detailsElem.style.display = 'block';
+        techElem.textContent = JSON.stringify(data, null, 2);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadCompliancePanels);
 </script>
 </body>
 </html>

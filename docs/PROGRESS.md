@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-17
-**Current Phase:** Assembler Full Upgrade — ALL PHASES COMPLETE. 30/30 tasks done. 1,331 tests passing. VF-AU-601 (integration suite), VF-AU-602 (real reel end-to-end on existing asset), VF-AU-603 (docs closeout) all done. Ready for operator review.
+**Current Phase:** T10.7 complete — Assets UI remediation history + coverage panel. 1,342 tests passing. M10 remaining: T10.10 (compliance test suite) + review-w8 checkpoint. M12 (Assembler Full Upgrade) 30/30 done.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
@@ -25,6 +25,7 @@
 | 7. Generalization proof | ⬜ | Real near-term but not blocking v1. |
 
 ## What's Done
+- [x] 2026-07-17: T10.7 — Assets UI remediation history + coverage. New `/api/assets/<id>/compliance` API endpoint returns structured per-beat coverage, remediation rounds with costs, plain-language stop reason, and issues — no raw JSON default. Template adds compliance panel below the AI Review Summary for assets with final cuts. Per-beat status (verified/missing/partial/unverifiable) with evidence, remediation round history with actions and costs, total remediation spend, and collapsible technical details. XSS-safe via `escapeHtml()` using `textContent`. Fixed pre-existing `sqlite3.Row.get()` bug in `get_compliance_state()`. Fixed pre-existing reel_excerpt template crash on dict-shaped posts. 11 new tests, 1,342 total passing.
 - [x] 2026-07-17: VF-AU-003 — DIVERGENCE-013 APPROVED WITH CONDITIONS via AMENDMENT-009. Charter v3.5 → v3.6. Seven binding conditions: (1) capture policy approved with treatment at Gate 1, (2) capture_required blocks compliance not drafting, (3) legacy capture tasks not silently migrated, (4) hash-lock covers full Writer contract, (5) Media Planner translates intent not redefines it, (6) playbook_type metadata required and enforced, (7) process changes remain versioned and human-gated. All cross-references updated: CONTEXT, BUILD_PLAN, README, PROGRESS, CHANGELOG. M12 milestone added to BUILD_PLAN with 30 tasks.
 - [x] 2026-07-17: VF-AU-001 — Baseline audit complete. All 10 drift claims from handoff verified against live code. 10/10 confirmed. Classification: 7 implementation compliance, 1 design change, 2 schema enrichment. 1,084 tests collected. Document at docs/reviews/ASSEMBLER-UPGRADE-BASELINE.md.
 - [x] 2026-07-17: VF-AU-002 — DIVERGENCE-013 filed. Three boundary refinements: (A) capture semantics split, (B) Writer/Media Planner prompt ownership, (C) production playbook classification. Decisions D+E already ratified via AMENDMENT-008. Status: PENDING.

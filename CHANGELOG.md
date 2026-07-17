@@ -8,6 +8,12 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-17
 
+### T10.7 — Assets UI: remediation history + coverage [TECH]
+**What:** New `/api/assets/<id>/compliance` API endpoint + compliance panel in `assets.html`. The panel shows per-beat coverage (status + evidence), remediation round history (verdict, actions, cost per round), total remediation spend, issues (severity + description + beat), and a plain-language stop reason. Technical JSON is available in a collapsible details section — not the default view. All user-generated content is escaped via `escapeHtml()` using `textContent` (XSS-safe).
+**Why:** Acceptance criteria require the operator to see the full remediation history without reading JSON, with per-beat coverage human-readable and the stop reason in plain language.
+**Rationale:** The compliance data already existed in `asset_reviews.findings_json` and `edit_plans.review_round_history` — this task surfaces it in the UI rather than creating new data structures.
+**Fix:** Also fixed pre-existing `sqlite3.Row.get()` AttributeError in `AssetReviewer.get_compliance_state()` and a template crash on dict-shaped reel posts (`reel_excerpt[:300]` on a dict).
+
 **[STRUCTURE] VF-AU-003: DIVERGENCE-013 ratified via AMENDMENT-009 — Charter v3.5 → v3.6**
 
 DIVERGENCE-013 APPROVED WITH CONDITIONS. Three boundary refinements ratified with seven binding conditions:

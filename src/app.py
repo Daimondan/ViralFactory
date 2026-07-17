@@ -6986,6 +6986,139 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             reviews = []
         return jsonify({"reviews": reviews})
 
+    # ── T10.7: Operator remediation history + coverage API ──
+
+    @app.route("/api/assets/<int:asset_id>/compliance", methods=["GET"])
+    def get_compliance_history(asset_id):
+        """T10.7: Compliance review + remediation history for an asset.
+
+        Returns plain-language structured data:
+        - compliance_verdict: compliant | non_convergent | needs_operator_decision | etc.
+        - stop_reason: human-readable summary of why the loop stopped
+        - beat_coverage: per-beat status + evidence (human-readable)
+        - remediation_rounds: per-round verdict, actions, cost, summary
+        - total_cost_usd: cumulative remediation spend
+        - has_data: whether any compliance review has been run
+
+        No raw JSON default — everything is structured for the template.
+        """
+        import sqlite3 as _sqlite3
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+        except ConfigError:
+            models_config = {}
+
+        from asset_review import AssetReviewer
+        reviewer = AssetReviewer(models_config, db_path=app.config["DB_PATH"])
+        store = _get_pipeline_store()
+
+        # Get the latest compliance review for this asset
+        compliance_state = reviewer.get_compliance_state(asset_id)
+
+        # Get all compliance reviews for history (across all media items)
+        all_reviews = reviewer.get_reviews_for_asset(asset_id)
+        compliance_reviews = [r for r in all_reviews if r.get("review_type") == "compliance"]
+
+        # Get edit plans for this asset — remediation rounds live on the plan
+        edit_plans = store.list_edit_plans(asset_id)
+        remediation_rounds = []
+        compliance_contract = None
+        total_cost_usd = 0.0
+
+        for plan in edit_plans:
+            plan_id = plan["id"]
+            # Get review round history from the plan
+            round_history = store.get_review_round_history(plan_id)
+            if round_history:
+                for rd in round_history:
+                    remediation_rounds.append({
+                        "round": rd.get("round", 0),
+                        "verdict": rd.get("verdict", ""),
+                        "summary": rd.get("summary", ""),
+                        "actions_taken": rd.get("actions_taken", []),
+                        "cost_usd": rd.get("cost_usd", 0),
+                    })
+                    total_cost_usd += rd.get("cost_usd", 0)
+
+            # Get compliance contract from the plan (first plan that has one)
+            if compliance_contract is None:
+                contract_data = store.get_compliance_contract(plan_id)
+                if contract_data and contract_data.get("contract"):
+                    compliance_contract = contract_data["contract"]
+
+        # Build per-beat coverage from the latest compliance review
+        beat_coverage = []
+        compliance_verdict = None
+        stop_reason = ""
+        issues_list = []
+
+        if compliance_state:
+            compliance_verdict = compliance_state.get("verdict", "")
+            findings = compliance_state.get("findings", {})
+
+            # Per-beat coverage — human-readable
+            coverage_entries = findings.get("coverage", [])
+            for cov in coverage_entries:
+                beat_coverage.append({
+                    "beat_id": cov.get("beat_id", "?"),
+                    "status": cov.get("status", "unverifiable"),
+                    "evidence": cov.get("evidence", "No evidence recorded."),
+                    "action_needed": cov.get("action_needed"),
+                })
+
+            # Issues — human-readable
+            for issue in findings.get("issues", []):
+                issues_list.append({
+                    "severity": issue.get("severity", "unknown"),
+                    "description": issue.get("description", ""),
+                    "beat_id": issue.get("beat_id"),
+                    "remediable": issue.get("remediable", False),
+                })
+
+            # Stop reason — plain language
+            if compliance_verdict == "compliant":
+                stop_reason = "All beats verified — compliant."
+            elif compliance_verdict == "non_convergent":
+                stop_reason = f"Remediation did not converge after {len(remediation_rounds)} round(s). Needs operator decision."
+            elif compliance_verdict == "needs_operator_decision":
+                stop_reason = compliance_state.get("summary", "Needs operator decision.")
+            elif compliance_verdict in ("revise_plan", "regenerate_media", "rerender"):
+                stop_reason = f"Review found issues ({compliance_verdict}). Remediation may resolve them."
+            else:
+                stop_reason = compliance_state.get("summary", "Review pending.")
+        else:
+            stop_reason = "No compliance review has been run yet."
+
+        # Determine the display verdict label
+        verdict_labels = {
+            "compliant": "Compliant",
+            "non_convergent": "Non-convergent",
+            "needs_operator_decision": "Needs your decision",
+            "revise_plan": "Plan needs revision",
+            "regenerate_media": "Media needs regeneration",
+            "rerender": "Needs re-render",
+            "pass": "Passed",
+            "ready_for_operator": "Ready for review",
+            "issues_found": "Issues found",
+            "needs_rerender": "Needs re-render",
+        }
+
+        return jsonify({
+            "has_data": compliance_state is not None or len(remediation_rounds) > 0,
+            "compliance_verdict": compliance_verdict,
+            "compliance_verdict_label": verdict_labels.get(compliance_verdict, compliance_verdict or "Not reviewed"),
+            "stop_reason": stop_reason,
+            "beat_coverage": beat_coverage,
+            "issues": issues_list,
+            "remediation_rounds": remediation_rounds,
+            "total_cost_usd": round(total_cost_usd, 2),
+            "has_contract": compliance_contract is not None,
+            "contract_beat_count": len(compliance_contract.get("beats", [])) if compliance_contract else 0,
+            "review_count": len(compliance_reviews),
+        })
+
     @app.route("/api/stock/search", methods=["POST"])
     def search_stock():
         """Final Assembly: Search stock library (Pexels + Pixabay)."""
