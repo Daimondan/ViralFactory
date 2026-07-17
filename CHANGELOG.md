@@ -8,6 +8,11 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-17
 
+### T11.2 — EpisodePlan Layer-1 lints [TECH]
+**What:** New `src/episode_lints.py` module with 6 deterministic pre-spend lints: registry referential integrity (approved assets only), beat grammar (hook first, ≤3s, lesson+cta present), duration budget (±10%), banned-token scan (config-driven), grade-token-present, numbers→graphics. Banned tokens read from `config/models.yaml` `episode_lint.banned_prompt_tokens` — config, not code.
+**Why:** A plan violating any lint cannot trigger a paid media call. The mush-image failure class (text/screens/logos in generated images) is eliminated by construction, not by review.
+**Rationale:** The lints are mechanical (no LLM, no judgment). They extend the existing feasibility-checks pattern (T10.3) with episode-format-specific checks. The reference_assets module (T11.3) provides the registry that lints resolve against.
+
 ### T10.10 — Compliance test suite [TECH]
 **What:** 45-test consolidated suite covering all 8 acceptance criteria: 92s/18s regression, coverage proof, generic content corpus (no tenant strings), three-round cap, cost cap, text-boundary firewall, approval integrity, real rendered asset validation.
 **Why:** T10.10 requires a dedicated test suite proving the compliance loop catches real failures, never auto-publishes, never changes approved text, and works with all format types without tenant-specific code.

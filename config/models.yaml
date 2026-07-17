@@ -204,6 +204,30 @@ asset_review:
   # max_remediation_cost_usd: 2.00   # cumulative cap per asset (UNCOMMENT to enable auto-remediation)
   max_remediation_rounds: 3          # hard cap on render/review rounds
 
+# ── Episode format Layer-1 lints (T11.2: CORRECTION-episode-format §7.1) ──
+# Deterministic pre-spend checks. A plan that fails any lint cannot trigger
+# a paid media call. The banned-token list is config, not code — a second
+# business can set different tokens with zero code changes.
+episode_lint:
+  # Tokens that current image/video models reliably ruin (text, screens, logos).
+  # All on-screen text/numbers are renderer-drawn graphics — the mush class
+  # is eliminated by construction, not by review.
+  banned_prompt_tokens:
+    - "text"
+    - "words"
+    - "sign"
+    - "screen"
+    - "phone"
+    - "logo"
+    - "document"
+    - "chart"
+    - "letters"
+    - "numbers on"
+  # Duration tolerance: Σ beat VO durations must be within ±10% of format target
+  duration_tolerance_pct: 10
+  # Hook duration cap (seconds) — hook beat must be ≤ this
+  hook_max_duration_s: 3.0
+
 # ── Stock library (Final Assembly Part 1) ──
 # Pexels (primary) + Pixabay (secondary). Both free, commercial-safe.
 # Auth: PEXELS_API_KEY + PIXABAY_API_KEY env vars.
