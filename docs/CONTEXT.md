@@ -1,6 +1,6 @@
 # Context: ViralFactory
 
-> **This is an operational mirror of `docs/CHARTER-v3.5.md`.** It captures
+> **This is an operational mirror of `docs/CHARTER-v3.6.md`.** It captures
 > current shared language, workflows, and implementation state. It conforms
 > to the charter and BUILD_PLAN; where it conflicts, that conflict is a bug
 > or a new divergence to file — never a silent override.
@@ -12,8 +12,8 @@
 > **On change:** bump `updated_at` date, add/update a decision note in
 > `docs/decisions/` if the change is non-obvious.
 
-**Updated:** 2026-07-04 (AI tells + voice deepening correction applied: voice-first ideation, shared AI-tells catalog with confidence levels, cognitive Voice Profile dimensions, and real self-audit fix application in the T9.5 AI review loop. Prior: AMENDMENT-007 ratified: Writer produces per-platform content, Assembler is media-only, AI review loop before Gate 2.)
-**Conforms to:** `docs/CHARTER-v3.5.md` (v3.5 — incorporates DIVERGENCE-001, DIVERGENCE-002, AMENDMENT-003 staged content pipeline, AMENDMENT-004 treatment block, AMENDMENT-005 process compositions, AMENDMENT-006 Writer/Assembler split + four-role nav, AMENDMENT-007 Writer per-platform + Assembler media-only + AI review loop, DIVERGENCE-008 Postiz→Buffer swap, AMENDMENT-008 final-output compliance loop)
+**Updated:** 2026-07-17 (AMENDMENT-009 ratified: assembler production-contract boundaries — explicit capture policies approved with treatment at Gate 1, Writer/Media Planner boundary clarified, production playbook classification via Process Registry. Charter v3.5 → v3.6. Prior: AI tells + voice deepening correction applied: voice-first ideation, shared AI-tells catalog with confidence levels, cognitive Voice Profile dimensions, and real self-audit fix application in the T9.5 AI review loop.)
+**Conforms to:** `docs/CHARTER-v3.6.md` (v3.6 — incorporates DIVERGENCE-001, DIVERGENCE-002, AMENDMENT-003 staged content pipeline, AMENDMENT-004 treatment block, AMENDMENT-005 process compositions, AMENDMENT-006 Writer/Assembler split + four-role nav, AMENDMENT-007 Writer per-platform + Assembler media-only + AI review loop, DIVERGENCE-008 Postiz→Buffer swap, AMENDMENT-008 final-output compliance loop, AMENDMENT-009 assembler production-contract boundaries: capture policies, Writer/Media Planner clarification, production playbook classification)
 
 ---
 
@@ -227,8 +227,11 @@ Scheduled research of what works in the wild: monitors top accounts/hashtags/cha
 11. **Never invent module content.** Modules are built by playbooks from user materials and updated only via the gate.
 12. **Prompts carry procedures; modules carry knowledge.** Any domain taxonomy embedded in a prompt file (message types, format structures, platform mappings) is a defect: baked-in taxonomy cannot learn. Prompts describe how to reason; living modules supply what is currently believed, and the loops update the modules. (Per AMENDMENT-005 + CORRECTION-format-selection-living-v1.0)
 13. **Format and platforms are locked from the treatment at Gate 1.** No code in the pipeline re-derives them with keyword heuristics or regex parsing. The Writer reads them from the locked treatment; the Assembler reads them from the approved draft. (Per AMENDMENT-007)
-14. **The Writer produces all per-platform text; the Assembler does no text generation.** The Writer's draft schema contains a `platform_content` array — complete, platform-native content for every platform the treatment specifies. The Assembler receives this and produces media + assembles only. (Per AMENDMENT-007)
+14. **The Writer produces all per-platform text and semantic intent; the Assembler does no audience-copy generation.** The Media Planner owns provider-aware production prompts and may use schema-validated LLM judgment for media planning, edit planning, and compliance review. It may never generate or revise audience-facing content. (Per AMENDMENT-007, clarified by AMENDMENT-009)
 15. **An AI review loop runs before Gate 2.** The Writer self-audits, auto-fixes flagged items, and a second-AI alignment check verifies the draft against the approved idea (max 3 rounds). The human is still the final gate. (Per AMENDMENT-007)
+16. **Capture policy is approved with the treatment at Gate 1.** `capture_required` blocks final compliance and Gate 3 readiness; drafting and planning continue. No generated substitute may represent required real evidence. The operator may change the policy through an authoritative treatment revision. (Per AMENDMENT-009)
+17. **The hash-lock protects the entire approved Writer contract** — not only `platform_content` text but semantic beats, evidence references, visual/audio intent, capture policy, and primary audience action. Any remediation or planning action that would change these fields is rejected and escalated. (Per AMENDMENT-009)
+18. **Production playbooks are Process Registry compositions, not onboarding cards.** Every playbook carries `playbook_type: onboarding | production | learning` metadata. The Onboarding UI filters mechanically on `playbook_type: onboarding` and fails closed on missing metadata. (Per AMENDMENT-009)
 
 ## Edge Cases
 
@@ -286,4 +289,4 @@ The stitcher does NOT yet implement (known limitations, not bugs):
 
 ## System Diagram
 
-See `docs/diagrams/README.md` for the authoritative system overview (vertical-flow text + Mermaid + SVG), current as of Charter v3.4. The diagram reflects the staged pipeline: Gather → Ideas+Treatment (Gate 1, format+platforms locked) → Writer Chain (per-platform text + AI review loop) → Gate 2 → Assembler Chain (media-only) → Gate 3 → Publish (Gate 4) → Learn.
+See `docs/diagrams/README.md` for the authoritative system overview (vertical-flow text + Mermaid + SVG), current as of Charter v3.6. The diagram reflects the staged pipeline: Gather → Ideas+Treatment (Gate 1, format+platforms locked, capture policy approved) → Writer Chain (per-platform text + AI review loop) → Gate 2 → Media Planner (provider-aware prompts, translates intent not redefines it) → Assembler Chain (media + compliance) → Gate 3 → Publish (Gate 4) → Learn.

@@ -1,6 +1,6 @@
 # BUILD_PLAN.md — ViralFactory
 
-*Instructions to the builder agent (Hermes). Read `docs/CHARTER-v3.5.md` and all of `playbooks/` before writing any code. This file is the single source of truth for what to build and in what order. v1.8 — 2026-07-14 — CORRECTION-episode-format-and-reference-assets added as M11 tasks (episode format, reference registry, storyboard gate, fal provider, validation layers). Sora retired. Prior: v1.7 (AMENDMENT-008 final-output compliance loop added as M10 tasks).*
+*Instructions to the builder agent (Hermes). Read `docs/CHARTER-v3.6.md` and all of `playbooks/` before writing any code. This file is the single source of truth for what to build and in what order. v1.9 — 2026-07-17 — AMENDMENT-009 ratified (assembler production-contract boundaries: capture policies, Writer/Media Planner clarification, production playbook classification). Assembler Full Upgrade Phase 0 complete. Prior: v1.8 (CORRECTION-episode-format-and-reference-assets, Sora retired).*
 
 ## How to work (non-negotiable)
 
@@ -149,6 +149,40 @@
 - [ ] T11.9 **Layer-3 critic + rubric in module (P2):** Post-Writer critic scored against the format module's rubric; advisory scores on Gate 2 card; Analyst proposes rubric edits only via module review gate — AC: rubric text lives in the module, not in prompts/code; critic never blocks
 - [ ] T11.10 **Golden episodes + validator pass-rate metric (P1):** Two frozen EpisodePlans + assets under `tests/fixtures/golden/`; re-render on renderer/schema change asserting duration, −14 ±0.5 LUFS, caption offsets, graphics frame hashes; 20-seed Layer-1 pass-rate harness logged per prompt version — AC: goldens in suite and blocking; pass-rate report generated per Writer prompt version
 - [ ] **Checkpoint:** operator end-to-end test — two episodes a week apart; operator judges character likeness continuity and platform-native look (never self-certified); include ≥3 episodes in the 10-piece M3 sprint. Tag `review-episode-format`.
+
+### M12 — Assembler Full Upgrade (per AMENDMENT-009 / DIVERGENCE-013 + handoff implementation plan)
+*Complete Writer → Media Planner → Assembler → Renderer → Compliance → Analyst path using one stable, versioned Production Contract and real source-resolved artifacts. Bound by AMENDMENT-009's seven conditions.*
+
+- [x] VF-AU-001 **Baseline audit (P0):** Verified all 10 drift claims against live code. All confirmed. Document at `docs/reviews/ASSEMBLER-UPGRADE-BASELINE.md`. 1,084 tests.
+- [x] VF-AU-002 **File DIVERGENCE-013 (P0):** Three boundary refinements filed: capture semantics, Writer/Media Planner, production playbook classification.
+- [x] VF-AU-003 **Ratify via AMENDMENT-009 (P0):** Charter v3.5 → v3.6. Seven binding conditions. All cross-references updated.
+- [ ] VF-AU-101 **Production Contract v2 schemas (P0):** Create `src/production_contract.py` with stable IDs (contract_id, platform_variant_id, beat_id, text_intent_id, media_recipe_id, ingredient_id, segment_id). Capture policy per beat. Hash-lock covers full Writer contract. — AC: missing/duplicate ID validation, orphan detection, cross-document referential integrity.
+- [ ] VF-AU-102 **Cross-document validators (P0):** Create `src/production_contract_validators.py`. Enforce `capture_required` blocking, legacy `legacy_unclassified` migration, no positional fallback. — AC: invalid and valid fixtures pass/fail correctly.
+- [ ] VF-AU-103 **Additive storage and versioning (P0):** Persist contracts, variants/beats, recipes, cues, performance records with append-only history. — AC: migration from current DB fixture; repeated revisions preserve history.
+- [ ] VF-AU-104 **Writer prompt v4 (P0):** `prompts/draft/generate_v4.md`. Writer produces semantic intent, not provider-specific prompts. Capture policy travels from treatment. — AC: one entry per locked platform, stable IDs, no provider names, no tenant strings.
+- [ ] VF-AU-105 **Compatibility reader (P0):** `src/contract_compat.py`. Read existing `platform_content` drafts without pretending they are full v2 contracts. — AC: existing draft fixture loads; missing info stays null.
+- [ ] VF-AU-201 **Align Process Registry (P0):** Retire `draft/generate_v2.md`, `fan_out_v2.md`, `structure_v1.md` from active runtime. Register Writer v4, media plan v2, edit plan v2, compliance, remediation, performance analysis. Production playbook registered with `playbook_type: production`. — AC: registry references resolve; routes/chain do not hardcode prompt names.
+- [ ] VF-AU-202 **Scoped render-ready inventory service (P0):** `src/services/media_inventory.py`. Asset-scoped, privacy-isolated, tenant-isolated. — AC: unrelated uploads excluded; session voice excluded; orphan detection.
+- [ ] VF-AU-203 **Media-planning service v2 (P0):** `src/services/media_planning.py`, `prompts/assembly/media_plan_v2.md`. Plan every semantic beat by function. Media Planner translates intent, does not redefine it (Condition 5). — AC: every required beat covered; capture policy enforced; no baked text/logos in prompts.
+- [ ] VF-AU-204 **Media acquisition service (P0):** `src/services/media_acquisition.py`. Lifecycle: planned → submitted → processing → downloaded → validated → registered → render-ready. — AC: async success/failure/timeout; idempotent retry; cost recording.
+- [ ] VF-AU-205 **Deterministic cue compiler (P0):** `src/services/cue_compiler.py`. VO timings, captions, overlays, audio events. Exact text hashes. — AC: exact-text preservation; timing arithmetic; collision/safe-zone validation.
+- [ ] VF-AU-206 **Edit-planning service v2 (P0):** `src/services/edit_planning.py`, `prompts/assembly/edit_plan_v2.md`. Map real inventory to beats and cues. — AC: invented source rejected; out-of-bounds blocked; missing beat blocked; text mutation rejected.
+- [ ] VF-AU-207 **Render/review service (P0):** `src/services/render_review.py`. Centralize rendering, post-render facts, compliance, remediation. — AC: zero-byte output deleted; missing stream fails; no ready state before compliance.
+- [ ] VF-AU-208 **Wire routes and ProductionChain to services (P0):** Remove duplicated business logic from `src/app.py`. Implement four chain stubs. Routes handle HTTP only; chain calls shared services. — AC: UI route and chain call same service; complete chain reaches Gate 3-ready or blocker.
+- [ ] VF-AU-301 **Enrich Format Guide contract (P1):** Structured variant_type, platforms, canvas, renderer capabilities, text/audio affordances, safe zones, capture policy, disclosure. — AC: no regex/keyword derivation; each active format validates.
+- [ ] VF-AU-302 **Enrich Visual Style render tokens (P1):** Move tenant presentation from Python to module/config. — AC: two tenant fixtures render different styles with zero Python edits.
+- [ ] VF-AU-303 **Inject and record reference assets (P1):** Approved character/location/grade/card/music references in planning and generation. — AC: unapproved/retired reference blocked; provenance records references.
+- [ ] VF-AU-304 **Config-driven music and SFX (P1):** Replace hardcoded `_OVERLAY_STYLES` and `_SFX_PRESETS` in `assembly.py` with config/module-driven values. — AC: optional SFX; missing asset handled; licensed reference resolution.
+- [ ] VF-AU-401 **Pre-render feasibility (P0):** Block impossible plans before FFmpeg or paid regeneration. — AC: 92s VO vs 18s plan caught; missing required capture blocked; remote-only source blocked.
+- [ ] VF-AU-402 **Blocking compliance (P0):** Prevent `ready_for_operator` unless all required beats verified. `capture_required` blocks compliance (Condition 2). — AC: missing/partial beat blocks; all formats tested (VO-heavy, caption-only, silent, carousel, image).
+- [ ] VF-AU-403 **Bounded remediation (P0):** Max rounds and cost from config. Full Writer contract hash-locked (Condition 4). Action allowlist. — AC: text-change rejected; cost cap stops; 3-round cap; successful rerender; escalation.
+- [ ] VF-AU-404 **Operator remediation UI (P0):** Beat status, evidence, rounds, costs, stop reason, blockers in plain language. — AC: no raw JSON default; technical details collapsible; XSS safe.
+- [ ] VF-AU-501 **Performance records and creative fingerprints (P1):** Post ID, metrics with confidence, derived_ratios (comment_to_like, share_to_like, save_to_like), contract/process versions, operator edits, cost, compliance/remediation history. — AC: null metrics preserved; append-only history; tenant isolation.
+- [ ] VF-AU-502 **Analyst process (P1):** Evidence-bounded analysis with matched baseline. Ratio-based action validation (HYPOTHESIS label). One post cannot create a rule. — AC: missing metrics handled; tiny samples flagged; exact target module/process diff.
+- [ ] VF-AU-503 **Gate learning proposals (P1):** No auto-apply. Exact diff + evidence enters human gate. — AC: approval versions target; rejection/supersession works.
+- [ ] VF-AU-601 **Full integration suite (P0):** VO-heavy reel, caption-only reel, silent piece, carousel, image post, required capture, preferred capture, generated support, mixed media. — AC: focused tests + full suite green with fresh output.
+- [ ] VF-AU-602 **Real VO-heavy reel (P0):** Complete upgraded path with real services and files. — AC: contract/process versions, IDs, measured VO, inventory, provider jobs/costs, plan, feasibility, final faststart MP4, per-beat compliance, remediation history, copy hash, operator page.
+- [ ] VF-AU-603 **Documentation and deployment closeout (P0):** README, CONTEXT, BUILD_PLAN checkboxes, PROGRESS, CHANGELOG, diagrams. Deploy under operator-approved procedure. — AC: live page shows contract/coverage/remediation; real artifact loads; approval/publish boundaries intact.
 
 ## PROGRESS.md format
 ```

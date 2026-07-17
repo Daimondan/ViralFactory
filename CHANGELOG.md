@@ -8,6 +8,22 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-17
 
+**[STRUCTURE] VF-AU-003: DIVERGENCE-013 ratified via AMENDMENT-009 — Charter v3.5 → v3.6**
+
+DIVERGENCE-013 APPROVED WITH CONDITIONS. Three boundary refinements ratified with seven binding conditions:
+
+1. **Capture policy approved with treatment at Gate 1** — `capture_required`, `capture_preferred`, `archive_preferred`, `stock_allowed`, `generated_allowed`, `text_card`. No silent inference or downgrade downstream.
+2. **`capture_required` blocks compliance and Gate 3 readiness** — drafting, VO, media planning, and preview rendering continue. Rough previews render with `preview_only` flag.
+3. **Legacy capture tasks not silently migrated** — mark `legacy_unclassified`, require classification when next entering production.
+4. **Hash-lock protects entire approved Writer contract** — not just `platform_content` but semantic beats, evidence references, visual/audio intent, capture policy, and primary audience action.
+5. **Media Planner translates intent, does not redefine it** — may not change claim, subject, evidence requirement, beats, emotional job, audience action, or capture policy. AMENDMENT-007 §2 "zero LLM text calls" clarified: "no text generation" = no audience-copy generation. Schema-validated LLM judgment for media planning, edit planning, and compliance review is permitted.
+6. **Playbook type metadata required and enforced** — `playbook_type: onboarding | production | learning`. Onboarding UI fails closed on missing metadata.
+7. **Process changes remain versioned and human-gated** — same discipline as the eight modules (AMENDMENT-005 R3).
+
+Decisions D (compliance authority) and E (learning authority) require no new transfer — already governed by AMENDMENT-008 and the existing charter.
+
+Files: AMENDMENT-009 (new), CHARTER-v3.6.md (new — supersedes v3.5), DIVERGENCE-013 (status updated), CONTEXT.md, BUILD_PLAN.md (M12 milestone with 30 tasks), PROGRESS.md, CHANGELOG.md.
+
 **[STRUCTURE] VF-AU-001: Assembler upgrade baseline verified**
 
 Audited all 10 drift claims from the handoff's `09-VERIFIED-CODE-DRIFT.md` against live code at commit `7ab6d1b`. All 10 confirmed. Classification: 7 implementation compliance, 1 design change (route→service refactor), 2 schema enrichment (identity chain + learning loop). 1,084 tests collected (1,083 pass, 1 pre-existing test-isolation flake). Baseline document at `docs/reviews/ASSEMBLER-UPGRADE-BASELINE.md`. No behavior changes made.

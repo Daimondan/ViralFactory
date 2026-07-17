@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-17
 **Filed by:** Builder, from operator direction + Assembler Full Upgrade handoff
-**Status:** PENDING — awaiting architect/operator decision
+**Status:** APPROVED WITH CONDITIONS — ratified via AMENDMENT-009, Charter v3.6 (2026-07-17)
 **Type:** STRUCTURE / LOGIC
 
 ## Summary
@@ -117,8 +117,26 @@ Option 1 — approve all three. Each is a refinement of an existing approved bou
 
 ## Acceptance criteria
 
-- [ ] Divergence status updated to APPROVED or REJECTED.
-- [ ] If approved: AMENDMENT-009 written, Charter v3.6 created.
+- [x] Divergence status updated to APPROVED.
+- [x] AMENDMENT-009 written, Charter v3.6 created.
 - [ ] All living cross-references updated: CONTEXT.md, BUILD_PLAN.md, README.md, PROGRESS.md, CHANGELOG.md, diagrams.
 - [ ] Stale current-charter references searched and updated across the repo (excluding historical records).
 - [ ] Core-loop diagram matches the new boundaries.
+
+## RULING: APPROVED WITH CONDITIONS (2026-07-17)
+
+**Ratified via AMENDMENT-009 (`docs/decisions/AMENDMENT-009-assembler-production-contract-boundaries.md`), Charter v3.5 → v3.6.**
+
+All three decisions (A: capture semantics, B: Writer/Media Planner, C: production playbook classification) are approved subject to seven binding conditions:
+
+1. **Capture policy is approved with the treatment at Gate 1** — no silent inference or downgrade downstream.
+2. **`capture_required` blocks compliance and Gate 3 readiness** — not drafting or planning. Rough previews may render with `preview_only` flag.
+3. **Legacy capture tasks are not silently migrated** — mark `legacy_unclassified`, require classification when next entering production.
+4. **Hash-lock protects the entire approved Writer contract** — not just `platform_content`, but semantic beats, evidence references, visual/audio intent, capture policy, and primary audience action.
+5. **Media Planner may translate intent, not redefine it** — may not change claim, subject, evidence requirement, beats, emotional job, audience action, or capture policy.
+6. **Playbook type metadata is required and enforced** — `playbook_type: onboarding | production | learning`; Onboarding UI fails closed on missing metadata.
+7. **Process changes remain versioned and human-gated** — same discipline as the eight modules (AMENDMENT-005 R3).
+
+Decisions D (compliance authority) and E (learning authority) require no new transfer of authority — already governed by AMENDMENT-008 and the existing charter.
+
+AMENDMENT-007 §2 "zero LLM text calls" is clarified: "no text generation" means no audience-copy generation. Schema-validated LLM judgment for media planning, edit planning, and compliance review is permitted.
