@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-17
-**Current Phase:** Assembler Full Upgrade — Phase 2 COMPLETE. VF-AU-201 through VF-AU-208 all done. 1,255 tests passing. Next: Phase 3 (config-driven style) — VF-AU-301 through VF-AU-304.
+**Current Phase:** Assembler Full Upgrade — Phase 3 COMPLETE. VF-AU-301 through VF-AU-304 done. 1,275 tests passing. Next: Phase 4 (blocking compliance + remediation) — VF-AU-401 through VF-AU-404.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 

@@ -1184,6 +1184,82 @@ FORMAT_GUIDE_SCHEMA = {
                     },
                     "aspect_ratio": {"type": "string"},
                     "provenance": {"type": "string"},
+                    # ── VF-AU-301 enriched fields (optional, additive) ──
+                    "canvas": {
+                        "type": "object",
+                        "properties": {
+                            "aspect_ratio": {"type": "string"},
+                            "resolution": {"type": "string"},
+                            "max_duration_sec": {"type": "number"},
+                        },
+                    },
+                    "duration_bounds": {
+                        "type": ["object", "null"],
+                        "properties": {
+                            "min_sec": {"type": "number"},
+                            "max_sec": {"type": "number"},
+                            "advisory": {"type": "boolean"},
+                        },
+                    },
+                    "renderer_capabilities": {
+                        "type": ["object", "null"],
+                        "properties": {
+                            "supports_video": {"type": "boolean"},
+                            "supports_audio": {"type": "boolean"},
+                            "supports_text_overlays": {"type": "boolean"},
+                            "supports_transitions": {"type": "boolean"},
+                            "supports_multi_segment": {"type": "boolean"},
+                        },
+                    },
+                    "text_affordances": {
+                        "type": ["object", "null"],
+                        "properties": {
+                            "max_overlay_words": {"type": "integer"},
+                            "caption_style_refs": {"type": "array", "items": {"type": "string"}},
+                            "font_refs": {"type": "array", "items": {"type": "string"}},
+                        },
+                    },
+                    "audio_affordances": {
+                        "type": ["object", "null"],
+                        "properties": {
+                            "supports_vo": {"type": "boolean"},
+                            "supports_music": {"type": "boolean"},
+                            "supports_sfx": {"type": "boolean"},
+                            "supports_original_sound": {"type": "boolean"},
+                            "loudness_target_lufs": {"type": "number"},
+                        },
+                    },
+                    "safe_zones": {
+                        "type": ["object", "null"],
+                        "properties": {
+                            "text_overlay": {"type": "string"},
+                            "caption": {"type": "string"},
+                            "logo": {"type": "string"},
+                        },
+                    },
+                    "capture_policy": {
+                        "type": ["string", "null"],
+                        "enum": [
+                            "capture_required", "capture_preferred",
+                            "archive_preferred", "stock_allowed",
+                            "generated_allowed", "text_card", "legacy_unclassified",
+                        ],
+                    },
+                    "disclosure_requirements": {
+                        "type": ["object", "null"],
+                        "properties": {
+                            "ai_disclosure_required": {"type": "boolean"},
+                            "disclosure_style": {"type": "string"},
+                        },
+                    },
+                    "publication_packaging": {
+                        "type": ["object", "null"],
+                        "properties": {
+                            "format": {"type": "string"},
+                            "max_file_size_mb": {"type": "number"},
+                            "platform_api": {"type": "string"},
+                        },
+                    },
                 },
             },
         },
