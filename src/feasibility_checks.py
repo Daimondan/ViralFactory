@@ -173,12 +173,228 @@ def check_beat_mapping(
     }
 
 
+# ── VF-VS-403: Multi-event coverage + talking-head motion check ──────────────
+
+# Heuristic threshold: if a generated motion clip is shorter than the beat's
+# VO span by more than this fraction, the plan must include an explicit
+# cutaway (a second event/segment) rather than a silent still fallback.
+MOTION_SHORTFALL_THRESHOLD = 0.5
+
+# Tolerance for event coverage gaps/overlaps within a beat (seconds).
+EVENT_COVERAGE_TOLERANCE_S = 0.25
+
+
+def check_visual_event_coverage(
+    beats: list[dict],
+    vo_segments: list[dict] | None = None,
+) -> dict:
+    """Check that every beat's ``visual_events`` cover the beat's VO span.
+
+    Per AMENDMENT-010 Condition 5 / VF-VS-403: multi-event coverage validation.
+    Missing event coverage → block. Events must:
+    - Cover the beat's full VO span (no gaps beyond tolerance)
+    - Not overlap beyond tolerance
+    - Each event's time_range must be within the beat's span
+
+    Args:
+        beats: Contract beats (each may carry ``visual_events`` and
+            ``intended_duration_sec``).
+        vo_segments: Measured VO segments ``[{beat_id, duration, text}, ...]``.
+            When provided, the beat's VO span is the measured duration. When
+            absent, falls back to ``intended_duration_sec.max``.
+
+    Returns: {feasible: bool, issues: list[dict]}
+    """
+    vo_by_beat: dict[str, float] = {}
+    if vo_segments:
+        for seg in vo_segments:
+            bid = seg.get("beat_id", "")
+            vo_by_beat[bid] = float(seg.get("duration", 0.0))
+
+    issues: list[dict] = []
+    for beat in beats:
+        bid = beat.get("beat_id", "?")
+        events = beat.get("visual_events") or []
+        if not events:
+            # No events — degradation path (VF-VS-401) synthesizes one.
+            # Not a coverage failure here.
+            continue
+
+        # Determine the beat's span
+        span = vo_by_beat.get(bid)
+        if span is None:
+            dur = beat.get("intended_duration_sec") or {}
+            if isinstance(dur, dict):
+                span = float(dur.get("max", 0.0))
+            else:
+                span = 0.0
+
+        if span <= 0:
+            # Can't verify coverage without a span — skip
+            continue
+
+        # Sort events by start time
+        sorted_events = sorted(events, key=lambda e: (e.get("time_range", {}).get("start", 0)))
+        prev_end = 0.0
+        for i, ev in enumerate(sorted_events):
+            tr = ev.get("time_range") or {}
+            start = float(tr.get("start", 0.0))
+            end = float(tr.get("end", 0.0))
+
+            # Check event within beat span
+            if start < -EVENT_COVERAGE_TOLERANCE_S or end > span + EVENT_COVERAGE_TOLERANCE_S:
+                issues.append({
+                    "beat_id": bid,
+                    "event_id": ev.get("event_id", f"[{i}]"),
+                    "type": "out_of_bounds",
+                    "detail": f"Event time_range [{start:.1f}-{end:.1f}]s outside beat span [0-{span:.1f}]s",
+                })
+
+            # Check for gap
+            gap = start - prev_end
+            if i > 0 and gap > EVENT_COVERAGE_TOLERANCE_S:
+                issues.append({
+                    "beat_id": bid,
+                    "event_id": ev.get("event_id", f"[{i}]"),
+                    "type": "gap",
+                    "detail": f"Gap of {gap:.1f}s between event {sorted_events[i-1].get('event_id', f'[{i-1}]')} and this event — beat span not covered",
+                })
+
+            # Check for overlap
+            if i > 0 and gap < -EVENT_COVERAGE_TOLERANCE_S:
+                issues.append({
+                    "beat_id": bid,
+                    "event_id": ev.get("event_id", f"[{i}]"),
+                    "type": "overlap",
+                    "detail": f"Overlap of {abs(gap):.1f}s with previous event — events must not overlap",
+                })
+
+            prev_end = max(prev_end, end)
+
+        # Check total coverage
+        coverage = prev_end  # events are sorted; prev_end is the last end
+        uncovered = span - coverage
+        if uncovered > EVENT_COVERAGE_TOLERANCE_S:
+            issues.append({
+                "beat_id": bid,
+                "event_id": None,
+                "type": "incomplete_coverage",
+                "detail": f"Events cover [{0:.1f}-{coverage:.1f}]s but beat span is {span:.1f}s — {uncovered:.1f}s uncovered",
+            })
+
+    return {
+        "feasible": len(issues) == 0,
+        "issues": issues,
+    }
+
+
+def check_talking_head_motion_coverage(
+    beats: list[dict],
+    vo_segments: list[dict] | None = None,
+    motion_durations: dict[str, float] | None = None,
+) -> dict:
+    """Check that a talking-head beat has motion media long enough for its VO.
+
+    Per AMENDMENT-010 / VF-VS-403: if a beat's ``visual_intent`` describes a
+    talking-head (a person speaking on camera) but the available motion media
+    is shorter than the VO span, block or require an explicit cutaway.
+
+    The Draft 8 Artifact A defect: a 14s BUILD beat with talking-head intent
+    had only 5s of motion, and the plan silently fell back to a still for the
+    remaining 9s. This check catches that.
+
+    Args:
+        beats: Contract beats.
+        vo_segments: Measured VO segments.
+        motion_durations: ``{beat_id: available_motion_seconds}``. When a
+            beat has less motion than its VO span (beyond the shortfall
+            threshold) and no explicit cutaway (a second visual_event with a
+            different source_policy), it is flagged.
+
+    Returns: {feasible: bool, issues: list[dict]}
+    """
+    motion_durations = motion_durations or {}
+    vo_by_beat: dict[str, float] = {}
+    if vo_segments:
+        for seg in vo_segments:
+            bid = seg.get("beat_id", "")
+            vo_by_beat[bid] = float(seg.get("duration", 0.0))
+
+    issues: list[dict] = []
+    for beat in beats:
+        bid = beat.get("beat_id", "?")
+        vi = beat.get("visual_intent") or {}
+        intent_text = " ".join(str(v) for v in vi.values()).lower()
+
+        # Detect talking-head intent (semantic, not keyword — but this is a
+        # mechanical pre-check, not a compliance decision. The LLM compliance
+        # contract is authoritative; this catches the known defect pattern.)
+        talking_head_markers = [
+            "talking head", "person speaking", "speaker", "face to camera",
+            "on camera", "presenting", "addressing", "direct address",
+        ]
+        is_talking_head = any(m in intent_text for m in talking_head_markers)
+        if not is_talking_head:
+            continue
+
+        span = vo_by_beat.get(bid)
+        if span is None:
+            dur = beat.get("intended_duration_sec") or {}
+            if isinstance(dur, dict):
+                span = float(dur.get("max", 0.0))
+            else:
+                span = 0.0
+
+        if span <= 0:
+            continue
+
+        available_motion = motion_durations.get(bid, 0.0)
+        if available_motion >= span:
+            continue  # enough motion
+
+        shortfall = span - available_motion
+        if shortfall / span < MOTION_SHORTFALL_THRESHOLD:
+            continue  # within tolerance
+
+        # Check for explicit cutaway (a second visual_event with a different
+        # source_policy that covers the shortfall)
+        events = beat.get("visual_events") or []
+        has_cutaway = False
+        if len(events) > 1:
+            for ev in events:
+                sp = ev.get("source_policy", "")
+                if sp in ("operator_capture", "licensed_stock", "approved_reference", "renderer_graphic"):
+                    has_cutaway = True
+                    break
+
+        if not has_cutaway:
+            issues.append({
+                "beat_id": bid,
+                "type": "talking_head_motion_shortfall",
+                "detail": (
+                    f"Beat '{bid}' has talking-head visual intent but only "
+                    f"{available_motion:.1f}s of motion for a {span:.1f}s VO span "
+                    f"(shortfall {shortfall:.1f}s). A silent still fallback would "
+                    f"cover the gap. Add an explicit cutaway event or capture more "
+                    f"motion before render."
+                ),
+            })
+
+    return {
+        "feasible": len(issues) == 0,
+        "issues": issues,
+    }
+
+
 def run_feasibility_checks(
     plan: dict,
     compliance_contract: dict,
     vo_file_path: Optional[str] = None,
     vo_duration: Optional[float] = None,
     tolerance_s: float = DEFAULT_DURATION_TOLERANCE_S,
+    beats: Optional[list[dict]] = None,
+    vo_segments: Optional[list[dict]] = None,
+    motion_durations: Optional[dict[str, float]] = None,
 ) -> dict:
     """Run all pre-render feasibility checks.
 
@@ -188,6 +404,10 @@ def run_feasibility_checks(
         vo_file_path: Path to the VO file (if any). If provided, duration is probed.
         vo_duration: VO duration in seconds (if already known, skips ffprobe)
         tolerance_s: Tolerance for VO vs timeline duration mismatch
+        beats: Contract beats for visual-event coverage checks (VF-VS-403).
+            When None, the checks are skipped.
+        vo_segments: Measured VO segments for event coverage + talking-head checks.
+        motion_durations: ``{beat_id: available_motion_seconds}`` for talking-head check.
 
     Returns: {
         feasible: bool,
@@ -195,6 +415,8 @@ def run_feasibility_checks(
         checks: {
             vo_timeline: {...},
             beat_mapping: {...},
+            visual_event_coverage: {...},   # VF-VS-403
+            talking_head_motion: {...},     # VF-VS-403
         },
         issues: list[str],  # human-readable issue descriptions
         summary: str,
@@ -226,6 +448,26 @@ def run_feasibility_checks(
                 f"has no plan mapping — source: \"{ub['source_excerpt'][:80]}\""
             )
 
+    # 3. Visual event coverage (VF-VS-403)
+    event_check = {"feasible": True, "issues": []}
+    if beats is not None:
+        event_check = check_visual_event_coverage(beats, vo_segments)
+        if not event_check["feasible"]:
+            for iss in event_check["issues"]:
+                issues.append(
+                    f"Beat '{iss['beat_id']}' visual event {iss['type']}: {iss['detail']}"
+                )
+
+    # 4. Talking-head motion coverage (VF-VS-403)
+    talking_check = {"feasible": True, "issues": []}
+    if beats is not None:
+        talking_check = check_talking_head_motion_coverage(
+            beats, vo_segments, motion_durations
+        )
+        if not talking_check["feasible"]:
+            for iss in talking_check["issues"]:
+                issues.append(iss["detail"])
+
     feasible = len(issues) == 0
     if feasible:
         verdict = "feasible"
@@ -240,6 +482,8 @@ def run_feasibility_checks(
         "checks": {
             "vo_timeline": vo_check,
             "beat_mapping": beat_check,
+            "visual_event_coverage": event_check,
+            "talking_head_motion": talking_check,
         },
         "issues": issues,
         "summary": summary,
