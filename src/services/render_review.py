@@ -13,7 +13,10 @@ from dataclasses import dataclass, field
 from typing import Optional
 import json
 import os
+import re
 import sqlite3
+
+import yaml
 
 from services import ServiceResponse
 
@@ -28,6 +31,7 @@ class RenderResult:
     version: int = 1
     error: str = ""
     cut_list: list = field(default_factory=list)
+    audio_evidence: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -48,6 +52,7 @@ class FullRenderReviewResult:
     ready_for_gate3: bool = False
     remediation_history: list = field(default_factory=list)
     writer_hash_verified: bool = True
+    soundtrack_mix: dict = field(default_factory=dict)
 
 
 class RenderReviewService:
@@ -235,13 +240,15 @@ class RenderReviewService:
             return ServiceResponse({"error": f"Config error: {exc}"}, 500)
 
         plan = json.loads(edit_plan.get("plan_json") or "{}")
+        soundtrack = None
+        soundtrack_approval = None
+        vo_duration = None
         structured_beats = extract_reel_beats(json.loads(asset.get("posts") or "[]"))
         voice_led = any(beat.get("vo_text") for beat in structured_beats)
         if voice_led or plan.get("soundtrack_plan"):
             from soundtrack_gate import SoundtrackGateError, SoundtrackPreviewGate
 
             soundtrack_ref = plan.get("soundtrack_plan")
-            soundtrack = None
             if isinstance(soundtrack_ref, dict):
                 soundtrack = store.get_soundtrack_plan(
                     soundtrack_ref.get("soundtrack_plan_id")
@@ -258,7 +265,7 @@ class RenderReviewService:
                     raise SoundtrackGateError(
                         "The edit plan has no valid current soundtrack proposal."
                     )
-                SoundtrackPreviewGate(self.db_path).require_approval(
+                soundtrack_approval = SoundtrackPreviewGate(self.db_path).require_approval(
                     soundtrack["contract_id"], soundtrack["plan_hash"]
                 )
             except SoundtrackGateError as exc:
@@ -276,6 +283,7 @@ class RenderReviewService:
             try:
                 vo_segments = json.loads(store.get_vo_segments(asset_id) or "[]")
                 vo_facts = validate_vo_segments(structured_beats, vo_segments)
+                vo_duration = vo_facts["duration"]
                 plan_take = (plan.get("audio", {}).get("vo", {}) or {}).get(
                     "take_id", ""
                 )
@@ -346,6 +354,13 @@ class RenderReviewService:
             draft_id=asset["draft_id"],
             business_slug=business_slug,
             plan_id=plan_id,
+            soundtrack_plan=(
+                json.loads(soundtrack["plan_json"])
+                if soundtrack and soundtrack.get("plan_json")
+                else None
+            ),
+            soundtrack_approval=soundtrack_approval,
+            vo_duration=vo_duration,
         )
         if not result.render.success:
             store.update_edit_plan_status(
@@ -370,12 +385,13 @@ class RenderReviewService:
             mechanical_findings=result.review.findings,
         ))
         return ServiceResponse({
-            "status": "ok",
+            "status": "ok" if result.ready_for_gate3 else "needs_operator_decision",
             "path": result.render.output_path,
             "duration": result.render.duration_sec,
             "render_time_s": result.render.render_time_sec,
             "version": result.render.version,
             "cut_list": result.render.cut_list,
+            "ready_for_gate3": result.ready_for_gate3,
             "review": review,
         })
 
@@ -387,6 +403,9 @@ class RenderReviewService:
         business_slug: str,
         plan_id: int,
         writer_contract_hash: str = "",
+        soundtrack_plan: dict | None = None,
+        soundtrack_approval: dict | None = None,
+        vo_duration: float | None = None,
     ) -> FullRenderReviewResult:
         """Execute render → post-render review → compliance check."""
         result = FullRenderReviewResult()
@@ -420,6 +439,7 @@ class RenderReviewService:
                 render_time_sec=render_out.get("render_time_s", 0),
                 version=render_out.get("version", 1),
                 cut_list=render_out.get("cut_list", []),
+                audio_evidence=render_out.get("audio_evidence") or {},
             )
         except Exception as e:
             result.render = RenderResult(success=False, error=str(e))
@@ -448,6 +468,22 @@ class RenderReviewService:
                 )
         else:
             result.review = ReviewResult(verdict="pending", summary="No reviewer configured")
+
+        if soundtrack_plan:
+            result.soundtrack_mix = self.check_soundtrack_mix(
+                result.render.output_path,
+                soundtrack_plan,
+                vo_duration=vo_duration,
+                operator_approval=soundtrack_approval,
+                rendered_audio_evidence=result.render.audio_evidence,
+            )
+            result.review.findings["soundtrack_mix"] = result.soundtrack_mix
+            if result.soundtrack_mix["verdict"] != "compliant":
+                result.review.verdict = "needs_operator_decision"
+                result.review.summary = (
+                    f"{result.review.summary} "
+                    f"{result.soundtrack_mix['summary']}"
+                ).strip()
 
         # 3. Verify writer contract hash (AMENDMENT-009 Condition 4)
         if writer_contract_hash:
@@ -537,34 +573,26 @@ class RenderReviewService:
         render_path: str,
         soundtrack_plan: dict,
         vo_duration: float | None = None,
+        operator_approval: dict | None = None,
+        rendered_audio_evidence: dict | None = None,
     ) -> dict:
-        """Review the rendered audio against the approved soundtrack plan.
-
-        Per AMENDMENT-010 Condition 4 / VF-VS-504: checks expected vs rendered
-        music/SFX, audibility windows, VO-to-bed level, clipping, and silence.
-
-        This is a deterministic mechanical check using ffprobe volumedetect.
-        It does NOT replace the LLM compliance review — it catches the
-        concrete audio failures the operator identified.
-
-        Returns:
-        {
-            verdict: "compliant" | "needs_operator_decision",
-            issues: list[str],
-            checks: {
-                music_present: bool,
-                sfx_present: bool,
-                vo_present: bool,
-                clipping: bool,
-                silence_detected: bool,
-                vo_to_bed_level_db: float | None,
-            },
-            summary: str,
-        }
-        """
+        """Mechanically compare the approved plan with measured render evidence."""
         import subprocess as sp
 
         issues: list[str] = []
+        evidence = rendered_audio_evidence or {}
+        rendered_source_ids = sorted({
+            str(source_id)
+            for source_id in evidence.get("source_ids", [])
+            if source_id
+        })
+        music_ref = soundtrack_plan.get("music_bed_ref") or {}
+        sfx_cues = soundtrack_plan.get("sfx_cues") or []
+        expected_music_ids = [music_ref["source_id"]] if music_ref.get("source_id") else []
+        expected_sfx_ids = sorted({
+            str(cue.get("source")) for cue in sfx_cues if cue.get("source")
+        })
+        expected_source_ids = sorted(set(expected_music_ids + expected_sfx_ids))
         checks = {
             "music_present": False,
             "sfx_present": False,
@@ -572,24 +600,44 @@ class RenderReviewService:
             "clipping": False,
             "silence_detected": False,
             "vo_to_bed_level_db": None,
+            "integrated_loudness_lufs": None,
+            "true_peak_dbtp": None,
+            "expected_source_ids": expected_source_ids,
+            "rendered_source_ids": rendered_source_ids,
+            "audible_windows": {
+                "vo": [],
+                "music": {},
+                "sfx": {},
+                "source_sound": {},
+            },
         }
 
         mode = soundtrack_plan.get("mode", "")
-        sfx_cues = soundtrack_plan.get("sfx_cues") or []
-
-        # Probe the rendered file's audio streams
-        audio_streams = []
+        config_path = os.path.join(self.config_dir, "soundtrack_review.yaml")
         try:
-            result = sp.run(
+            with open(config_path, encoding="utf-8") as handle:
+                review_config = yaml.safe_load(handle) or {}
+            silence_db = float(review_config["silence_noise_db"])
+            minimum_silence = float(review_config["minimum_silence_seconds"])
+            clipping_peak = float(review_config["clipping_true_peak_dbtp"])
+        except (OSError, KeyError, TypeError, ValueError, yaml.YAMLError) as exc:
+            issues.append(f"Soundtrack review configuration is invalid: {exc}")
+            review_config = None
+
+        audio_streams = []
+        render_duration = 0.0
+        try:
+            probe = sp.run(
                 ["ffprobe", "-v", "quiet", "-print_format", "json",
-                 "-show_streams", render_path],
+                 "-show_streams", "-show_format", render_path],
                 capture_output=True, text=True, timeout=10,
             )
-            if result.returncode == 0:
-                data = json.loads(result.stdout)
+            if probe.returncode == 0:
+                data = json.loads(probe.stdout)
                 audio_streams = [s for s in data.get("streams", []) if s.get("codec_type") == "audio"]
-        except Exception:
-            pass
+                render_duration = float(data.get("format", {}).get("duration") or 0)
+        except (OSError, sp.TimeoutExpired, ValueError, TypeError, json.JSONDecodeError):
+            audio_streams = []
 
         if not audio_streams:
             issues.append("No audio stream in rendered file")
@@ -600,86 +648,132 @@ class RenderReviewService:
                 "summary": "No audio stream found — cannot verify soundtrack mix",
             }
 
-        # Check for clipping using volumedetect
-        try:
-            vol_result = sp.run(
-                ["ffmpeg", "-i", render_path, "-af", "volumedetect",
-                 "-f", "null", "-"],
-                capture_output=True, text=True, timeout=30,
+        if review_config:
+            try:
+                loudness = sp.run(
+                    ["ffmpeg", "-hide_banner", "-nostats", "-i", render_path,
+                     "-filter_complex", "ebur128=peak=true", "-f", "null", "-"],
+                    capture_output=True, text=True, timeout=30,
+                )
+                loudness_output = loudness.stderr
+            except (OSError, sp.TimeoutExpired):
+                loudness_output = ""
+            integrated = re.findall(
+                r"I:\s*(-?\d+(?:\.\d+)?)\s+LUFS", loudness_output
             )
-            stderr = vol_result.stderr
-            if "max_volume" in stderr:
-                # Extract max_volume
-                for line in stderr.split("\n"):
-                    if "max_volume" in line:
-                        try:
-                            vol_str = line.split("max_volume:")[1].strip().split()[0]
-                            max_vol = float(vol_str)
-                            if max_vol > -0.5:
-                                checks["clipping"] = True
-                                issues.append(
-                                    f"Audio clipping detected: max_volume {max_vol} dB"
-                                )
-                        except (ValueError, IndexError):
-                            pass
-                    if "mean_volume" in line:
-                        try:
-                            mean_str = line.split("mean_volume:")[1].strip().split()[0]
-                            mean_vol = float(mean_str)
-                            if mean_vol < -70.0:
-                                checks["silence_detected"] = True
-                                issues.append(
-                                    f"Near-silence detected: mean_volume {mean_vol} dB"
-                                )
-                        except (ValueError, IndexError):
-                            pass
-        except Exception:
-            pass
-
-        # Mode-specific checks
-        if mode in ("music_bed", "vo_plus_bed"):
-            # Music should be present — check for a second audio stream or
-            # detect that the bed was mixed in. We can't perfectly separate
-            # mixed audio, but we can check that the plan has music_bed_ref.
-            ref = soundtrack_plan.get("music_bed_ref")
-            if not ref:
-                issues.append(
-                    f"{mode} mode but music_bed_ref is missing — no approved music bed"
-                )
+            peaks = re.findall(
+                r"Peak:\s*(-?\d+(?:\.\d+)?)\s+dBFS", loudness_output
+            )
+            if integrated:
+                checks["integrated_loudness_lufs"] = float(integrated[-1])
             else:
-                checks["music_present"] = True  # plan declares it; renderer mixed it
-            # Check ducking was applied
-            ducking = soundtrack_plan.get("ducking")
-            if not ducking:
-                issues.append(
-                    f"{mode} mode but ducking parameters missing — VO may not be intelligible"
-                )
+                issues.append("Integrated loudness could not be measured")
+            if peaks:
+                checks["true_peak_dbtp"] = float(peaks[-1])
+                if checks["true_peak_dbtp"] > clipping_peak:
+                    checks["clipping"] = True
+                    issues.append(
+                        f"True peak {checks['true_peak_dbtp']:.1f} dBTP exceeds "
+                        f"configured {clipping_peak:.1f} dBTP"
+                    )
+            else:
+                issues.append("True peak could not be measured")
 
-        if mode == "vo_only":
-            # VO-only: check that there IS audio (the VO)
-            checks["vo_present"] = True
-            # If there's music in a vo_only plan, that's a deviation
-            ref = soundtrack_plan.get("music_bed_ref")
-            if ref:
-                issues.append(
-                    "vo_only mode but music_bed_ref is set — plan and render may diverge"
+            try:
+                silence = sp.run(
+                    ["ffmpeg", "-hide_banner", "-nostats", "-i", render_path,
+                     "-af", f"silencedetect=noise={silence_db}dB:d={minimum_silence}",
+                     "-f", "null", "-"],
+                    capture_output=True, text=True, timeout=30,
                 )
+                silence_output = silence.stderr
+            except (OSError, sp.TimeoutExpired):
+                silence_output = ""
+                issues.append("Audible-signal windows could not be measured")
+            starts = [float(value) for value in re.findall(
+                r"silence_start:\s*(\d+(?:\.\d+)?)", silence_output
+            )]
+            ends = [float(value) for value in re.findall(
+                r"silence_end:\s*(\d+(?:\.\d+)?)", silence_output
+            )]
+            analysis_end = min(vo_duration or render_duration, render_duration)
+            cursor = 0.0
+            audible_windows = []
+            for index, start in enumerate(starts):
+                if start > cursor:
+                    audible_windows.append([round(cursor, 3), round(start, 3)])
+                cursor = ends[index] if index < len(ends) else analysis_end
+            if cursor < analysis_end:
+                audible_windows.append([round(cursor, 3), round(analysis_end, 3)])
+            checks["audible_windows"]["vo"] = audible_windows
+            checks["vo_present"] = bool(audible_windows)
+            checks["silence_detected"] = not checks["vo_present"]
+            if not checks["vo_present"]:
+                issues.append("No audible VO signal window was measured")
+
+        approval_token = (
+            operator_approval.get("gate_token")
+            if isinstance(operator_approval, dict)
+            else None
+        )
+        if not approval_token:
+            issues.append("No server-verified soundtrack approval was supplied")
+
+        evidence_windows = evidence.get("audible_windows") or {}
+        if mode in ("music_bed", "vo_plus_bed"):
+            if not music_ref:
+                issues.append(f"{mode} mode is missing music_bed_ref")
+            if not soundtrack_plan.get("ducking"):
+                issues.append(f"{mode} mode is missing ducking parameters")
+            missing_music = sorted(set(expected_music_ids) - set(rendered_source_ids))
+            checks["music_present"] = bool(expected_music_ids) and not missing_music
+            for source_id in missing_music:
+                issues.append(f"Approved music source {source_id} is absent from render evidence")
+            for source_id in expected_music_ids:
+                windows = evidence_windows.get(source_id) or []
+                checks["audible_windows"]["music"][source_id] = windows
+                if not windows:
+                    issues.append(f"Approved music source {source_id} has no audible window evidence")
+            vo_lufs = evidence.get("vo_lufs")
+            bed_lufs = evidence.get("bed_lufs")
+            if isinstance(vo_lufs, (int, float)) and isinstance(bed_lufs, (int, float)):
+                checks["vo_to_bed_level_db"] = round(float(vo_lufs) - float(bed_lufs), 2)
+            else:
+                issues.append("VO-to-bed level relationship was not measured")
+
+        if mode == "vo_only" and evidence.get("strategy") != "vo":
+            issues.append("Renderer did not attest that the approved VO strategy was applied")
+        if mode == "vo_only" and evidence.get("applied") is not True:
+            issues.append("Renderer did not confirm a successful VO-only mix")
+        if mode == "vo_only" and rendered_source_ids:
+            issues.append("VO-only render contains unexpected music/SFX source evidence")
+        if mode == "vo_only" and music_ref:
+            issues.append("VO-only plan and music-bed reference diverge")
 
         if mode == "source_sound":
-            checks["vo_present"] = True  # source audio is the primary
+            source_ids = evidence.get("source_sound_ids") or []
+            checks["audible_windows"]["source_sound"] = {
+                source_id: evidence_windows.get(source_id) or []
+                for source_id in source_ids
+            }
+            if not source_ids:
+                issues.append("Source-sound plan has no source-bound render evidence")
 
-        # SFX presence
         if sfx_cues:
-            checks["sfx_present"] = True
-        else:
-            # No SFX cues in plan — if we detect SFX-like peaks, flag it
-            pass
-
-        # Check operator approval
-        if not soundtrack_plan.get("operator_approval"):
-            issues.append(
-                "Soundtrack plan has no operator_approval — unapproved VO-only yields needs_operator_decision"
-            )
+            missing_sfx = sorted(set(expected_sfx_ids) - set(rendered_source_ids))
+            checks["sfx_present"] = not missing_sfx
+            for cue in sfx_cues:
+                source_id = str(cue.get("source") or "")
+                windows = evidence_windows.get(source_id) or []
+                checks["audible_windows"]["sfx"][source_id] = windows
+                if source_id in missing_sfx:
+                    issues.append(f"Approved SFX source {source_id} is absent from render evidence")
+                cue_time = float(cue.get("timestamp") or 0)
+                if not any(start <= cue_time <= end for start, end in windows):
+                    issues.append(
+                        f"Approved SFX source {source_id} has no audible evidence "
+                        f"at {cue_time:.3f}s"
+                    )
 
         verdict = "compliant" if not issues else "needs_operator_decision"
         summary = "Soundtrack mix review passed." if not issues else (

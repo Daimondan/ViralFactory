@@ -588,7 +588,7 @@ class AssemblyRenderer:
             # the first video clip's ambient sound — a charter violation (judgment
             # in code). Per CORRECTION-final-output-review-and-audio-fix-v1.0 AUDIO-1.
             audio_block = plan.get("audio", {})
-            self._apply_audio_strategy(
+            audio_evidence = self._apply_audio_strategy(
                 output_file, audio_block, media_dir, version,
                 asset_id, draft_id, business_slug, plan,
             )
@@ -615,6 +615,7 @@ class AssemblyRenderer:
                 "render_time_s": round(render_time, 1),
                 "cut_list": cut_list,
                 "version": version,
+                "audio_evidence": audio_evidence,
             }
 
         finally:
@@ -996,6 +997,13 @@ class AssemblyRenderer:
             business_slug, "done",
         )
 
+        evidence = {
+            "strategy": strategy,
+            "applied": False,
+            "source_ids": [],
+            "audible_windows": {},
+        }
+
         if strategy == "silent":
             self._apply_silent_audio(output_file, media_dir, version)
         elif strategy == "original":
@@ -1030,10 +1038,18 @@ class AssemblyRenderer:
             music_path = None
             if music_ref:
                 music_path = self._resolve_music_path(music_ref)
-            self._mix_vo(
+            applied = self._mix_vo(
                 output_file, vo_path, music_path, music_volume,
                 original_audio, media_dir, version,
                 loudnorm_I, loudnorm_TP, loudnorm_LRA)
+
+            evidence["applied"] = applied
+            if applied:
+                evidence["vo_source_id"] = vo.get("take_id") or vo_path
+                if music_ref and music_path:
+                    evidence["source_ids"].append(music_ref)
+
+        return evidence
 
     def _resolve_plan_vo_path(self, vo: dict, asset_id: int) -> Optional[str]:
         """Resolve exact measured VO path, with take-id fallback for legacy plans."""
@@ -1254,8 +1270,10 @@ class AssemblyRenderer:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
         if result.returncode == 0 and os.path.exists(normalized):
             os.replace(normalized, output_file)
+            return True
         elif os.path.exists(normalized):
             os.remove(normalized)
+        return False
 
     def _record_final_cut(self, asset_id: int, path: str, duration: float, render_time: float):
         """Record the final cut in asset_media."""

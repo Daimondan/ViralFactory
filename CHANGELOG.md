@@ -8,6 +8,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-18
 
+### VF-VS-504 — Invoke soundtrack-mix review in final compliance [LOGIC/FIX/OPS]
+
+**What:** `RenderReviewService.render_for_asset()` now carries the exact persisted soundtrack plan and server-verified gate decision into `render_and_review()`, which invokes deterministic soundtrack-mix review before Gate 3 readiness. `AssemblyRenderer` returns factual audio-strategy evidence. FFprobe/FFmpeg measure integrated loudness, true peak, silence, and audible VO windows. The review compares expected music/SFX IDs with source-bound render evidence and requires event-time windows, VO-to-bed measurements, source-sound proof, and successful VO execution as applicable. Results are attached to final review findings and missing evidence forces `needs_operator_decision`.
+
+**Rationale:** An AAC stream or plan-declared ingredient does not prove the operator-approved soundtrack survived rendering. Final compliance must fail closed when exact source, timing, level, or approval evidence is absent. Gate approval is passed separately from plan JSON so caller- or LLM-authored `operator_approval` values remain untrusted. Silence and clipping thresholds live in `config/soundtrack_review.yaml` rather than Python.
+
+**Verification:** 14 focused tests cover real FFmpeg LUFS/dBTP/window analysis, untrusted embedded tokens, positive explicit VO-only, missing approved music/SFX, source-ID and event-window comparisons, final-review invocation, Gate 3 blocking, and the shared `render_for_asset` boundary. Full linked-worktree suite: `1,875 passed, 7 skipped`.
+
 ### VF-VS-503 — Enforce human soundtrack preview and exact-plan approval [LOGIC/STRUCTURE/FIX]
 
 **What:** Added a shared soundtrack-review service and operator routes/UI for preview, approve, reject, persisted-alternative replacement, and explicit VO-only selection. The page resolves media only from the current immutable soundtrack reference and typed `asset_media` sources, renders a real bed-under-VO preview mechanically with FFmpeg, labels unfinished synthetic SFX without false-green approval, and exposes local files only through media-root URLs. Required tracks must be playable and their exact plan hash must have a persisted preview acknowledgment before approve or VO-only can mint a server-side gate token. Gate decisions and preview evidence are append-only. The shared render boundary rejects absent, stale, rejected, or replaced approval before FFmpeg; the autonomous chain pauses in `awaiting_soundtrack_approval` and resumes only when the current hash is approved.

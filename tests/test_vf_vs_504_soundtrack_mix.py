@@ -36,6 +36,16 @@ def audio_file(tmp_path):
     return path
 
 
+APPROVAL = {"gate_token": "server-minted"}
+VO_EVIDENCE = {
+    "strategy": "vo",
+    "applied": True,
+    "source_ids": [],
+    "audible_windows": {},
+    "vo_source_id": "take-1",
+}
+
+
 # ── AC: missing approved music/SFX fails ─────────────────────────────────────
 
 
@@ -43,8 +53,9 @@ def test_music_bed_mode_without_music_bed_ref_fails(service, audio_file):
     """music_bed mode but music_bed_ref is missing → needs_operator_decision."""
     plan = make_music_bed_plan("c001", "bed_01", {"type": "royalty_free"}, 5.0)
     plan["music_bed_ref"] = None  # remove the ref
-    plan["operator_approval"] = "gate_token"
-    result = service.check_soundtrack_mix(audio_file, plan)
+    result = service.check_soundtrack_mix(
+        audio_file, plan, operator_approval=APPROVAL
+    )
     assert result["verdict"] == "needs_operator_decision"
     assert any("music_bed_ref" in iss for iss in result["issues"])
 
@@ -53,8 +64,9 @@ def test_music_bed_mode_without_ducking_fails(service, audio_file):
     """music_bed mode but ducking missing → needs_operator_decision."""
     plan = make_music_bed_plan("c001", "bed_01", {"type": "royalty_free"}, 5.0)
     plan["ducking"] = None
-    plan["operator_approval"] = "gate_token"
-    result = service.check_soundtrack_mix(audio_file, plan)
+    result = service.check_soundtrack_mix(
+        audio_file, plan, operator_approval=APPROVAL
+    )
     assert result["verdict"] == "needs_operator_decision"
     assert any("ducking" in iss for iss in result["issues"])
 
@@ -65,17 +77,22 @@ def test_music_bed_mode_without_ducking_fails(service, audio_file):
 def test_unapproved_vo_only_yields_needs_operator_decision(service, audio_file):
     """VO-only plan without operator_approval → needs_operator_decision."""
     plan = make_vo_only_plan("c001", "Valid rationale.")
-    # operator_approval is None
-    result = service.check_soundtrack_mix(audio_file, plan)
+    result = service.check_soundtrack_mix(
+        audio_file, plan, rendered_audio_evidence=VO_EVIDENCE
+    )
     assert result["verdict"] == "needs_operator_decision"
-    assert any("operator_approval" in iss for iss in result["issues"])
+    assert any("approval" in iss for iss in result["issues"])
 
 
 def test_approved_vo_only_passes(service, audio_file):
     """VO-only plan with operator_approval → compliant."""
     plan = make_vo_only_plan("c001", "Valid rationale.")
-    plan["operator_approval"] = "gate_token_123"
-    result = service.check_soundtrack_mix(audio_file, plan)
+    result = service.check_soundtrack_mix(
+        audio_file,
+        plan,
+        operator_approval=APPROVAL,
+        rendered_audio_evidence=VO_EVIDENCE,
+    )
     assert result["verdict"] == "compliant"
     assert result["checks"]["vo_present"] is True
 
@@ -88,8 +105,18 @@ def test_approved_music_bed_passes(service, audio_file):
         5.0,
         ducking={"attenuation_db": -12, "envelope": []},
     )
-    plan["operator_approval"] = "gate_token_123"
-    result = service.check_soundtrack_mix(audio_file, plan)
+    evidence = {
+        "source_ids": ["bed_01"],
+        "audible_windows": {"bed_01": [[0.0, 2.0]]},
+        "vo_lufs": -14.0,
+        "bed_lufs": -26.0,
+    }
+    result = service.check_soundtrack_mix(
+        audio_file,
+        plan,
+        operator_approval=APPROVAL,
+        rendered_audio_evidence=evidence,
+    )
     assert result["verdict"] == "compliant"
     assert result["checks"]["music_present"] is True
 
@@ -116,14 +143,19 @@ def test_no_audio_stream_fails(service, tmp_path):
 # ── SFX presence ─────────────────────────────────────────────────────────────
 
 
-def test_sfx_cues_marked_present(service, audio_file):
+def test_sfx_cues_without_source_bound_evidence_fail(service, audio_file):
     plan = make_vo_only_plan("c001", "Valid rationale.")
-    plan["operator_approval"] = "gate_token"
     plan["sfx_cues"] = [
         {"event_id": "sfx_01", "source": "synth:pop", "timestamp": 1.0, "gain": 0.5, "purpose": "accent"},
     ]
-    result = service.check_soundtrack_mix(audio_file, plan)
-    assert result["checks"]["sfx_present"] is True
+    result = service.check_soundtrack_mix(
+        audio_file,
+        plan,
+        operator_approval=APPROVAL,
+        rendered_audio_evidence=VO_EVIDENCE,
+    )
+    assert result["verdict"] == "needs_operator_decision"
+    assert result["checks"]["sfx_present"] is False
 
 
 # ── vo_only with music_bed_ref deviation ─────────────────────────────────────
@@ -131,9 +163,13 @@ def test_sfx_cues_marked_present(service, audio_file):
 
 def test_vo_only_with_music_bed_ref_flagged(service, audio_file):
     plan = make_vo_only_plan("c001", "Valid rationale.")
-    plan["operator_approval"] = "gate_token"
     plan["music_bed_ref"] = {"source_id": "bed_01", "licence": {"type": "rf"}, "cost_usd": 0}
-    result = service.check_soundtrack_mix(audio_file, plan)
+    result = service.check_soundtrack_mix(
+        audio_file,
+        plan,
+        operator_approval=APPROVAL,
+        rendered_audio_evidence=VO_EVIDENCE,
+    )
     assert result["verdict"] == "needs_operator_decision"
     assert any("diverge" in iss for iss in result["issues"])
 

@@ -1,0 +1,3 @@
+silence_noise_db: -50.0
+minimum_silence_seconds: 0.5
+clipping_true_peak_dbtp: -1.0
