@@ -81,17 +81,6 @@
         .final-cut-section { padding: 12px 16px; border-top: 1px solid #D8D4C8; }
         .final-cut-section video { width: 100%; max-height: 400px; border-radius: 8px; background: #000; }
 
-        /* Video dialog (only for reel formats) */
-        .video-dialog { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #FFFFFF; border-radius: 12px; padding: 24px; border: 1px solid #D8D4C8; z-index: 100; max-width: 400px; }
-        .video-dialog.show { display: block; }
-        .video-dialog h3 { margin-bottom: 12px; }
-        .video-dialog .cost-estimate { font-size: 1.1rem; color: #8A6D20; margin: 12px 0; }
-        .video-dialog .dialog-actions { display: flex; gap: 10px; margin-top: 16px; }
-        .video-dialog input, .video-dialog select { padding: 5px 10px; border-radius: 4px; border: 1px solid #D8D4C8; background: #F0EDE4; color: #1A1A1A; font-size: 0.85rem; margin: 4px 0; }
-        .video-dialog label { font-size: 0.82rem; color: #8A857C; display: block; margin-top: 8px; }
-        .dialog-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 99; }
-        .dialog-overlay.show { display: block; }
-
         /* Cut list */
         .cut-list { background: #F0EDE4; border-radius: 8px; padding: 12px; font-size: 0.8rem; line-height: 1.6; color: #8A857C; white-space: pre-wrap; max-height: 200px; overflow-y: auto; margin-top: 8px; }
         .plan-status { font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; display: inline-block; margin-left: 6px; }
@@ -677,27 +666,6 @@
     {% endif %}
 </div>
 
-{# Video generation dialog — only used for reel formats #}
-<div class="dialog-overlay" id="videoOverlay" onclick="closeVideoDialog()"></div>
-<div class="video-dialog" id="videoDialog">
-    <h3>Generate Video</h3>
-    <p class="subtle" style="margin-bottom: 12px;">Video generation costs real money per clip. Confirm before proceeding.</p>
-    <label>Duration (seconds):</label>
-    <input type="number" id="videoDuration" value="5" min="1" max="30">
-    <label>Aspect ratio:</label>
-    <select id="videoAspect">
-        <option value="9:16">9:16 (vertical — reels)</option>
-        <option value="16:9">16:9 (horizontal)</option>
-    </select>
-    <label>Prompt (optional):</label>
-    <input type="text" id="videoPrompt" style="width: 100%;" placeholder="Auto-generates from visual direction">
-    <div class="cost-estimate">Estimated cost: ~${{ "%.2f"|format(video_cost_min|default(0.05)) }}–{{ "%.2f"|format(video_cost_max|default(0.15)) }} per clip</div>
-    <div class="dialog-actions">
-        <button class="btn btn-render" id="videoConfirmBtn" onclick="confirmVideoGeneration()">Confirm & generate</button>
-        <button class="btn btn-fix" onclick="closeVideoDialog()">Cancel</button>
-    </div>
-</div>
-
 {# Lightbox — fullscreen image/video viewer #}
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
     <span class="lightbox-close" onclick="closeLightbox()">&times;</span>
@@ -767,93 +735,68 @@ function generateVisuals(assetId, btn) {
     });
 }
 
-// UX-6: One-click video generation — chains generate images → plan → render.
+// VO-first reel production: storyboard stills → cost gate → VO + motion → render.
 function generateVideoOneClick(assetId, btn) {
     var statusElem = document.getElementById('render-status-' + assetId);
-    if (!confirm('Generate video? This generates images, creates an edit plan, and renders. May take several minutes.')) return;
-    busyBtn(btn, 'Generating images…');
-    if (statusElem) {
+    function show(message, color) {
+        if (!statusElem) return;
         statusElem.style.display = 'block';
-        statusElem.style.color = '#4A6FA5';
-        statusElem.textContent = 'Generating images…';
+        statusElem.style.color = color || '#4A6FA5';
+        statusElem.textContent = message;
     }
-    // Step 0: Generate images first (if none exist yet)
+    function json(response) {
+        return response.json().then(function(data) {
+            if (!response.ok || (data.status && data.status !== 'ok')) {
+                throw new Error(data.message || data.error || 'Production step failed');
+            }
+            return data;
+        });
+    }
+
+    busyBtn(btn, 'Preparing storyboard…');
+    show('Preparing storyboard stills…');
     fetch('/api/assets/' + assetId + '/generate-images', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: '{}',
-    }).then(function(r) { return r.json(); }).then(function(imgData) {
-        // Images generated (or already existed) — proceed to edit plan
-        if (imgData.error && imgData.status !== 'ok') {
-            // If image generation failed but we might have existing media, try plan anyway
-            console.log('Image generation response:', imgData);
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}',
+    }).then(json).then(function() {
+        show('Calculating motion cost…');
+        return fetch('/api/assets/' + assetId + '/reel-production-estimate').then(json);
+    }).then(function(estimate) {
+        if (!estimate.ready) {
+            throw new Error('Storyboard stills are missing for ' + estimate.missing_source_beat_ids.join(', ') + '.');
         }
-        if (statusElem) {
-            statusElem.style.color = '#4A6FA5';
-            statusElem.textContent = 'Creating edit plan…';
+        var message = 'Create this VO-led reel?\n\n' +
+            '• ' + estimate.spoken_word_count + ' approved spoken words\n' +
+            '• ' + estimate.clip_count + ' new motion clips × ' + estimate.clip_duration_seconds + 's\n' +
+            '• ' + estimate.generator + '\n' +
+            '• Estimated animation cost: $' + estimate.estimated_cost_usd.toFixed(2) + '\n\n' +
+            'The complete voice-over sets the final duration. No video spend occurs unless you approve.';
+        if (!confirm(message)) {
+            var cancelled = new Error('cancelled'); cancelled.cancelled = true; throw cancelled;
         }
-        busyBtn(btn, 'Planning…');
-        // Step 1: Generate edit plan
-        return fetch('/api/assets/' + assetId + '/edit-plan', {
+        busyBtn(btn, 'Creating VO + motion…');
+        show('Creating the complete voice-over, then animating approved storyboard stills. This may take several minutes…');
+        return fetch('/api/assets/' + assetId + '/produce-reel', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: '{}',
-        });
-    }).then(function(r) { return r.json(); }).then(function(planData) {
-        if (planData.status !== 'ok') {
-            unbusyBtn(btn);
-            if (statusElem) {
-                statusElem.style.color = '#C0392B';
-                statusElem.textContent = planData.message || planData.error || 'Plan failed';
-            }
-            return;
-        }
-        // Step 2: Auto-trigger render
-        var planId = planData.plan_id || (planData.plan && planData.plan.id);
-        if (!planId) {
-            // Plan created but no ID returned — reload to show plan state
-            if (statusElem) {
-                statusElem.style.color = '#4A7C3A';
-                statusElem.textContent = 'Plan ready — loading…';
-            }
-            setTimeout(function() { window.location.reload(); }, 1000);
-            return;
-        }
+            body: JSON.stringify({approved_cost_usd: estimate.estimated_cost_usd}),
+        }).then(json);
+    }).then(function(planData) {
         busyBtn(btn, 'Rendering…');
-        if (statusElem) {
-            statusElem.style.color = '#4A6FA5';
-            statusElem.textContent = 'Rendering video… this may take a few minutes.';
-        }
-        fetch('/api/assets/' + assetId + '/render', {
+        show('VO and motion clips are ready. Rendering the final reel…');
+        return fetch('/api/assets/' + assetId + '/render', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({plan_id: planId}),
-        }).then(function(r) { return r.json(); }).then(function(renderData) {
-            if (renderData.status === 'ok') {
-                unbusyBtn(btn);
-                if (statusElem) {
-                    statusElem.style.color = '#4A7C3A';
-                    statusElem.textContent = '✓ Video rendered! Loading…';
-                }
-                setTimeout(function() { window.location.reload(); }, 1000);
-            } else {
-                unbusyBtn(btn);
-                if (statusElem) {
-                    statusElem.style.color = '#C0392B';
-                    statusElem.textContent = renderData.error || 'Render failed';
-                }
-            }
-        }).catch(function(err) {
-            // Request likely timed out — start polling
-            if (statusElem) {
-                statusElem.style.color = '#4A6FA5';
-                statusElem.textContent = 'Rendering in background… polling for completion.';
-            }
-            pollRenderStatus(assetId, btn, statusElem);
-        });
+            body: JSON.stringify({plan_id: planData.plan_id}),
+        }).then(json);
+    }).then(function() {
+        unbusyBtn(btn);
+        show('✓ Reel rendered with complete VO and motion clips. Loading…', '#4A7C3A');
+        setTimeout(function() { window.location.reload(); }, 1000);
     }).catch(function(err) {
         unbusyBtn(btn);
-        if (statusElem) {
-            statusElem.style.color = '#C0392B';
-            statusElem.textContent = 'Network error: ' + err;
+        if (err.cancelled) {
+            show('Animation cancelled — no motion spend was made.', '#6B675D');
+            return;
         }
+        show(err.message || String(err), '#C0392B');
     });
 }
 
@@ -956,42 +899,6 @@ function pollRenderStatus(assetId, btn, statusElem) {
             });
     }
     setTimeout(check, 5000);
-}
-
-// Video dialog (reel formats only)
-var currentVideoAssetId = null;
-function showVideoDialog(assetId) {
-    currentVideoAssetId = assetId;
-    document.getElementById('videoOverlay').classList.add('show');
-    document.getElementById('videoDialog').classList.add('show');
-}
-function closeVideoDialog() {
-    document.getElementById('videoOverlay').classList.remove('show');
-    document.getElementById('videoDialog').classList.remove('show');
-}
-function confirmVideoGeneration() {
-    if (!currentVideoAssetId) return;
-    var btn = document.getElementById('videoConfirmBtn');
-    var prompt = document.getElementById('videoPrompt').value.trim();
-    var duration = parseInt(document.getElementById('videoDuration').value) || 5;
-    var aspect = document.getElementById('videoAspect').value;
-    busyBtn(btn, 'Submitting…');
-    fetch('/api/assets/' + currentVideoAssetId + '/generate-clip', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({prompt: prompt, duration: duration, aspect_ratio: aspect}),
-    }).then(function(r) { return r.json(); }).then(function(data) {
-        unbusyBtn(btn);
-        closeVideoDialog();
-        if (data.status === 'ok') {
-            var s = document.getElementById('render-status-' + currentVideoAssetId);
-            if (s) {
-                s.style.display = 'block';
-                s.style.color = '#4A7C3A';
-                s.textContent = 'Video ingredient ready. Loading final-cut step…';
-            }
-            setTimeout(function() { window.location.reload(); }, 1000);
-        } else { vfToastError('Error', data.error || 'Video generation failed'); }
-    }).catch(function(err) { unbusyBtn(btn); closeVideoDialog(); vfToastError('Error', String(err)); });
 }
 
 // ── Missing captures: load and offer LLM-driven generation ──

@@ -179,7 +179,7 @@ def _summarize_media_generation_results(results: list[dict]) -> dict:
 
 def _poll_download_register_video(
     media_adapter, external_job_id, asset_id, model, prompt,
-    business_slug, provider=None,
+    business_slug, provider=None, estimated_cost_usd=0,
 ):
     """Poll a video job, download on completion, register as asset_media.
 
@@ -195,7 +195,12 @@ def _poll_download_register_video(
     max_polls = 60  # 5 minutes at 5s intervals
     for _ in range(max_polls):
         _time.sleep(5)
-        poll_result = media_adapter.check_video_job(external_job_id, provider=provider)
+        if provider == "fal":
+            poll_result = media_adapter.check_video_job(
+                external_job_id, provider=provider, model=model,
+            )
+        else:
+            poll_result = media_adapter.check_video_job(external_job_id, provider=provider)
         status = poll_result.get("status", "")
         if status == "completed":
             download_url = poll_result.get("download_url", "")
@@ -207,7 +212,7 @@ def _poll_download_register_video(
             dl = media_adapter.download_video(
                 external_job_id, download_url, asset_id,
                 model, prompt,
-                poll_result.get("cost_usd", 0),
+                poll_result.get("cost_usd", 0) or estimated_cost_usd,
                 business_slug,
                 video_provider=provider,
             )
@@ -6355,6 +6360,21 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     context=f"Image {idx+1} for asset {asset_id} ({platform_name})",
                     business_slug=business_slug,
                 )
+                beat_id = f"b{idx + 1:02d}"
+                # Stable Writer-beat linkage: cached and newly generated images
+                # must remain addressable without positional fallback later.
+                conn = __import__("sqlite3").connect(app.config["DB_PATH"])
+                row = conn.execute(
+                    "SELECT id FROM asset_media WHERE asset_id = ? AND path = ? "
+                    "ORDER BY id DESC LIMIT 1",
+                    (asset_id, result["path"]),
+                ).fetchone()
+                if row:
+                    conn.execute("UPDATE asset_media SET beat_id = ? WHERE id = ?", (beat_id, row[0]))
+                    result["media_id"] = row[0]
+                conn.commit()
+                conn.close()
+                result["beat_id"] = beat_id
                 results.append(result)
             except (MediaAdapterError, Exception) as e:
                 errors.append({"prompt": prompt[:100], "error": str(e)[:200]})
@@ -6393,6 +6413,243 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             "errors": errors,
             "image_paths": generated_paths,
             "cost_usd": sum(r.get("cost_usd", 0) for r in results),
+        })
+
+    def _reel_production_state(asset_id):
+        """Load structured reel beats and stable beat-scoped media."""
+        from media_adapter import MediaAdapter
+        from reel_production import extract_reel_beats, estimate_motion
+
+        store = _get_pipeline_store()
+        asset = store.get_asset(asset_id)
+        if not asset:
+            raise LookupError("Asset not found")
+        posts = json.loads(asset.get("posts") or "[]")
+        beats = extract_reel_beats(posts)
+        if not beats or not any(beat.get("vo_text") for beat in beats):
+            raise ValueError("This asset has no structured spoken reel beats.")
+
+        config = load_all(app.config["CONFIG_DIR"])
+        models_config = config["models"]
+        adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
+        media = adapter.list_asset_media(asset_id, owner_type="asset")
+
+        # One-time compatibility link for assets created before beat_id existed.
+        # assets.generated_images is the Writer-ordered, persisted path list.
+        generated_paths = json.loads(asset.get("generated_images") or "[]")
+        images_by_path = {row.get("path"): row for row in media if row.get("kind") == "image"}
+        conn = __import__("sqlite3").connect(app.config["DB_PATH"])
+        for beat, path in zip(beats, generated_paths):
+            row = images_by_path.get(path)
+            if row and not row.get("beat_id"):
+                conn.execute("UPDATE asset_media SET beat_id = ? WHERE id = ?", (beat["beat_id"], row["id"]))
+        conn.commit()
+        conn.close()
+
+        media = adapter.list_asset_media(asset_id, owner_type="asset")
+        images = {row["beat_id"]: row for row in media if row.get("kind") == "image" and row.get("beat_id")}
+        videos = {row["beat_id"]: row for row in media if row.get("kind") == "video" and row.get("beat_id")}
+        estimate = estimate_motion(beats, models_config.get("media", {}), set(videos))
+        return store, asset, beats, models_config, adapter, images, videos, estimate
+
+    @app.route("/api/assets/<int:asset_id>/reel-production-estimate", methods=["GET"])
+    def reel_production_estimate(asset_id):
+        """No-spend preview of VO/motion work and exact animation cost."""
+        try:
+            _, _, beats, _, _, images, videos, estimate = _reel_production_state(asset_id)
+        except LookupError as e:
+            return jsonify({"error": str(e)}), 404
+        except (ValueError, ConfigError, Exception) as e:
+            return jsonify({"error": str(e)}), 409
+        spoken_words = sum(len(beat["vo_text"].split()) for beat in beats if beat.get("vo_text"))
+        missing_images = [beat["beat_id"] for beat in beats if beat["beat_id"] not in images]
+        return jsonify({
+            "status": "ok",
+            **estimate,
+            "beat_count": len(beats),
+            "spoken_word_count": spoken_words,
+            "source_images_ready": len(images),
+            "existing_motion_clips": len(videos),
+            "missing_source_beat_ids": missing_images,
+            "ready": not missing_images,
+        })
+
+    @app.route("/api/assets/<int:asset_id>/produce-reel", methods=["POST"])
+    def produce_reel(asset_id):
+        """Generate complete VO + approved motion clips, then save an exact plan."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+        body = request.get_json(silent=True) or {}
+        try:
+            store, asset, beats, models_config, media_adapter, images, videos, estimate = _reel_production_state(asset_id)
+            from reel_production import (
+                MOTION_PLAN_SCHEMA, ReelProductionError, build_reel_plan,
+                validate_cost_approval, validate_motion_plan, validate_vo_segments,
+            )
+            validate_cost_approval(body.get("approved_cost_usd", -1), estimate["estimated_cost_usd"])
+            missing_images = [beat["beat_id"] for beat in beats if beat["beat_id"] not in images]
+            if missing_images:
+                raise ReelProductionError(
+                    f"Storyboard stills are missing for: {', '.join(missing_images)}. Generate images first."
+                )
+        except LookupError as e:
+            return jsonify({"error": str(e)}), 404
+        except (ValueError, ConfigError, Exception) as e:
+            return jsonify({"error": str(e)}), 409
+
+        # VO is the master clock and is mandatory for every spoken beat.
+        from vo_generator import VOGenerator, VOGenerationError
+        vo_segments = json.loads(store.get_vo_segments(asset_id) or "[]")
+        try:
+            validate_vo_segments(beats, vo_segments)
+        except ReelProductionError:
+            try:
+                vo_result = VOGenerator(
+                    db_path=app.config["DB_PATH"], models_config=models_config,
+                ).generate_vo_per_frame(
+                    asset_id=asset_id,
+                    posts=[{
+                        "beat_id": beat["beat_id"],
+                        "vo_text": beat["vo_text"],
+                    } for beat in beats if beat.get("vo_text")],
+                    business_slug=business_slug,
+                )
+                vo_segments = vo_result["segments"]
+                store.save_vo_segments(asset_id, json.dumps(vo_segments))
+                validate_vo_segments(beats, vo_segments)
+            except (VOGenerationError, ReelProductionError, Exception) as e:
+                return jsonify({
+                    "status": "vo_failed",
+                    "error": f"The complete voice-over could not be generated. No video spend was made. {e}",
+                }), 409
+
+        # The LLM translates immutable semantic intent into provider motion prompts.
+        from context_assembly import assemble_module_context
+        from llm_adapter import LLMAdapter, LLMAdapterError
+        module_vars, module_prov = assemble_module_context(
+            "assembly/motion_plan_v1.md", business_slug,
+            db_path=app.config["DB_PATH"], modules_dir="modules",
+        )
+        storyboard = []
+        vo_by_beat = {seg["beat_id"]: seg for seg in vo_segments}
+        for beat in beats:
+            storyboard.append({
+                "beat_id": beat["beat_id"],
+                "semantic_visual_intent": beat["visual"],
+                "measured_vo_duration_seconds": vo_by_beat[beat["beat_id"]]["duration"],
+                "approved_source_still": images[beat["beat_id"]]["path"],
+            })
+        try:
+            motion_result = LLMAdapter(
+                models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts",
+            ).complete(
+                prompt_file="assembly/motion_plan_v1.md",
+                variables={
+                    "storyboard_beats": json.dumps(storyboard, ensure_ascii=False, indent=2),
+                    "generator_constraints": json.dumps({
+                        "generator": estimate["generator"],
+                        "clip_duration_seconds": estimate["clip_duration_seconds"],
+                        "mode": "image_to_video",
+                    }),
+                    "visual_style": module_vars.get("visual_style", ""),
+                },
+                schema=MOTION_PLAN_SCHEMA,
+                backend="drafter",
+                context=f"Motion plan for asset {asset_id} | module_ctx: {module_prov}",
+                business_slug=business_slug,
+                profile="drafter",
+            )
+            motion_prompts = validate_motion_plan(beats, motion_result)
+        except (LLMAdapterError, ReelProductionError, Exception) as e:
+            return jsonify({"status": "motion_plan_failed", "error": str(e)}), 500
+
+        # Paid boundary: submit only the beat IDs included in the approved estimate.
+        # Submit the batch first so provider jobs run concurrently; downloads remain
+        # serialized and fully registered before planning.
+        render_config = models_config.get("media", {}).get("reel_production", {})
+        submissions = []
+        for beat_id in estimate["missing_beat_ids"]:
+            source = images[beat_id]
+            try:
+                submit = media_adapter.submit_video(
+                    prompt=motion_prompts[beat_id],
+                    asset_id=asset_id,
+                    model=estimate["generator"],
+                    provider=estimate["provider"],
+                    aspect_ratio=render_config.get("aspect_ratio", ""),
+                    duration=estimate["clip_duration_seconds"],
+                    source_image=source["path"],
+                    mode="image_to_video",
+                    context=f"Approved storyboard animation {beat_id} for asset {asset_id}",
+                    business_slug=business_slug,
+                )
+                submissions.append((beat_id, source, submit))
+            except Exception as e:
+                return jsonify({"status": "motion_failed", "beat_id": beat_id, "error": str(e)}), 500
+
+        for beat_id, source, submit in submissions:
+            try:
+                generated = _poll_download_register_video(
+                    media_adapter, submit.get("external_job_id"), asset_id,
+                    submit.get("model", estimate["generator"]), motion_prompts[beat_id],
+                    business_slug, provider=estimate["provider"],
+                    estimated_cost_usd=submit.get("cost_usd", 0),
+                )
+                if generated.get("status") != "ok":
+                    return jsonify({
+                        "status": generated.get("status", "failed"),
+                        "error": generated.get("error") or
+                                 "A motion clip is still processing. Retry after it completes; completed clips are kept.",
+                        "beat_id": beat_id,
+                    }), 504
+                media_id = int(generated["ingredient_id"].split(":", 1)[1])
+                conn = __import__("sqlite3").connect(app.config["DB_PATH"])
+                conn.execute(
+                    "UPDATE asset_media SET beat_id = ?, source_media_id = ? WHERE id = ?",
+                    (beat_id, source["id"], media_id),
+                )
+                conn.commit()
+                conn.close()
+            except Exception as e:
+                return jsonify({"status": "motion_failed", "beat_id": beat_id, "error": str(e)}), 500
+
+        # Refresh scoped media and compile a source-resolved, exact-text plan.
+        media = media_adapter.list_asset_media(asset_id, owner_type="asset")
+        images = {row["beat_id"]: row for row in media if row.get("kind") == "image" and row.get("beat_id")}
+        videos = {row["beat_id"]: row for row in media if row.get("kind") == "video" and row.get("beat_id")}
+        from assembly import probe_duration
+        visuals = {}
+        for beat in beats:
+            beat_id = beat["beat_id"]
+            image = images[beat_id]
+            video = videos.get(beat_id)
+            visuals[beat_id] = {
+                "image": {"ingredient_id": f"generated:{image['id']}"},
+            }
+            if video:
+                visuals[beat_id]["video"] = {
+                    "ingredient_id": f"generated:{video['id']}",
+                    "duration": probe_duration(video["path"]) or estimate["clip_duration_seconds"],
+                }
+        try:
+            plan, contract = build_reel_plan(beats, vo_segments, visuals, render_config)
+        except ReelProductionError as e:
+            return jsonify({"status": "plan_failed", "error": str(e)}), 409
+
+        import hashlib
+        source_hash = hashlib.sha256(
+            json.dumps(json.loads(asset.get("posts") or "[]"), sort_keys=True, ensure_ascii=False).encode()
+        ).hexdigest()
+        plan_id = store.save_edit_plan(
+            asset["draft_id"], asset_id, plan,
+            compliance_contract=contract, source_draft_hash=source_hash,
+        )
+        return jsonify({
+            "status": "ok", "plan_id": plan_id,
+            "vo_duration_seconds": plan["canvas"]["duration_target"],
+            "motion_clips": len(videos),
+            "estimated_cost_usd": estimate["estimated_cost_usd"],
         })
 
     @app.route("/api/assets/<int:asset_id>/generate-video", methods=["POST"])
@@ -6823,51 +7080,28 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         plan = json.loads(edit_plan.get("plan_json") or "{}")
 
-        # ── VO generation: if the script has VO lines but no VO file exists,
-        # generate one before rendering so the renderer can mix it.
-        # This bridges the gap between "script has dialogue" and "video has audio."
-        vo_gen_result = None
-        try:
-            from vo_generator import VOGenerator, VOGenerationError
-            vo_gen = VOGenerator(models_config, db_path=app.config["DB_PATH"])
-            existing_vo = vo_gen.has_vo_for_asset(asset_id)
-            if existing_vo:
-                # VO file exists from a previous generation — update the plan
-                # to reference it so the renderer can find it
-                vo_filename = os.path.basename(existing_vo)
-                # Extract take_id from filename: vo_<take_id>.wav
-                existing_take_id = vo_filename.replace("vo_", "").rsplit(".", 1)[0]
-                audio_block = plan.get("audio", {})
-                vo_block = audio_block.get("vo", {})
-                if not vo_block.get("take_id"):
-                    vo_block["take_id"] = existing_take_id
-                    audio_block["vo"] = vo_block
-                    plan["audio"] = audio_block
-            else:
-                # Check if the script has VO lines
-                vo_text = vo_gen._extract_vo_lines(
-                    asset.get("content") or "",
-                    asset.get("posts") or "",
-                )
-                if vo_text:
-                    vo_gen_result = vo_gen.generate_vo(
-                        asset_id=asset_id,
-                        content=asset.get("content") or "",
-                        posts=asset.get("posts") or "",
-                        business_slug=business_slug,
+        # VO-led assets fail closed: complete exact VO and a matching master
+        # timeline are prerequisites, never optional render enhancements.
+        from reel_production import ReelProductionError, extract_reel_beats, validate_vo_segments
+        structured_beats = extract_reel_beats(json.loads(asset.get("posts") or "[]"))
+        if any(beat.get("vo_text") for beat in structured_beats):
+            try:
+                vo_segments = json.loads(store.get_vo_segments(asset_id) or "[]")
+                vo_facts = validate_vo_segments(structured_beats, vo_segments)
+                plan_take = (plan.get("audio", {}).get("vo", {}) or {}).get("take_id", "")
+                planned_duration = float(plan.get("canvas", {}).get("duration_target") or 0)
+                if plan_take != vo_facts["take_id"]:
+                    raise ReelProductionError("The edit plan does not reference the complete approved VO take.")
+                if abs(planned_duration - vo_facts["duration"]) > 0.05:
+                    raise ReelProductionError(
+                        f"The plan is {planned_duration:.1f}s but the measured VO is "
+                        f"{vo_facts['duration']:.1f}s. Rebuild the plan around the VO."
                     )
-                    # Update the plan's audio block to reference this take
-                    audio_block = plan.get("audio", {})
-                    vo_block = audio_block.get("vo", {})
-                    vo_block["take_id"] = vo_gen_result["take_id"]
-                    audio_block["vo"] = vo_block
-                    plan["audio"] = audio_block
-        except VOGenerationError as vo_err:
-            import logging
-            logging.warning(f"VO generation failed (non-blocking): {vo_err}")
-        except Exception as vo_err:
-            import logging
-            logging.warning(f"VO generation error (non-blocking): {vo_err}")
+            except (ReelProductionError, ValueError, TypeError, json.JSONDecodeError) as e:
+                message = f"Render stopped before FFmpeg: {e}"
+                _get_jobs_store().fail_job(render_job_id, message[:200])
+                store.update_edit_plan_status(plan_id, "needs_operator_decision", message[:500])
+                return jsonify({"status": "vo_required", "error": message}), 409
 
         renderer = AssemblyRenderer(models_config, db_path=app.config["DB_PATH"])
 

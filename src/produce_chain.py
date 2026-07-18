@@ -406,10 +406,11 @@ class ProductionChain:
                 )
                 store.save_vo_segments(asset["id"], json.dumps(result["segments"]))
             except VOGenerationError as e:
-                # Non-fatal — the asset can still be rendered without VO
-                # (silent or music-only). The edit plan will handle it.
-                import logging
-                logging.warning(f"VO generation failed for asset {asset['id']}: {e}")
+                # Spoken Writer frames make VO mandatory. Continuing would create
+                # a false-green silent reel and violate the approved contract.
+                raise RuntimeError(
+                    f"Complete voice-over generation failed for asset {asset['id']}: {e}"
+                ) from e
 
     def _step_media_plan(self, draft_id: int, card_id: int, business_slug: str, store):
         """Generate a media plan using the Media Planning Service."""
@@ -443,10 +444,14 @@ class ProductionChain:
         draft = store.get_draft(draft_id)
         beats = self._extract_beats_from_draft(draft)
 
-        # Build prompt inputs
+        # Build prompt inputs from the measured VO produced by the prior step.
+        measured_vo = None
+        vo_segments_json = store.get_vo_segments(asset["id"])
+        if vo_segments_json:
+            measured_vo = {"segments": _json.loads(vo_segments_json)}
         prompt_inputs = planning_service.build_plan_prompt_inputs(
             beats=beats,
-            measured_vo=None,  # VO not yet generated at this stage
+            measured_vo=measured_vo,
             inventory=inventory,
         )
 

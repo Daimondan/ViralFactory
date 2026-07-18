@@ -166,6 +166,18 @@ processes:
       available_providers: {source: dynamic}
       costs: {source: dynamic}
 
+  motion_plan_v1:
+    prompt_file: "assembly/motion_plan_v1.md"
+    backend: "drafter"
+    schema: "MOTION_PLAN_SCHEMA"
+    context_template: "Motion plan for asset {asset_id} | module_ctx: {module_prov}"
+    inputs:
+      business_name: {source: business, field: "business.name"}
+      module_views: "assembly/motion_plan_v1.md"
+      storyboard_beats: {source: dynamic}
+      generator_constraints: {source: dynamic}
+      visual_style: {source: dynamic}
+
   edit_plan_v2:
     prompt_file: "assembly/edit_plan_v2.md"
     backend: "drafter"
@@ -255,6 +267,7 @@ schemas:
   ANALYSIS_SCHEMA: "inline:analysis_schema"
   PRODUCTION_CONTRACT_V2_SCHEMA: "production_contract.PRODUCTION_CONTRACT_V2_SCHEMA"
   MEDIA_PLAN_SCHEMA: "inline:media_plan_schema"
+  MOTION_PLAN_SCHEMA: "reel_production.MOTION_PLAN_SCHEMA"
   EDIT_PLAN_SCHEMA: "pipeline.EDIT_PLAN_SCHEMA"
   COMPLIANCE_REVIEW_SCHEMA: "pipeline.COMPLIANCE_REVIEW_SCHEMA"
   REMEDIATION_INSTRUCTION_SCHEMA: "pipeline.REMEDIATION_INSTRUCTION_SCHEMA"

@@ -392,9 +392,11 @@ class VOGenerator:
             # Handle both string posts (backward-compat) and frame objects (v4)
             if isinstance(post, dict):
                 vo_text = post.get("vo_text", "")
+                beat_id = str(post.get("beat_id") or f"b{i:02d}")
                 if not vo_text:
                     vo_text = post.get("label", f"Frame {i}")  # fallback
             else:
+                beat_id = f"b{i:02d}"
                 # Extract spoken lines from this post/frame
                 vo_text = self._extract_vo_lines(post, json.dumps([post]))
                 if not vo_text:
@@ -427,9 +429,11 @@ class VOGenerator:
 
             segments.append({
                 "frame": i,
+                "beat_id": beat_id,
                 "path": seg_path,
                 "duration": duration,
-                "text": vo_text[:200],
+                "text": vo_text,
+                "take_id": take_id,
             })
             segment_paths.append(seg_path)
 
@@ -443,6 +447,9 @@ class VOGenerator:
         combined_path = os.path.join(media_dir, f"vo_{take_id}.wav")
         if segment_paths:
             self._concat_wavs(segment_paths, combined_path)
+
+        for segment in segments:
+            segment["combined_path"] = combined_path
 
         total_duration = sum(s["duration"] for s in segments)
 

@@ -369,6 +369,19 @@ class TestFalJobPolling:
         assert result["status"] == "processing"
         assert result["download_url"] is None
 
+    def test_generic_video_poll_routes_fal_to_configured_endpoint(self, adapter):
+        """The shared job poller must not send fal request IDs to OpenRouter."""
+        with patch.object(adapter, "check_fal_job", return_value={
+            "status": "processing", "download_url": None, "cost_usd": 0,
+        }) as poll:
+            result = adapter.check_video_job(
+                "fal-req-123", provider="fal", model="kling-3",
+            )
+        assert result["status"] == "processing"
+        poll.assert_called_once_with(
+            "fal-ai/kling-video/v3/standard/image-to-video", "fal-req-123",
+        )
+
     def test_fal_job_completed(self, adapter, monkeypatch):
         """Polling returns 'completed' with download_url when done."""
         monkeypatch.setenv("FAL_KEY", "test_key")

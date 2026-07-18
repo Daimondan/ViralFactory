@@ -6,6 +6,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-18
+
+### Reel production — VO-first motion pipeline [FIX/LOGIC/TECH]
+**What:** Replaced the misleading still-image slideshow path with a VO-first reel workflow. Structured `vo_text` is generated completely and measured before planning; incomplete or mismatched VO now blocks rendering. Each approved beat receives a stable media link, configured Kling image-to-video clips are submitted in one concurrent batch after an exact operator cost approval, and the measured VO timeline compiles deterministic cuts, exact captions, and untouched `text_on_screen` overlays. FAL jobs now poll through their configured endpoint, cached files receive owner-scoped media rows, and the manual seconds/aspect/prompt dialog was removed.
+**Why:** Draft 7 produced a 15.5-second silent slideshow for a 176-word reel, then passed audio review because the edit plan declared silence. The UI said “Generate video” but never invoked a video provider.
+**Rationale:** VO is the constitutional master clock; Writer text and visual intent are immutable; Media Planner judgment lives in a versioned prompt; format/render values and provider prices live in config; and paid motion calls occur only after the operator sees and accepts the current per-piece estimate. Existing stills remain as intentional hold coverage after each motion clip rather than silently replacing motion.
+**Verification:** 1,610 tests passing; live no-spend estimate for asset 5 reports six ready storyboard stills, six 5-second Kling clips, and a $3.00 animation estimate. No paid provider calls were made during verification.
+
 ## 2026-07-17
 
 ### T11.5-T11.10 — Episode format complete [TECH]

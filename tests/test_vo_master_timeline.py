@@ -59,12 +59,41 @@ def test_vo_per_frame_returns_segments_with_durations():
     assert len(result["segments"]) == 3
     for i, seg in enumerate(result["segments"], 1):
         assert seg["frame"] == i
+        assert seg["beat_id"] == f"b{i:02d}"
         assert "path" in seg
         assert seg["duration"] == 5.0
         assert "text" in seg
+        assert seg["take_id"] == "test_take"
+        assert seg["combined_path"] == result["combined_path"]
     assert "total_duration" in result
     assert result["total_duration"] == 15.0  # 3 × 5.0
     assert "combined_path" in result
+
+
+def test_vo_per_frame_preserves_full_approved_text():
+    """VO metadata must never truncate approved text used for compliance."""
+    from vo_generator import VOGenerator
+    gen = VOGenerator.__new__(VOGenerator)
+    gen.models_config = {}
+    gen.db_path = "/tmp/test_vo_full_text.db"
+    gen.provenance = MagicMock()
+    gen._get_gemini_tts_config = MagicMock(return_value={
+        "model": "test", "voice": "Kore", "style": "",
+        "api_key_env": "FAKE_KEY", "sample_rate": 24000,
+    })
+    os.environ["FAKE_KEY"] = "test-key"
+    gen._call_gemini_tts = MagicMock(return_value=b"\x00" * 48000)
+    gen._save_wav = MagicMock(side_effect=lambda pcm, path, sr: Path(path).write_bytes(b"wav"))
+    gen._get_duration = MagicMock(return_value=5.0)
+    gen._record_vo_media = MagicMock()
+    gen._log_provenance = MagicMock()
+    exact_text = "Exact approved sentence. " * 20
+    result = gen.generate_vo_per_frame(
+        asset_id=998, posts=[{"beat_id": "hook", "vo_text": exact_text}],
+        business_slug="test", take_id="full_text",
+    )
+    assert result["segments"][0]["text"] == exact_text
+    assert result["segments"][0]["beat_id"] == "hook"
 
 
 # ─── 2. pipeline: vo_segments column ───────────────────────────────────

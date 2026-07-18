@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS asset_media (
     model TEXT NOT NULL,
     prompt TEXT,
     cost_usd REAL,
+    beat_id TEXT,
+    source_media_id INTEGER,
     created_at TEXT NOT NULL,
     FOREIGN KEY (asset_id) REFERENCES assets(id)
 );
@@ -142,6 +144,12 @@ class MediaAdapter:
             if legacy_rows:
                 conn.commit()
 
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(asset_media)").fetchall()]
+        if "beat_id" not in cols:
+            conn.execute("ALTER TABLE asset_media ADD COLUMN beat_id TEXT")
+        if "source_media_id" not in cols:
+            conn.execute("ALTER TABLE asset_media ADD COLUMN source_media_id INTEGER")
+
         conn.commit()
         conn.close()
 
@@ -186,32 +194,39 @@ class MediaAdapter:
         )
 
     def _record_media(self, asset_id: int, kind: str, path: str, model: str,
-                      prompt: str, cost_usd: float = None, owner_type: str = "asset"):
+                      prompt: str, cost_usd: float = None, owner_type: str = "asset",
+                      beat_id: str = None, source_media_id: int = None):
         """Record generated media in the asset_media table."""
         import sqlite3
         from datetime import datetime, timezone
         ts = datetime.now(timezone.utc).isoformat()
         conn = sqlite3.connect(self.db_path)
-        # Check if owner_type column exists (defensive for old DBs)
-        cols = [row[1] for row in conn.execute("PRAGMA table_info(asset_media)").fetchall()]
-        if "owner_type" in cols:
-            cursor = conn.execute(
-                """INSERT INTO asset_media
-                   (asset_id, kind, path, model, prompt, cost_usd, created_at, owner_type)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (asset_id, kind, path, model, prompt[:2000], cost_usd, ts, owner_type),
-            )
-        else:
-            cursor = conn.execute(
-                """INSERT INTO asset_media
-                   (asset_id, kind, path, model, prompt, cost_usd, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (asset_id, kind, path, model, prompt[:2000], cost_usd, ts),
-            )
+        cursor = conn.execute(
+            """INSERT INTO asset_media
+               (asset_id, kind, path, model, prompt, cost_usd, created_at,
+                owner_type, beat_id, source_media_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (asset_id, kind, path, model, prompt[:2000], cost_usd, ts,
+             owner_type, beat_id, source_media_id),
+        )
         media_id = cursor.lastrowid
         conn.commit()
         conn.close()
         return media_id
+
+    def _record_cached_image_owner(self, asset_id: int, path: str, model: str,
+                                   prompt: str, owner_type: str) -> int:
+        """Attach a shared cached file to this owner without duplicate rows."""
+        conn = self._connect()
+        row = conn.execute(
+            "SELECT id FROM asset_media WHERE asset_id = ? AND owner_type = ? "
+            "AND path = ? ORDER BY id DESC LIMIT 1",
+            (asset_id, owner_type, path),
+        ).fetchone()
+        conn.close()
+        return row[0] if row else self._record_media(
+            asset_id, "image", path, model, prompt, 0, owner_type=owner_type,
+        )
 
     def _get_cached_image(self, prompt: str, model: str) -> Optional[str]:
         """Check if an image for this prompt+model is already cached."""
@@ -342,10 +357,14 @@ class MediaAdapter:
         # Check cache
         cached = self._get_cached_image(prompt, model)
         if cached:
+            media_id = self._record_cached_image_owner(
+                asset_id, cached, model, prompt, owner_type,
+            )
             self._log_provenance(model, prompt, cost_usd=0,
                                  context=f"{context} (cached)", business_slug=business_slug,
                                  provider="fal")
-            return {"path": cached, "model": model, "prompt": prompt, "cost_usd": 0, "cached": True}
+            return {"path": cached, "model": model, "prompt": prompt,
+                    "cost_usd": 0, "cached": True, "media_id": media_id}
 
         media_dir = self._ensure_media_dir(asset_id)
 
@@ -437,9 +456,13 @@ class MediaAdapter:
         # Check cache
         cached = self._get_cached_image(prompt, model)
         if cached:
+            media_id = self._record_cached_image_owner(
+                asset_id, cached, model, prompt, owner_type,
+            )
             self._log_provenance(model, prompt, cost_usd=0,
                                  context=f"{context} (cached)", business_slug=business_slug)
-            return {"path": cached, "model": model, "prompt": prompt, "cost_usd": 0, "cached": True}
+            return {"path": cached, "model": model, "prompt": prompt,
+                    "cost_usd": 0, "cached": True, "media_id": media_id}
 
         if not self.api_key:
             raise MediaAdapterError("OPENROUTER_API_KEY not set — cannot generate images")
@@ -679,13 +702,21 @@ class MediaAdapter:
             "provider": video_provider,
         }
 
-    def check_video_job(self, external_job_id: str, provider: str = None) -> dict:
+    def check_video_job(self, external_job_id: str, provider: str = None,
+                        model: str = None) -> dict:
         """
         Poll a video generation job. Returns:
         {status: "processing"|"completed"|"failed", download_url, cost_usd}
         """
         video_base_url = self.media_config.get("video_base_url", self.base_url)
         video_provider = provider or self.media_config.get("video_provider", "openrouter")
+
+        if video_provider == "fal":
+            model = model or self.media_config.get("video_default", "")
+            generator = self._resolve_fal_video_generator(model)
+            if not generator:
+                raise MediaAdapterError(f"Unknown fal video generator: {model}")
+            return self.check_fal_job(generator.get("endpoint", model), external_job_id)
 
         if video_provider == "google":
             # Google Veo — poll long-running operation

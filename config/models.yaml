@@ -144,6 +144,7 @@ media:
       endpoint: "fal-ai/kling-video/v3/standard/image-to-video"
       api_key_env: "FAL_KEY"
       cost_per_second_usd: 0.10
+      clip_duration_seconds: 5
       mode: "image_to_video"
       native_audio: false
       best_for: "all standard shots"
@@ -152,6 +153,7 @@ media:
       endpoint: "fal-ai/veo3.1/fast/image-to-video"
       api_key_env: "FAL_KEY"
       cost_per_second_usd: 0.15
+      clip_duration_seconds: 5
       mode: "image_to_video"
       native_audio: false
       best_for: "hook/hero shots"
@@ -169,6 +171,11 @@ media:
       api_key_env: "GOOGLE_API_KEY"
       best_for: "cinematic, photorealistic, long clips"
   video_default: "kling-3"
+  reel_production:
+    aspect_ratio: "9:16"
+    resolution: "1080x1920"
+    caption_style_ref: "caption"
+    overlay_style_ref: "emphasis"
 
   # ── Legacy single-generator compat (for code paths not yet updated) ──
   video_provider: "fal"

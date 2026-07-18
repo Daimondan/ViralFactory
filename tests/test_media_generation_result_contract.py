@@ -69,16 +69,14 @@ def test_assets_template_does_not_count_submitted_jobs_as_generated_media():
     assert "Not ready to render yet" in source
 
 
-def test_reel_asset_template_separates_video_generation_from_final_render():
-    """A reel with no clip must not label plan+render as "Generate video".
-
-    Regression: the button called /edit-plan and /render while labelled
-    "Generate video", so an empty asset surfaced only the opaque "Plan failed".
-    """
+def test_reel_asset_template_uses_vo_first_cost_approved_motion_flow():
+    """The reel action must produce real clips, not a mislabeled slideshow."""
     template_path = os.path.join(os.path.dirname(__file__), "..", "src", "templates", "assets.html")
     source = open(template_path).read()
 
-    assert 'onclick="showVideoDialog({{ asset.id }})">Generate video ingredient</button>' in source
-    assert 'onclick="generateVideoOneClick({{ asset.id }}, this)">Create final cut</button>' in source
-    assert "'/api/assets/' + currentVideoAssetId + '/generate-clip'" in source
-    assert "planData.message || planData.error || 'Plan failed'" in source
+    assert "showVideoDialog" not in source
+    assert 'onclick="generateVideoOneClick({{ asset.id }}, this)"' in source
+    assert "'/reel-production-estimate'" in source
+    assert "approved_cost_usd: estimate.estimated_cost_usd" in source
+    assert "'/produce-reel'" in source
+    assert "The complete voice-over sets the final duration" in source
