@@ -37,6 +37,13 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Optional
 
+from soundtrack_plan import (
+    SOUNDTRACK_PLAN_VERSION,
+    SoundtrackPlanValidationError,
+    compute_soundtrack_plan_hash,
+    validate_soundtrack_plan,
+)
+
 
 # ─── Schema ──────────────────────────────────────────────────────────────────
 
@@ -1658,6 +1665,27 @@ CREATE TABLE IF NOT EXISTS edit_plans (
 );
 """
 
+    SOUNDTRACK_PLAN_SCHEMA = """
+CREATE TABLE IF NOT EXISTS soundtrack_plans (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    contract_id TEXT NOT NULL,
+    asset_id INTEGER NOT NULL,
+    edit_plan_id INTEGER NOT NULL,
+    plan_version TEXT NOT NULL,
+    plan_json TEXT NOT NULL,
+    plan_hash TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'proposed',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (asset_id) REFERENCES assets(id),
+    FOREIGN KEY (edit_plan_id) REFERENCES edit_plans(id),
+    UNIQUE(edit_plan_id, plan_hash)
+);
+CREATE INDEX IF NOT EXISTS idx_soundtrack_plans_asset
+    ON soundtrack_plans(asset_id, id);
+CREATE INDEX IF NOT EXISTS idx_soundtrack_plans_contract
+    ON soundtrack_plans(contract_id, id);
+"""
+
     def _ensure_edit_plan_columns(self, conn):
         """T10.2: Migrate edit_plans table — add new columns if they don't exist."""
         cols = {row[1] for row in conn.execute("PRAGMA table_info(edit_plans)").fetchall()}
@@ -1718,6 +1746,104 @@ CREATE TABLE IF NOT EXISTS edit_plans (
         ).fetchall()
         conn.close()
         return [dict(r) for r in rows]
+
+    @staticmethod
+    def _decode_soundtrack_plan(row) -> dict | None:
+        if row is None:
+            return None
+        record = dict(row)
+        record["plan"] = json.loads(record.pop("plan_json"))
+        return record
+
+    def save_soundtrack_plan(
+        self,
+        asset_id: int,
+        edit_plan_id: int,
+        plan: dict,
+    ) -> dict:
+        """Validate and append an immutable soundtrack plan linked to a Reel."""
+        errors = validate_soundtrack_plan(plan)
+        if errors:
+            raise SoundtrackPlanValidationError("; ".join(errors))
+
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        conn.executescript(self.EDIT_PLAN_SCHEMA)
+        self._ensure_edit_plan_columns(conn)
+        conn.executescript(self.SOUNDTRACK_PLAN_SCHEMA)
+        edit_plan = conn.execute(
+            "SELECT asset_id, plan_json FROM edit_plans WHERE id = ?",
+            (edit_plan_id,),
+        ).fetchone()
+        if not edit_plan or int(edit_plan["asset_id"]) != int(asset_id):
+            conn.close()
+            raise ValueError("Edit plan does not belong to the soundtrack asset")
+
+        plan_hash = compute_soundtrack_plan_hash(plan)
+        ts = self._now()
+        conn.execute(
+            """INSERT OR IGNORE INTO soundtrack_plans
+               (contract_id, asset_id, edit_plan_id, plan_version, plan_json,
+                plan_hash, status, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, 'proposed', ?)""",
+            (
+                plan["contract_id"],
+                asset_id,
+                edit_plan_id,
+                SOUNDTRACK_PLAN_VERSION,
+                json.dumps(plan, sort_keys=True, ensure_ascii=False),
+                plan_hash,
+                ts,
+            ),
+        )
+        row = conn.execute(
+            """SELECT id, contract_id, plan_hash
+               FROM soundtrack_plans
+               WHERE edit_plan_id = ? AND plan_hash = ?""",
+            (edit_plan_id, plan_hash),
+        ).fetchone()
+        reference = {
+            "soundtrack_plan_id": int(row["id"]),
+            "contract_id": row["contract_id"],
+            "plan_hash": row["plan_hash"],
+        }
+        edit_plan_data = json.loads(edit_plan["plan_json"] or "{}")
+        edit_plan_data["soundtrack_plan"] = reference
+        conn.execute(
+            "UPDATE edit_plans SET plan_json = ?, updated_at = ? WHERE id = ?",
+            (
+                json.dumps(edit_plan_data, sort_keys=True, ensure_ascii=False),
+                ts,
+                edit_plan_id,
+            ),
+        )
+        conn.commit()
+        conn.close()
+        return reference
+
+    def get_soundtrack_plan(self, soundtrack_plan_id: int) -> dict | None:
+        """Return one persisted soundtrack plan with decoded contract data."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        conn.executescript(self.SOUNDTRACK_PLAN_SCHEMA)
+        row = conn.execute(
+            "SELECT * FROM soundtrack_plans WHERE id = ?",
+            (soundtrack_plan_id,),
+        ).fetchone()
+        conn.close()
+        return self._decode_soundtrack_plan(row)
+
+    def list_soundtrack_plans(self, asset_id: int) -> list[dict]:
+        """List immutable soundtrack plan versions for an asset, newest first."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        conn.executescript(self.SOUNDTRACK_PLAN_SCHEMA)
+        rows = conn.execute(
+            "SELECT * FROM soundtrack_plans WHERE asset_id = ? ORDER BY id DESC",
+            (asset_id,),
+        ).fetchall()
+        conn.close()
+        return [self._decode_soundtrack_plan(row) for row in rows]
 
     def update_edit_plan_status(self, plan_id: int, status: str, feedback: str = None) -> dict:
         """Update edit plan status (proposed → approved → rendering → rendered → failed)."""

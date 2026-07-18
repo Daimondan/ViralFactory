@@ -324,6 +324,16 @@ EDIT_SEGMENT_SCHEMA = {
     },
 }
 
+SOUNDTRACK_PLAN_REFERENCE_SCHEMA = {
+    "type": ["object", "null"],
+    "required": ["soundtrack_plan_id", "contract_id", "plan_hash"],
+    "properties": {
+        "soundtrack_plan_id": {"type": "integer"},
+        "contract_id": {"type": "string", "minLength": 1},
+        "plan_hash": {"type": "string", "minLength": 64},
+    },
+}
+
 PRODUCTION_CONTRACT_V2_SCHEMA = {
     "type": "object",
     "required": [
@@ -353,6 +363,7 @@ PRODUCTION_CONTRACT_V2_SCHEMA = {
             "type": "array",
             "items": EDIT_SEGMENT_SCHEMA,
         },
+        "soundtrack_plan": SOUNDTRACK_PLAN_REFERENCE_SCHEMA,
         "writer_contract_hash": {"type": "string"},
     },
 }
@@ -642,6 +653,7 @@ def assemble_contract(
     text_intents: list[dict] | None = None,
     media_recipes: list[dict] | None = None,
     edit_segments: list[dict] | None = None,
+    soundtrack_plan: dict | None = None,
 ) -> dict:
     """Assemble a full Production Contract v2 with all validation.
 
@@ -705,6 +717,21 @@ def assemble_contract(
     if pos_errors:
         raise ContractValidationError("; ".join(pos_errors))
 
+    if soundtrack_plan is not None:
+        soundtrack_errors = validate_contract_schema(
+            soundtrack_plan,
+            SOUNDTRACK_PLAN_REFERENCE_SCHEMA,
+        )
+        if soundtrack_errors:
+            raise ContractValidationError(
+                "Soundtrack plan reference invalid: "
+                + "; ".join(soundtrack_errors)
+            )
+        if soundtrack_plan.get("contract_id") != content_contract["contract_id"]:
+            raise ContractValidationError(
+                "soundtrack_plan.contract_id must match production contract_id"
+            )
+
     # Compute writer contract hash
     writer_contract = {
         "platform_content": content_contract.get("platform_content", []),
@@ -723,6 +750,7 @@ def assemble_contract(
         "text_intents": text_intents,
         "media_recipes": media_recipes,
         "edit_segments": edit_segments,
+        "soundtrack_plan": soundtrack_plan,
         "writer_contract_hash": writer_hash,
     }
 

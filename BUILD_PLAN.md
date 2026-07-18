@@ -226,7 +226,7 @@ The following tasks were marked complete but their acceptance criteria were met 
 
 ### Phase M13-E — Soundtrack plan
 
-- [~] VF-VS-501 **Re-opened for integration:** contract helpers exist, but the live Reel has no persisted soundtrack plan or contract reference.
+- [x] VF-VS-501 **Persistence/linkage closed:** Production Contract v2 carries a typed optional `soundtrack_plan` reference; `PipelineStore` validates and append-only persists versioned soundtrack contracts linked to asset + edit plan, hashes canonical JSON, rejects cross-asset links, makes identical retries idempotent, and atomically embeds the latest immutable reference in the persisted Reel plan. Plan judgment/creation remains VF-VS-502. — AC: 31 soundtrack tests, 130 focused contract/store tests, full linked-worktree suite `1,842 passed, 7 skipped`.
 - [~] VF-VS-502 **Re-opened for integration:** prompt/registry entry exist, but no production caller creates or validates a soundtrack plan.
 - [~] VF-VS-503 **Re-opened:** gate class exists, but there is no operator route/UI for preview, approve, reject, replace, or explicit VO-only approval.
 - [~] VF-VS-504 **Re-opened:** `RenderReviewService.check_soundtrack_mix()` exists but has no caller in render/review.

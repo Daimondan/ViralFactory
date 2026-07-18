@@ -8,6 +8,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-18
 
+### VF-VS-501 — Persist and link immutable soundtrack contracts [STRUCTURE/LOGIC]
+
+**What:** Production Contract v2 now supports a typed nullable `soundtrack_plan` reference containing the persisted plan ID, matching contract ID, and canonical plan hash. `PipelineStore` now validates soundtrack contracts before writing them to an append-only `soundtrack_plans` table linked to the owning asset and edit plan. Identical retries resolve to the existing row; changed plans create a new version. Saving a plan atomically updates the persisted Reel edit plan to point at that exact immutable reference. Cross-asset edit-plan links and invalid soundtrack contracts are rejected before persistence.
+
+**Rationale:** A helper-only soundtrack schema cannot govern production. The plan must survive process boundaries, remain auditable across replacements, and be mechanically tied to the Reel that will render it. Keeping the plan as a parallel immutable contract avoids embedding mutable approval state in the production contract while the hash-locked reference prevents silent plan substitution. LLM judgment and production invocation remain the separate VF-VS-502 task.
+
+**Verification:** 31 soundtrack contract/store tests pass; 130 focused soundtrack, Production Contract v2, and pipeline tests pass. Full linked-worktree suite: `1,842 passed, 7 skipped`.
+
 ### VF-AU-401 — Require feasibility evidence at the VO-led render boundary [LOGIC/FIX]
 
 **What:** The shared `RenderReviewService.render_for_asset()` now refuses a VO-led edit plan before FFmpeg unless its persisted feasibility result is structurally complete and internally passing. The boundary requires the VO timeline, beat mapping, visual-event coverage, and generated-motion checks; it rejects missing checks, failed individual checks, a non-feasible overall verdict, or contradictory top-level evidence. A blocker marks the plan `needs_operator_decision` and returns `feasibility_required`. Complete evidence proceeds through the existing renderer/reviewer path. Non-VO formats are unchanged because their current planning path does not yet produce this Reel-specific evidence.

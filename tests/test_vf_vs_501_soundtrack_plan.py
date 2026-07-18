@@ -4,6 +4,7 @@ AC: vo_only requires rationale + approval; music_bed requires licence + cost;
 validation rejects silent VO-only.
 """
 
+import json
 import os
 import sys
 
@@ -24,6 +25,12 @@ from soundtrack_plan import (
     make_vo_only_plan,
     make_music_bed_plan,
     SoundtrackPlanValidationError,
+)
+from pipeline import PipelineStore
+from production_contract import (
+    ContractValidationError,
+    PRODUCTION_CONTRACT_V2_SCHEMA,
+    assemble_contract,
 )
 
 
@@ -263,6 +270,156 @@ def test_is_valid_helper():
 def test_is_valid_helper_rejects_invalid():
     plan = make_vo_only_plan("c001", "")
     assert is_valid_soundtrack_plan(plan) is False
+
+
+# ── Re-opened integration: durable contract reference ───────────────────────
+
+
+def _content_contract(contract_id="c001"):
+    return {
+        "contract_id": contract_id,
+        "core_claim": "A useful claim",
+        "audience_value": "A useful outcome",
+        "evidence_refs": [],
+        "primary_emotional_job": "clarity",
+        "primary_audience_action": "save",
+        "format_name": "reel",
+        "platform": "instagram",
+        "capture_policy": "generated_allowed",
+        "evidence_label": "HOUSE_RULE",
+    }
+
+
+def _beats():
+    return [{
+        "beat_id": "b01",
+        "platform_variant_id": "instagram-reel",
+        "role": "HOOK",
+        "required": True,
+        "vo_text": "A useful line.",
+        "staged_action": "Open the idea.",
+        "capture_policy": "generated_allowed",
+    }]
+
+
+def _asset_and_edit_plan(store):
+    card_id = store.create_idea_card(
+        "test-business",
+        "A useful idea",
+        ["A useful hook"],
+        {"format": {"format_name": "reel"}},
+        "ai_originated",
+    )
+    draft_id = store.create_draft(
+        "test-business", card_id, "ai_originated", "reel", "one_off"
+    )
+    asset_id = store.create_asset(
+        "test-business", draft_id, "instagram", "reel", "Fixture"
+    )
+    edit_plan_id = store.save_edit_plan(draft_id, asset_id, {"segments": []})
+    return asset_id, edit_plan_id
+
+
+def test_production_contract_schema_carries_soundtrack_reference():
+    ref_schema = PRODUCTION_CONTRACT_V2_SCHEMA["properties"]["soundtrack_plan"]
+
+    assert ref_schema["type"] == ["object", "null"]
+    assert set(ref_schema["required"]) == {
+        "soundtrack_plan_id", "contract_id", "plan_hash",
+    }
+
+
+def test_contract_assembly_links_matching_soundtrack_reference():
+    reference = {
+        "soundtrack_plan_id": 7,
+        "contract_id": "c001",
+        "plan_hash": "a" * 64,
+    }
+
+    contract = assemble_contract(
+        _content_contract(),
+        _beats(),
+        soundtrack_plan=reference,
+    )
+
+    assert contract["soundtrack_plan"] == reference
+
+
+def test_contract_assembly_rejects_mismatched_soundtrack_contract_id():
+    with pytest.raises(ContractValidationError, match="soundtrack_plan.contract_id"):
+        assemble_contract(
+            _content_contract(),
+            _beats(),
+            soundtrack_plan={
+                "soundtrack_plan_id": 7,
+                "contract_id": "another-contract",
+                "plan_hash": "a" * 64,
+            },
+        )
+
+
+def test_soundtrack_plan_persists_with_asset_edit_plan_and_hash(tmp_path):
+    store = PipelineStore(str(tmp_path / "test.db"))
+    asset_id, edit_plan_id = _asset_and_edit_plan(store)
+    plan = make_vo_only_plan("c001", "The spoken message should stand alone.")
+
+    reference = store.save_soundtrack_plan(asset_id, edit_plan_id, plan)
+    stored = store.get_soundtrack_plan(reference["soundtrack_plan_id"])
+
+    assert reference == {
+        "soundtrack_plan_id": stored["id"],
+        "contract_id": "c001",
+        "plan_hash": compute_soundtrack_plan_hash(plan),
+    }
+    assert stored["asset_id"] == asset_id
+    assert stored["edit_plan_id"] == edit_plan_id
+    assert stored["plan"] == plan
+    linked_edit_plan = json.loads(store.get_edit_plan(edit_plan_id)["plan_json"])
+    assert linked_edit_plan["soundtrack_plan"] == reference
+
+
+def test_soundtrack_versions_append_and_identical_retry_is_idempotent(tmp_path):
+    store = PipelineStore(str(tmp_path / "test.db"))
+    asset_id, edit_plan_id = _asset_and_edit_plan(store)
+    first_plan = make_vo_only_plan("c001", "The spoken message should stand alone.")
+    second_plan = make_vo_only_plan("c001", "The spoken delivery is intentionally unscored.")
+
+    first_ref = store.save_soundtrack_plan(asset_id, edit_plan_id, first_plan)
+    retry_ref = store.save_soundtrack_plan(asset_id, edit_plan_id, first_plan)
+    second_ref = store.save_soundtrack_plan(asset_id, edit_plan_id, second_plan)
+
+    assert retry_ref == first_ref
+    assert second_ref != first_ref
+    assert len(store.list_soundtrack_plans(asset_id)) == 2
+    linked_edit_plan = json.loads(store.get_edit_plan(edit_plan_id)["plan_json"])
+    assert linked_edit_plan["soundtrack_plan"] == second_ref
+
+
+def test_soundtrack_plan_rejects_invalid_plan_without_persisting(tmp_path):
+    store = PipelineStore(str(tmp_path / "test.db"))
+    asset_id, edit_plan_id = _asset_and_edit_plan(store)
+
+    with pytest.raises(SoundtrackPlanValidationError):
+        store.save_soundtrack_plan(
+            asset_id,
+            edit_plan_id,
+            make_vo_only_plan("c001", ""),
+        )
+
+    assert store.list_soundtrack_plans(asset_id) == []
+
+
+def test_soundtrack_plan_rejects_edit_plan_from_another_asset(tmp_path):
+    store = PipelineStore(str(tmp_path / "test.db"))
+    asset_id, _edit_plan_id = _asset_and_edit_plan(store)
+    _other_asset_id, other_edit_plan_id = _asset_and_edit_plan(store)
+
+    with pytest.raises(ValueError, match="does not belong"):
+        store.save_soundtrack_plan(
+            asset_id,
+            other_edit_plan_id,
+            make_vo_only_plan("c001", "The spoken message should stand alone."),
+        )
 
 
 if __name__ == "__main__":
