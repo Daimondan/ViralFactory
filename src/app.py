@@ -9327,20 +9327,24 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         finally:
             store.close()
 
-    # P1-transcription: Start the transcription worker daemon thread
-    try:
-        from transcription import TranscriptionWorker
-        config_for_worker = load_all(config_dir)
-        worker = TranscriptionWorker(
-            db_path=db_path,
-            upload_dir=app.config.get("UPLOAD_DIR", "data/uploads"),
-            models_config=config_for_worker.get("models", {}),
-        )
-        worker.start()
-        app.config["TRANSCRIPTION_WORKER"] = worker
-    except Exception as e:
-        import logging
-        logging.getLogger("viralfactory").warning(f"Transcription worker not started: {e}")
+    # P1-transcription: Start the transcription worker daemon thread.
+    # Process-level test/application factories can disable background services;
+    # worker behavior remains covered through direct TranscriptionWorker tests.
+    app.config["TRANSCRIPTION_WORKER"] = None
+    if os.environ.get("VIRALFACTORY_DISABLE_BACKGROUND_WORKERS") != "1":
+        try:
+            from transcription import TranscriptionWorker
+            config_for_worker = load_all(config_dir)
+            worker = TranscriptionWorker(
+                db_path=db_path,
+                upload_dir=app.config.get("UPLOAD_DIR", "data/uploads"),
+                models_config=config_for_worker.get("models", {}),
+            )
+            worker.start()
+            app.config["TRANSCRIPTION_WORKER"] = worker
+        except Exception as e:
+            import logging
+            logging.getLogger("viralfactory").warning(f"Transcription worker not started: {e}")
 
     return app
 

@@ -67,15 +67,17 @@ class TranscriptionWorker:
     def _get_pending_audio(self) -> list[dict]:
         """Get the oldest pending audio material."""
         conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute(
-            """SELECT * FROM materials
-               WHERE material_type = 'audio'
-               AND (transcription_status = 'pending' OR transcription_status IS NULL)
-               AND normalized_content LIKE '%transcription pending%'
-               ORDER BY id ASC LIMIT 1""",
-        ).fetchall()
-        conn.close()
+        try:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """SELECT * FROM materials
+                   WHERE material_type = 'audio'
+                   AND (transcription_status = 'pending' OR transcription_status IS NULL)
+                   AND normalized_content LIKE '%transcription pending%'
+                   ORDER BY id ASC LIMIT 1""",
+            ).fetchall()
+        finally:
+            conn.close()
         return [dict(r) for r in rows]
 
     def _find_audio_file(self, material: dict) -> str | None:
@@ -129,27 +131,29 @@ class TranscriptionWorker:
                          normalized_content: str = None, word_count: int = None):
         """Update a material's transcription status and content."""
         conn = sqlite3.connect(self.db_path)
-        if normalized_content is not None and word_count is not None:
-            conn.execute(
-                """UPDATE materials
-                   SET transcription_status = ?, normalized_content = ?, word_count = ?
-                   WHERE id = ?""",
-                (status, normalized_content, word_count, material_id),
-            )
-        elif normalized_content is not None:
-            conn.execute(
-                """UPDATE materials
-                   SET transcription_status = ?, normalized_content = ?
-                   WHERE id = ?""",
-                (status, normalized_content, material_id),
-            )
-        else:
-            conn.execute(
-                "UPDATE materials SET transcription_status = ? WHERE id = ?",
-                (status, material_id),
-            )
-        conn.commit()
-        conn.close()
+        try:
+            if normalized_content is not None and word_count is not None:
+                conn.execute(
+                    """UPDATE materials
+                       SET transcription_status = ?, normalized_content = ?, word_count = ?
+                       WHERE id = ?""",
+                    (status, normalized_content, word_count, material_id),
+                )
+            elif normalized_content is not None:
+                conn.execute(
+                    """UPDATE materials
+                       SET transcription_status = ?, normalized_content = ?
+                       WHERE id = ?""",
+                    (status, normalized_content, material_id),
+                )
+            else:
+                conn.execute(
+                    "UPDATE materials SET transcription_status = ? WHERE id = ?",
+                    (status, material_id),
+                )
+            conn.commit()
+        finally:
+            conn.close()
 
     def _process_one(self, material: dict) -> bool:
         """Process a single audio material. Returns True on success."""
@@ -200,15 +204,17 @@ class TranscriptionWorker:
     def _backfill(self):
         """On startup, queue every audio material whose file exists and status is pending."""
         conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute(
-            """SELECT * FROM materials
-               WHERE material_type = 'audio'
-               AND (transcription_status = 'pending'
-                    OR (transcription_status IS NULL AND normalized_content LIKE '%transcription pending%'))
-               ORDER BY id ASC""",
-        ).fetchall()
-        conn.close()
+        try:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """SELECT * FROM materials
+                   WHERE material_type = 'audio'
+                   AND (transcription_status = 'pending'
+                        OR (transcription_status IS NULL AND normalized_content LIKE '%transcription pending%'))
+                   ORDER BY id ASC""",
+            ).fetchall()
+        finally:
+            conn.close()
 
         count = len(rows)
         if count > 0:
