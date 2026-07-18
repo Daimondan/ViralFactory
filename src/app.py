@@ -5275,12 +5275,11 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 # Register as a capture upload
                 from materials import MaterialsIntake
                 intake = MaterialsIntake(db_path=app.config["DB_PATH"])
-                material_id = intake.store_text(
-                    business_slug=business_slug,
+                material_id = intake.ingest_text(
                     content=f"AI-generated capture: {task}\nImage: {result['path']}",
+                    business_slug=business_slug,
                     channel="capture_upload",
-                    filepath=result["path"],
-                    run_id=None,
+                    material_type="ai_generated",
                 )
                 store.add_capture_upload(card_id, material_id)
                 fulfilled += 1
