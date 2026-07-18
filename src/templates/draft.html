@@ -398,12 +398,21 @@
         <div id="visualStatus" class="status-line" style="display: none;"></div>
     </div>
     {% endif %}
-
-    {% if draft.draft_state == 'drafting' %}
+    {% if draft.draft_state == 'drafting' and card.card_state == 'writer_failed' %}
+    {# Writer chain failed mid-draft — draft stuck in 'drafting' with failed card state. Show failure + retry, not the spinning "Writer is working" panel. #}
+    <div class="actions" style="margin-top: 20px;">
+        <p class="subtle" style="font-size: 0.9rem; color: #C0392B;">
+            ⚠ Writer failed while drafting this piece.
+            {% if card.production_error %}{{ card.production_error[:200] }}{% endif %}
+        </p>
+        <button class="btn btn-gen" id="retryBtn" style="font-size: 1rem; padding: 10px 24px;" onclick="retryProduction({{ card.id }})">Retry draft</button>
+    </div>
+    {% elif draft.draft_state == 'drafting' %}
     {# Writer still working (drafting or AI review loop) — no Gate 2 actions yet #}
     <div class="actions" style="margin-top: 20px;">
         <p class="subtle" style="font-size: 0.9rem;">
-            <span class="spinner" style="display:inline-block; width:12px; height:12px; border:2px solid #E54B2C; border-top-color:transparent; border-radius:50%; animation:spin 1s linear infinite; vertical-align:middle; margin-right:6px;"></span>
+            <span class="spinner" style="display:inline-block; width:12px; height:12px; border:2px solid #E54B2C; border-top-color:transparent; border-radius:50%; animation:spin 1s linear infinite; vertical-align:middle; margin-right:6px;
+            "></span>
             Writer is working — draft not ready for review yet. This page will refresh automatically.
         </p>
     </div>
@@ -448,15 +457,48 @@
 
     {% else %}
 
+    {% if card.card_state == 'writing' %}
+    {# Writer chain is running but no draft row exists yet (LLM call in progress). Show the spinning panel, not a Generate button — clicking Generate would hit the API guard ("Card state is 'writing'"). #}
+    <div class="actions" style="margin-top: 20px;">
+        <p class="subtle" style="font-size: 0.9rem;">
+            <span class="spinner" style="display:inline-block; width:12px; height:12px; border:2px solid #E54B2C; border-top-color:transparent; border-radius:50%; animation:spin 1s linear infinite; vertical-align:middle; margin-right:6px;"></span>
+            Writer is working — draft not ready for review yet. This page will refresh automatically.
+        </p>
+    </div>
+    <script>
+    setTimeout(function() { window.location.reload(); }, 10000);
+    </script>
+    {% elif card.card_state == 'writer_failed' %}
+    {# Writer chain failed before creating any draft row. Show failure + retry via retry-production (handles failed_step routing). #}
+    <div class="actions" style="margin-top: 20px;">
+        <p class="subtle" style="font-size: 0.9rem; color: #C0392B;">
+            ⚠ Writer failed before producing a draft.
+            {% if card.production_error %}{{ card.production_error[:200] }}{% endif %}
+        </p>
+        <button class="btn btn-gen" id="retryBtn" style="font-size: 1rem; padding: 10px 24px;" onclick="retryProduction({{ card.id }})">Retry draft</button>
+    </div>
+    {% else %}
     <p class="empty" style="text-align: center; margin: 30px 0;">No draft yet. Click generate to create one.</p>
     <div class="actions" style="justify-content: center; display: flex;">
         <button class="btn btn-gen" id="genBtn" style="font-size: 1rem; padding: 10px 24px;" onclick="generateDraft()">Generate draft</button>
     </div>
     <div id="genStatus" class="status-line" style="display: none;"></div>
     {% endif %}
+    {% endif %}
 </div>
 
 <script>
+function retryProduction(cardId) {
+    if (!confirm('Retry production from the failed step?')) return;
+    fetch('/api/ideas/' + cardId + '/retry-production', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'ok') location.reload();
+            else vfToastError('Error', data.error || 'Unknown error');
+        })
+        .catch(err => vfToastError('Network error', String(err)));
+}
+
 function generateDraft() {
     var btn = document.getElementById('genBtn');
     var status = document.getElementById('genStatus');

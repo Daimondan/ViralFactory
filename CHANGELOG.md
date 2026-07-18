@@ -8,6 +8,30 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-18
 
+### FIX — Three Writer-surface state bugs after Gate 1 approval [LOGIC/FIX]
+
+**What:** Three operator-reported bugs in the Writer / draft page state machine, all triggered after approving an idea at Gate 1:
+
+1. **Drafting counter didn't change after approval.** `_writer_display_state()` (app.py) had no case for `approved`, `capture_fulfilled`, or `awaiting_capture` — they fell through to `return cs`, returning the raw state string. The Drafting tab counter (create.html) sums `ready_review + writing + queued`, so approved cards were invisible to the counter and appeared as raw-state badges with no CSS/label.
+2. **Draft stuck on "drafting" label after the writer chain failed.** When the writer chain failed mid-draft, `card_state` became `writer_failed` but `draft_state` stayed `drafting` (set by `create_draft`). draft.html only inspected `draft_state`, so a failed mid-draft chain was indistinguishable from an in-progress chain — the spinner panel + auto-refresh ran forever, never showing the failure or a retry.
+3. **"Card state is 'writing' — must be approved or capture_fulfilled to draft" on Generate.** While the writer chain was running (`card_state='writing'`, no draft row yet — the LLM call was in flight), the draft page rendered the "No draft yet — Click generate" panel. Clicking Generate hit `/api/draft/<id>/generate`, whose guard rejects `writing`, surfacing the raw internal error to the operator.
+
+**Fix:**
+- `_writer_display_state`: `approved`, `capture_fulfilled`, `awaiting_capture` now all map to `queued` (consolidated with the `new` case). Removed the now-redundant bottom `awaiting_capture` branch. Approved/capture-fulfilled cards now count toward the Drafting tab counter and appear in the "Queued for Writer" section with the correct badge.
+- draft.html: split the `draft_state == 'drafting'` branch into two — `drafting + card_state == 'writer_failed'` shows the failure message + a Retry button (calls `retryProduction`, which routes through `/api/ideas/<id>/retry-production` and re-enqueues the correct chain based on `failed_step`); plain `drafting` keeps the spinner + auto-refresh.
+- draft.html: split the "no draft yet" branch into three — `card_state == 'writing'` shows the spinner + auto-refresh (no Generate button); `card_state == 'writer_failed'` shows the failure + Retry button; only the genuine idle states (approved / capture_fulfilled / new) show "Generate draft". Added the `retryProduction` JS function to draft.html (it previously only lived in create.html).
+
+**Rationale:** The operator sees state as labels and counters, not raw DB columns. Any card_state that has no display-state mapping leaks as a broken badge and silently breaks the counter. The draft page's "is the writer working?" check must consider both `draft_state` and `card_state` — `draft_state='drafting'` is ambiguous between in-progress and failed-mid-flight. And the UI must never offer a button whose API guard will reject the current state — that surfaces internal error strings as operator UX.
+
+**Verification:** 6 new tests in `tests/test_writer_state_display.py`:
+- approved / capture_fulfilled / awaiting_capture → render under "Queued for Writer" on /create (counter material)
+- drafting + writer_failed → page contains "Writer failed" + "Retry draft" + `retryProduction`, NOT the "Writer is working — draft not ready" spinner
+- writing + no draft row → page contains "Writer is working" + "draft not ready", NOT "No draft yet"
+- writing + POST /api/draft/<id>/generate → 400 with "writing" in error (confirms the guard is why the UI must hide the button)
+
+122 tests across writer/draft/feedback/auto-chain suites green. Full suite next.
+
+
 ### VF-VS-403 — Feasibility checks extended for visual events [LOGIC/FIX]
 **What:** Added two deterministic pre-render checks to `feasibility_checks.py`:
 1. `check_visual_event_coverage(beats, vo_segments)` — every beat's `visual_events` must cover the full VO span with no gaps/overlaps beyond `EVENT_COVERAGE_TOLERANCE_S` (0.25s). Flags: `gap`, `overlap`, `out_of_bounds`, `incomplete_coverage`.

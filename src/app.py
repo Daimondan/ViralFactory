@@ -7853,7 +7853,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
     def _writer_display_state(card, draft):
         """Map card_state + draft_state to a single display state for the Writer page."""
         cs = card["card_state"]
-        if cs in ("new",):
+        if cs in ("new", "approved", "capture_fulfilled", "awaiting_capture"):
             return "queued"
         if cs in ("writing", "drafting", "reviewing"):
             return "writing"
@@ -7875,8 +7875,6 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             return "killed"
         if cs == "parked":
             return "parked"
-        if cs == "awaiting_capture":
-            return "queued"
         return cs
 
     @app.route("/assemble")
