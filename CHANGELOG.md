@@ -8,6 +8,12 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-18
 
+### VF-VS-202 — SFX presentation moved to config/modules [STRUCTURE/LOGIC]
+**What:** Replaced `AssemblyRenderer._SFX_PRESETS` with `sfx_presets` and `sfx_default_preset` in `config/render_styles.yaml`. The shared style loader applies optional tenant Visual Style frontmatter overrides, and missing/unknown cue names use the configured fallback rather than a Python-owned preset name.
+**Why:** SFX frequencies, durations, volumes, and fallback selection were embedded in renderer code. Tenants could not change sound presentation without editing Python.
+**Rationale:** Deterministic synthesis is a renderer mechanism; its presentation parameters are generic config and tenant module data. Silence remains valid when no cue exists, while explicitly requested cues retain the prior safe-fallback behavior through config.
+**Verification:** A fail-first behavioral test creates two tenant modules with different `accent` frequencies/volumes and resolves both through real renderers. Existing SFX mixing behavior remains green. 14 focused tests and the full 1,632-test suite pass.
+
 ### VF-VS-201 — Overlay presentation moved to config/modules [STRUCTURE/LOGIC]
 **What:** Replaced `AssemblyRenderer._OVERLAY_STYLES` with `config/render_styles.yaml` and a mechanical loader that applies optional `render_styles.overlay_styles` YAML frontmatter from each tenant's Visual Style module. Renderer construction now carries config/module/tenant context through `RenderReviewService`; unknown style refs use the configured `default` style.
 **Why:** Python contained presentation values and the old structural test only proved that a config parameter existed. Tenants could not actually render different styles without code edits.

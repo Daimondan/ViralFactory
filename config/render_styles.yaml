@@ -32,3 +32,29 @@ overlay_styles:
     shadowx: 3
     shadowy: 3
     shadowcolor: "black@0.6"
+
+# Generic deterministic synthesis parameters. Tenant Visual Style modules may
+# override individual presets. Effects are only rendered when the edit plan
+# explicitly contains an SFX cue.
+sfx_default_preset: pop
+sfx_presets:
+  whoosh:
+    freq: "800"
+    duration: 0.3
+    volume: 0.4
+    type: sine
+  pop:
+    freq: "1200"
+    duration: 0.15
+    volume: 0.5
+    type: sine
+  hit:
+    freq: "60"
+    duration: 0.2
+    volume: 0.6
+    type: sine
+  riser:
+    freq: "400"
+    duration: 0.8
+    volume: 0.3
+    type: sine

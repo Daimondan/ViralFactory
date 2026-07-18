@@ -11,15 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 class TestVisualStyleRenderTokens:
     """VF-AU-302: Move tenant presentation from Python to module/config."""
 
-    def test_sfx_presets_loadable_from_config(self):
-        """SFX presets should be loadable from config."""
-        from assembly import AssemblyRenderer
-        import inspect
-        source = inspect.getsource(AssemblyRenderer)
-        assert "_SFX_PRESETS" in source
-        # There should be a config path
-        assert "models_config" in source or "config" in source.lower()
-
     def test_two_tenant_fixtures_render_different_styles(self):
         """Two different config styles should produce different renderer behavior."""
         # This is a structural test — verify that the renderer accepts config
@@ -80,19 +71,6 @@ class TestReferenceAssetInjection:
 
 class TestConfigDrivenMusicSFX:
     """VF-AU-304: Replace hardcoded SFX defaults with config-driven values."""
-
-    def test_sfx_presets_can_be_overridden_by_config(self):
-        """The renderer should check config for SFX/music before falling back to defaults."""
-        from assembly import AssemblyRenderer
-        import inspect
-        source = inspect.getsource(AssemblyRenderer)
-        # The _resolve_sfx_preset method should exist
-        assert "_resolve_sfx_preset" in source
-        # There should be a config path — either checking models_config or a style module
-        resolve_source = inspect.getsource(AssemblyRenderer._resolve_sfx_preset)
-        # The method should look up from a configurable source, not just the hardcoded dict
-        # At minimum, the fallback to _SFX_PRESETS["pop"] should be the last resort
-        assert "_SFX_PRESETS" in resolve_source
 
     def test_silence_is_valid_when_sfx_absent(self):
         """Optional SFX absent should be valid — no blanket default."""

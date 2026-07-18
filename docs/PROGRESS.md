@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-18
-**Current Phase:** M13-B config-driven styles in progress. VF-VS-201 complete: overlay drawtext values now come from generic config with tenant Visual Style frontmatter overrides. Next: VF-VS-202. Existing review-w8, review-episode-format, and M7 checkpoints remain pending. 1,633 tests passing.
+**Current Phase:** M13-B config-driven styles in progress. VF-VS-201 and VF-VS-202 complete: overlay and SFX values now come from generic config with tenant Visual Style frontmatter overrides. Next: VF-VS-203. Existing review-w8, review-episode-format, and M7 checkpoints remain pending. 1,632 tests passing.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
@@ -25,6 +25,7 @@
 | 7. Generalization proof | ⬜ | Real near-term but not blocking v1. |
 
 ## What's Done
+- [x] 2026-07-18: VF-VS-202 — Removed `_SFX_PRESETS` and the implicit `"pop"` choice from Python. Generic deterministic synthesis values and the fallback preset name now live in `config/render_styles.yaml`; tenant Visual Style frontmatter can override each SFX field. Behavioral fixtures prove two tenants resolve different frequencies/volumes with no Python edits. 14 focused and 1,632 full-suite tests passing.
 - [x] 2026-07-18: VF-VS-201 — Removed `_OVERLAY_STYLES` values from Python. Generic drawtext defaults live in `config/render_styles.yaml`; tenant Visual Style YAML frontmatter can override individual style fields, and the renderer loads the correct tenant at render time. Behavioral fixtures prove two tenants resolve different colors/sizes with no Python edits and unknown styles use the configured default. 31 focused and 1,633 full-suite tests passing.
 - [x] 2026-07-18: VF-VS-103 — Added a real behavioral dual-path test: the Flask route and autonomous chain run the same deterministic LLM input through `EditPlanningService`, producing identical plans/cut lists with only persistence IDs differing. The test exposed and fixed missing draft-to-asset and durable step-result storage in `PipelineStore`; full-suite verification also corrected video polling to honor the provider returned by submission. 30 focused and 1,633 full-suite tests passing.
 - [x] 2026-07-18: VF-VS-102 — Retired the old VO-led `build_reel_plan` runtime path. The legacy runner rejects work before state/provider setup, and `/produce-reel` returns an explicit 409 without enqueuing or spending. `build_reel_plan` has no runtime callers and remains only as regression/compatibility code. 24 focused and 1,632 full-suite tests passing.
