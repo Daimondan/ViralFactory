@@ -1,0 +1,34 @@
+version: 1
+
+# Generic FFmpeg drawtext defaults. Tenant Visual Style modules may override
+# individual values through YAML frontmatter under render_styles.overlay_styles.
+overlay_styles:
+  default:
+    fontsize: 48
+    fontcolor: white
+    borderw: 3
+    bordercolor: black
+    shadowx: 1
+    shadowy: 1
+    shadowcolor: "black@0.5"
+  hook:
+    fontsize: 72
+    fontcolor: white
+    borderw: 4
+    bordercolor: black
+    shadowx: 2
+    shadowy: 2
+    shadowcolor: "black@0.5"
+  highlight:
+    fontsize: 56
+    fontcolor: yellow
+    borderw: 3
+    bordercolor: black
+  title:
+    fontsize: 80
+    fontcolor: white
+    borderw: 5
+    bordercolor: black
+    shadowx: 3
+    shadowy: 3
+    shadowcolor: "black@0.6"

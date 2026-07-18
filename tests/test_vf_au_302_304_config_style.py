@@ -11,18 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 class TestVisualStyleRenderTokens:
     """VF-AU-302: Move tenant presentation from Python to module/config."""
 
-    def test_overlay_styles_loadable_from_config(self):
-        """Overlay styles should be loadable from a config/module, not only hardcoded."""
-        from assembly import AssemblyRenderer
-        import inspect
-        source = inspect.getsource(AssemblyRenderer)
-        # The _OVERLAY_STYLES dict should exist but there should be a way
-        # to override or supplement from config
-        assert "_OVERLAY_STYLES" in source
-        # Check that there's a config loading path (method or parameter)
-        # Either models_config is passed to __init__ or there's a load method
-        assert "models_config" in source or "config" in source.lower()
-
     def test_sfx_presets_loadable_from_config(self):
         """SFX presets should be loadable from config."""
         from assembly import AssemblyRenderer

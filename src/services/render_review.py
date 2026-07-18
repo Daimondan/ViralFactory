@@ -60,12 +60,14 @@ class RenderReviewService:
         reviewer=None,
         models_config: dict | None = None,
         config_dir: str = "config",
+        modules_dir: str = "modules",
     ):
         self.db_path = db_path
         self.renderer = renderer
         self.reviewer = reviewer
         self.models_config = models_config
         self.config_dir = config_dir
+        self.modules_dir = modules_dir
 
     def _latest_final_cut_media_id(self, asset_id: int) -> int:
         """Resolve the renderer-registered final cut for review provenance."""
@@ -230,6 +232,9 @@ class RenderReviewService:
         renderer = self.renderer or AssemblyRenderer(
             models_config,
             db_path=self.db_path,
+            config_dir=self.config_dir,
+            modules_dir=self.modules_dir,
+            business_slug=business_slug,
         )
         reviewer = self.reviewer or AssetReviewer(
             models_config,
@@ -243,6 +248,7 @@ class RenderReviewService:
                 reviewer=reviewer,
                 models_config=models_config,
                 config_dir=self.config_dir,
+                modules_dir=self.modules_dir,
             )
 
         store.update_edit_plan_status(plan_id, "rendering")

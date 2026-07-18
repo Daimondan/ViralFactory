@@ -8,6 +8,12 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-18
 
+### VF-VS-201 — Overlay presentation moved to config/modules [STRUCTURE/LOGIC]
+**What:** Replaced `AssemblyRenderer._OVERLAY_STYLES` with `config/render_styles.yaml` and a mechanical loader that applies optional `render_styles.overlay_styles` YAML frontmatter from each tenant's Visual Style module. Renderer construction now carries config/module/tenant context through `RenderReviewService`; unknown style refs use the configured `default` style.
+**Why:** Python contained presentation values and the old structural test only proved that a config parameter existed. Tenants could not actually render different styles without code edits.
+**Rationale:** Generic FFmpeg defaults belong in config; tenant presentation belongs in the tenant-owned Visual Style module. Module values override matching generic fields, while missing module values inherit config without Python color/font/size constants.
+**Verification:** A fail-first behavioral test creates two tenant modules with different hook colors/sizes and resolves both through real `AssemblyRenderer` instances. The configured fallback is also asserted. 31 focused tests and the full 1,633-test suite pass.
+
 ### VF-VS-103 — Behavioral dual-path equivalence locked [STRUCTURE/LOGIC/FIX]
 **What:** Added a behavioral test that executes identical asset input through the Flask edit-plan route and `ProductionChain._step_edit_plan`, then compares the complete LLM invocation, plan, and operator cut list. Added deterministic draft-to-asset lookup and durable `production_step_data` storage required by the autonomous chain. Video polling now follows the provider returned by submission rather than a pre-submission fallback guess.
 **Why:** The prior AST checks proved only that service names appeared in source. Executing the real route and chain exposed that the autonomous path called nonexistent store methods and therefore could not run. Full-suite execution also exposed provider mismatch when a mocked/adapter-selected submission differed from the initially resolved fallback.

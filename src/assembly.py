@@ -46,9 +46,20 @@ class AssemblyRenderer:
     # Supported transition vocabulary (the renderer supports exactly these)
     TRANSITIONS = {"cut", "crossfade", "slide", "whip"}
 
-    def __init__(self, models_config: dict, db_path: str = "data/viralfactory.db"):
+    def __init__(
+        self,
+        models_config: dict,
+        db_path: str = "data/viralfactory.db",
+        config_dir: str = "config",
+        modules_dir: str = "modules",
+        business_slug: str = "",
+    ):
         self.models_config = models_config
         self.db_path = db_path
+        self.config_dir = config_dir
+        self.modules_dir = modules_dir
+        self.business_slug = business_slug
+        self._render_styles = None
         self.provenance = ProvenanceLog(db_path)
         # Ensure asset_media table exists (media_adapter creates it, but we may
         # be called without the media adapter having been instantiated)
@@ -254,6 +265,9 @@ class AssemblyRenderer:
         Raises AssemblyError on failure.
         """
         start_time = time.time()
+        if business_slug and business_slug != self.business_slug:
+            self.business_slug = business_slug
+            self._render_styles = None
 
         # Validate plan
         segments = plan.get("segments", [])
@@ -617,40 +631,6 @@ class AssemblyRenderer:
     # a system fallback to DejaVuSans-Bold (always present on Debian/Ubuntu).
     _DEFAULT_FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
-    # Style presets keyed by style_ref. Values are ffmpeg drawtext params.
-    # These map the style_ref names from the edit plan to concrete rendering
-    # parameters. The LLM picks a style_ref; the renderer applies the params.
-    # Brand-specific colors come from the visual-style module (config), not here.
-    _OVERLAY_STYLES = {
-        "hook": {
-            "fontsize": 72,
-            "fontcolor": "white",
-            "borderw": 4,
-            "bordercolor": "black",
-            "shadowx": 2, "shadowy": 2, "shadowcolor": "black@0.5",
-        },
-        "default": {
-            "fontsize": 48,
-            "fontcolor": "white",
-            "borderw": 3,
-            "bordercolor": "black",
-            "shadowx": 1, "shadowy": 1, "shadowcolor": "black@0.5",
-        },
-        "highlight": {
-            "fontsize": 56,
-            "fontcolor": "yellow",
-            "borderw": 3,
-            "bordercolor": "black",
-        },
-        "title": {
-            "fontsize": 80,
-            "fontcolor": "white",
-            "borderw": 5,
-            "bordercolor": "black",
-            "shadowx": 3, "shadowy": 3, "shadowcolor": "black@0.6",
-        },
-    }
-
     def _get_font_path(self) -> str:
         """Resolve font path from config or fall back to system default."""
         try:
@@ -663,10 +643,17 @@ class AssemblyRenderer:
         return self._DEFAULT_FONT
 
     def _resolve_overlay_style(self, style_ref: str) -> dict:
-        """Map a style_ref to concrete ffmpeg drawtext params."""
-        if style_ref and style_ref in self._OVERLAY_STYLES:
-            return self._OVERLAY_STYLES[style_ref]
-        return self._OVERLAY_STYLES["default"]
+        """Resolve drawtext params from tenant module overrides and config."""
+        if self._render_styles is None:
+            from render_style_config import load_render_styles
+
+            self._render_styles = load_render_styles(
+                config_dir=self.config_dir,
+                modules_dir=self.modules_dir,
+                business_slug=self.business_slug,
+            )
+        styles = self._render_styles["overlay_styles"]
+        return styles.get(style_ref) or styles["default"]
 
     def _overlay_position_y(self, position: str, height: int) -> str:
         """Map a position name to a ffmpeg y= expression."""
