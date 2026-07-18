@@ -86,6 +86,109 @@ class CueCompiler:
 
         timeline.total_duration_sec = current_time
 
+        # 1b. Transition cues from beat transition_in (VF-VS-604).
+        #     Honor the Writer's transition intent. Hard cuts, crossfades,
+        #     and holds have explicit narrative jobs. Crossfade overlap is
+        #     budgeted against the VO clock — if a crossfade would shorten
+        #     the timeline, the compiler either budgets the overlap or
+        #     falls back to a cut with a logged warning.
+        VALID_TRANSITIONS = frozenset({"cut", "crossfade", "hold", "dissolve", "wipe"})
+        transition_cues: list[CompiledCue] = []
+        for beat in beats:
+            beat_id = beat.get("beat_id", "")
+            transition_in = beat.get("transition_in", "cut")
+            vo_timing = next(
+                (vt for vt in timeline.vo_timings if vt.beat_id == beat_id), None
+            )
+            if not vo_timing:
+                continue
+
+            if transition_in not in VALID_TRANSITIONS:
+                # Unsupported transition — visible warning, not silent fallback
+                transition_cues.append(CompiledCue(
+                    cue_id=f"trans_{beat_id}",
+                    cue_type="transition",
+                    beat_id=beat_id,
+                    text="",
+                    start_sec=vo_timing.start_sec,
+                    end_sec=vo_timing.end_sec,
+                    metadata={
+                        "transition_in": transition_in,
+                        "warning": (
+                            f"Unsupported transition '{transition_in}' — "
+                            f"defaulting to 'cut' with this warning"
+                        ),
+                        "unsupported": True,
+                    },
+                ))
+                continue
+
+            if transition_in == "crossfade":
+                # Crossfade needs overlap with the previous beat.
+                # Budget the overlap against the VO clock: take 0.3s from
+                # the end of the previous beat and 0.3s from the start of
+                # this one. If there's no previous beat, fall back to cut.
+                prev_vo = None
+                for j, vt in enumerate(timeline.vo_timings):
+                    if vt.beat_id == beat_id and j > 0:
+                        prev_vo = timeline.vo_timings[j - 1]
+                        break
+                if prev_vo:
+                    overlap = min(0.3, (prev_vo.end_sec - prev_vo.start_sec) / 4,
+                                  (vo_timing.end_sec - vo_timing.start_sec) / 4)
+                    transition_cues.append(CompiledCue(
+                        cue_id=f"trans_{beat_id}",
+                        cue_type="transition",
+                        beat_id=beat_id,
+                        text="",
+                        start_sec=vo_timing.start_sec,
+                        end_sec=vo_timing.end_sec,
+                        metadata={
+                            "transition_in": "crossfade",
+                            "overlap_sec": round(overlap, 3),
+                            "overlap_with": prev_vo.beat_id,
+                        },
+                    ))
+                else:
+                    # No previous beat — fall back to cut with warning
+                    transition_cues.append(CompiledCue(
+                        cue_id=f"trans_{beat_id}",
+                        cue_type="transition",
+                        beat_id=beat_id,
+                        text="",
+                        start_sec=vo_timing.start_sec,
+                        end_sec=vo_timing.end_sec,
+                        metadata={
+                            "transition_in": "cut",
+                            "warning": "Crossfade requested but no previous beat — fell back to cut",
+                            "fallback": True,
+                        },
+                    ))
+            elif transition_in == "hold":
+                transition_cues.append(CompiledCue(
+                    cue_id=f"trans_{beat_id}",
+                    cue_type="transition",
+                    beat_id=beat_id,
+                    text="",
+                    start_sec=vo_timing.start_sec,
+                    end_sec=vo_timing.end_sec,
+                    metadata={"transition_in": "hold"},
+                ))
+            else:
+                # cut, dissolve, wipe — explicit job
+                transition_cues.append(CompiledCue(
+                    cue_id=f"trans_{beat_id}",
+                    cue_type="transition",
+                    beat_id=beat_id,
+                    text="",
+                    start_sec=vo_timing.start_sec,
+                    end_sec=vo_timing.end_sec,
+                    metadata={"transition_in": transition_in},
+                ))
+
+        # Store transition cues in overlays (they're visual events, not text)
+        timeline.overlays.extend(transition_cues)
+
         # 2. Captions from text intents (function=caption) — phrase-level
         #    chunks via caption_timing.chunk_captions (VF-VS-302). One text
         #    intent becomes multiple caption cues, timed within the beat's

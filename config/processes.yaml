@@ -191,6 +191,20 @@ processes:
       vo_timeline: {source: dynamic}
       visual_style: {source: dynamic}
 
+  soundtrack_plan_v1:
+    prompt_file: "assembly/soundtrack_plan_v1.md"
+    backend: "drafter"
+    schema: "SOUNDTRACK_PLAN_LLM_SCHEMA"
+    playbook_type: "production"
+    context_template: "Soundtrack plan v1 for asset {asset_id} | module_ctx: {module_prov}"
+    inputs:
+      business_name: {source: business, field: "business.name"}
+      module_views: "assembly/soundtrack_plan_v1.md"
+      content_contract: {source: dynamic}
+      vo_timeline: {source: dynamic}
+      audio_intents: {source: dynamic}
+      visual_style: {source: dynamic}
+
   edit_plan_v2:
     prompt_file: "assembly/edit_plan_v2.md"
     backend: "drafter"
@@ -282,6 +296,7 @@ schemas:
   MEDIA_PLAN_SCHEMA: "inline:media_plan_schema"
   MOTION_PLAN_SCHEMA: "reel_production.MOTION_PLAN_SCHEMA"
   VISUAL_DIRECTOR_SCHEMA: "pipeline.VISUAL_DIRECTOR_SCHEMA"
+  SOUNDTRACK_PLAN_LLM_SCHEMA: "pipeline.SOUNDTRACK_PLAN_LLM_SCHEMA"
   EDIT_PLAN_SCHEMA: "pipeline.EDIT_PLAN_SCHEMA"
   COMPLIANCE_REVIEW_SCHEMA: "pipeline.COMPLIANCE_REVIEW_SCHEMA"
   REMEDIATION_INSTRUCTION_SCHEMA: "pipeline.REMEDIATION_INSTRUCTION_SCHEMA"

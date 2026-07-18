@@ -459,6 +459,97 @@ class AssetReviewer:
                 keyframes.append((i, frame_path))
         return keyframes
 
+    def _extract_beat_aware_keyframes(
+        self,
+        video_path: str,
+        output_dir: str,
+        plan: dict | None = None,
+        vo_segments: list[dict] | None = None,
+    ) -> list:
+        """Extract beat-aware keyframes: first/middle/last frame per beat.
+
+        VF-VS-602: replaces 5 generic keyframes with frames derived from
+        plan timing. For each beat, extracts the first frame, the middle
+        frame, and the last frame. Also extracts frames before/after every
+        cut (segment boundary).
+
+        Falls back to the generic 5-keyframe extraction when no plan or VO
+        segments are provided.
+        """
+        duration = self._get_duration(video_path)
+        if duration <= 0:
+            return []
+
+        # Build beat time ranges from vo_segments or plan segments
+        beat_ranges: list[tuple[str, float, float]] = []
+        if vo_segments:
+            cumulative = 0.0
+            for seg in vo_segments:
+                bid = seg.get("beat_id", f"b{len(beat_ranges)+1:02d}")
+                dur = float(seg.get("duration", 0.0))
+                beat_ranges.append((bid, cumulative, cumulative + dur))
+                cumulative += dur
+        elif plan:
+            segments = plan.get("segments", [])
+            cumulative = 0.0
+            for i, seg in enumerate(segments):
+                seg_in = seg.get("in", 0)
+                seg_out = seg.get("out", 0)
+                seg_dur = seg_out - seg_in if seg_out > seg_in else 0
+                bid = seg.get("beat_id", f"seg_{i}")
+                beat_ranges.append((bid, cumulative, cumulative + seg_dur))
+                cumulative += seg_dur
+
+        if not beat_ranges:
+            # No plan timing — fall back to generic extraction
+            return self._extract_keyframes(video_path, output_dir)
+
+        # For each beat: first, middle, last frame
+        timestamps: list[tuple[str, float, str]] = []  # (beat_id, time, label)
+        for bid, start, end in beat_ranges:
+            mid = (start + end) / 2.0
+            timestamps.append((bid, start, f"{bid}_first"))
+            timestamps.append((bid, mid, f"{bid}_middle"))
+            timestamps.append((bid, end - 0.1 if end > 0.1 else end, f"{bid}_last"))
+
+        # Also extract frames before/after cuts (segment boundaries)
+        for i in range(1, len(beat_ranges)):
+            _, prev_start, prev_end = beat_ranges[i - 1]
+            bid, curr_start, _ = beat_ranges[i]
+            # Frame just before the cut
+            if prev_end > 0.1:
+                timestamps.append(("cut", prev_end - 0.05, f"cut_{i}_before"))
+            # Frame just after the cut
+            timestamps.append(("cut", curr_start + 0.05, f"cut_{i}_after"))
+
+        # Clamp to duration and deduplicate
+        seen_times = set()
+        filtered = []
+        for bid, t, label in timestamps:
+            t = max(0, min(t, duration - 0.05))
+            if abs(t) < 0.01:
+                t = 0.0
+            if t not in seen_times:
+                seen_times.add(t)
+                filtered.append((bid, t, label))
+
+        # Extract frames
+        keyframes = []
+        for i, (bid, t, label) in enumerate(filtered):
+            frame_path = os.path.join(output_dir, f"beat_keyframe_{i}_{label}.jpg")
+            cmd = [
+                "ffmpeg", "-y",
+                "-ss", str(t),
+                "-i", video_path,
+                "-frames:v", "1",
+                "-q:v", "2",
+                frame_path,
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if result.returncode == 0 and os.path.exists(frame_path):
+                keyframes.append((i, frame_path))
+        return keyframes
+
     def _encode_image_b64(self, file_path: str) -> str:
         """Encode an image file as base64 data URL."""
         import base64
@@ -1108,6 +1199,33 @@ class AssetReviewer:
         # This also includes the script-audio coherence check
         issues = []
         verdict = "ready_for_operator"
+
+        # VF-VS-601: skipped evidence is not pass. If visual or audio
+        # inspection was skipped, the aggregate readiness must not be
+        # ready_for_operator — skipped creates a saved evidence row with
+        # verdict "skipped" and blocks readiness (needs_operator_decision).
+        skipped_evidence = []
+        if visual and visual.get("status") == "skipped":
+            skipped_evidence.append({
+                "severity": "high",
+                "category": "visual",
+                "description": (
+                    f"Visual inspection was skipped: {visual.get('summary', 'no reason given')}. "
+                    f"Skipped evidence is not pass — the operator must decide."
+                ),
+                "source": "visual",
+            })
+        if audio and audio.get("status") == "skipped":
+            skipped_evidence.append({
+                "severity": "high",
+                "category": "audio",
+                "description": (
+                    f"Audio inspection was skipped: {audio.get('summary', 'no reason given')}. "
+                    f"Skipped evidence is not pass — the operator must decide."
+                ),
+                "source": "audio",
+            })
+        issues.extend(skipped_evidence)
 
         if mechanical:
             for w in mechanical.get("warnings", []):

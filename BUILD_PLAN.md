@@ -226,17 +226,17 @@ The following tasks were marked complete but their acceptance criteria were met 
 
 ### Phase M13-E — Soundtrack plan
 
-- [ ] VF-VS-501 **Soundtrack plan contract (P1):** `src/soundtrack_plan.py` with the schema in AMENDMENT-010 Condition 4. Parallel contract referenced by `contract_id`. — AC: `vo_only` requires rationale + approval; `music_bed` requires licence + cost; validation rejects silent VO-only.
-- [ ] VF-VS-502 **Soundtrack planning prompt (P1):** `prompts/assembly/soundtrack_plan_v1.md`. LLM proposes mode + emotional register. Python validates. — AC: no genre inference in code; no random effects; provenance logged.
-- [ ] VF-VS-503 **Soundtrack preview gate (P1):** Operator hears bed + SFX separately and under VO. Approves, rejects, replaces, or explicitly approves VO-only. — AC: no soundtrack mode change without gate token; synthetic tones not presented as finished design.
-- [ ] VF-VS-504 **Soundtrack mix review (P1):** Extends `RenderReviewService`. Expected vs rendered music/SFX, audibility windows, VO-to-bed level, clipping, silence. — AC: missing approved music/SFX fails; unapproved VO-only yields `needs_operator_decision`.
+- [x] VF-VS-501 **Soundtrack plan contract (P1):** `src/soundtrack_plan.py` with the schema in AMENDMENT-010 Condition 4. Parallel contract referenced by `contract_id`. — AC: `vo_only` requires rationale + approval; `music_bed` requires licence + cost; validation rejects silent VO-only.
+- [x] VF-VS-502 **Soundtrack planning prompt (P1):** `prompts/assembly/soundtrack_plan_v1.md`. LLM proposes mode + emotional register. Python validates. — AC: no genre inference in code; no random effects; provenance logged.
+- [x] VF-VS-503 **Soundtrack preview gate (P1):** Operator hears bed + SFX separately and under VO. Approves, rejects, replaces, or explicitly approves VO-only. — AC: no soundtrack mode change without gate token; synthetic tones not presented as finished design.
+- [x] VF-VS-504 **Soundtrack mix review (P1):** Extends `RenderReviewService`. Expected vs rendered music/SFX, audibility windows, VO-to-bed level, clipping, silence. — AC: missing approved music/SFX fails; unapproved VO-only yields `needs_operator_decision`.
 
 ### Phase M13-F — False-green fixes
 
-- [ ] VF-VS-601 **Skipped evidence blocks readiness (P0):** `asset_review.py` — `skipped` → `needs_operator_decision`, never `ready_for_operator`. — AC: skipped visual/transcript creates saved row and blocks readiness.
-- [ ] VF-VS-602 **Beat-aware visual inspection (P0):** First/middle/last frame per beat, frames before/after cuts. Replace 5 generic keyframes. — AC: review frame selection derives from plan timing.
-- [ ] VF-VS-603 **Deterministic text-integrity check (P0):** Forbidden debug tokens (`{`, `}`, `position`, `style`, `prompt`, JSON/dict fragments), safe-zone bounds, caption reconstruction, overlap/collision. — AC: Artifact A's leaked dict text and clipped captions fail in a regression fixture.
-- [ ] VF-VS-604 **Transition intent in cue compiler (P0):** Honor `transition_in` from the Writer. Budget crossfade overlap against VO clock. Unsupported → visible warning or hard failure. — AC: hard cuts, crossfades, holds have explicit jobs; no silent `cut` override.
+- [x] VF-VS-601 **Skipped evidence blocks readiness (P0):** `asset_review.py` — `skipped` → `needs_operator_decision`, never `ready_for_operator`. — AC: skipped visual/transcript creates saved row and blocks readiness.
+- [x] VF-VS-602 **Beat-aware visual inspection (P0):** First/middle/last frame per beat, frames before/after cuts. Replace 5 generic keyframes. — AC: review frame selection derives from plan timing.
+- [x] VF-VS-603 **Deterministic text-integrity check (P0):** Forbidden debug tokens (`{`, `}`, `position`, `style`, `prompt`, JSON/dict fragments), safe-zone bounds, caption reconstruction, overlap/collision. — AC: Artifact A's leaked dict text and clipped captions fail in a regression fixture.
+- [x] VF-VS-604 **Transition intent in cue compiler (P0):** Honor `transition_in` from the Writer. Budget crossfade overlap against VO clock. Unsupported → visible warning or hard failure. — AC: hard cuts, crossfades, holds have explicit jobs; no silent `cut` override.
 
 ### Phase M13-G — Regression and proof
 

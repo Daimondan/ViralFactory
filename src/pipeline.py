@@ -773,6 +773,61 @@ REMEDIATION_INSTRUCTION_SCHEMA = {
 }
 
 
+# ─── Soundtrack Plan Schema (VF-VS-502, AMENDMENT-010 Condition 4) ─────────
+
+SOUNDTRACK_PLAN_LLM_SCHEMA = {
+    "type": "object",
+    "required": ["contract_id", "mode", "sfx_cues", "operator_approval"],
+    "properties": {
+        "contract_id": {"type": "string", "minLength": 1},
+        "mode": {
+            "type": "string",
+            "enum": ["vo_only", "music_bed", "source_sound", "vo_plus_bed"],
+        },
+        "music_bed_ref": {
+            "type": ["object", "null"],
+            "properties": {
+                "source_id": {"type": "string"},
+                "licence": {
+                    "type": ["object", "null"],
+                    "properties": {
+                        "type": {"type": "string"},
+                        "id": {"type": "string"},
+                        "url": {"type": "string"},
+                    },
+                },
+                "cost_usd": {"type": "number"},
+            },
+        },
+        "ducking": {
+            "type": ["object", "null"],
+            "properties": {
+                "attenuation_db": {"type": "number"},
+                "envelope": {"type": "array"},
+            },
+        },
+        "sfx_cues": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["event_id", "source", "timestamp", "gain", "purpose"],
+                "properties": {
+                    "event_id": {"type": "string"},
+                    "source": {"type": "string"},
+                    "timestamp": {"type": "number"},
+                    "gain": {"type": "number"},
+                    "purpose": {"type": "string"},
+                },
+            },
+        },
+        "vo_only_rationale": {"type": ["string", "null"]},
+        "source_sound_rationale": {"type": ["string", "null"]},
+        "emotional_register": {"type": "string"},
+        "operator_approval": {"type": ["string", "null"]},
+    },
+}
+
+
 # ─── Visual Director Schema (VF-VS-402, AMENDMENT-010 Condition 5) ─────────
 
 VISUAL_DIRECTOR_SCHEMA = {
