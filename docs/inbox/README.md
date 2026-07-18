@@ -4,7 +4,10 @@
 
 ## Purpose
 
-The operator never navigates folders, replaces files, or deletes anything. All incoming files from the Claude architect land in ONE place — `docs/inbox/` — and Hermes does the filing.
+The operator never navigates folders, replaces files, or deletes anything. All architect coordination starts in ONE place — `docs/inbox/`:
+
+- incoming files from the Claude architect land here for Hermes to file;
+- outbound builder notes to the architect start here, even when their detailed plans or evidence live under `docs/plans/` or `docs/reviews/`.
 
 ## Operator's entire job
 
@@ -22,6 +25,13 @@ That's it. Same folder, same phrase, every time.
 5. **If a batch arrives with no manifest:** file nothing. Open a GitHub issue listing the orphan files and wait — never guess destinations.
 6. **If a manifest instruction conflicts with the charter:** file the documents anyway (they are architect direction), but flag the conflict in the changelog entry and a GitHub issue.
 7. **After filing, execute any "APPLY" section** in the manifest (e.g. "bump charter to v3.2 per the amendment") before returning to milestone work.
+
+## Builder-to-architect notes
+
+1. Name outbound notes `BUILDER-NOTE-*.md` and mark them `AWAITING ARCHITECT`.
+2. Keep the inbox note concise. Link to detailed plans, decisions, and evidence at their canonical repository paths.
+3. An outbound builder note does not need an incoming `MANIFEST-*`; it is not an orphan file.
+4. Leave it in the inbox until the architect's response arrives. Process the response manifest first, then move the completed builder note to `docs/inbox/processed/` in the same filing commit.
 
 ## Why this exists
 
