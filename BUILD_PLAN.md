@@ -210,7 +210,7 @@ The following tasks were marked complete but their acceptance criteria were met 
 
 - [x] VF-VS-201 **Move overlay styles to config (P0):** `config/render_styles.yaml` + Visual Style module overrides. `_resolve_overlay_style` checks config → module → fallback. — AC: two tenant configs, different resolved styles, zero Python edits.
 - [x] VF-VS-202 **Move SFX presets to config (P0):** Same path for `_SFX_PRESETS`. — AC: two tenant configs, different SFX, zero Python edits.
-- [ ] VF-VS-203 **Replace tautological tests (P0):** Delete `test_vf_au_302_304_config_style.py` structural tests. Write behavioral tests that load two configs and assert different resolved parameters. — AC: tests actually render two configs and assert difference.
+- [x] VF-VS-203 **Replace tautological tests (P0):** Delete `test_vf_au_302_304_config_style.py` structural tests. Write behavioral tests that load two configs and assert different resolved parameters. — AC: tests actually render two configs and assert difference.
 
 ### Phase M13-C — Caption timing
 

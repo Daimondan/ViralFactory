@@ -8,6 +8,12 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-18
 
+### VF-VS-203 — Tautological config-style tests replaced with behavioral proof [STRUCTURE/FIX]
+**What:** Deleted `tests/test_vf_au_302_304_config_style.py`. Its `TestVisualStyleRenderTokens` and `TestConfigDrivenMusicSFX` classes inspected Python source (`inspect.getsource`) and DB schema strings to claim VF-AU-302/304 acceptance — they never loaded two configs and rendered. Added `tests/test_vf_vs_203_behavioral_replacement.py`: a single two-tenant pass that loads two Visual Style modules and asserts different resolved overlay + SFX parameters through real `AssemblyRenderer` instances with zero Python edits, plus explicit fallback-path tests and a silence-valid CueCompiler check. A guard test pins the deleted file to keep it from returning.
+**Why:** AMENDMENT-010 Condition 2 and the re-opened VF-AU-302/304 require "two tenant fixtures render different styles with zero Python edits" verified by behavior, not source inspection. The old tests passed while the code they claimed to cover was still hardcoded.
+**Rationale:** Acceptance criteria met by reading code rather than exercising it are tautological — they cannot detect regression and they let charter violations ship. Behavioral proof now lives in `test_vf_vs_201_render_styles.py`, `test_vf_vs_202_sfx_presets.py`, and the new `test_vf_vs_203_behavioral_replacement.py`. Reference-asset coverage (the old `TestReferenceAssetInjection`) was already behavioral in `test_reference_assets.py` and `test_vf_au_202_media_inventory.py`; the silence-valid case is retained both here and in `test_vf_au_601_integration_suite.TestSilentPiece`.
+**Verification:** The six relevant test modules (68 tests) pass after deletion; full suite pending.
+
 ### VF-VS-202 — SFX presentation moved to config/modules [STRUCTURE/LOGIC]
 **What:** Replaced `AssemblyRenderer._SFX_PRESETS` with `sfx_presets` and `sfx_default_preset` in `config/render_styles.yaml`. The shared style loader applies optional tenant Visual Style frontmatter overrides, and missing/unknown cue names use the configured fallback rather than a Python-owned preset name.
 **Why:** SFX frequencies, durations, volumes, and fallback selection were embedded in renderer code. Tenants could not change sound presentation without editing Python.
