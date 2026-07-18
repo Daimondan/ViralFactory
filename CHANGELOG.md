@@ -8,6 +8,11 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-18
 
+### Architect inbox batch fully applied [OPS/FIX/STRUCTURE]
+**What:** Processed `MANIFEST-2026-07-18-draft8-pipeline-upgrade.md` into `docs/inbox/processed/`; completed its missing APPLY work by correcting the new charter's own v3.7 header/path, making `docs/CONTEXT.md` the v3.7 operational mirror, and updating README role/status references. Removed two byte-identical stale inbox duplicates whose canonical copies were already filed under `docs/decisions/` and `docs/corrections/`.
+**Why:** The architect payload had already added AMENDMENT-010, Charter v3.7, and M13, but the manifest was deliberately left in the builder inbox and the operational mirror still identified v3.6. The new charter file also retained v3.6 in its title and metadata.
+**Rationale:** Inbox batches are complete only after filing, APPLY execution, and an empty inbox. The context now records both the binding M13 target and the currently unimplemented dual-path, config-style, caption, soundtrack, visual-event, and false-green gaps without claiming they are already built.
+
 ### AMENDMENT-010 ratified — Visual + soundtrack pipeline, Charter v3.7 [STRATEGIC/STRUCTURE]
 **What:** Architect ratified DIVERGENCE-014 (visual + soundtrack pipeline + dual-path reconciliation) as AMENDMENT-010 → Charter v3.7. Added M13 milestone (23 tasks: VF-VS-101..703). Filed `docs/decisions/DIVERGENCE-014-*.md`, `docs/decisions/AMENDMENT-010-*.md`, `docs/CHARTER-v3.7.md`. BUILD_PLAN.md → v2.0.
 **Why:** Builder filed Track B proposal to promote Draft 8 visual + soundtrack lessons into the reusable pipeline. Architect's live-code audit found: (1) the Assembler Full Upgrade built correct services (`src/services/*.py`) that the operator-facing route never reaches — `src/app.py` routes bypass every new service; (2) VF-AU-208/302/304 tests are tautological (AST structural / source inspection, not behavioral); (3) cue compiler produces full-beat captions not phrase-level; (4) no soundtrack plan contract exists; (5) no semantic visual events; (6) `build_reel_plan` hardcodes `transition_in: "cut"`.

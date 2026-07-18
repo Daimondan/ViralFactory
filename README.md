@@ -12,8 +12,8 @@ A content co-creation system for entrepreneurs who have ideas and domain experie
 
 | You are | Read, in order |
 |---|---|
-| **Builder agent (Hermes)** | 1. `docs/CONTEXT.md` (the domain + decisions) → 2. `BUILD_PLAN.md` (your tasks, guardrails) → 3. `playbooks/` (the procedures you implement). Then work `BUILD_PLAN.md` top-down, one task at a time. |
-| **Architect / reviewer (Claude)** | `docs/CONTEXT.md` → `docs/decisions/DIVERGENCE-001-charter-amendments.md` → `docs/PROGRESS.md` → latest `review-wN` tag diff → write `docs/reviews/review-wN.md`. Incorporate divergences into Charter v3.3. |
+| **Builder agent (Hermes)** | 1. `docs/CONTEXT.md` (the domain + decisions) → 2. `docs/CHARTER-v3.7.md` (the constitution) → 3. `BUILD_PLAN.md` (your tasks, guardrails) → 4. `playbooks/` (the procedures you implement). Then work `BUILD_PLAN.md` top-down, one task at a time. |
+| **Architect / reviewer (Claude)** | `docs/CONTEXT.md` → `docs/CHARTER-v3.7.md` → `docs/decisions/DIVERGENCE-001-charter-amendments.md` → `docs/PROGRESS.md` → latest `review-wN` tag diff → write `docs/reviews/review-wN.md`. Incorporate approved divergences through a versioned charter amendment. |
 | **Operator (human)** | `docs/CONTEXT.md` (what we're building and why) → `docs/INTAKE-USER1.md` (what materials you need to provide). You direct in plain language, react to drafts, and approve at gates. You never write code. |
 | **New contributor / other AI** | `docs/CONTEXT.md`, then this README's repo map. |
 
@@ -70,7 +70,7 @@ Builder works `BUILD_PLAN.md` top-down → commit per task (task ID in message) 
 
 ## Status
 
-Charter now at v3.4 (AMENDMENT-003 staged pipeline + AMENDMENT-004 treatment block + AMENDMENT-006 Writer/Assembler split + AMENDMENT-007 Writer per-platform + Assembler media-only + AI review loop). M0-M8 complete. M9 (Writer/Assembler boundary redesign) implemented. AI tells + voice-deepening correction applied: voice-first ideation, shared AI-tells catalog, cognitive Voice Profile dimensions, and real self-audit fix application. 761 tests passing.
+Charter is at v3.7. AMENDMENT-010 ratifies the Visual + Soundtrack Pipeline and adds M13 (VF-VS-101..703). The next work is Phase M13-A: reconcile the operator-facing routes with the autonomous chain so both call the same production services before any new visual or soundtrack contracts are built. Existing deferred audio/voice tasks and operator checkpoints remain open as recorded in `BUILD_PLAN.md` and `docs/PROGRESS.md`.
 
 ## Original architect docs (preserved for reference)
 

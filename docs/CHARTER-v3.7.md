@@ -1,7 +1,7 @@
-# ViralFactory Charter — v3.6
+# ViralFactory Charter — v3.7
 
 *The constitution of the system. Any AI or collaborator reads this before working on it.*
-*v3.6 — 2026-07-17 — supersedes v3.5. Incorporates AMENDMENT-009 (`docs/decisions/AMENDMENT-009-assembler-production-contract-boundaries.md`) — assembler production-contract boundaries: explicit capture policies, Writer/Media Planner boundary clarification, and production playbook classification. All prior amendments (DIVERGENCE-001, DIVERGENCE-002, AMENDMENT-003, AMENDMENT-004, AMENDMENT-005, AMENDMENT-006, AMENDMENT-007, DIVERGENCE-008, AMENDMENT-008) remain in force. Repo location: `docs/CHARTER-v3.6.md`.*
+*v3.7 — 2026-07-18 — supersedes v3.6. Incorporates AMENDMENT-010 (`docs/decisions/AMENDMENT-010-visual-soundtrack-pipeline.md`) — operator/autonomous dual-path reconciliation, semantic visual events, explicit soundtrack planning, config-driven renderer styles, phrase-level captions, and fail-closed evidence completeness. All prior amendments (DIVERGENCE-001, DIVERGENCE-002, AMENDMENT-003, AMENDMENT-004, AMENDMENT-005, AMENDMENT-006, AMENDMENT-007, DIVERGENCE-008, AMENDMENT-008, AMENDMENT-009) remain in force. Repo location: `docs/CHARTER-v3.7.md`.*
 
 ## What this is
 

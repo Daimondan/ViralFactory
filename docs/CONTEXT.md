@@ -1,6 +1,6 @@
 # Context: ViralFactory
 
-> **This is an operational mirror of `docs/CHARTER-v3.6.md`.** It captures
+> **This is an operational mirror of `docs/CHARTER-v3.7.md`.** It captures
 > current shared language, workflows, and implementation state. It conforms
 > to the charter and BUILD_PLAN; where it conflicts, that conflict is a bug
 > or a new divergence to file — never a silent override.
@@ -12,8 +12,8 @@
 > **On change:** bump `updated_at` date, add/update a decision note in
 > `docs/decisions/` if the change is non-obvious.
 
-**Updated:** 2026-07-17 (AMENDMENT-009 ratified: assembler production-contract boundaries — explicit capture policies approved with treatment at Gate 1, Writer/Media Planner boundary clarified, production playbook classification via Process Registry. Charter v3.5 → v3.6. Prior: AI tells + voice deepening correction applied: voice-first ideation, shared AI-tells catalog with confidence levels, cognitive Voice Profile dimensions, and real self-audit fix application in the T9.5 AI review loop.)
-**Conforms to:** `docs/CHARTER-v3.6.md` (v3.6 — incorporates DIVERGENCE-001, DIVERGENCE-002, AMENDMENT-003 staged content pipeline, AMENDMENT-004 treatment block, AMENDMENT-005 process compositions, AMENDMENT-006 Writer/Assembler split + four-role nav, AMENDMENT-007 Writer per-platform + Assembler media-only + AI review loop, DIVERGENCE-008 Postiz→Buffer swap, AMENDMENT-008 final-output compliance loop, AMENDMENT-009 assembler production-contract boundaries: capture policies, Writer/Media Planner clarification, production playbook classification)
+**Updated:** 2026-07-18 (AMENDMENT-010 ratified: operator-facing and autonomous production paths must use the same services; Visual Director and semantic visual events; explicit gated soundtrack plans; config/module-driven renderer styles and SFX; phrase-level captions; skipped evidence cannot pass. Charter v3.6 → v3.7.)
+**Conforms to:** `docs/CHARTER-v3.7.md` (v3.7 — incorporates DIVERGENCE-001, DIVERGENCE-002, AMENDMENT-003 staged content pipeline, AMENDMENT-004 treatment block, AMENDMENT-005 process compositions, AMENDMENT-006 Writer/Assembler split + four-role nav, AMENDMENT-007 Writer per-platform + Assembler media-only + AI review loop, DIVERGENCE-008 Postiz→Buffer swap, AMENDMENT-008 final-output compliance loop, AMENDMENT-009 assembler production-contract boundaries, DIVERGENCE-014 and AMENDMENT-010 visual + soundtrack pipeline and dual-path reconciliation)
 
 ---
 
@@ -91,6 +91,12 @@ When the user writes or rewrites draft text themselves. The system treats this a
 ### AI Profiles
 AI work runs under **named profiles** — Researcher (ideation, source scouting, social-media-native), Drafter (takes the approved, fully-specified idea and produces the final asset), and Analyst (reads results, drives the inward/outward loops, scrapes news into the Source Bank). Profiles are compositions of prompts, module views, and model settings defined in `config/profiles.yaml`, per AMENDMENT-005. They are named compositions, not code classes. Each pipeline LLM call declares the profile it runs under; the adapter resolves model/temperature through the profile → `models.yaml` roles. Provenance rows record which profile produced each artifact.
 
+### Visual Director
+An Assembler-side, schema-validated production process that translates approved Writer `visual_intent` plus measured VO timings into concrete `visual_events[]`. It plans visual jobs; it never creates or revises audience-facing copy. It is registered in the Process Registry with `playbook_type: production`.
+
+### Soundtrack plan
+A versioned production contract linked by `contract_id` that makes each Reel's audio mode explicit: `vo_only`, `music_bed`, `source_sound`, or `vo_plus_bed`. VO-only requires a rationale and explicit operator approval. Music and SFX acquisition require source/licence provenance; paid acquisition requires a fresh cost estimate; non-VO-only modes require a soundtrack preview gate.
+
 ## The 8 Living Modules
 
 Every business has 8 versioned knowledge documents, stored as markdown in `modules/{business}/`, loaded into every draft, updated only through the human gate:
@@ -144,10 +150,12 @@ second-AI alignment check against approved idea + surviving HIGH-confidence AI t
   AI revises → ship-forward or kill · edits → Feedback Log (highest weight)
         │
         ▼
-ASSEMBLER CHAIN (survivors only — MEDIA ONLY, no text LLM calls)
-real images/video generated per Visual Style Guide + visual direction
-media stitched with approved per-platform text from Writer
-NO fan-out LLM calls — text is already per-platform from Writer
+ASSEMBLER CHAIN (survivors only — MEDIA ONLY, no audience-copy generation)
+Visual Director maps approved visual intent + measured VO to semantic visual events
+soundtrack plan declares VO/music/source-sound mode and passes its conditional preview gate
+real images/video generated per Visual Style Guide + visual events
+phrase-level captions (3–6 words) and media assembled with approved Writer text
+renderer styles, fonts, colors, and SFX resolve from config/modules
         │
         ▼
 ■ GATE 3 — QUICK, PER PLATFORM: approve / fix / kill, side by side
@@ -232,6 +240,11 @@ Scheduled research of what works in the wild: monitors top accounts/hashtags/cha
 16. **Capture policy is approved with the treatment at Gate 1.** `capture_required` blocks final compliance and Gate 3 readiness; drafting and planning continue. No generated substitute may represent required real evidence. The operator may change the policy through an authoritative treatment revision. (Per AMENDMENT-009)
 17. **The hash-lock protects the entire approved Writer contract** — not only `platform_content` text but semantic beats, evidence references, visual/audio intent, capture policy, and primary audience action. Any remediation or planning action that would change these fields is rejected and escalated. (Per AMENDMENT-009)
 18. **Production playbooks are Process Registry compositions, not onboarding cards.** Every playbook carries `playbook_type: onboarding | production | learning` metadata. The Onboarding UI filters mechanically on `playbook_type: onboarding` and fails closed on missing metadata. (Per AMENDMENT-009)
+19. **Operator-facing routes and the autonomous chain call the same production services.** Equivalent input must produce equivalent plans; route-specific production logic is a defect. (Per AMENDMENT-010)
+20. **Skipped evidence is not pass.** Any required visual, transcript, text-integrity, semantic-coverage, or soundtrack evidence that is missing or skipped yields `needs_operator_decision`, never `ready_for_operator`. (Per AMENDMENT-010)
+21. **Every Reel has an explicit soundtrack mode.** VO-only requires a rationale and operator approval; music/SFX require source/licence provenance and preview approval, with fresh cost approval before paid acquisition. (Per AMENDMENT-010)
+22. **Renderer presentation values live in config/modules, not Python.** Overlay styles, fonts, colors, and SFX presets must vary by tenant with zero code edits. (Per AMENDMENT-010)
+23. **Captions are phrase-level.** Caption cues contain 3–6 words timed within the VO beat and must reconstruct the approved text exactly; full-beat captions are a defect. (Per AMENDMENT-010)
 
 ## Edge Cases
 
@@ -256,22 +269,19 @@ Scheduled research of what works in the wild: monitors top accounts/hashtags/cha
 4. **8 modules in context window:** Load all 8 every draft (may exceed smaller model limits), or load essential 4 (Voice, Viral, Story, Format) always and pull others on demand? — *Genuinely deferrable; resolve at M3 when drafter is built.*
 5. **Video generation scope:** xAI Grok for generated video, or text/image only for v1? — *Genuinely deferrable; bounded by the charter's hybrid rules (real anchors for lived claims, generated is supporting layer).*
 
-## Current Render Capability
+## M13 implementation status
 
-The FFmpeg stitcher (`src/assembly.py`) currently produces:
+AMENDMENT-010 is ratified, but the architect's 2026-07-18 live-code audit found a dual-path implementation gap that M13 must close top-down:
 
-- **Valid MP4s** via simple clip concatenation — H264 video + AAC audio, normalized to target resolution (e.g., 1080×1920), SAR 1:1
-- **Cut transitions only** — segments are concatenated back-to-back with hard cuts
-- **Segment audio** — each clip's own audio stream is preserved and concatenated
+- The autonomous Assembler chain uses `MediaPlanningService`, `EditPlanningService`, `CueCompiler`, and `RenderReviewService`; the operator-facing `/edit-plan`, `/render`, `/generate-media`, and `/produce-reel` routes still bypass some or all of them. M13-A reconciles these paths first.
+- Overlay styles and SFX presets still resolve from hardcoded Python dictionaries. M13-B moves them to `config/render_styles.yaml` plus Visual Style module overrides and replaces source-inspection tests with behavioral tenant-override tests.
+- The generic cue compiler still emits one full-beat caption. M13-C extracts shared phrase chunking and requires 3–6 word cues with exact-text reconstruction.
+- The production contract does not yet represent multi-event beats or a parallel soundtrack plan. M13-D and M13-E add `visual_events[]`, the Visual Director process, explicit soundtrack modes, licensed/costed references, and the preview gate.
+- Required review evidence can still be recorded as `skipped` while the asset becomes ready. M13-F makes missing/skipped evidence fail closed and adds beat-aware frame selection plus deterministic text-integrity checks.
 
-The stitcher does NOT yet implement (known limitations, not bugs):
+Until these tasks land, Charter v3.7 describes the binding target and `BUILD_PLAN.md` records the implementation order; current operator output must not be treated as proof that the service-based path ran.
 
-- **Transitions** — crossfade, slide, whip are read from the edit plan but not rendered (future enhancement)
-- **Captions/overlays** — read for the human-readable cut list but not burned into the video
-- **Voiceover** — VO info is a placeholder string `"(no VO take yet)"`; voice pipeline (T2.6–T2.8) is deferred
-- **Music/ducking** — audio plan is ignored; only segment audio streams are used
-
-**Video generation handoff status (2026-07-10):** VH-1 through VH-6 corrections applied. Both video generation routes (`generate-clip` and `generate-media`) now poll, download, and register AI-generated video in `asset_media` with valid file paths. Google/Veo bugs fixed (aspect ratio, response nesting, download API key, env var). Duration now read from the LLM media plan. 0-byte render files cleaned up and output size validation added. See `docs/reviews/REVIEW-video-generation-handoff-2026-07-09.md` and `docs/inbox/CORRECTION-video-generation-handoff-v1.0.md`.
+**Video generation handoff status (2026-07-10):** VH-1 through VH-6 corrections applied. Both video generation routes (`generate-clip` and `generate-media`) poll, download, and register AI-generated video in `asset_media` with valid file paths. Google/Veo bugs were fixed (aspect ratio, response nesting, download API key, env var). Duration is read from the LLM media plan. Zero-byte render files are cleaned up and output size validation is present. See `docs/reviews/REVIEW-video-generation-handoff-2026-07-09.md` and `docs/inbox/processed/CORRECTION-video-generation-handoff-v1.0.md`.
 
 ## Architecture
 
