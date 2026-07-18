@@ -220,7 +220,7 @@ The following tasks were marked complete but their acceptance criteria were met 
 
 ### Phase M13-D — Semantic visual events
 
-- [ ] VF-VS-401 **Add visual_events to production contract (P1):** `PRODUCTION_CONTRACT_V2` beat schema gains `visual_events[]`. Compatibility: no events → one event from `visual_intent`. — AC: contract validates multi-event beats; old contracts degrade gracefully.
+- [x] VF-VS-401 **Add visual_events to production contract (P1):** `PRODUCTION_CONTRACT_V2` beat schema gains `visual_events[]`. Compatibility: no events → one event from `visual_intent`. — AC: contract validates multi-event beats; old contracts degrade gracefully.
 - [ ] VF-VS-402 **Visual Director process (P1):** `prompts/assembly/visual_director_v1.md` + JSON schema + validator. Translates `visual_intent` + VO timings → `visual_events[]`. Registered in Process Registry with `playbook_type: production`. — AC: schema-validated, provenance-logged, no audience copy, no tenant strings.
 - [ ] VF-VS-403 **Extend feasibility checks (P0):** Multi-event coverage validation. Missing event coverage → block. Talking-head intent + shorter motion than speech → block or require explicit cutaway. — AC: Draft 8 Artifact A's 5s-motion + still fallback is caught and blocked.
 

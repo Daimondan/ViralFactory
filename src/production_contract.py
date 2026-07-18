@@ -60,6 +60,18 @@ MEDIA_FUNCTIONS = frozenset({
     "metaphor", "texture", "pace", "breathing_room",
 })
 
+# Visual event narrative functions (AMENDMENT-010 Condition 5)
+VISUAL_EVENT_NARRATIVE_FUNCTIONS = frozenset({
+    "hook_contrast", "context", "proof", "explanation", "reframe",
+    "action", "landing", "relationship", "conflict",
+})
+
+# Source policies for visual events (AMENDMENT-010 Condition 5)
+VISUAL_EVENT_SOURCE_POLICIES = frozenset({
+    "operator_capture", "licensed_stock", "approved_reference",
+    "generated_still", "generated_motion", "renderer_graphic",
+})
+
 PRODUCTION_CONTRACT_VERSION = "2.0"
 
 
@@ -114,6 +126,37 @@ CONTENT_CONTRACT_SCHEMA = {
     },
 }
 
+VISUAL_EVENT_SCHEMA = {
+    "type": "object",
+    "required": [
+        "event_id",
+        "time_range",
+        "narrative_function",
+        "source_policy",
+    ],
+    "properties": {
+        "event_id": {"type": "string", "minLength": 1},
+        "time_range": {
+            "type": "object",
+            "required": ["start", "end"],
+            "properties": {
+                "start": {"type": "number"},
+                "end": {"type": "number"},
+            },
+        },
+        "narrative_function": {
+            "type": "string",
+            "enum": list(VISUAL_EVENT_NARRATIVE_FUNCTIONS),
+        },
+        "source_policy": {
+            "type": "string",
+            "enum": list(VISUAL_EVENT_SOURCE_POLICIES),
+        },
+        "required_text": {"type": ["string", "null"]},
+        "capture_policy_ref": {"type": ["string", "null"]},
+    },
+}
+
 SEMANTIC_BEAT_SCHEMA = {
     "type": "object",
     "required": [
@@ -161,6 +204,10 @@ SEMANTIC_BEAT_SCHEMA = {
                 "movement": {"type": "string"},
                 "meaning": {"type": "string"},  # what the visual should convey (semantic)
             },
+        },
+        "visual_events": {
+            "type": "array",
+            "items": VISUAL_EVENT_SCHEMA,
         },
         "audio_intent": {
             "type": ["object", "null"],
@@ -442,6 +489,40 @@ def validate_text_intent_beat_references(intents: list[dict], beats: list[dict])
     return errors
 
 
+def validate_visual_events(beats: list[dict]) -> list[str]:
+    """Validate each beat's ``visual_events`` against VISUAL_EVENT_SCHEMA.
+
+    Recurses into the array items because ``validate_contract_schema`` only
+    checks top-level fields. Flags missing required fields, invalid
+    narrative_function / source_policy enums, and malformed time ranges.
+    """
+    errors: list[str] = []
+    for beat in beats:
+        events = beat.get("visual_events") or []
+        bid = beat.get("beat_id", "?")
+        for i, ev in enumerate(events):
+            ev_errors = validate_contract_schema(ev, VISUAL_EVENT_SCHEMA)
+            for e in ev_errors:
+                errors.append(f"Beat '{bid}' visual_events[{i}]: {e}")
+            # time_range.start <= end
+            tr = ev.get("time_range") or {}
+            start = tr.get("start")
+            end = tr.get("end")
+            if isinstance(start, (int, float)) and isinstance(end, (int, float)):
+                if end < start:
+                    errors.append(
+                        f"Beat '{bid}' visual_events[{i}]: time_range end < start"
+                    )
+        # Duplicate event_id within a beat
+        ids = [ev.get("event_id", "") for ev in events]
+        seen = set()
+        for eid in ids:
+            if eid in seen:
+                errors.append(f"Beat '{bid}' has duplicate visual_event event_id: {eid}")
+            seen.add(eid)
+    return errors
+
+
 def validate_capture_policy_consistency(beats: list[dict], recipes: list[dict]) -> list[str]:
     """Validate that capture_required beats are not mapped to generated/stock media.
 
@@ -609,6 +690,11 @@ def assemble_contract(
     if seg_errors:
         raise ContractValidationError("; ".join(seg_errors))
 
+    # Validate visual_events on each beat (AMENDMENT-010 Condition 5)
+    ve_errors = validate_visual_events(beats)
+    if ve_errors:
+        raise ContractValidationError("; ".join(ve_errors))
+
     # Validate capture policy consistency
     cp_errors = validate_capture_policy_consistency(beats, media_recipes)
     if cp_errors:
@@ -639,3 +725,59 @@ def assemble_contract(
         "edit_segments": edit_segments,
         "writer_contract_hash": writer_hash,
     }
+
+
+# ── Visual events resolution (AMENDMENT-010 Condition 5) ─────────────────────
+
+def resolve_visual_events(beat: dict) -> list[dict]:
+    """Return the beat's ``visual_events``, degrading gracefully from
+    ``visual_intent`` when the Writer did not emit explicit events.
+
+    Per AMENDMENT-010 Condition 5: a beat carries one ``visual_intent`` (the
+    semantic meaning) and zero-or-more ``visual_events`` (concrete visual
+    jobs within the beat's time range). Existing contracts with no
+    ``visual_events`` degrade to one event synthesized from the beat's
+    ``visual_intent``.
+
+    The synthesized event spans the beat's ``intended_duration_sec`` range
+    (or falls back to 0.0–0.0 when absent). It is labeled with the
+    ``context`` narrative function and the beat's capture policy mapped to a
+    source policy, since the original intent did not split concrete jobs.
+    """
+    events = beat.get("visual_events") or []
+    if events:
+        return list(events)
+
+    vi = beat.get("visual_intent") or {}
+    if not vi and not beat.get("staged_action"):
+        return []
+
+    dur = beat.get("intended_duration_sec") or {}
+    start = float(dur.get("min", 0.0)) if isinstance(dur, dict) else 0.0
+    end = float(dur.get("max", 0.0)) if isinstance(dur, dict) else 0.0
+
+    capture_policy = beat.get("capture_policy", "")
+    source_policy = _capture_to_source_policy(capture_policy)
+
+    return [{
+        "event_id": f"ev_{beat.get('beat_id', '')}_1",
+        "time_range": {"start": start, "end": end},
+        "narrative_function": "context",
+        "source_policy": source_policy,
+        "required_text": None,
+        "capture_policy_ref": capture_policy or None,
+    }]
+
+
+def _capture_to_source_policy(capture_policy: str) -> str:
+    """Map a beat capture policy to a visual-event source policy."""
+    mapping = {
+        "capture_required": "operator_capture",
+        "capture_preferred": "operator_capture",
+        "archive_preferred": "licensed_stock",
+        "stock_allowed": "licensed_stock",
+        "generated_allowed": "generated_still",
+        "text_card": "renderer_graphic",
+        "legacy_unclassified": "generated_still",
+    }
+    return mapping.get(capture_policy, "generated_still")
