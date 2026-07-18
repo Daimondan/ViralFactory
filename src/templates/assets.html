@@ -745,8 +745,15 @@ function generateVideoOneClick(assetId, btn) {
         statusElem.textContent = message;
     }
     function json(response) {
-        return response.json().then(function(data) {
-            if (!response.ok || (data.status && data.status !== 'ok')) {
+        return response.text().then(function(text) {
+            var data;
+            try { data = JSON.parse(text); }
+            catch (err) {
+                throw new Error('The server returned an invalid response (' + response.status + '). Please retry; approved work will not be duplicated.');
+            }
+            var accepted = !data.status || data.status === 'ok' ||
+                data.status === 'queued' || data.status === 'running';
+            if (!response.ok || !accepted) {
                 throw new Error(data.message || data.error || 'Production step failed');
             }
             return data;
@@ -779,17 +786,9 @@ function generateVideoOneClick(assetId, btn) {
             method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({approved_cost_usd: estimate.estimated_cost_usd}),
         }).then(json);
-    }).then(function(planData) {
-        busyBtn(btn, 'Rendering…');
-        show('VO and motion clips are ready. Rendering the final reel…');
-        return fetch('/api/assets/' + assetId + '/render', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({plan_id: planData.plan_id}),
-        }).then(json);
-    }).then(function() {
-        unbusyBtn(btn);
-        show('✓ Reel rendered with complete VO and motion clips. Loading…', '#4A7C3A');
-        setTimeout(function() { window.location.reload(); }, 1000);
+    }).then(function(data) {
+        show(data.message || 'Reel production is running in the background. You can leave this page.');
+        pollReelProductionJob(assetId, data.job_id, btn, statusElem);
     }).catch(function(err) {
         unbusyBtn(btn);
         if (err.cancelled) {
@@ -798,6 +797,72 @@ function generateVideoOneClick(assetId, btn) {
         }
         show(err.message || String(err), '#C0392B');
     });
+}
+
+function pollReelProductionJob(assetId, jobId, btn, statusElem) {
+    var pollCount = 0;
+    var maxPolls = 2880; // four hours at five-second intervals
+    function check() {
+        pollCount++;
+        fetch('/api/reel-production-jobs/' + jobId)
+            .then(function(response) { return response.text(); })
+            .then(function(text) {
+                var data;
+                try { data = JSON.parse(text); }
+                catch (err) { throw new Error('Temporary server response error'); }
+                if (data.status === 'queued' || data.status === 'running') {
+                    if (statusElem) {
+                        statusElem.style.color = '#4A6FA5';
+                        statusElem.textContent = 'Creating complete VO and motion in the background… ' +
+                            Math.floor((pollCount * 5) / 60) + ' min elapsed. You can leave this page.';
+                    }
+                    if (pollCount < maxPolls) setTimeout(check, 5000);
+                    else {
+                        unbusyBtn(btn);
+                        if (statusElem) statusElem.textContent = 'Production is still running. Refresh later to check.';
+                    }
+                    return;
+                }
+                if (data.status === 'failed') {
+                    unbusyBtn(btn);
+                    if (statusElem) {
+                        statusElem.style.color = '#C0392B';
+                        statusElem.textContent = data.error || 'Reel production failed.';
+                    }
+                    return;
+                }
+                if (data.status === 'done' && data.result) {
+                    busyBtn(btn, 'Rendering…');
+                    if (statusElem) statusElem.textContent = 'VO and motion are ready. Rendering the final reel…';
+                    fetch('/api/assets/' + assetId + '/render', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({plan_id: data.result.plan_id}),
+                    }).then(function(response) { return response.text(); })
+                      .then(function(renderText) {
+                          var rendered = JSON.parse(renderText);
+                          if (rendered.status !== 'ok') throw new Error(rendered.error || 'Render failed');
+                          unbusyBtn(btn);
+                          if (statusElem) {
+                              statusElem.style.color = '#4A7C3A';
+                              statusElem.textContent = '✓ Reel rendered with complete VO and motion clips. Loading…';
+                          }
+                          setTimeout(function() { window.location.reload(); }, 1000);
+                      }).catch(function() {
+                          if (statusElem) statusElem.textContent = 'Final render is continuing in the background…';
+                          pollRenderStatus(assetId, btn, statusElem);
+                      });
+                    return;
+                }
+                throw new Error(data.error || 'Unknown reel job status');
+            }).catch(function(err) {
+                if (pollCount < maxPolls) setTimeout(check, 5000);
+                else {
+                    unbusyBtn(btn);
+                    if (statusElem) statusElem.textContent = err.message || String(err);
+                }
+            });
+    }
+    setTimeout(check, 1000);
 }
 
 function generateEditPlan(assetId, btn) {

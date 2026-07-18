@@ -1,0 +1,18 @@
+[Unit]
+Description=ViralFactory reel production worker
+After=network.target viralfactory.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/daimon/ViralFactory
+Environment=PYTHONPATH=/home/daimon/ViralFactory/src
+Environment=VIRALFACTORY_ROOT=/home/daimon/ViralFactory
+EnvironmentFile=/etc/viralfactory/env
+ExecStart=/home/daimon/ViralFactory/.venv/bin/python /home/daimon/ViralFactory/src/reel_worker.py
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

@@ -6476,181 +6476,58 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     @app.route("/api/assets/<int:asset_id>/produce-reel", methods=["POST"])
     def produce_reel(asset_id):
-        """Generate complete VO + approved motion clips, then save an exact plan."""
-        business_slug = _get_business_slug()
-        if not business_slug:
-            return jsonify({"error": "Business not configured"}), 500
+        """Validate approval and enqueue long production outside Gunicorn."""
+        import hashlib
+        from reel_jobs import enqueue_reel_job
+        from reel_production import ReelProductionError, validate_cost_approval
+
         body = request.get_json(silent=True) or {}
         try:
-            store, asset, beats, models_config, media_adapter, images, videos, estimate = _reel_production_state(asset_id)
-            from reel_production import (
-                MOTION_PLAN_SCHEMA, ReelProductionError, build_reel_plan,
-                validate_cost_approval, validate_motion_plan, validate_vo_segments,
+            _, asset, beats, models_config, _, images, _, estimate = _reel_production_state(asset_id)
+            validate_cost_approval(
+                body.get("approved_cost_usd", -1), estimate["estimated_cost_usd"],
             )
-            validate_cost_approval(body.get("approved_cost_usd", -1), estimate["estimated_cost_usd"])
-            missing_images = [beat["beat_id"] for beat in beats if beat["beat_id"] not in images]
+            missing_images = [
+                beat["beat_id"] for beat in beats if beat["beat_id"] not in images
+            ]
             if missing_images:
                 raise ReelProductionError(
                     f"Storyboard stills are missing for: {', '.join(missing_images)}. Generate images first."
                 )
-        except LookupError as e:
-            return jsonify({"error": str(e)}), 404
-        except (ValueError, ConfigError, Exception) as e:
-            return jsonify({"error": str(e)}), 409
-
-        # VO is the master clock and is mandatory for every spoken beat.
-        from vo_generator import VOGenerator, VOGenerationError
-        vo_segments = json.loads(store.get_vo_segments(asset_id) or "[]")
-        try:
-            validate_vo_segments(beats, vo_segments)
-        except ReelProductionError:
-            try:
-                vo_result = VOGenerator(
-                    db_path=app.config["DB_PATH"], models_config=models_config,
-                ).generate_vo_per_frame(
-                    asset_id=asset_id,
-                    posts=[{
-                        "beat_id": beat["beat_id"],
-                        "vo_text": beat["vo_text"],
-                    } for beat in beats if beat.get("vo_text")],
-                    business_slug=business_slug,
-                )
-                vo_segments = vo_result["segments"]
-                store.save_vo_segments(asset_id, json.dumps(vo_segments))
-                validate_vo_segments(beats, vo_segments)
-            except (VOGenerationError, ReelProductionError, Exception) as e:
-                return jsonify({
-                    "status": "vo_failed",
-                    "error": f"The complete voice-over could not be generated. No video spend was made. {e}",
-                }), 409
-
-        # The LLM translates immutable semantic intent into provider motion prompts.
-        from context_assembly import assemble_module_context
-        from llm_adapter import LLMAdapter, LLMAdapterError
-        module_vars, module_prov = assemble_module_context(
-            "assembly/motion_plan_v1.md", business_slug,
-            db_path=app.config["DB_PATH"], modules_dir="modules",
-        )
-        storyboard = []
-        vo_by_beat = {seg["beat_id"]: seg for seg in vo_segments}
-        for beat in beats:
-            storyboard.append({
-                "beat_id": beat["beat_id"],
-                "semantic_visual_intent": beat["visual"],
-                "measured_vo_duration_seconds": vo_by_beat[beat["beat_id"]]["duration"],
-                "approved_source_still": images[beat["beat_id"]]["path"],
-            })
-        try:
-            motion_result = LLMAdapter(
-                models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts",
-            ).complete(
-                prompt_file="assembly/motion_plan_v1.md",
-                variables={
-                    "storyboard_beats": json.dumps(storyboard, ensure_ascii=False, indent=2),
-                    "generator_constraints": json.dumps({
-                        "generator": estimate["generator"],
-                        "clip_duration_seconds": estimate["clip_duration_seconds"],
-                        "mode": "image_to_video",
-                    }),
-                    "visual_style": module_vars.get("visual_style", ""),
-                },
-                schema=MOTION_PLAN_SCHEMA,
-                backend="drafter",
-                context=f"Motion plan for asset {asset_id} | module_ctx: {module_prov}",
-                business_slug=business_slug,
-                profile="drafter",
+            source_hash = hashlib.sha256(
+                json.dumps(json.loads(asset.get("posts") or "[]"), sort_keys=True,
+                           ensure_ascii=False).encode()
+            ).hexdigest()
+            reel_config = models_config.get("media", {}).get("reel_production", {})
+            queued = enqueue_reel_job(
+                app.config["DB_PATH"], asset_id,
+                estimate["estimated_cost_usd"], source_hash,
+                int(reel_config["job_stale_timeout_seconds"]),
             )
-            motion_prompts = validate_motion_plan(beats, motion_result)
-        except (LLMAdapterError, ReelProductionError, Exception) as e:
-            return jsonify({"status": "motion_plan_failed", "error": str(e)}), 500
+        except LookupError as exc:
+            return jsonify({"error": str(exc)}), 404
+        except (ValueError, ConfigError, ReelProductionError) as exc:
+            return jsonify({"error": str(exc)}), 409
 
-        # Paid boundary: submit only the beat IDs included in the approved estimate.
-        # Submit the batch first so provider jobs run concurrently; downloads remain
-        # serialized and fully registered before planning.
-        render_config = models_config.get("media", {}).get("reel_production", {})
-        submissions = []
-        for beat_id in estimate["missing_beat_ids"]:
-            source = images[beat_id]
-            try:
-                submit = media_adapter.submit_video(
-                    prompt=motion_prompts[beat_id],
-                    asset_id=asset_id,
-                    model=estimate["generator"],
-                    provider=estimate["provider"],
-                    aspect_ratio=render_config.get("aspect_ratio", ""),
-                    duration=estimate["clip_duration_seconds"],
-                    source_image=source["path"],
-                    mode="image_to_video",
-                    context=f"Approved storyboard animation {beat_id} for asset {asset_id}",
-                    business_slug=business_slug,
-                )
-                submissions.append((beat_id, source, submit))
-            except Exception as e:
-                return jsonify({"status": "motion_failed", "beat_id": beat_id, "error": str(e)}), 500
-
-        for beat_id, source, submit in submissions:
-            try:
-                generated = _poll_download_register_video(
-                    media_adapter, submit.get("external_job_id"), asset_id,
-                    submit.get("model", estimate["generator"]), motion_prompts[beat_id],
-                    business_slug, provider=estimate["provider"],
-                    estimated_cost_usd=submit.get("cost_usd", 0),
-                )
-                if generated.get("status") != "ok":
-                    return jsonify({
-                        "status": generated.get("status", "failed"),
-                        "error": generated.get("error") or
-                                 "A motion clip is still processing. Retry after it completes; completed clips are kept.",
-                        "beat_id": beat_id,
-                    }), 504
-                media_id = int(generated["ingredient_id"].split(":", 1)[1])
-                conn = __import__("sqlite3").connect(app.config["DB_PATH"])
-                conn.execute(
-                    "UPDATE asset_media SET beat_id = ?, source_media_id = ? WHERE id = ?",
-                    (beat_id, source["id"], media_id),
-                )
-                conn.commit()
-                conn.close()
-            except Exception as e:
-                return jsonify({"status": "motion_failed", "beat_id": beat_id, "error": str(e)}), 500
-
-        # Refresh scoped media and compile a source-resolved, exact-text plan.
-        media = media_adapter.list_asset_media(asset_id, owner_type="asset")
-        images = {row["beat_id"]: row for row in media if row.get("kind") == "image" and row.get("beat_id")}
-        videos = {row["beat_id"]: row for row in media if row.get("kind") == "video" and row.get("beat_id")}
-        from assembly import probe_duration
-        visuals = {}
-        for beat in beats:
-            beat_id = beat["beat_id"]
-            image = images[beat_id]
-            video = videos.get(beat_id)
-            visuals[beat_id] = {
-                "image": {"ingredient_id": f"generated:{image['id']}"},
-            }
-            if video:
-                visuals[beat_id]["video"] = {
-                    "ingredient_id": f"generated:{video['id']}",
-                    "duration": probe_duration(video["path"]) or estimate["clip_duration_seconds"],
-                }
-        try:
-            plan, contract = build_reel_plan(beats, vo_segments, visuals, render_config)
-        except ReelProductionError as e:
-            return jsonify({"status": "plan_failed", "error": str(e)}), 409
-
-        import hashlib
-        source_hash = hashlib.sha256(
-            json.dumps(json.loads(asset.get("posts") or "[]"), sort_keys=True, ensure_ascii=False).encode()
-        ).hexdigest()
-        plan_id = store.save_edit_plan(
-            asset["draft_id"], asset_id, plan,
-            compliance_contract=contract, source_draft_hash=source_hash,
-        )
+        status = "running" if queued["status"] == "running" else "queued"
         return jsonify({
-            "status": "ok", "plan_id": plan_id,
-            "vo_duration_seconds": plan["canvas"]["duration_target"],
-            "motion_clips": len(videos),
-            "estimated_cost_usd": estimate["estimated_cost_usd"],
-        })
+            "status": status,
+            "job_id": queued["job_id"],
+            "message": (
+                "Reel production is already running. No duplicate spend was made."
+                if status == "running"
+                else "Reel production queued. You can leave this page while it runs."
+            ),
+        }), 202
+
+    @app.route("/api/reel-production-jobs/<int:job_id>", methods=["GET"])
+    def reel_production_job_status(job_id):
+        """Poll a durable reel job without tying up a web worker."""
+        from reel_jobs import get_reel_job_status
+        status = get_reel_job_status(app.config["DB_PATH"], job_id)
+        if not status:
+            return jsonify({"error": "Reel production job not found"}), 404
+        return jsonify(status)
 
     @app.route("/api/assets/<int:asset_id>/generate-video", methods=["POST"])
     def generate_video(asset_id):

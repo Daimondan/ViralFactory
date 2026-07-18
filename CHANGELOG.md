@@ -8,6 +8,12 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-18
 
+### Reel production moved out of Gunicorn [FIX/STRUCTURE/OPS]
+**What:** The cost-approved reel request now validates and enqueues a durable `reel_production` job, returns HTTP 202 immediately, and is executed by a dedicated systemd worker. The operator UI polls job state, survives non-JSON proxy errors, prevents duplicate retries/spend, and starts final rendering only after the worker has produced VO, motion clips, and an exact plan.
+**Why:** A real 185-word reel held a synchronous Gunicorn request open while local Chatterbox generated six VO segments. The request exceeded the web-worker/proxy lifetime, surfaced `Bad Gateway` as JSON, and a retry created concurrent 2.4–6.2 GB voice workloads that caused swap pressure and a worker timeout.
+**Rationale:** Long local inference and provider polling are worker responsibilities, not HTTP-handler responsibilities. The jobs table is the durable handoff and idempotency boundary; systemd owns the process lifecycle.
+**Verification:** 1,617 tests pass. Asset 6's complete 72.1-second VO survived the failed HTTP request; all six already-paid Kling tasks were recovered from provenance without duplicate spend; the final 1080×1920 reel rendered at 72.066 seconds with an AAC audio stream (mean -18.0 dB, max -0.1 dB).
+
 ### Reel production — VO-first motion pipeline [FIX/LOGIC/TECH]
 **What:** Replaced the misleading still-image slideshow path with a VO-first reel workflow. Structured `vo_text` is generated completely and measured before planning; incomplete or mismatched VO now blocks rendering. Each approved beat receives a stable media link, configured Kling image-to-video clips are submitted in one concurrent batch after an exact operator cost approval, and the measured VO timeline compiles deterministic cuts, exact captions, and untouched `text_on_screen` overlays. FAL jobs now poll through their configured endpoint, cached files receive owner-scoped media rows, and the manual seconds/aspect/prompt dialog was removed.
 **Why:** Draft 7 produced a 15.5-second silent slideshow for a 176-word reel, then passed audio review because the edit plan declared silence. The UI said “Generate video” but never invoked a video provider.

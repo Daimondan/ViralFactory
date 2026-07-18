@@ -228,7 +228,9 @@ class AssetReviewer:
         original_audio = audio_block.get("original_audio", False)
         music = audio_block.get("music", {})
         music_ref = music.get("stock_ref") if music else None
-        expects_sound = original_audio or bool(music_ref)
+        vo = audio_block.get("vo", {})
+        vo_take_id = vo.get("take_id") if vo else None
+        expects_sound = original_audio or bool(music_ref) or bool(vo_take_id)
 
         if expects_sound and checks["has_audio_stream"]:
             if self._is_silent_audio(file_path):
@@ -689,10 +691,10 @@ class AssetReviewer:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
         return result.returncode == 0 and os.path.exists(output_path)
 
-    def _transcribe_audio(self, audio_path: str) -> str:
+    def _transcribe_audio(self, audio_path: str) -> str | None:
         """Transcribe audio using faster-whisper (if available).
 
-        Returns transcript text. Returns empty string if whisper not installed.
+        Returns transcript text, or None when transcription is unavailable.
         """
         try:
             from faster_whisper import WhisperModel
@@ -710,9 +712,9 @@ class AssetReviewer:
             parts = [seg.text.strip() for seg in segments]
             return " ".join(parts)
         except ImportError:
-            return ""  # faster-whisper not installed
+            return None  # unavailable is not evidence that speech is absent
         except Exception:
-            return ""
+            return None
 
     def _detect_looping(self, transcript: str) -> bool:
         """Detect if audio appears to loop.
@@ -799,7 +801,9 @@ class AssetReviewer:
         original_audio = audio_block.get("original_audio", False)
         music = audio_block.get("music", {})
         music_ref = music.get("stock_ref") if music else None
-        expects_sound = original_audio or bool(music_ref)
+        vo = audio_block.get("vo", {})
+        vo_take_id = vo.get("take_id") if vo else None
+        expects_sound = original_audio or bool(music_ref) or bool(vo_take_id)
 
         if is_silent and not expects_sound:
             # Cross-reference: does the script have VO or dialogue that should
@@ -897,8 +901,10 @@ class AssetReviewer:
                 "findings": {"error": "audio extraction failed"},
             }
 
-        # Transcribe
+        # Transcribe. Unavailable tooling is not evidence that speech is absent.
         transcript = self._transcribe_audio(audio_extract_path)
+        transcription_available = transcript is not None
+        transcript = transcript or ""
 
         # Clean up temp audio file
         try:
@@ -912,6 +918,7 @@ class AssetReviewer:
             "transcript": transcript[:500] if transcript else "",
             "transcript_word_count": len(transcript.split()) if transcript else 0,
             "expects_sound": expects_sound,
+            "transcription_available": transcription_available,
             "is_looping": False,
             "warnings": [],
         }
@@ -930,7 +937,7 @@ class AssetReviewer:
             )
 
         # Check for no speech when audio is non-silent
-        if not transcript and not is_silent:
+        if transcription_available and not transcript and not is_silent:
             findings["warnings"].append(
                 "Audio is present and non-silent but no speech detected — likely ambient/looping"
             )
@@ -939,12 +946,15 @@ class AssetReviewer:
         summary_parts = []
         if findings["is_looping"]:
             summary_parts.append("Audio is looping")
-        if not transcript and not is_silent:
+        if transcription_available and not transcript and not is_silent:
             summary_parts.append("No speech detected (ambient/looping)")
         if not expects_sound and transcript:
             summary_parts.append("Unexpected audio content")
         if not summary_parts:
-            summary_parts.append("Audio inspection passed")
+            summary_parts.append(
+                "Audio signal present; transcription unavailable"
+                if not transcription_available else "Audio inspection passed"
+            )
         summary = ". ".join(summary_parts)
 
         # Save to DB

@@ -176,6 +176,8 @@ media:
     resolution: "1080x1920"
     caption_style_ref: "caption"
     overlay_style_ref: "emphasis"
+    job_stale_timeout_seconds: 14400
+    worker_poll_seconds: 2
 
   # ── Legacy single-generator compat (for code paths not yet updated) ──
   video_provider: "fal"

@@ -200,6 +200,19 @@ class TestAudioInspection:
         assert result["status"] == "complete"
         assert result["verdict"] in ("pass", "issues_found")
 
+    def test_vo_take_counts_as_expected_audio_without_whisper(self, tmp_path):
+        reviewer = AssetReviewer({}, db_path=str(tmp_path / "test.db"))
+        video = _make_video_with_audio(str(tmp_path / "video.mp4"))
+
+        with patch.object(reviewer, '_transcribe_audio', return_value=None):
+            result = reviewer.run_audio_inspection(
+                video, {"audio": {"original_audio": False,
+                                  "music": {}, "vo": {"take_id": "take-1"}}}, 1, 1)
+
+        assert result["verdict"] == "pass"
+        assert result["findings"]["expects_sound"] is True
+        assert result["findings"]["transcription_available"] is False
+
 
 class TestContentAlignment:
     """ASSET-REVIEW-4: Content alignment aggregation."""

@@ -158,9 +158,8 @@ class TestAudioInspectionScriptCoherence:
         assert result["verdict"] == "pass"
         assert "silent as specified" in result["summary"]
 
-    def test_silent_video_with_vo_take_in_plan_passes(self, tmp_path):
-        """Silent output + contract has spoken_dialogue + plan has take_id → not flagged
-        (the VO file just doesn't exist yet — that's the deferred pipeline)."""
+    def test_silent_video_with_vo_take_in_plan_is_flagged(self, tmp_path):
+        """A referenced VO take makes sound mandatory in the final output."""
         reviewer = AssetReviewer({}, db_path=str(tmp_path / "test.db"))
         video = _make_silent_video(str(tmp_path / "video.mp4"))
 
@@ -180,8 +179,8 @@ class TestAudioInspectionScriptCoherence:
             compliance_contract=self._vo_contract(),
         )
 
-        # With a take_id present, the coherence check should not trigger
-        assert result["verdict"] == "pass"
+        assert result["verdict"] == "issues_found"
+        assert "expects audio" in result["summary"]
 
     def test_silent_video_with_music_in_plan_not_flagged_for_vo(self, tmp_path):
         """Silent output + contract has spoken_dialogue + plan has music ref → flagged as
