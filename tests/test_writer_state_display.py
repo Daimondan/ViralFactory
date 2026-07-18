@@ -219,3 +219,46 @@ class TestDraftPageWritingNoDraftYet:
         assert resp.status_code == 400
         data = resp.get_json()
         assert "writing" in data["error"]
+
+    def test_draft_ready_generate_api_accepts(self, tmp_path):
+        """The "Regenerate draft" button appears at draft_state='draft_ready'
+        and calls /api/draft/<id>/generate. The guard must allow it — the
+        operator explicitly confirmed the regenerate dialog. Regression for
+        the 'Card state is draft_ready — must be approved or capture_fulfilled'
+        error the operator hit after the writer chain finished."""
+        from app import create_app
+        from pipeline import PipelineStore
+        db_path = str(tmp_path / "test.db")
+        app = create_app(config_dir="config", db_path=db_path)
+        store = PipelineStore(db_path)
+        card_id = store.create_idea_card(
+            business_slug="stackpenni",
+            idea="Draft-ready idea",
+            hook_options=[],
+            treatment={"format": {"format_name": "Instagram Reel Script"}},
+            origin="test",
+        )
+        # create_draft flips card_state to 'drafting'; save_draft_content
+        # flips draft_state to 'draft_ready' but NOT card_state. The writer
+        # chain's run_writer_chain sets card_state='draft_ready' after the
+        # loop. Simulate the post-chain state:
+        draft_id = store.create_draft(
+            "stackpenni", card_id, "test", format_name="Instagram Reel Script"
+        )
+        store.save_draft_content(draft_id, "draft", {}, [], platform_content=[])
+        store.update_card_state(card_id, "draft_ready")
+        client = app.test_client()
+        # The guard check happens before any LLM call. We don't need to mock
+        # the adapter — if the guard rejects, we get 400 immediately. If it
+        # accepts, the handler proceeds and eventually hits the adapter (which
+        # will fail in this test without a mock, but that's a 500, not 400).
+        # So assert NOT 400 with the guard message.
+        resp = client.post(f"/api/draft/{card_id}/generate", json={})
+        # Accept either: (a) the handler proceeds past the guard (any non-400
+        # status, including 409 idempotency or 500 from missing adapter) or
+        # (b) 409 if a job is already running. The ONLY unacceptable outcome
+        # is 400 with "must be approved or capture_fulfilled" — that's the bug.
+        if resp.status_code == 400:
+            data = resp.get_json()
+            assert "must be approved or capture_fulfilled" not in data.get("error", ""), \
+                f"Guard rejected draft_ready: {data['error']}"

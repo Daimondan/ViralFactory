@@ -5435,10 +5435,17 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             _get_jobs_store().fail_job(job_id, "Card not found")
             return jsonify({"error": "Card not found"}), 404
 
-        # Card must be approved or capture_fulfilled
-        if card["card_state"] not in ("approved", "capture_fulfilled", "drafting", "drafted"):
+        # Card must be in a state where drafting is valid:
+        #   approved / capture_fulfilled — first draft from an approved idea
+        #   drafting / drafted — writer chain in progress or draft exists
+        #   draft_ready — operator clicked "Regenerate draft" (confirmed via JS dialog)
+        # `writing` and `reviewing` are NOT allowed — the writer chain is already
+        # running; a second concurrent generate would race on the same draft row.
+        # `writer_failed` must go through /api/ideas/<id>/retry-production, which
+        # routes based on failed_step, not this endpoint.
+        if card["card_state"] not in ("approved", "capture_fulfilled", "drafting", "drafted", "draft_ready"):
             _get_jobs_store().fail_job(job_id, f"Card state is '{card['card_state']}'")
-            return jsonify({"error": f"Card state is '{card['card_state']}' — must be approved or capture_fulfilled to draft"}), 400
+            return jsonify({"error": f"Card state is '{card['card_state']}' — must be approved, capture_fulfilled, or draft_ready to draft"}), 400
 
         treatment = json.loads(card.get("treatment") or "{}")
         hook_options = json.loads(card.get("hook_options") or "[]")

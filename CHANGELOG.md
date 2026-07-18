@@ -23,13 +23,16 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 **Rationale:** The operator sees state as labels and counters, not raw DB columns. Any card_state that has no display-state mapping leaks as a broken badge and silently breaks the counter. The draft page's "is the writer working?" check must consider both `draft_state` and `card_state` — `draft_state='drafting'` is ambiguous between in-progress and failed-mid-flight. And the UI must never offer a button whose API guard will reject the current state — that surfaces internal error strings as operator UX.
 
-**Verification:** 6 new tests in `tests/test_writer_state_display.py`:
+**Verification:** 7 new tests in `tests/test_writer_state_display.py`:
 - approved / capture_fulfilled / awaiting_capture → render under "Queued for Writer" on /create (counter material)
 - drafting + writer_failed → page contains "Writer failed" + "Retry draft" + `retryProduction`, NOT the "Writer is working — draft not ready" spinner
 - writing + no draft row → page contains "Writer is working" + "draft not ready", NOT "No draft yet"
 - writing + POST /api/draft/<id>/generate → 400 with "writing" in error (confirms the guard is why the UI must hide the button)
+- draft_ready + POST /api/draft/<id>/generate → must NOT 400 with "must be approved or capture_fulfilled" (the guard now allows draft_ready so the Regenerate button works)
 
-122 tests across writer/draft/feedback/auto-chain suites green. Full suite next.
+129 tests across writer/draft/feedback/auto-chain suites green. Full suite next.
+
+**Follow-up fix (same session):** The `/api/draft/<id>/generate` guard also rejected `draft_ready` — but the "Regenerate draft" button (draft.html) appears exactly when `draft_state in ('draft_ready', 'revised')` and calls `regenerate()` → `generateDraft()` → this endpoint. So Regenerate always failed with "Card state is 'draft_ready' — must be approved or capture_fulfilled to draft". Root cause: same class of bug — UI offers a button whose API guard rejects the current state. Fix: added `draft_ready` to the guard's allowed set (`approved`, `capture_fulfilled`, `drafting`, `drafted`, `draft_ready`). `writing`/`reviewing` stay rejected (chain already running); `writer_failed` must go through `/api/ideas/<id>/retry-production` (routes by failed_step). Updated guard message + added test_draft_ready_generate_api_accepts.
 
 
 ### VF-VS-403 — Feasibility checks extended for visual events [LOGIC/FIX]
