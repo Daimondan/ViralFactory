@@ -248,11 +248,14 @@ class ProductionChain:
                         if original in vo:
                             post["vo_text"] = vo.replace(original, fix)
                             changed = True
-                        tos = post.get("text_on_screen") or {}
-                        tos_text = tos.get("text", "")
-                        if original in tos_text:
-                            tos["text"] = tos_text.replace(original, fix)
-                            post["text_on_screen"] = tos
+                        text_on_screen = post.get("text_on_screen")
+                        if isinstance(text_on_screen, dict):
+                            overlay_text = text_on_screen.get("text", "")
+                            if original in overlay_text:
+                                text_on_screen["text"] = overlay_text.replace(original, fix)
+                                changed = True
+                        elif isinstance(text_on_screen, str) and original in text_on_screen:
+                            post["text_on_screen"] = text_on_screen.replace(original, fix)
                             changed = True
                         revised_posts.append(post)
                     else:

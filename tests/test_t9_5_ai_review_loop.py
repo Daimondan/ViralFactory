@@ -206,6 +206,38 @@ class TestSelfAuditFixApplication:
         assert flags[0]["status"] == "applied"
         assert applied[0]["fix"] == "is"
 
+    def test_self_audit_fix_handles_legacy_and_structured_overlay_text(self, tmp_path):
+        from produce_chain import ProductionChain
+
+        chain = ProductionChain(
+            db_path=str(tmp_path / "test.db"),
+            config_dir="config",
+            modules_dir="modules",
+            prompts_dir="prompts",
+        )
+        platform_content = [{
+            "platform": "Instagram",
+            "variant_type": "reel",
+            "content": "Approved copy",
+            "posts": [
+                {"vo_text": "Keep this.", "text_on_screen": "Replace this line."},
+                {"vo_text": "Keep this too.", "text_on_screen": {
+                    "text": "Replace this line.",
+                    "position": "bottom-third",
+                }},
+            ],
+        }]
+        flags = [{"line": "Replace this line.", "fix_applied": "Use this line."}]
+
+        revised, applied = chain._apply_self_audit_fixes(platform_content, flags)
+
+        assert revised[0]["posts"][0]["text_on_screen"] == "Use this line."
+        assert revised[0]["posts"][1]["text_on_screen"] == {
+            "text": "Use this line.",
+            "position": "bottom-third",
+        }
+        assert applied[0]["fix"] == "Use this line."
+
     def test_self_audit_flag_without_fix_stays_active(self, tmp_path):
         """Do not mark a flag applied when no concrete revised text exists."""
         from produce_chain import ProductionChain

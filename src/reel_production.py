@@ -42,7 +42,11 @@ def extract_reel_beats(posts: Iterable[object]) -> list[dict]:
     for index, post in enumerate(posts or [], 1):
         if isinstance(post, dict):
             vo_text = str(post.get("vo_text") or "").strip()
-            overlay = str(post.get("text_on_screen") or "").strip()
+            text_on_screen = post.get("text_on_screen")
+            if isinstance(text_on_screen, dict):
+                overlay = str(text_on_screen.get("text") or "").strip()
+            else:
+                overlay = str(text_on_screen or "").strip()
             visual = str(post.get("visual") or post.get("visual_intent") or "").strip()
             beat_id = str(post.get("beat_id") or f"b{index:02d}")
         else:

@@ -8,6 +8,12 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-18
 
+### Structured Reel overlay extraction locked by regression [FIX/LOGIC]
+**What:** `extract_reel_beats()` now treats dictionary-shaped `text_on_screen` as structured renderer intent and extracts only its `text` field; string-shaped legacy overlays remain unchanged. Writer self-audit revisions now update either shape without calling dictionary methods on legacy strings or discarding structured metadata.
+**Why:** Coercing the whole dictionary with `str()` burned internal `position` and `style` metadata into Draft 8 as audience-visible text.
+**Rationale:** Approved audience text and renderer metadata are separate roles. Mechanical extraction must preserve the exact approved text without exposing the transport structure.
+**Verification:** The extraction regression failed against the old coercion with the full dictionary in `overlay_text`; the sibling revision regression failed with `AttributeError` on a string overlay. Both pass after the fixes. The 10 Reel-production tests plus the 3 self-audit-fix tests pass; the full 1,630-test suite passes.
+
 ### VF-VS-101 — Operator and autonomous Assembler paths reconciled [STRUCTURE/LOGIC/FIX]
 **What:** Moved edit-plan generation, missing-media planning/acquisition, and render/review orchestration behind transport-neutral `EditPlanningService.generate_for_asset`, `MediaPlanningService.generate_for_asset`, and `RenderReviewService.render_for_asset` entrypoints. The three Flask routes now handle only request validation, job bookkeeping, response serialization, and status mapping; `ProductionChain` calls the same methods. Added `ServiceResponse` as the shared boundary and persisted binary material `file_path` values so scoped inventory can identify real render-ready capture uploads.
 **Why:** The operator routes duplicated hundreds of lines of LLM, inventory, provider, and renderer logic while the autonomous path called separate service stubs. That made route and chain behavior diverge and caused the Draft 8 failure class to bypass the intended Assembler controls. The inventory service also expected a durable binary path that Materials Intake did not persist.

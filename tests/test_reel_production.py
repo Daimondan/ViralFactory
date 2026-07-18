@@ -51,6 +51,22 @@ def test_extracts_exact_structured_vo_and_renderer_text(beats):
     assert beats[1]["overlay_text"] == "Discipline. Resilience. Timing."
 
 
+def test_extracts_only_audience_text_from_structured_text_on_screen():
+    beats = extract_reel_beats([{
+        "beat_id": "b01",
+        "vo_text": "Approved narration.",
+        "text_on_screen": {
+            "text": "Approved overlay",
+            "position": "bottom-third",
+            "style": "emphasis",
+        },
+        "visual_intent": "A renderer-owned information card.",
+    }])
+
+    assert beats[0]["overlay_text"] == "Approved overlay"
+    assert "position" not in beats[0]["overlay_text"]
+
+
 def test_vo_validation_rejects_partial_generation(beats, tmp_path):
     wav = tmp_path / "one.wav"
     wav.write_bytes(b"RIFF")
