@@ -166,14 +166,14 @@
 - [x] VF-AU-203 **Media-planning service v2 (P0):** `src/services/media_planning.py`, `prompts/assembly/media_plan_v2.md`. Plan every semantic beat by function. Media Planner translates intent, does not redefine it (Condition 5). — AC: every required beat covered; capture policy enforced; no baked text/logos in prompts.
 - [x] VF-AU-204 **Media acquisition service (P0):** `src/services/media_acquisition.py`. Lifecycle: planned → submitted → processing → downloaded → validated → registered → render-ready. — AC: async success/failure/timeout; idempotent retry; cost recording.
 - [x] VF-AU-205 **Deterministic cue compiler (P0):** `src/services/cue_compiler.py`. VO timings, captions, overlays, audio events. Exact text hashes. — AC: exact-text preservation; timing arithmetic; collision/safe-zone validation.
-- [x] VF-AU-206 **Edit-planning service v2 (P0):** `src/services/edit_planning.py`, `prompts/assembly/edit_plan_v2.md`. Map real inventory to beats and compiled cues. — AC: invented source rejected; out-of-bounds blocked; missing beat blocked; text mutation rejected.
+- [~] VF-AU-206 **Re-opened by live draft 11 / asset 7:** `EditPlanningService.generate_for_asset()` still calls `assembly/edit_plan_v1.md`, hardcodes `vo_info` to “no VO take yet,” never invokes `CueCompiler`, and persists an unvalidated legacy plan. — AC not met on the live shared path.
 - [x] VF-AU-207 **Render/review service (P0):** `src/services/render_review.py`. Centralize rendering, post-render facts, compliance, remediation. — AC: zero-byte output deleted; missing stream fails; no ready state before compliance.
 - [x] VF-AU-208 **Wire routes and ProductionChain to services (P0):** Remove duplicated business logic from `src/app.py`. Implement four chain stubs. Routes handle HTTP only; chain calls shared services. — AC: UI route and chain call same service; complete chain reaches Gate 3-ready or blocker.
 - [x] VF-AU-301 **Enrich Format Guide contract (P1):** Structured variant_type, platforms, canvas, renderer capabilities, text/audio affordances, safe zones, capture policy, disclosure. — AC: no regex/keyword derivation; each active format validates.
 - [x] VF-AU-302 **Enrich Visual Style render tokens (P1):** Move tenant presentation from Python to module/config. — AC: two tenant fixtures render different styles with zero Python edits.
 - [x] VF-AU-303 **Inject and record reference assets (P1):** Approved character/location/grade/card/music references in planning and generation. — AC: unapproved/retired reference blocked; provenance records references.
 - [x] VF-AU-304 **Config-driven music and SFX (P1):** Replace hardcoded `_OVERLAY_STYLES` and `_SFX_PRESETS` in `assembly.py` with config/module-driven values. — AC: optional SFX; missing asset handled; licensed reference resolution.
-- [x] VF-AU-401 **Pre-render feasibility (P0):** Block impossible plans before FFmpeg or paid regeneration. — AC: 92s VO vs 18s plan caught; missing required capture blocked; remote-only source blocked.
+- [~] VF-AU-401 **Re-opened by live audit:** `run_feasibility_checks()` is implemented but has no production caller. The live chain reached render with a 45s plan against a measured 32.3s VO and image-only talking-head beats.
 - [x] VF-AU-402 **Blocking compliance (P0):** Prevent `ready_for_operator` unless all required beats verified. `capture_required` blocks compliance (Condition 2). — AC: missing/partial beat blocks; all formats tested (VO-heavy, caption-only, silent, carousel, image).
 - [x] VF-AU-403 **Bounded remediation (P0):** Max rounds and cost from config. Full Writer contract hash-locked (Condition 4). Action allowlist. — AC: text-change rejected; cost cap stops; 3-round cap; successful rerender; escalation.
 - [x] VF-AU-404 **Operator remediation UI (P0):** Beat status, evidence, rounds, costs, stop reason, blockers in plain language. — AC: no raw JSON default; technical details collapsible; XSS safe.
@@ -181,8 +181,8 @@
 - [x] VF-AU-502 **Analyst process (P1):** Evidence-bounded analysis with matched baseline. Ratio-based action validation (HYPOTHESIS label). One post cannot create a rule. — AC: missing metrics handled; tiny samples flagged; exact target module/process diff.
 - [x] VF-AU-503 **Gate learning proposals (P1):** No auto-apply. Exact diff + evidence enters human gate. — AC: approval versions target; rejection/supersession works.
 - [x] VF-AU-601 **Full integration suite (P0):** VO-heavy reel, caption-only reel, silent piece, carousel, image post, required capture, preferred capture, generated support, mixed media. — AC: focused tests + full suite green with fresh output.
-- [x] VF-AU-602 **Real VO-heavy reel (P0):** Complete upgraded path with real services and files. — AC: contract/process versions, IDs, measured VO, inventory, provider jobs/costs, plan, feasibility, final faststart MP4, per-beat compliance, remediation history, copy hash, operator page. Uses existing asset 3 (real images, VO, final cut) — no new paid calls needed.
-- [x] VF-AU-603 **Documentation and deployment closeout (P0):** README, CONTEXT, BUILD_PLAN checkboxes, PROGRESS, CHANGELOG, diagrams. Deploy under operator-approved procedure. — AC: live page shows contract/coverage/remediation; real artifact loads; approval/publish boundaries intact.
+- [~] VF-AU-602 **Re-opened:** reused an existing artifact; did not prove a fresh artifact traversed the upgraded production path with complete M13 evidence.
+- [~] VF-AU-603 **Re-opened:** live `/create/assets/11` failed in the shared path and the operator page has no soundtrack preview/approval gate.
 
 ### Re-opened by AMENDMENT-010 (tautological tests / unwired services)
 
@@ -204,7 +204,7 @@ The following tasks were marked complete but their acceptance criteria were met 
 
 - [x] VF-VS-101 **Wire operator routes to services (P0):** `/api/assets/<id>/edit-plan`, `/render`, `/generate-media` call `EditPlanningService`, `RenderReviewService`, `MediaPlanningService`. Routes handle HTTP only. — AC: same input through UI route and autonomous chain produces equivalent edit plans.
 - [x] VF-VS-102 **Retire old build_reel_plan path (P0):** Delete or gate `reel_production_runner.run_reel_production` for VO-led Reels. — AC: no operator route calls `build_reel_plan` directly.
-- [x] VF-VS-103 **Behavioral dual-path test (P0):** Render same input through both paths, assert equivalence. — AC: test fails if routes diverge from chain.
+- [~] VF-VS-103 **Re-opened:** current test patches the service and checks delegation/source structure; it does not run identical real fixtures through both entrypoints and compare persisted plans/evidence.
 
 ### Phase M13-B — Config-driven styles
 
@@ -221,28 +221,28 @@ The following tasks were marked complete but their acceptance criteria were met 
 ### Phase M13-D — Semantic visual events
 
 - [x] VF-VS-401 **Add visual_events to production contract (P1):** `PRODUCTION_CONTRACT_V2` beat schema gains `visual_events[]`. Compatibility: no events → one event from `visual_intent`. — AC: contract validates multi-event beats; old contracts degrade gracefully.
-- [x] VF-VS-402 **Visual Director process (P1):** `prompts/assembly/visual_director_v1.md` + JSON schema + validator. Translates `visual_intent` + VO timings → `visual_events[]`. Registered in Process Registry with `playbook_type: production`. — AC: schema-validated, provenance-logged, no audience copy, no tenant strings.
-- [x] VF-VS-403 **Extend feasibility checks (P0):** Multi-event coverage validation. Missing event coverage → block. Talking-head intent + shorter motion than speech → block or require explicit cutaway. — AC: Draft 8 Artifact A's 5s-motion + still fallback is caught and blocked.
+- [~] VF-VS-402 **Re-opened for integration:** prompt/schema/registry entry exist, but no production path invokes the Visual Director or persists provenance for its output.
+- [~] VF-VS-403 **Re-opened for integration:** checks pass isolated fixtures, but `run_feasibility_checks()` has no production caller before render.
 
 ### Phase M13-E — Soundtrack plan
 
-- [x] VF-VS-501 **Soundtrack plan contract (P1):** `src/soundtrack_plan.py` with the schema in AMENDMENT-010 Condition 4. Parallel contract referenced by `contract_id`. — AC: `vo_only` requires rationale + approval; `music_bed` requires licence + cost; validation rejects silent VO-only.
-- [x] VF-VS-502 **Soundtrack planning prompt (P1):** `prompts/assembly/soundtrack_plan_v1.md`. LLM proposes mode + emotional register. Python validates. — AC: no genre inference in code; no random effects; provenance logged.
-- [x] VF-VS-503 **Soundtrack preview gate (P1):** Operator hears bed + SFX separately and under VO. Approves, rejects, replaces, or explicitly approves VO-only. — AC: no soundtrack mode change without gate token; synthetic tones not presented as finished design.
-- [x] VF-VS-504 **Soundtrack mix review (P1):** Extends `RenderReviewService`. Expected vs rendered music/SFX, audibility windows, VO-to-bed level, clipping, silence. — AC: missing approved music/SFX fails; unapproved VO-only yields `needs_operator_decision`.
+- [~] VF-VS-501 **Re-opened for integration:** contract helpers exist, but the live Reel has no persisted soundtrack plan or contract reference.
+- [~] VF-VS-502 **Re-opened for integration:** prompt/registry entry exist, but no production caller creates or validates a soundtrack plan.
+- [~] VF-VS-503 **Re-opened:** gate class exists, but there is no operator route/UI for preview, approve, reject, replace, or explicit VO-only approval.
+- [~] VF-VS-504 **Re-opened:** `RenderReviewService.check_soundtrack_mix()` exists but has no caller in render/review.
 
 ### Phase M13-F — False-green fixes
 
 - [x] VF-VS-601 **Skipped evidence blocks readiness (P0):** `asset_review.py` — `skipped` → `needs_operator_decision`, never `ready_for_operator`. — AC: skipped visual/transcript creates saved row and blocks readiness.
-- [x] VF-VS-602 **Beat-aware visual inspection (P0):** First/middle/last frame per beat, frames before/after cuts. Replace 5 generic keyframes. — AC: review frame selection derives from plan timing.
-- [x] VF-VS-603 **Deterministic text-integrity check (P0):** Forbidden debug tokens (`{`, `}`, `position`, `style`, `prompt`, JSON/dict fragments), safe-zone bounds, caption reconstruction, overlap/collision. — AC: Artifact A's leaked dict text and clipped captions fail in a regression fixture.
-- [x] VF-VS-604 **Transition intent in cue compiler (P0):** Honor `transition_in` from the Writer. Budget crossfade overlap against VO clock. Unsupported → visible warning or hard failure. — AC: hard cuts, crossfades, holds have explicit jobs; no silent `cut` override.
+- [~] VF-VS-602 **Re-opened for integration:** beat-aware extraction helper exists but has no production caller; live review still does not prove beat-aware evidence.
+- [~] VF-VS-603 **Re-opened for integration:** deterministic checker exists but has no production caller.
+- [~] VF-VS-604 **Re-opened for integration:** CueCompiler supports transition intent in isolation, but the live EditPlanningService never invokes CueCompiler.
 
 ### Phase M13-G — Regression and proof
 
 - [x] VF-VS-701 **Artifact A regression fixtures (P0):** Tests that prove detection of: dict metadata as audience text, long unwrapped captions, missing `bottom-third`, still fallback after motion, skipped evidence false-green, missing capture provenance. — AC: all defect classes caught.
-- [x] VF-VS-702 **Real fresh Reel through upgraded path (P0):** One new real Reel through the service-based path. Complete evidence. Operator review. — AC: working artifact, complete evidence, operator approval, no false-green.
-- [x] VF-VS-703 **Full suite + verification (P0):** `pytest -q` green. FFprobe/EBU R128/transcript/OCR/beat-frame on real artifact. Live server smoke test. — AC: tests + real artifact evidence pass.
+- [ ] VF-VS-702 **Not completed:** `tests/test_vf_vs_702_upgraded_path.py` explicitly reuses `data/media/6/final_2.mp4` and states that the fresh operator Reel remains manual. Live draft 11 / asset 7 is the first fresh proof attempt and it failed before FFmpeg.
+- [ ] VF-VS-703 **Blocked by VF-VS-702:** verification uses the same old artifact; the “live” tests target port 5000 instead of deployed port 9121 and skip on any connection/error. Live `/create/assets/11` is not green.
 
 ## PROGRESS.md format
 ```

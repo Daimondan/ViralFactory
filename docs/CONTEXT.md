@@ -271,15 +271,16 @@ Scheduled research of what works in the wild: monitors top accounts/hashtags/cha
 
 ## M13 implementation status
 
-AMENDMENT-010 is ratified, but the architect's 2026-07-18 live-code audit found a dual-path implementation gap that M13 must close top-down:
+AMENDMENT-010 is ratified. Component implementations for M13 exist, but the first fresh live Reel (draft 11 / asset 7) proved that several were not integrated into the shared production call graph. The operator ruled on 2026-07-18 to reopen the affected tasks and complete the existing design without a new charter amendment:
 
-- The autonomous Assembler chain uses `MediaPlanningService`, `EditPlanningService`, `CueCompiler`, and `RenderReviewService`; the operator-facing `/edit-plan`, `/render`, `/generate-media`, and `/produce-reel` routes still bypass some or all of them. M13-A reconciles these paths first.
-- Overlay styles and SFX presets still resolve from hardcoded Python dictionaries. M13-B moves them to `config/render_styles.yaml` plus Visual Style module overrides and replaces source-inspection tests with behavioral tenant-override tests.
-- The generic cue compiler still emits one full-beat caption. M13-C extracts shared phrase chunking and requires 3–6 word cues with exact-text reconstruction.
-- The production contract does not yet represent multi-event beats or a parallel soundtrack plan. M13-D and M13-E add `visual_events[]`, the Visual Director process, explicit soundtrack modes, licensed/costed references, and the preview gate.
-- Required review evidence can still be recorded as `skipped` while the asset becomes ready. M13-F makes missing/skipped evidence fail closed and adds beat-aware frame selection plus deterministic text-integrity checks.
+- `EditPlanningService.generate_for_asset()` must consume the exact measured VO and `CueCompiler` output rather than persist a legacy plan with no VO take.
+- The production path must invoke the registered Visual Director, persist validated `visual_events[]` with provenance, and run feasibility before paid acquisition and before FFmpeg.
+- Every Reel must persist a soundtrack plan and stop at the operator preview/VO-only approval gate before render.
+- Final review must invoke soundtrack mix, beat-aware frame evidence, and deterministic text-integrity checks; missing evidence cannot pass.
+- Operator and autonomous entrypoints require a real behavioral equivalence test, not source inspection or a patched service response.
+- VF-VS-702/703 remain open until a genuinely fresh deployed Reel passes the complete path, mechanical evidence, and operator review.
 
-Until these tasks land, Charter v3.7 describes the binding target and `BUILD_PLAN.md` records the implementation order; current operator output must not be treated as proof that the service-based path ran.
+Charter v3.7 remains the binding target and `BUILD_PLAN.md` records the implementation order. Existing M13 component tests are not proof that the deployed path uses those components.
 
 **Video generation handoff status (2026-07-10):** VH-1 through VH-6 corrections applied. Both video generation routes (`generate-clip` and `generate-media`) poll, download, and register AI-generated video in `asset_media` with valid file paths. Google/Veo bugs were fixed (aspect ratio, response nesting, download API key, env var). Duration is read from the LLM media plan. Zero-byte render files are cleaned up and output size validation is present. See `docs/reviews/REVIEW-video-generation-handoff-2026-07-09.md` and `docs/inbox/processed/CORRECTION-video-generation-handoff-v1.0.md`.
 

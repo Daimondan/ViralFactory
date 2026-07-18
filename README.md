@@ -70,7 +70,7 @@ Builder works `BUILD_PLAN.md` top-down → commit per task (task ID in message) 
 
 ## Status
 
-Charter is at v3.7. AMENDMENT-010 ratifies the Visual + Soundtrack Pipeline and adds M13 (VF-VS-101..703). The next work is Phase M13-A: reconcile the operator-facing routes with the autonomous chain so both call the same production services before any new visual or soundtrack contracts are built. Existing deferred audio/voice tasks and operator checkpoints remain open as recorded in `BUILD_PLAN.md` and `docs/PROGRESS.md`.
+Charter is at v3.7. AMENDMENT-010 ratifies the Visual + Soundtrack Pipeline and adds M13 (VF-VS-101..703). The first fresh live Reel exposed that several completed components were not integrated into the shared production call graph. The operator ruled on 2026-07-18 to reopen the affected tasks and complete the ratified design top-down; VF-VS-702/703 remain open until a genuinely fresh deployed Reel passes every human and mechanical gate. See `BUILD_PLAN.md` and `docs/PROGRESS.md` for current status.
 
 ## Original architect docs (preserved for reference)
 

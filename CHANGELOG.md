@@ -8,6 +8,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-18
 
+### OPS — Operator reopens M13 integration tasks [OPS/STRATEGIC/FIX]
+
+**What:** The operator ruled that the first fresh live Reel failure invalidates the prior “M13 complete” claim. The affected BUILD_PLAN tasks are reopened and will be repaired top-down under the already-ratified AMENDMENT-010. VF-VS-702 and VF-VS-703 remain open until one genuinely fresh Reel traverses the deployed shared path, passes mechanical evidence, and receives operator review. Draft 11 / asset 7 is the proof candidate if it remains valid.
+
+**Rationale:** This is implementation noncompliance, not a new architecture question. The charter already requires exact VO as master clock, Visual Director events, deterministic cue compilation, feasibility, an explicit operator-gated soundtrack mode, complete review evidence, and behavioral parity between operator and autonomous entrypoints. Green isolated component tests and a reused artifact did not prove that production invoked those components.
+
+**Governance:** Remove the interim architect-awaiting note. After the repair and fresh proof are complete, leave one concise completion note in `docs/inbox/` so the architect can audit the final evidence.
+
 ### FIX — Three Writer-surface state bugs after Gate 1 approval [LOGIC/FIX]
 
 **What:** Three operator-reported bugs in the Writer / draft page state machine, all triggered after approving an idea at Gate 1:
