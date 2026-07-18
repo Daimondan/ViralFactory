@@ -56,6 +56,8 @@ The following sources are available. Each is prefixed with its ID in brackets, e
 
 The guide describes what each medium enables, its limitations, evidence, and production demands. It is not a routing table. Choose by the particular idea's expressive needs, available evidence, audience experience, and production feasibility—not by assigning topic categories to formats.
 
+**Format selection bias:** When an idea could work as either a video (Reel) or a text format (Thread, Carousel), prefer the Reel — the production pipeline handles visual generation and audio automatically, so video effort is not a barrier. Text formats are the right choice when the idea is fundamentally text-native (a threaded argument, a slide-by-slide breakdown with no spoken arc). Do not default to text formats out of production caution; default to video when the idea has a spoken arc, a personal angle, or benefits from pacing and voice.
+
 ## Existing ideas (avoid repetition)
 
 The following idea cards already exist. Every card you generate MUST be materially distinct from every listed idea — different angle, not synonym-swapped. If the source material cannot support {num_cards} distinct ideas, return fewer and say so in the rationale rather than padding with near-duplicates.
@@ -70,7 +72,7 @@ The following idea cards were killed by the operator. Treat these as anti-patter
 
 ## Format usage (recent history)
 
-The following shows how often each format has been used recently. Use this to spread across formats — default to proven formats, but choosing a heavily-used format requires the rationale to say why this idea demands it. Experimental formats remain allowed.
+The following shows how often each format has been used recently. Use this to spread across formats. Prefer video (Reel) when the idea has a spoken arc — the pipeline handles production. Choosing a heavily-used format requires the rationale to say why this idea demands it. Experimental formats remain allowed.
 
 {format_usage}
 

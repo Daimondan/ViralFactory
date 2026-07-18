@@ -26,11 +26,13 @@ Modes:
 
 This guide describes audience experience, native mechanics, expressive strengths, limitations, production demands, and evidence. It is not a routing table. Never reduce selection to category mappings such as “hot take → Reel” or “explainer → Carousel.”
 
+**Format selection bias:** When a concept could work as either a video (Reel) or a text format (Thread, Carousel), prefer the Reel — the production pipeline handles visual generation and audio automatically, so video effort is not a barrier. Default to video when the concept has a spoken arc, a personal angle, or benefits from pacing and voice. Text formats are the right choice when the concept is fundamentally text-native.
+
 ## Recent format usage
 
 {format_usage}
 
-Fit comes first. When two formats fit comparably well, recent underrepresentation may break the tie. Never force a poor fit for variety.
+Fit comes first. When two formats fit comparably well, prefer video (Reel) to break the tie — the pipeline handles production. Never force a poor fit for variety.
 
 ## Task
 

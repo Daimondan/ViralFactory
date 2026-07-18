@@ -193,12 +193,12 @@ Final slide: [landing or next action]
 - **Variant type:** reel
 - **Audience experience:** A viewer experiences a short vertical audiovisual piece in a continuous discovery feed.
 - **Native mechanics:** vertical moving image; spoken voice or natural sound; timed text overlays; performance and pacing
-- **Expressive strengths:** shows human presence; demonstrates a process in motion; uses voice and timing for emotional delivery; makes visual contrast tangible
+- **Expressive strengths:** shows human presence; demonstrates a process in motion; uses voice and timing for emotional delivery; makes visual contrast tangible; carries a spoken argument with visual support — the pipeline generates visuals from the script, so production effort is not a barrier to choosing this format; preferred format when the idea has a strong spoken arc, a personal angle, or benefits from pacing and voice
 - **Limitations:** dense arguments feel rushed; weak visuals become a text post read aloud; forced movement distracts from the idea; audio failure damages comprehension
 - **Production demands:** purposeful footage or generated motion; clear audio when speech is used; editing paced to the idea; readable overlays where needed
 - **Length:** Usually 15-90 seconds
 - **Aspect ratio:** 9:16
-- **Effort level:** high
+- **Effort level:** medium
 - **Requires human capture:** optional
 - **Capture tasks:**
   - Record talking-head delivery or relevant original footage only when the chosen treatment calls for human presence.
