@@ -8,6 +8,24 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-18
 
+### AMENDMENT-010 ratified — Visual + soundtrack pipeline, Charter v3.7 [STRATEGIC/STRUCTURE]
+**What:** Architect ratified DIVERGENCE-014 (visual + soundtrack pipeline + dual-path reconciliation) as AMENDMENT-010 → Charter v3.7. Added M13 milestone (23 tasks: VF-VS-101..703). Filed `docs/decisions/DIVERGENCE-014-*.md`, `docs/decisions/AMENDMENT-010-*.md`, `docs/CHARTER-v3.7.md`. BUILD_PLAN.md → v2.0.
+**Why:** Builder filed Track B proposal to promote Draft 8 visual + soundtrack lessons into the reusable pipeline. Architect's live-code audit found: (1) the Assembler Full Upgrade built correct services (`src/services/*.py`) that the operator-facing route never reaches — `src/app.py` routes bypass every new service; (2) VF-AU-208/302/304 tests are tautological (AST structural / source inspection, not behavioral); (3) cue compiler produces full-beat captions not phrase-level; (4) no soundtrack plan contract exists; (5) no semantic visual events; (6) `build_reel_plan` hardcodes `transition_in: "cut"`.
+**Rationale:** The dual-path gap is the root cause of Draft 8 defects reaching the operator. M13-A (dual-path reconciliation) is the foundation — wire operator routes to the existing services first, then extend with visual events, soundtrack plan, config-driven styles, phrase-level captions, and false-green fixes. Seven binding conditions. Five tasks re-opened (VF-AU-208, 302, 304, 205, 402).
+**Verification:** Charter v3.7 written with all amendments incorporated. BUILD_PLAN.md patched with 23 M13 tasks. DIVERGENCE-014 and AMENDMENT-010 filed. v3.6 marked superseded. Builder note moved to processed.
+
+### Transcription worker test lifecycle and SQLite cleanup [FIX/TECH]
+**What:** Guaranteed SQLite connection closure across transcription polling, updates, and startup backfill, and added an explicit process-level background-worker disable switch used by the pytest harness.
+**Why:** Every temporary Flask app started a daemon transcription worker. Failed queries against deleted or schema-light test databases leaked descriptors until the suite hit `Too many open files`, causing late video-handoff failures.
+**Rationale:** Worker behavior remains tested directly; unit-test app factories must not launch process daemons. Production behavior is unchanged unless `VIRALFACTORY_DISABLE_BACKGROUND_WORKERS=1` is explicitly set.
+**Verification:** Four lifecycle regressions and all 17 video-handoff tests pass; full suite 1,621 passed with no worker-loop error flood.
+
+### Draft 8 director’s cut ratified as the Reel visual standard [STRATEGIC/LOGIC/FIX]
+**What:** Rebuilt Draft 8 as a VO-led hybrid editorial Reel using 22 semantic visual events, licensed human footage, deterministic StackPenni graphics, 51 exact phrase captions, and an exclusive caption lane. Operator-approved v3 is registered as media ID 42 at `data/media/6/final_2.mp4`; the failed baseline remains versioned at `final_1.mp4`.
+**Why:** The baseline used unrelated generated presenters, froze motion after five seconds, leaked structured overlay metadata into audience text, clipped captions, and falsely green-lit missing visual evidence. The v2 review also exposed style-preview captions being baked into production graphics and then obscured by the live VO caption layer.
+**Rationale:** Promote the decision process—not this Reel’s exact scenes—into the reusable pipeline: semantic visual events, provenance-aware source policy, separate renderer text roles, caption-lane collision validation, event-aware evidence, and fail-closed review completeness. StackPenni styling remains module/config-owned; generic code owns mechanics.
+**Verification:** Approved hash `f94c4ad44d94b4054b9cd267ee45b878239cbd012042ed3c35bf176c57aa172a`; 1080×1920, 30fps, 72.10s, audio present and unclipped, no black frames, exact 190-word caption reconstruction, 22-event visual audit, live route resolves `final_2.mp4`, 1,621 tests passed. Publication was not approved or triggered.
+
 ### Reel production moved out of Gunicorn [FIX/STRUCTURE/OPS]
 **What:** The cost-approved reel request now validates and enqueues a durable `reel_production` job, returns HTTP 202 immediately, and is executed by a dedicated systemd worker. The operator UI polls job state, survives non-JSON proxy errors, prevents duplicate retries/spend, and starts final rendering only after the worker has produced VO, motion clips, and an exact plan.
 **Why:** A real 185-word reel held a synchronous Gunicorn request open while local Chatterbox generated six VO segments. The request exceeded the web-worker/proxy lifetime, surfaced `Bad Gateway` as JSON, and a retry created concurrent 2.4–6.2 GB voice workloads that caused swap pressure and a worker timeout.

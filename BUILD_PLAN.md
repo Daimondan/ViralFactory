@@ -1,6 +1,6 @@
 # BUILD_PLAN.md — ViralFactory
 
-*Instructions to the builder agent (Hermes). Read `docs/CHARTER-v3.6.md` and all of `playbooks/` before writing any code. This file is the single source of truth for what to build and in what order. v1.9 — 2026-07-17 — AMENDMENT-009 ratified (assembler production-contract boundaries: capture policies, Writer/Media Planner clarification, production playbook classification). Assembler Full Upgrade Phase 0 complete. Prior: v1.8 (CORRECTION-episode-format-and-reference-assets, Sora retired).*
+*Instructions to the builder agent (Hermes). Read `docs/CHARTER-v3.7.md` and all of `playbooks/` before writing any code. This file is the single source of truth for what to build and in what order. v2.0 — 2026-07-18 — AMENDMENT-010 ratified (visual + soundtrack pipeline: Visual Director, soundtrack plan, semantic visual events, dual-path reconciliation, config-driven styles, phrase-level captions, skipped-evidence-is-not-pass). M13 milestone added. Prior: v1.9 (AMENDMENT-009, Assembler Full Upgrade Phase 0).*
 
 ## How to work (non-negotiable)
 
@@ -183,6 +183,66 @@
 - [x] VF-AU-601 **Full integration suite (P0):** VO-heavy reel, caption-only reel, silent piece, carousel, image post, required capture, preferred capture, generated support, mixed media. — AC: focused tests + full suite green with fresh output.
 - [x] VF-AU-602 **Real VO-heavy reel (P0):** Complete upgraded path with real services and files. — AC: contract/process versions, IDs, measured VO, inventory, provider jobs/costs, plan, feasibility, final faststart MP4, per-beat compliance, remediation history, copy hash, operator page. Uses existing asset 3 (real images, VO, final cut) — no new paid calls needed.
 - [x] VF-AU-603 **Documentation and deployment closeout (P0):** README, CONTEXT, BUILD_PLAN checkboxes, PROGRESS, CHANGELOG, diagrams. Deploy under operator-approved procedure. — AC: live page shows contract/coverage/remediation; real artifact loads; approval/publish boundaries intact.
+
+### Re-opened by AMENDMENT-010 (tautological tests / unwired services)
+
+The following tasks were marked complete but their acceptance criteria were met with structural or tautological tests, not behavioral verification. They are re-opened; the M13 tasks below close the gaps.
+
+- [~] VF-AU-208 **Re-opened:** Operator-facing routes do not call the new services. AST structural test passes but behavioral wiring is absent. Closed by VF-VS-101..103.
+- [~] VF-AU-302 **Re-opened:** `_OVERLAY_STYLES` still hardcoded in `assembly.py`. Test verifies source inspection, not config override. Closed by VF-VS-201..203.
+- [~] VF-AU-304 **Re-opened:** `_SFX_PRESETS` still hardcoded. Same tautological test pattern. Closed by VF-VS-201..203.
+- [~] VF-AU-205 **Re-opened:** Cue compiler produces one full-beat caption, not phrase-level chunks. Closed by VF-VS-301..303.
+- [~] VF-AU-402 **Re-opened:** `skipped` evidence still yields `ready_for_operator`. Closed by VF-VS-601.
+
+## M13 — Visual + Soundtrack Pipeline (per AMENDMENT-010 / DIVERGENCE-014, Charter v3.7)
+
+*Read `docs/decisions/DIVERGENCE-014-visual-soundtrack-pipeline-and-dual-path-reconciliation.md` and `docs/decisions/AMENDMENT-010-visual-soundtrack-pipeline.md` before starting.*
+
+**Key finding:** The Assembler Full Upgrade built correct services that the operator-facing route never reaches. `src/app.py` routes bypass every new service. Phase M13-A closes this dual-path gap first — it is the foundation for all subsequent tasks.
+
+### Phase M13-A — Dual-path reconciliation
+
+- [ ] VF-VS-101 **Wire operator routes to services (P0):** `/api/assets/<id>/edit-plan`, `/render`, `/generate-media` call `EditPlanningService`, `RenderReviewService`, `MediaPlanningService`. Routes handle HTTP only. — AC: same input through UI route and autonomous chain produces equivalent edit plans.
+- [ ] VF-VS-102 **Retire old build_reel_plan path (P0):** Delete or gate `reel_production_runner.run_reel_production` for VO-led Reels. — AC: no operator route calls `build_reel_plan` directly.
+- [ ] VF-VS-103 **Behavioral dual-path test (P0):** Render same input through both paths, assert equivalence. — AC: test fails if routes diverge from chain.
+
+### Phase M13-B — Config-driven styles
+
+- [ ] VF-VS-201 **Move overlay styles to config (P0):** `config/render_styles.yaml` + Visual Style module overrides. `_resolve_overlay_style` checks config → module → fallback. — AC: two tenant configs, different resolved styles, zero Python edits.
+- [ ] VF-VS-202 **Move SFX presets to config (P0):** Same path for `_SFX_PRESETS`. — AC: two tenant configs, different SFX, zero Python edits.
+- [ ] VF-VS-203 **Replace tautological tests (P0):** Delete `test_vf_au_302_304_config_style.py` structural tests. Write behavioral tests that load two configs and assert different resolved parameters. — AC: tests actually render two configs and assert difference.
+
+### Phase M13-C — Caption timing
+
+- [ ] VF-VS-301 **Extract caption timing service (P0):** `src/services/caption_timing.py` with `chunk_captions()`. Reuse `episode_plan._chunk_vo_text` logic. — AC: 3–6 word phrases, no dangling fragments, exact-text reconstruction.
+- [ ] VF-VS-302 **Wire cue compiler to caption timing (P0):** The cue compiler chunks captions via the new service. — AC: cue compiler produces multiple caption cues per beat, not one full-beat caption.
+- [ ] VF-VS-303 **Update episode_plan to import shared service (P0):** No duplication. — AC: `episode_plan._chunk_vo_text` delegates to `caption_timing.py`.
+
+### Phase M13-D — Semantic visual events
+
+- [ ] VF-VS-401 **Add visual_events to production contract (P1):** `PRODUCTION_CONTRACT_V2` beat schema gains `visual_events[]`. Compatibility: no events → one event from `visual_intent`. — AC: contract validates multi-event beats; old contracts degrade gracefully.
+- [ ] VF-VS-402 **Visual Director process (P1):** `prompts/assembly/visual_director_v1.md` + JSON schema + validator. Translates `visual_intent` + VO timings → `visual_events[]`. Registered in Process Registry with `playbook_type: production`. — AC: schema-validated, provenance-logged, no audience copy, no tenant strings.
+- [ ] VF-VS-403 **Extend feasibility checks (P0):** Multi-event coverage validation. Missing event coverage → block. Talking-head intent + shorter motion than speech → block or require explicit cutaway. — AC: Draft 8 Artifact A's 5s-motion + still fallback is caught and blocked.
+
+### Phase M13-E — Soundtrack plan
+
+- [ ] VF-VS-501 **Soundtrack plan contract (P1):** `src/soundtrack_plan.py` with the schema in AMENDMENT-010 Condition 4. Parallel contract referenced by `contract_id`. — AC: `vo_only` requires rationale + approval; `music_bed` requires licence + cost; validation rejects silent VO-only.
+- [ ] VF-VS-502 **Soundtrack planning prompt (P1):** `prompts/assembly/soundtrack_plan_v1.md`. LLM proposes mode + emotional register. Python validates. — AC: no genre inference in code; no random effects; provenance logged.
+- [ ] VF-VS-503 **Soundtrack preview gate (P1):** Operator hears bed + SFX separately and under VO. Approves, rejects, replaces, or explicitly approves VO-only. — AC: no soundtrack mode change without gate token; synthetic tones not presented as finished design.
+- [ ] VF-VS-504 **Soundtrack mix review (P1):** Extends `RenderReviewService`. Expected vs rendered music/SFX, audibility windows, VO-to-bed level, clipping, silence. — AC: missing approved music/SFX fails; unapproved VO-only yields `needs_operator_decision`.
+
+### Phase M13-F — False-green fixes
+
+- [ ] VF-VS-601 **Skipped evidence blocks readiness (P0):** `asset_review.py` — `skipped` → `needs_operator_decision`, never `ready_for_operator`. — AC: skipped visual/transcript creates saved row and blocks readiness.
+- [ ] VF-VS-602 **Beat-aware visual inspection (P0):** First/middle/last frame per beat, frames before/after cuts. Replace 5 generic keyframes. — AC: review frame selection derives from plan timing.
+- [ ] VF-VS-603 **Deterministic text-integrity check (P0):** Forbidden debug tokens (`{`, `}`, `position`, `style`, `prompt`, JSON/dict fragments), safe-zone bounds, caption reconstruction, overlap/collision. — AC: Artifact A's leaked dict text and clipped captions fail in a regression fixture.
+- [ ] VF-VS-604 **Transition intent in cue compiler (P0):** Honor `transition_in` from the Writer. Budget crossfade overlap against VO clock. Unsupported → visible warning or hard failure. — AC: hard cuts, crossfades, holds have explicit jobs; no silent `cut` override.
+
+### Phase M13-G — Regression and proof
+
+- [ ] VF-VS-701 **Artifact A regression fixtures (P0):** Tests that prove detection of: dict metadata as audience text, long unwrapped captions, missing `bottom-third`, still fallback after motion, skipped evidence false-green, missing capture provenance. — AC: all defect classes caught.
+- [ ] VF-VS-702 **Real fresh Reel through upgraded path (P0):** One new real Reel through the service-based path. Complete evidence. Operator review. — AC: working artifact, complete evidence, operator approval, no false-green.
+- [ ] VF-VS-703 **Full suite + verification (P0):** `pytest -q` green. FFprobe/EBU R128/transcript/OCR/beat-frame on real artifact. Live server smoke test. — AC: tests + real artifact evidence pass.
 
 ## PROGRESS.md format
 ```
