@@ -8,6 +8,12 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-18
 
+### VF-VS-102 — Legacy VO-led Reel path retired [STRUCTURE/LOGIC/OPS]
+**What:** Removed the old provider/planning/render body from `reel_production_runner.run_reel_production`. The compatibility entrypoint now fails before database or provider setup. `/api/assets/<id>/produce-reel` also fails closed with HTTP 409 and does not enqueue a legacy job.
+**Why:** The old runner compiled full-beat captions, forced hard cuts, and filled speech overruns with still images. Leaving it reachable would preserve the exact dual-path defects M13 retires.
+**Rationale:** Until the shared service workflow is behaviorally locked, disabling the superseded path is safer than silently producing known-bad or paid output. Recovery helpers for already-submitted provider jobs remain available, while `build_reel_plan` has no runtime caller.
+**Verification:** Two fail-first regressions prove the runner exits before state/provider work and the operator route creates no job. 24 focused tests and the full 1,632-test suite pass; source search finds only the `build_reel_plan` definition under `src/`.
+
 ### Structured Reel overlay extraction locked by regression [FIX/LOGIC]
 **What:** `extract_reel_beats()` now treats dictionary-shaped `text_on_screen` as structured renderer intent and extracts only its `text` field; string-shaped legacy overlays remain unchanged. Writer self-audit revisions now update either shape without calling dictionary methods on legacy strings or discarding structured metadata.
 **Why:** Coercing the whole dictionary with `str()` burned internal `position` and `style` metadata into Draft 8 as audience-visible text.

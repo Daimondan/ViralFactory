@@ -5,12 +5,19 @@ import os
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from jobs import JobsStore
 from reel_jobs import enqueue_reel_job, get_reel_job_status, run_next_reel_job
-from reel_production_runner import _find_submitted_video_tasks, _poll_video
+from reel_production import ReelProductionError
+from reel_production_runner import (
+    _find_submitted_video_tasks,
+    _poll_video,
+    run_reel_production,
+)
 
 
 def test_enqueue_returns_immediately_and_prevents_duplicate_work(tmp_path):
@@ -68,6 +75,55 @@ def test_assets_ui_polls_reel_job_instead_of_parsing_long_request():
     assert "data.status === 'queued' || data.status === 'running'" in source
     assert "response.text()" in source
     assert "JSON.parse" in source
+
+
+def test_legacy_vo_led_runner_is_retired_before_any_pipeline_work(monkeypatch, tmp_path):
+    import reel_production_runner
+
+    def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("legacy state and provider setup must not run")
+
+    monkeypatch.setattr(reel_production_runner, "_state", fail_if_called)
+
+    with pytest.raises(ReelProductionError, match="retired"):
+        run_reel_production(
+            6,
+            0,
+            db_path=str(tmp_path / "pipeline.db"),
+            config_dir="config",
+            business_slug="fixture",
+        )
+
+
+def test_operator_route_does_not_enqueue_the_retired_vo_led_path(tmp_path):
+    from app import create_app
+    from pipeline import PipelineStore
+
+    db_path = str(tmp_path / "pipeline.db")
+    app = create_app(config_dir=str(ROOT / "config"), db_path=db_path)
+    store = PipelineStore(db_path=db_path)
+    asset_id = store.create_asset(
+        "fixture",
+        1,
+        "Instagram",
+        "reel",
+        "Approved content",
+        posts=[{
+            "beat_id": "b01",
+            "vo_text": "Approved voice-over.",
+            "text_on_screen": {"text": "Approved overlay"},
+            "visual_intent": "A renderer-owned card.",
+        }],
+    )
+
+    response = app.test_client().post(
+        f"/api/assets/{asset_id}/produce-reel",
+        json={"approved_cost_usd": 0},
+    )
+
+    assert response.status_code == 409
+    assert "retired" in response.get_json()["error"].lower()
+    assert JobsStore(db_path).list_jobs(job_type="reel_production") == []
 
 
 def test_fal_poll_download_uses_adapter_contract():

@@ -6476,49 +6476,21 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     @app.route("/api/assets/<int:asset_id>/produce-reel", methods=["POST"])
     def produce_reel(asset_id):
-        """Validate approval and enqueue long production outside Gunicorn."""
-        import hashlib
-        from reel_jobs import enqueue_reel_job
-        from reel_production import ReelProductionError, validate_cost_approval
+        """Fail closed while the retired VO-led path is replaced by shared services."""
+        from reel_production import extract_reel_beats
 
-        body = request.get_json(silent=True) or {}
-        try:
-            _, asset, beats, models_config, _, images, _, estimate = _reel_production_state(asset_id)
-            validate_cost_approval(
-                body.get("approved_cost_usd", -1), estimate["estimated_cost_usd"],
-            )
-            missing_images = [
-                beat["beat_id"] for beat in beats if beat["beat_id"] not in images
-            ]
-            if missing_images:
-                raise ReelProductionError(
-                    f"Storyboard stills are missing for: {', '.join(missing_images)}. Generate images first."
-                )
-            source_hash = hashlib.sha256(
-                json.dumps(json.loads(asset.get("posts") or "[]"), sort_keys=True,
-                           ensure_ascii=False).encode()
-            ).hexdigest()
-            reel_config = models_config.get("media", {}).get("reel_production", {})
-            queued = enqueue_reel_job(
-                app.config["DB_PATH"], asset_id,
-                estimate["estimated_cost_usd"], source_hash,
-                int(reel_config["job_stale_timeout_seconds"]),
-            )
-        except LookupError as exc:
-            return jsonify({"error": str(exc)}), 404
-        except (ValueError, ConfigError, ReelProductionError) as exc:
-            return jsonify({"error": str(exc)}), 409
-
-        status = "running" if queued["status"] == "running" else "queued"
+        asset = _get_pipeline_store().get_asset(asset_id)
+        if not asset:
+            return jsonify({"error": "Asset not found"}), 404
+        beats = extract_reel_beats(json.loads(asset.get("posts") or "[]"))
+        if not beats or not any(beat.get("vo_text") for beat in beats):
+            return jsonify({"error": "This asset has no structured spoken Reel beats."}), 409
         return jsonify({
-            "status": status,
-            "job_id": queued["job_id"],
-            "message": (
-                "Reel production is already running. No duplicate spend was made."
-                if status == "running"
-                else "Reel production queued. You can leave this page while it runs."
+            "error": (
+                "The legacy VO-led Reel production path is retired. "
+                "Use the shared Media Planning, Edit Planning, and Render Review workflow."
             ),
-        }), 202
+        }), 409
 
     @app.route("/api/reel-production-jobs/<int:job_id>", methods=["GET"])
     def reel_production_job_status(job_id):
