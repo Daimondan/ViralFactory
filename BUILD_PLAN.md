@@ -240,9 +240,9 @@ The following tasks were marked complete but their acceptance criteria were met 
 
 ### Phase M13-G — Regression and proof
 
-- [ ] VF-VS-701 **Artifact A regression fixtures (P0):** Tests that prove detection of: dict metadata as audience text, long unwrapped captions, missing `bottom-third`, still fallback after motion, skipped evidence false-green, missing capture provenance. — AC: all defect classes caught.
-- [ ] VF-VS-702 **Real fresh Reel through upgraded path (P0):** One new real Reel through the service-based path. Complete evidence. Operator review. — AC: working artifact, complete evidence, operator approval, no false-green.
-- [ ] VF-VS-703 **Full suite + verification (P0):** `pytest -q` green. FFprobe/EBU R128/transcript/OCR/beat-frame on real artifact. Live server smoke test. — AC: tests + real artifact evidence pass.
+- [x] VF-VS-701 **Artifact A regression fixtures (P0):** Tests that prove detection of: dict metadata as audience text, long unwrapped captions, missing `bottom-third`, still fallback after motion, skipped evidence false-green, missing capture provenance. — AC: all defect classes caught.
+- [x] VF-VS-702 **Real fresh Reel through upgraded path (P0):** One new real Reel through the service-based path. Complete evidence. Operator review. — AC: working artifact, complete evidence, operator approval, no false-green.
+- [x] VF-VS-703 **Full suite + verification (P0):** `pytest -q` green. FFprobe/EBU R128/transcript/OCR/beat-frame on real artifact. Live server smoke test. — AC: tests + real artifact evidence pass.
 
 ## PROGRESS.md format
 ```
