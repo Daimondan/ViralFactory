@@ -237,6 +237,41 @@ class RenderReviewService:
         plan = json.loads(edit_plan.get("plan_json") or "{}")
         structured_beats = extract_reel_beats(json.loads(asset.get("posts") or "[]"))
         voice_led = any(beat.get("vo_text") for beat in structured_beats)
+        if voice_led or plan.get("soundtrack_plan"):
+            from soundtrack_gate import SoundtrackGateError, SoundtrackPreviewGate
+
+            soundtrack_ref = plan.get("soundtrack_plan")
+            soundtrack = None
+            if isinstance(soundtrack_ref, dict):
+                soundtrack = store.get_soundtrack_plan(
+                    soundtrack_ref.get("soundtrack_plan_id")
+                )
+            reference_matches = bool(
+                soundtrack
+                and int(soundtrack.get("asset_id") or 0) == int(asset_id)
+                and int(soundtrack.get("edit_plan_id") or 0) == int(plan_id)
+                and soundtrack.get("contract_id") == soundtrack_ref.get("contract_id")
+                and soundtrack.get("plan_hash") == soundtrack_ref.get("plan_hash")
+            )
+            try:
+                if not reference_matches:
+                    raise SoundtrackGateError(
+                        "The edit plan has no valid current soundtrack proposal."
+                    )
+                SoundtrackPreviewGate(self.db_path).require_approval(
+                    soundtrack["contract_id"], soundtrack["plan_hash"]
+                )
+            except SoundtrackGateError as exc:
+                message = f"Render stopped before FFmpeg: {exc}"
+                store.update_edit_plan_status(
+                    plan_id,
+                    "needs_operator_decision",
+                    message[:500],
+                )
+                return ServiceResponse({
+                    "status": "soundtrack_approval_required",
+                    "error": message,
+                }, 409)
         if voice_led:
             try:
                 vo_segments = json.loads(store.get_vo_segments(asset_id) or "[]")

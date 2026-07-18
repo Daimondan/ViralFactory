@@ -3,6 +3,7 @@
 from tests.test_vf_vs_402_visual_director_integration import make_visual_reel
 
 from services.render_review import RenderReviewService
+from soundtrack_gate import SoundtrackPreviewGate
 
 
 class RendererSpy:
@@ -54,9 +55,38 @@ def complete_feasibility():
     }
 
 
+def save_approved_edit_plan(store, draft_id, asset_id, plan):
+    """Persist the soundtrack precondition so these tests isolate feasibility."""
+    soundtrack = {
+        "contract_id": "feasibility-boundary-contract",
+        "mode": "vo_only",
+        "music_bed_ref": None,
+        "ducking": None,
+        "sfx_cues": [],
+        "vo_only_rationale": "This fixture explicitly tests voice-only delivery.",
+        "source_sound_rationale": None,
+        "emotional_register": "direct",
+        "operator_approval": None,
+    }
+    plan_id = store.save_edit_plan(
+        draft_id,
+        asset_id,
+        plan,
+        compliance_contract={"beats": []},
+        soundtrack_plan=soundtrack,
+    )
+    persisted = store.list_soundtrack_plans(asset_id)[0]
+    SoundtrackPreviewGate(store.db_path).record_approval(
+        persisted["contract_id"],
+        "test-business",
+        persisted["plan_hash"],
+        persisted["plan"]["mode"],
+    )
+    return plan_id
+
+
 def test_complete_feasibility_evidence_is_render_ready():
     plan = {"feasibility": complete_feasibility()}
-
     assert RenderReviewService._pre_render_feasibility_error(plan) is None
 
 
@@ -77,7 +107,8 @@ def test_partial_or_failed_feasibility_evidence_is_blocked():
 
 def test_voice_led_render_requires_feasible_persisted_plan(tmp_path):
     db_path, store, asset_id, _media_id = make_visual_reel(tmp_path)
-    plan_id = store.save_edit_plan(
+    plan_id = save_approved_edit_plan(
+        store,
         store.get_asset(asset_id)["draft_id"],
         asset_id,
         {
@@ -95,7 +126,6 @@ def test_voice_led_render_requires_feasible_persisted_plan(tmp_path):
                 "duration_target": 3.0,
             },
         },
-        compliance_contract={"beats": []},
     )
     renderer = RendererSpy()
 
@@ -118,7 +148,8 @@ def test_voice_led_render_requires_feasible_persisted_plan(tmp_path):
 
 def test_voice_led_render_accepts_complete_feasibility_evidence(tmp_path):
     db_path, store, asset_id, _media_id = make_visual_reel(tmp_path)
-    plan_id = store.save_edit_plan(
+    plan_id = save_approved_edit_plan(
+        store,
         store.get_asset(asset_id)["draft_id"],
         asset_id,
         {
@@ -137,7 +168,6 @@ def test_voice_led_render_accepts_complete_feasibility_evidence(tmp_path):
             },
             "feasibility": complete_feasibility(),
         },
-        compliance_contract={"beats": []},
     )
     renderer = SuccessfulRenderer(tmp_path / "render.mp4")
 

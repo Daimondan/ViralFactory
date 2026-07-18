@@ -32,9 +32,9 @@ def _hash(plan):
 def test_approve_plan_records_gate_token(gate):
     plan = make_vo_only_plan("c001", "Valid rationale.")
     h = _hash(plan)
-    result = gate.record_approval("c001", "test", h, "vo_only", "gate_tok_123")
+    result = gate.record_approval("c001", "test", h, "vo_only")
     assert result["verdict"] == "approved"
-    assert result["gate_token"] == "gate_tok_123"
+    assert result["gate_token"].startswith("soundtrack_gate_")
     assert gate.is_approved("c001", h)
 
 
@@ -52,7 +52,7 @@ def test_replace_plan_blocks_original(gate):
     h = _hash(plan)
     new_plan = make_music_bed_plan("c001", "bed_01", {"type": "royalty_free"}, 5.0)
     new_h = _hash(new_plan)
-    gate.record_replacement("c001", "test", h, new_h, "music_bed", "gate_tok_456")
+    gate.record_replacement("c001", "test", h, new_h, "music_bed")
     with pytest.raises(SoundtrackGateError, match="replaced"):
         gate.require_approval("c001", h)
 
@@ -65,10 +65,10 @@ def test_require_approval_raises_on_unapproved(gate):
 def test_require_approval_returns_record_when_approved(gate):
     plan = make_vo_only_plan("c001", "Valid rationale.")
     h = _hash(plan)
-    gate.record_approval("c001", "test", h, "vo_only", "gate_tok_123")
+    gate.record_approval("c001", "test", h, "vo_only")
     record = gate.require_approval("c001", h)
     assert record["verdict"] == "approved"
-    assert record["gate_token"] == "gate_tok_123"
+    assert record["gate_token"].startswith("soundtrack_gate_")
 
 
 def test_no_mode_change_without_gate_token(gate):

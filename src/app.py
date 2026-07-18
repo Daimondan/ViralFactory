@@ -6093,6 +6093,21 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             # Get edit plans
             a["edit_plans"] = store.list_edit_plans(asset["id"])
 
+            # VF-VS-503: expose only the current persisted soundtrack contract.
+            a["soundtrack_review"] = None
+            if a["edit_plans"]:
+                from services.soundtrack_review import SoundtrackReviewService
+
+                review_result = SoundtrackReviewService(
+                    app.config["DB_PATH"]
+                ).get_review(
+                    asset_id=asset["id"],
+                    edit_plan_id=a["edit_plans"][0]["id"],
+                    store=store,
+                )
+                if review_result.ok:
+                    a["soundtrack_review"] = review_result.payload
+
             # Build post_images mapping: index by post index → image dict or None.
             # Only posts whose image_prompt is not "none" should get an image.
             # Images list is flat (generated images only, skipping "none" prompts),
@@ -6688,6 +6703,66 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             except (json.JSONDecodeError, TypeError):
                 p["plan_parsed"] = {}
         return jsonify({"status": "ok", "plans": plans})
+
+    @app.route("/api/assets/<int:asset_id>/soundtrack-review", methods=["GET"])
+    def soundtrack_review(asset_id):
+        """Return the current persisted soundtrack proposal and preview manifest."""
+        store = _get_pipeline_store()
+        plans = store.list_edit_plans(asset_id)
+        if not plans:
+            return jsonify({"error": "No edit plan found for this asset"}), 404
+        from services.soundtrack_review import SoundtrackReviewService
+
+        result = SoundtrackReviewService(app.config["DB_PATH"]).get_review(
+            asset_id=asset_id,
+            edit_plan_id=plans[0]["id"],
+            store=store,
+        )
+        return jsonify(result.payload), result.status_code
+
+    @app.route("/api/assets/<int:asset_id>/soundtrack-previewed", methods=["POST"])
+    def soundtrack_previewed(asset_id):
+        """Acknowledge that the operator heard every playable current preview."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+        store = _get_pipeline_store()
+        plans = store.list_edit_plans(asset_id)
+        if not plans:
+            return jsonify({"error": "No edit plan found for this asset"}), 404
+        from services.soundtrack_review import SoundtrackReviewService
+
+        result = SoundtrackReviewService(app.config["DB_PATH"]).acknowledge_preview(
+            asset_id=asset_id,
+            edit_plan_id=plans[0]["id"],
+            business_slug=business_slug,
+            store=store,
+        )
+        return jsonify(result.payload), result.status_code
+
+    @app.route("/api/assets/<int:asset_id>/soundtrack-decision", methods=["POST"])
+    def soundtrack_decision(asset_id):
+        """Persist an operator decision for the exact current soundtrack plan."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+        body = request.get_json(silent=True) or {}
+        store = _get_pipeline_store()
+        plans = store.list_edit_plans(asset_id)
+        if not plans:
+            return jsonify({"error": "No edit plan found for this asset"}), 404
+        from services.soundtrack_review import SoundtrackReviewService
+
+        result = SoundtrackReviewService(app.config["DB_PATH"]).decide(
+            asset_id=asset_id,
+            edit_plan_id=plans[0]["id"],
+            action=str(body.get("action") or ""),
+            business_slug=business_slug,
+            reason=body.get("reason"),
+            replacement_plan_id=body.get("replacement_plan_id"),
+            store=store,
+        )
+        return jsonify(result.payload), result.status_code
 
     @app.route("/api/assets/<int:asset_id>/render", methods=["POST"])
     def render_final_cut(asset_id):

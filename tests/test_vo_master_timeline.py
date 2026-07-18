@@ -152,6 +152,10 @@ def test_assembler_chain_runs_vo_before_media_plan():
     chain._step_media_plan = make_step("media_plan")
     chain._step_media_exec = make_step("media_exec")
     chain._step_edit_plan = make_step("edit_plan")
+    def approved_soundtrack_gate(*args, **kwargs):
+        call_order.append("soundtrack_gate")
+        return True
+    chain._step_soundtrack_gate = approved_soundtrack_gate
     chain._step_render = make_step("render")
 
     from unittest.mock import MagicMock, patch
@@ -161,7 +165,15 @@ def test_assembler_chain_runs_vo_before_media_plan():
     with patch("pipeline.PipelineStore", return_value=store):
         chain.run_assembler_chain(draft_id=1, card_id=1, business_slug="test")
 
-    assert call_order == ["fanout", "vo", "media_plan", "media_exec", "edit_plan", "render"]
+    assert call_order == [
+        "fanout",
+        "vo",
+        "media_plan",
+        "media_exec",
+        "edit_plan",
+        "soundtrack_gate",
+        "render",
+    ]
 
 
 # ─── 4. draft prompt: no fake timestamps ──────────────────────────────

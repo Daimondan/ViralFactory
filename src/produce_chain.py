@@ -345,6 +345,9 @@ class ProductionChain:
             self._step_media_plan(draft_id, card_id, business_slug, store)
             self._step_media_exec(draft_id, card_id, business_slug, store)
             self._step_edit_plan(draft_id, card_id, business_slug, store)
+            if not self._step_soundtrack_gate(draft_id, card_id, business_slug, store):
+                store.update_card_state(card_id, "awaiting_soundtrack_approval")
+                return
             self._step_render(draft_id, card_id, business_slug, store)
 
             # Success — card is ready for asset review
@@ -474,6 +477,62 @@ class ProductionChain:
                 or "Edit planning failed"
             )
         store._set_step_data(draft_id, "edit_plan_result", result.payload)
+
+    def _step_soundtrack_gate(
+        self,
+        draft_id: int,
+        card_id: int,
+        business_slug: str,
+        store,
+    ) -> bool:
+        """Pause autonomous production until the current soundtrack is approved."""
+        from soundtrack_gate import SoundtrackGateError, SoundtrackPreviewGate
+
+        asset = store.get_asset_by_draft(draft_id)
+        if not asset:
+            raise RuntimeError(f"No asset found for draft {draft_id}")
+        edit_plans = store.list_edit_plans(asset["id"])
+        if not edit_plans:
+            raise RuntimeError(f"No edit plan found for asset {asset['id']}")
+        edit_plan = edit_plans[0]
+        try:
+            plan = json.loads(edit_plan.get("plan_json") or "{}")
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError("Edit plan contains invalid JSON") from exc
+        reference = plan.get("soundtrack_plan")
+        soundtrack = None
+        if isinstance(reference, dict):
+            soundtrack = store.get_soundtrack_plan(
+                reference.get("soundtrack_plan_id")
+            )
+        if not soundtrack or (
+            int(soundtrack.get("asset_id") or 0) != int(asset["id"])
+            or int(soundtrack.get("edit_plan_id") or 0) != int(edit_plan["id"])
+            or soundtrack.get("contract_id") != reference.get("contract_id")
+            or soundtrack.get("plan_hash") != reference.get("plan_hash")
+        ):
+            store._set_step_data(draft_id, "soundtrack_gate_result", {
+                "status": "awaiting_soundtrack_approval",
+                "reason": "No valid current soundtrack proposal",
+            })
+            return False
+        try:
+            approval = SoundtrackPreviewGate(store.db_path).require_approval(
+                soundtrack["contract_id"], soundtrack["plan_hash"]
+            )
+        except SoundtrackGateError as exc:
+            store._set_step_data(draft_id, "soundtrack_gate_result", {
+                "status": "awaiting_soundtrack_approval",
+                "soundtrack_plan_id": soundtrack["id"],
+                "reason": str(exc),
+            })
+            return False
+        store._set_step_data(draft_id, "soundtrack_gate_result", {
+            "status": "approved",
+            "soundtrack_plan_id": soundtrack["id"],
+            "gate_token": approval["gate_token"],
+        })
+        return True
 
     def _step_render(self, draft_id: int, card_id: int, business_slug: str, store):
         """Render through the same Render/Review Service used by the UI."""

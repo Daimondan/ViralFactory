@@ -613,8 +613,54 @@
                     {# Missing captures panel — always available so operator can generate
                        more media even after a final cut exists (re-render with new images). #}
                     <div id="missing-captures-{{ asset.id }}" style="margin-bottom: 10px;"></div>
+                    {% set soundtrack = asset.soundtrack_review %}
+                    {% if soundtrack %}
+                    <div class="soundtrack-gate" style="background:#F5F2E9;border:1px solid #D8D2C4;border-radius:10px;padding:14px;margin:10px 0;">
+                        <div style="font-family:Georgia,serif;font-size:1rem;margin-bottom:5px;">Soundtrack proposal · {{ soundtrack.mode|replace('_', ' ')|title }}</div>
+                        {% if soundtrack.emotional_register %}<div style="font-size:.8rem;color:#6B675D;margin-bottom:8px;">{{ soundtrack.emotional_register }}</div>{% endif %}
+                        {% if soundtrack.rationale %}<div style="font-size:.8rem;margin-bottom:8px;">{{ soundtrack.rationale }}</div>{% endif %}
+                        <button class="btn" type="button" onclick="prepareSoundtrackPreview({{ asset.id }}, this)">Prepare audio preview</button>
+                        <div id="soundtrack-preview-{{ asset.id }}" style="display:none;margin-top:10px;">
+                            <p style="font-size:.78rem;color:#6B675D;">{{ soundtrack.preview.instructions }}</p>
+                            {% for track in soundtrack.preview.tracks %}
+                            <div style="padding:8px 0;border-top:1px solid #E4DED2;">
+                                <strong style="font-size:.78rem;">{{ track.description }}</strong>
+                                {% if track.synthetic_placeholder %}
+                                <div style="font-size:.75rem;color:#9A5A24;">Synthetic placeholder — not finished sound design and not presented as approved SFX.</div>
+                                {% elif track.file %}
+                                <audio controls preload="none" style="display:block;width:100%;margin-top:5px;" src="{{ track.file }}"></audio>
+                                {% else %}
+                                <div style="font-size:.75rem;color:#9A5A24;">Preview unavailable. Do not approve until this track can be heard.</div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% if soundtrack.approval.approved %}
+                        <div style="color:#4A7C3A;font-size:.8rem;margin-top:10px;">✓ Soundtrack approved for this exact plan.</div>
+                        {% else %}
+                        <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px;">
+                            <button class="btn btn-primary" id="soundtrack-approve-{{ asset.id }}" type="button" {% if not soundtrack.preview_acknowledged %}disabled{% endif %} onclick="soundtrackDecision({{ asset.id }}, 'approve', null, this)">Approve soundtrack</button>
+                            <button class="btn" type="button" onclick="soundtrackDecision({{ asset.id }}, 'reject', null, this)">Reject soundtrack</button>
+                            <button class="btn" id="soundtrack-vo-only-{{ asset.id }}" type="button" {% if not soundtrack.preview_acknowledged %}disabled{% endif %} onclick="soundtrackDecision({{ asset.id }}, 'vo_only', null, this)">Use VO only</button>
+                            {% if soundtrack.alternatives %}
+                            <select id="soundtrack-replacement-{{ asset.id }}" aria-label="Replacement soundtrack proposal">
+                                {% for alternative in soundtrack.alternatives %}
+                                <option value="{{ alternative.soundtrack_plan_id }}">{{ alternative.mode|replace('_', ' ')|title }}{% if alternative.emotional_register %} · {{ alternative.emotional_register }}{% endif %}</option>
+                                {% endfor %}
+                            </select>
+                            <button class="btn" type="button" onclick="replaceSoundtrack({{ asset.id }}, this)">Replace soundtrack</button>
+                            {% else %}
+                            <button class="btn" type="button" disabled title="No other persisted proposal is available">Replace soundtrack</button>
+                            {% endif %}
+                        </div>
+                        <div class="status-line" id="soundtrack-status-{{ asset.id }}" style="display:none;"></div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                     {% if not has_final %}
-                        {% if asset.videos and asset.videos|length > 0 %}
+                        {% if soundtrack and not soundtrack.approval.approved %}
+                    <p style="font-size:.78rem;color:#9A5A24;">Final render is paused until you decide on this soundtrack.</p>
+                        {% elif asset.videos and asset.videos|length > 0 %}
                     <button class="btn btn-render" onclick="generateVideoOneClick({{ asset.id }}, this)">Create final cut</button>
                         {% else %}
                     <button class="btn btn-render" onclick="generateVideoOneClick({{ asset.id }}, this)">Generate video & create final cut</button>
@@ -840,6 +886,15 @@ function pollReelProductionJob(assetId, jobId, btn, statusElem) {
                     }).then(function(response) { return response.text(); })
                       .then(function(renderText) {
                           var rendered = JSON.parse(renderText);
+                          if (rendered.status === 'soundtrack_approval_required') {
+                              unbusyBtn(btn);
+                              if (statusElem) {
+                                  statusElem.style.color = '#9A5A24';
+                                  statusElem.textContent = 'Soundtrack review required before final render. Loading…';
+                              }
+                              setTimeout(function() { window.location.reload(); }, 700);
+                              return;
+                          }
                           if (rendered.status !== 'ok') throw new Error(rendered.error || 'Render failed');
                           unbusyBtn(btn);
                           if (statusElem) {
@@ -863,6 +918,97 @@ function pollReelProductionJob(assetId, jobId, btn, statusElem) {
             });
     }
     setTimeout(check, 1000);
+}
+
+function prepareSoundtrackPreview(assetId, btn) {
+    var panel = document.getElementById('soundtrack-preview-' + assetId);
+    if (!panel) return;
+    panel.style.display = 'block';
+    btn.disabled = true;
+    btn.textContent = 'Listen to every preview below';
+    var audio = Array.prototype.slice.call(panel.querySelectorAll('audio'));
+    var approve = document.getElementById('soundtrack-approve-' + assetId);
+    var voOnly = document.getElementById('soundtrack-vo-only-' + assetId);
+    if (!audio.length) return;
+    var heard = new Set();
+    function markHeard(index) {
+        heard.add(index);
+        if (heard.size === audio.length) {
+            fetch('/api/assets/' + assetId + '/soundtrack-previewed', {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'
+            }).then(function(response) {
+                if (!response.ok) throw new Error('Preview acknowledgement failed.');
+                return response.json();
+            }).then(function() {
+                if (approve) approve.disabled = false;
+                if (voOnly) voOnly.disabled = false;
+                btn.textContent = '✓ All previews heard';
+            }).catch(function() {
+                btn.disabled = false;
+                btn.textContent = 'Could not save preview — try again';
+            });
+        }
+    }
+    audio.forEach(function(player, index) {
+        if (player.ended) markHeard(index);
+        player.addEventListener('ended', function() { markHeard(index); }, {once: true});
+    });
+}
+
+function soundtrackDecision(assetId, action, replacementId, btn) {
+    var reason = '';
+    if (action === 'reject') {
+        reason = prompt('What should change about this soundtrack?') || '';
+        if (!reason.trim()) return;
+    } else if (action === 'vo_only') {
+        reason = prompt('Why should this piece use the voice only, with no music or SFX?') || '';
+        if (!reason.trim()) return;
+    }
+    var status = document.getElementById('soundtrack-status-' + assetId);
+    if (status) {
+        status.style.display = 'block';
+        status.style.color = '#4A6FA5';
+        status.textContent = 'Saving your soundtrack decision…';
+    }
+    busyBtn(btn, 'Saving…');
+    fetch('/api/assets/' + assetId + '/soundtrack-decision', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            action: action,
+            reason: reason,
+            replacement_plan_id: replacementId
+        })
+    }).then(function(response) {
+        var contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+            throw new Error('Server error while saving the soundtrack decision.');
+        }
+        return response.json().then(function(data) {
+            if (!response.ok) throw new Error(data.error || 'Decision was not saved.');
+            return data;
+        });
+    }).then(function(data) {
+        if (status) {
+            status.style.color = '#4A7C3A';
+            status.textContent = data.status === 'approved'
+                ? '✓ Soundtrack approved. Final render is now available.'
+                : 'Decision saved. Loading the current proposal…';
+        }
+        setTimeout(function() { window.location.reload(); }, 700);
+    }).catch(function(err) {
+        unbusyBtn(btn);
+        if (status) {
+            status.style.color = '#C0392B';
+            status.textContent = err.message || String(err);
+        }
+    });
+}
+
+function replaceSoundtrack(assetId, btn) {
+    var select = document.getElementById('soundtrack-replacement-' + assetId);
+    if (!select || !select.value) return;
+    soundtrackDecision(assetId, 'replace', Number(select.value), btn);
 }
 
 function generateEditPlan(assetId, btn) {
