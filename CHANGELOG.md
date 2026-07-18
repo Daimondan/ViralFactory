@@ -8,6 +8,12 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-18
 
+### VF-VS-301 — Caption timing service extracted [STRUCTURE]
+**What:** Added `src/services/caption_timing.py` with `chunk_captions(vo_text, duration_sec, word_timestamps=None) -> list[CaptionPhrase]`. Reuses the no-dangling-fragment algorithm from `episode_plan._chunk_vo_text`, lifted to 3–6 word bounds per AMENDMENT-010 (configurable). Proportional timing is flagged `approximate: True`; a complete word-timestamp path is ready for T2.6–T2.8. `reconstruct_text()` guarantees exact-text join.
+**Why:** Full-beat captions are a confirmed Draft 8 defect. The cue compiler (VF-VS-302) and episode plan compiler (VF-VS-303) must share one chunking implementation rather than duplicating logic.
+**Rationale:** Caption chunking is mechanical timing, not judgment — it belongs in a shared deterministic service, not inlined in two compilers. The `approximate` flag makes the proportional-timing assumption visible so downstream compliance can discount it until word clocks arrive.
+**Verification:** 16 new tests cover phrase bounds, dangling-tail rebalancing, exact reconstruction, proportional coverage, timestamp fallback, and edge cases. 154 tests across caption/cue/episode/integration suites green.
+
 ### VF-VS-203 — Tautological config-style tests replaced with behavioral proof [STRUCTURE/FIX]
 **What:** Deleted `tests/test_vf_au_302_304_config_style.py`. Its `TestVisualStyleRenderTokens` and `TestConfigDrivenMusicSFX` classes inspected Python source (`inspect.getsource`) and DB schema strings to claim VF-AU-302/304 acceptance — they never loaded two configs and rendered. Added `tests/test_vf_vs_203_behavioral_replacement.py`: a single two-tenant pass that loads two Visual Style modules and asserts different resolved overlay + SFX parameters through real `AssemblyRenderer` instances with zero Python edits, plus explicit fallback-path tests and a silence-valid CueCompiler check. A guard test pins the deleted file to keep it from returning.
 **Why:** AMENDMENT-010 Condition 2 and the re-opened VF-AU-302/304 require "two tenant fixtures render different styles with zero Python edits" verified by behavior, not source inspection. The old tests passed while the code they claimed to cover was still hardcoded.

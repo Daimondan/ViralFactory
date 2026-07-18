@@ -214,7 +214,7 @@ The following tasks were marked complete but their acceptance criteria were met 
 
 ### Phase M13-C — Caption timing
 
-- [ ] VF-VS-301 **Extract caption timing service (P0):** `src/services/caption_timing.py` with `chunk_captions()`. Reuse `episode_plan._chunk_vo_text` logic. — AC: 3–6 word phrases, no dangling fragments, exact-text reconstruction.
+- [x] VF-VS-301 **Extract caption timing service (P0):** `src/services/caption_timing.py` with `chunk_captions()`. Reuse `episode_plan._chunk_vo_text` logic. — AC: 3–6 word phrases, no dangling fragments, exact-text reconstruction.
 - [ ] VF-VS-302 **Wire cue compiler to caption timing (P0):** The cue compiler chunks captions via the new service. — AC: cue compiler produces multiple caption cues per beat, not one full-beat caption.
 - [ ] VF-VS-303 **Update episode_plan to import shared service (P0):** No duplication. — AC: `episode_plan._chunk_vo_text` delegates to `caption_timing.py`.
 
