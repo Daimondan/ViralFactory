@@ -13,6 +13,8 @@ import hashlib
 from dataclasses import dataclass, field
 from typing import Optional
 
+from services.caption_timing import chunk_captions
+
 
 @dataclass
 class CompiledCue:
@@ -84,21 +86,54 @@ class CueCompiler:
 
         timeline.total_duration_sec = current_time
 
-        # 2. Captions from text intents (function=caption)
+        # 2. Captions from text intents (function=caption) — phrase-level
+        #    chunks via caption_timing.chunk_captions (VF-VS-302). One text
+        #    intent becomes multiple caption cues, timed within the beat's
+        #    VO span. Full-beat single captions are a Draft 8 defect.
+        caption_idx = 0
         for ti in text_intents:
-            if ti.get("function") == "caption":
-                beat_id = ti.get("beat_id", "")
-                # Find the VO timing for this beat
-                vo_timing = next((vt for vt in timeline.vo_timings if vt.beat_id == beat_id), None)
-                if vo_timing:
-                    timeline.captions.append(CompiledCue(
-                        cue_id=f"cap_{ti.get('text_intent_id', beat_id)}",
-                        cue_type="caption",
-                        beat_id=beat_id,
-                        text=ti.get("text", ""),
-                        start_sec=vo_timing.start_sec,
-                        end_sec=vo_timing.end_sec,
-                    ))
+            if ti.get("function") != "caption":
+                continue
+            beat_id = ti.get("beat_id", "")
+            vo_timing = next(
+                (vt for vt in timeline.vo_timings if vt.beat_id == beat_id), None
+            )
+            if not vo_timing:
+                continue
+            caption_text = ti.get("text", "")
+            beat_duration = vo_timing.end_sec - vo_timing.start_sec
+            phrases = chunk_captions(
+                caption_text,
+                duration_sec=beat_duration,
+            )
+            if not phrases:
+                # Blank caption or zero-duration beat — emit one cue spanning
+                # the beat so the text intent is still visible downstream.
+                timeline.captions.append(CompiledCue(
+                    cue_id=f"cap_{ti.get('text_intent_id', beat_id)}",
+                    cue_type="caption",
+                    beat_id=beat_id,
+                    text=caption_text,
+                    start_sec=vo_timing.start_sec,
+                    end_sec=vo_timing.end_sec,
+                ))
+                continue
+            base_id = ti.get("text_intent_id", beat_id)
+            for phrase in phrases:
+                timeline.captions.append(CompiledCue(
+                    cue_id=f"cap_{base_id}_{caption_idx}",
+                    cue_type="caption",
+                    beat_id=beat_id,
+                    text=phrase.text,
+                    start_sec=round(vo_timing.start_sec + phrase.start_sec, 3),
+                    end_sec=round(vo_timing.start_sec + phrase.end_sec, 3),
+                    metadata={
+                        "phrase_index": caption_idx,
+                        "word_count": phrase.word_count,
+                        "approximate_timing": phrase.approximate,
+                    },
+                ))
+                caption_idx += 1
 
         # 3. Overlays from text intents (hook, emphasis, proof, reframe, cta, orientation)
         for ti in text_intents:

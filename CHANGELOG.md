@@ -8,6 +8,12 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-18
 
+### VF-VS-302 — Cue compiler produces phrase-level captions [LOGIC/FIX]
+**What:** `services/cue_compiler.py` now imports and calls `caption_timing.chunk_captions` for each `function=caption` text intent. A long caption splits into multiple `CompiledCue`s — one per 3–6 word phrase, timed proportionally within the beat's VO span. Short captions (≤6 words) stay a single cue. Blank/zero-duration captions emit one spanning cue so the text intent stays visible. Each phrase cue carries `metadata.phrase_index`, `metadata.word_count`, and `metadata.approximate_timing=True` (until word timestamps land).
+**Why:** The cue compiler previously emitted one full-beat caption per text intent — the Draft 8 defect (AMENDMENT-010 Condition 3, ledger §7 cause #2). Short-caption tests passed while long captions silently shipped as one giant overlay.
+**Rationale:** Caption chunking is mechanical timing that belongs in one shared service (`caption_timing`), not inlined per compiler. The cue compiler now delegates rather than duplicates. Existing single-caption tests (2-word "Read this", "Eighth wonder") still pass because short text produces one phrase by construction.
+**Verification:** 7 new multi-phrase tests (long caption splits, within-span, contiguous, short-stays-single, multi-beat, metadata, blank). 49 tests across caption/cue/integration suites green. Full suite pending.
+
 ### VF-VS-301 — Caption timing service extracted [STRUCTURE]
 **What:** Added `src/services/caption_timing.py` with `chunk_captions(vo_text, duration_sec, word_timestamps=None) -> list[CaptionPhrase]`. Reuses the no-dangling-fragment algorithm from `episode_plan._chunk_vo_text`, lifted to 3–6 word bounds per AMENDMENT-010 (configurable). Proportional timing is flagged `approximate: True`; a complete word-timestamp path is ready for T2.6–T2.8. `reconstruct_text()` guarantees exact-text join.
 **Why:** Full-beat captions are a confirmed Draft 8 defect. The cue compiler (VF-VS-302) and episode plan compiler (VF-VS-303) must share one chunking implementation rather than duplicating logic.
