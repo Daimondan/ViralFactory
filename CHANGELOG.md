@@ -8,6 +8,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-18
 
+### VF-VS-502 — Invoke and validate the soundtrack planner in production [LOGIC/STRUCTURE/FIX]
+
+**What:** The shared measured-VO `EditPlanningService` now invokes registered `soundtrack_plan_v1` after visual feasibility passes, providing the approved content contract, compiled VO timing, Writer audio intents, and assembled visual-style module context. It mechanically rejects contract-ID mismatches, non-null LLM-authored approval tokens, incomplete music licence/reference provenance, invalid cost/ducking/SFX gain fields, empty emotional register, and SFX outside the VO timeline. Valid soundtrack output, its canonical immutable reference, and the edit plan now commit in one SQLite transaction. The edit plan preserves Process Registry module provenance, while the standard LLM adapter logs the complete call provenance ledger.
+
+**Rationale:** A configured prompt is not production behavior. Both operator and autonomous planning must run the same soundtrack judgment step against approved measured inputs, while scripts enforce integrity and timing without inferring genre or adding effects. Atomic persistence prevents a DB failure from leaving a renderable edit plan without its soundtrack contract, and rejecting LLM-authored approval preserves the hard human gate for VF-VS-503.
+
+**Verification:** 83 focused soundtrack, measured-VO, dual-path, Visual Director, and feasibility tests pass. A real-adapter test verifies input hash, prompt file/version, model/provider, raw and validated output, verdict, temperature, and tenant provenance. Full linked-worktree suite: `1,854 passed, 7 skipped`.
+
 ### VF-VS-501 — Persist and link immutable soundtrack contracts [STRUCTURE/LOGIC]
 
 **What:** Production Contract v2 now supports a typed nullable `soundtrack_plan` reference containing the persisted plan ID, matching contract ID, and canonical plan hash. `PipelineStore` now validates soundtrack contracts before writing them to an append-only `soundtrack_plans` table linked to the owning asset and edit plan. Identical retries resolve to the existing row; changed plans create a new version. Saving a plan atomically updates the persisted Reel edit plan to point at that exact immutable reference. Cross-asset edit-plan links and invalid soundtrack contracts are rejected before persistence.

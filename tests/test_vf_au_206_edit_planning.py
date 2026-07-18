@@ -97,6 +97,19 @@ def test_generate_for_asset_compiles_exact_measured_vo_and_persists_contract(
     captured = {}
 
     def complete(self, prompt_file, variables, schema, **kwargs):
+        if prompt_file == "assembly/soundtrack_plan_v1.md":
+            contract_id = json.loads(variables["content_contract"])["contract_id"]
+            return {
+                "contract_id": contract_id,
+                "mode": "vo_only",
+                "music_bed_ref": None,
+                "ducking": None,
+                "sfx_cues": [],
+                "vo_only_rationale": "The approved voice should stand alone.",
+                "source_sound_rationale": None,
+                "emotional_register": "direct",
+                "operator_approval": None,
+            }
         captured.update({
             "prompt_file": prompt_file,
             "variables": variables,

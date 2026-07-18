@@ -566,6 +566,67 @@ class EditPlanningService:
                 "feasibility": feasibility,
             }, 422)
         plan["feasibility"] = feasibility
+
+        soundtrack_contract_id = f"asset:{asset['id']}"
+        soundtrack_content_contract = {
+            "contract_id": soundtrack_contract_id,
+            "platform": asset.get("platform", ""),
+            "format_name": draft.get("format") or "",
+            "content": asset.get("content") or "",
+            "beats": beats,
+        }
+        audio_intents = [{
+            "beat_id": beat["beat_id"],
+            "audio_intent": beat.get("audio_intent") or {},
+        } for beat in beats]
+        try:
+            soundtrack_plan, soundtrack_module_prov = compose_and_run(
+                "soundtrack_plan_v1",
+                business_slug,
+                {
+                    "asset_id": asset["id"],
+                    "content_contract": json.dumps(
+                        soundtrack_content_contract,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    ),
+                    "vo_timeline": json.dumps(
+                        compiled["vo_timings"],
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    ),
+                    "audio_intents": json.dumps(
+                        audio_intents,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    ),
+                },
+                models_config=models_config,
+                db_path=self.db_path,
+                config_dir=self.config_dir,
+                modules_dir=self.modules_dir,
+                prompts_dir=self.prompts_dir,
+                business_config=business,
+            )
+        except Exception as exc:
+            return ServiceResponse({"error": str(exc)}, 500)
+
+        soundtrack_errors = self.validate_soundtrack_planner_output(
+            soundtrack_plan,
+            expected_contract_id=soundtrack_contract_id,
+            vo_duration=vo_facts["duration"],
+        )
+        if soundtrack_errors:
+            return ServiceResponse({
+                "status": "invalid_soundtrack_plan",
+                "message": "Soundtrack Planner output failed mechanical validation.",
+                "errors": soundtrack_errors,
+            }, 422)
+        plan["soundtrack_planner_provenance"] = {
+            "process": "soundtrack_plan_v1",
+            "module_context": soundtrack_module_prov,
+        }
+
         platform_content = [{
             "platform": asset.get("platform", ""),
             "variant_type": asset.get("variant_type", ""),
@@ -579,6 +640,7 @@ class EditPlanningService:
             plan,
             compliance_contract=compliance_contract,
             source_draft_hash=source_hash,
+            soundtrack_plan=soundtrack_plan,
         )
         cut_list = AssemblyRenderer(
             models_config,
@@ -603,6 +665,46 @@ class EditPlanningService:
             "text_hash": timeline.text_hash,
             "total_duration_sec": timeline.total_duration_sec,
         }
+
+    @staticmethod
+    def validate_soundtrack_planner_output(
+        output: dict,
+        *,
+        expected_contract_id: str,
+        vo_duration: float,
+    ) -> list[str]:
+        """Validate planner semantics without making soundtrack judgments."""
+        from soundtrack_plan import validate_soundtrack_plan
+
+        if not isinstance(output, dict):
+            return ["Soundtrack Planner output must be an object"]
+
+        errors = validate_soundtrack_plan(output)
+        if output.get("contract_id") != expected_contract_id:
+            errors.append(
+                "soundtrack contract_id must match the production contract_id"
+            )
+        if output.get("operator_approval") is not None:
+            errors.append(
+                "operator_approval must be null until the operator gate issues it"
+            )
+        emotional_register = output.get("emotional_register")
+        if not isinstance(emotional_register, str) or not emotional_register.strip():
+            errors.append("emotional_register must be a non-empty string")
+
+        for index, cue in enumerate(output.get("sfx_cues") or []):
+            if not isinstance(cue, dict):
+                continue
+            timestamp = cue.get("timestamp")
+            if (
+                not isinstance(timestamp, bool)
+                and isinstance(timestamp, (int, float))
+                and timestamp > vo_duration
+            ):
+                errors.append(
+                    f"sfx_cues[{index}].timestamp must fall within the VO timeline"
+                )
+        return errors
 
     @staticmethod
     def validate_visual_director_output(

@@ -89,6 +89,19 @@ def test_shared_edit_planner_invokes_and_persists_visual_director(
 
     def fake_compose(process_name, business_slug, dynamic, **kwargs):
         director_calls.append((process_name, business_slug, dynamic))
+        if process_name == "soundtrack_plan_v1":
+            contract_id = json.loads(dynamic["content_contract"])["contract_id"]
+            return ({
+                "contract_id": contract_id,
+                "mode": "vo_only",
+                "music_bed_ref": None,
+                "ducking": None,
+                "sfx_cues": [],
+                "vo_only_rationale": "The approved voice should stand alone.",
+                "source_sound_rationale": None,
+                "emotional_register": "direct",
+                "operator_approval": None,
+            }, "soundtrack-context:v1")
         return ({"beats": [{
             "beat_id": "b01",
             "visual_events": [{

@@ -84,6 +84,19 @@ def test_operator_and_autonomous_paths_produce_equivalent_edit_plans(monkeypatch
             "schema": schema,
             "business_slug": kwargs.get("business_slug"),
         })
+        if prompt_file == "assembly/soundtrack_plan_v1.md":
+            contract_id = json.loads(variables["content_contract"])["contract_id"]
+            return {
+                "contract_id": contract_id,
+                "mode": "vo_only",
+                "music_bed_ref": None,
+                "ducking": None,
+                "sfx_cues": [],
+                "vo_only_rationale": "The approved voice should stand alone.",
+                "source_sound_rationale": None,
+                "emotional_register": "direct",
+                "operator_approval": None,
+            }
         return deterministic_plan
 
     monkeypatch.setattr("llm_adapter.LLMAdapter.complete", deterministic_complete)
@@ -105,20 +118,26 @@ def test_operator_and_autonomous_paths_produce_equivalent_edit_plans(monkeypatch
     chain_result = store._get_step_data(draft_id, "edit_plan_result")
 
     assert route_result["status"] == chain_result["status"] == "ok"
-    assert route_result["plan"] == chain_result["plan"]
+    route_plan = json.loads(json.dumps(route_result["plan"]))
+    chain_plan = json.loads(json.dumps(chain_result["plan"]))
+    route_plan["soundtrack_plan"].pop("soundtrack_plan_id")
+    chain_plan["soundtrack_plan"].pop("soundtrack_plan_id")
+    assert route_plan == chain_plan
     assert route_result["plan"]["audio"]["vo"]["take_id"] == "take_equivalence_001"
     assert route_result["plan"]["canvas"]["duration_target"] == 3.0
     assert route_result["plan"]["segments"][0]["ingredient_id"] == ingredient_id
     assert route_result["cut_list"] == chain_result["cut_list"]
     assert route_result["plan_id"] != chain_result["plan_id"]
-    assert len(llm_calls) == 2
-    assert llm_calls[0] == llm_calls[1]
+    assert len(llm_calls) == 4
+    assert llm_calls[:2] == llm_calls[2:]
 
     route_saved = store.get_edit_plan(route_result["plan_id"])
     chain_saved = store.get_edit_plan(chain_result["plan_id"])
-    for field in (
-        "plan_json",
-        "compliance_contract_json",
-        "source_draft_hash",
-    ):
+    for field in ("compliance_contract_json", "source_draft_hash"):
         assert route_saved[field] == chain_saved[field]
+
+    route_saved_plan = json.loads(route_saved["plan_json"])
+    chain_saved_plan = json.loads(chain_saved["plan_json"])
+    route_saved_plan["soundtrack_plan"].pop("soundtrack_plan_id")
+    chain_saved_plan["soundtrack_plan"].pop("soundtrack_plan_id")
+    assert route_saved_plan == chain_saved_plan

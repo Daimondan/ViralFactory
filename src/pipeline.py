@@ -784,7 +784,13 @@ REMEDIATION_INSTRUCTION_SCHEMA = {
 
 SOUNDTRACK_PLAN_LLM_SCHEMA = {
     "type": "object",
-    "required": ["contract_id", "mode", "sfx_cues", "operator_approval"],
+    "required": [
+        "contract_id",
+        "mode",
+        "sfx_cues",
+        "emotional_register",
+        "operator_approval",
+    ],
     "properties": {
         "contract_id": {"type": "string", "minLength": 1},
         "mode": {
@@ -793,10 +799,12 @@ SOUNDTRACK_PLAN_LLM_SCHEMA = {
         },
         "music_bed_ref": {
             "type": ["object", "null"],
+            "required": ["source_id", "licence", "cost_usd"],
             "properties": {
                 "source_id": {"type": "string"},
                 "licence": {
                     "type": ["object", "null"],
+                    "required": ["type", "id", "url"],
                     "properties": {
                         "type": {"type": "string"},
                         "id": {"type": "string"},
@@ -808,6 +816,7 @@ SOUNDTRACK_PLAN_LLM_SCHEMA = {
         },
         "ducking": {
             "type": ["object", "null"],
+            "required": ["attenuation_db", "envelope"],
             "properties": {
                 "attenuation_db": {"type": "number"},
                 "envelope": {"type": "array"},
@@ -1697,30 +1706,67 @@ CREATE INDEX IF NOT EXISTS idx_soundtrack_plans_contract
             conn.execute("ALTER TABLE edit_plans ADD COLUMN review_round_history TEXT")
         conn.commit()
 
-    def save_edit_plan(self, draft_id: int, asset_id: int, plan: dict,
-                       compliance_contract: dict = None, source_draft_hash: str = None) -> int:
+    def save_edit_plan(
+        self,
+        draft_id: int,
+        asset_id: int,
+        plan: dict,
+        compliance_contract: dict = None,
+        source_draft_hash: str = None,
+        soundtrack_plan: dict = None,
+    ) -> int:
         """Save an edit plan for an asset. Returns edit_plan row ID.
 
         T10.2: Optionally saves the compliance contract and source draft hash.
+        When supplied, the soundtrack contract and its edit-plan reference are
+        committed atomically with the edit plan.
         """
+        if soundtrack_plan is not None:
+            self._validate_soundtrack_plan_for_storage(soundtrack_plan)
+
         conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
         ts = self._now()
-        # Create edit_plans table if not exists
         conn.executescript(self.EDIT_PLAN_SCHEMA)
         self._ensure_edit_plan_columns(conn)
-        cursor = conn.execute(
-            """INSERT INTO edit_plans
-               (draft_id, asset_id, plan_json, status, compliance_contract_json,
-                source_draft_hash, review_round_history, created_at, updated_at)
-               VALUES (?, ?, ?, 'proposed', ?, ?, '[]', ?, ?)""",
-            (draft_id, asset_id, json.dumps(plan),
-             json.dumps(compliance_contract) if compliance_contract else None,
-             source_draft_hash,
-             ts, ts),
-        )
-        plan_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
+        if soundtrack_plan is not None:
+            conn.executescript(self.SOUNDTRACK_PLAN_SCHEMA)
+        try:
+            with conn:
+                cursor = conn.execute(
+                    """INSERT INTO edit_plans
+                       (draft_id, asset_id, plan_json, status, compliance_contract_json,
+                        source_draft_hash, review_round_history, created_at, updated_at)
+                       VALUES (?, ?, ?, 'proposed', ?, ?, '[]', ?, ?)""",
+                    (
+                        draft_id,
+                        asset_id,
+                        json.dumps(plan),
+                        json.dumps(compliance_contract) if compliance_contract else None,
+                        source_draft_hash,
+                        ts,
+                        ts,
+                    ),
+                )
+                plan_id = cursor.lastrowid
+                if soundtrack_plan is not None:
+                    reference = self._insert_soundtrack_plan(
+                        conn,
+                        asset_id,
+                        plan_id,
+                        soundtrack_plan,
+                        ts,
+                    )
+                    plan["soundtrack_plan"] = reference
+                    conn.execute(
+                        "UPDATE edit_plans SET plan_json = ? WHERE id = ?",
+                        (
+                            json.dumps(plan, sort_keys=True, ensure_ascii=False),
+                            plan_id,
+                        ),
+                    )
+        finally:
+            conn.close()
         return plan_id
 
     def get_edit_plan(self, plan_id: int) -> dict:
@@ -1755,32 +1801,21 @@ CREATE INDEX IF NOT EXISTS idx_soundtrack_plans_contract
         record["plan"] = json.loads(record.pop("plan_json"))
         return record
 
-    def save_soundtrack_plan(
-        self,
-        asset_id: int,
-        edit_plan_id: int,
-        plan: dict,
-    ) -> dict:
-        """Validate and append an immutable soundtrack plan linked to a Reel."""
+    @staticmethod
+    def _validate_soundtrack_plan_for_storage(plan: dict) -> None:
         errors = validate_soundtrack_plan(plan)
         if errors:
             raise SoundtrackPlanValidationError("; ".join(errors))
 
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        conn.executescript(self.EDIT_PLAN_SCHEMA)
-        self._ensure_edit_plan_columns(conn)
-        conn.executescript(self.SOUNDTRACK_PLAN_SCHEMA)
-        edit_plan = conn.execute(
-            "SELECT asset_id, plan_json FROM edit_plans WHERE id = ?",
-            (edit_plan_id,),
-        ).fetchone()
-        if not edit_plan or int(edit_plan["asset_id"]) != int(asset_id):
-            conn.close()
-            raise ValueError("Edit plan does not belong to the soundtrack asset")
-
+    def _insert_soundtrack_plan(
+        self,
+        conn,
+        asset_id: int,
+        edit_plan_id: int,
+        plan: dict,
+        created_at: str,
+    ) -> dict:
         plan_hash = compute_soundtrack_plan_hash(plan)
-        ts = self._now()
         conn.execute(
             """INSERT OR IGNORE INTO soundtrack_plans
                (contract_id, asset_id, edit_plan_id, plan_version, plan_json,
@@ -1793,7 +1828,7 @@ CREATE INDEX IF NOT EXISTS idx_soundtrack_plans_contract
                 SOUNDTRACK_PLAN_VERSION,
                 json.dumps(plan, sort_keys=True, ensure_ascii=False),
                 plan_hash,
-                ts,
+                created_at,
             ),
         )
         row = conn.execute(
@@ -1802,23 +1837,61 @@ CREATE INDEX IF NOT EXISTS idx_soundtrack_plans_contract
                WHERE edit_plan_id = ? AND plan_hash = ?""",
             (edit_plan_id, plan_hash),
         ).fetchone()
-        reference = {
+        return {
             "soundtrack_plan_id": int(row["id"]),
             "contract_id": row["contract_id"],
             "plan_hash": row["plan_hash"],
         }
-        edit_plan_data = json.loads(edit_plan["plan_json"] or "{}")
-        edit_plan_data["soundtrack_plan"] = reference
-        conn.execute(
-            "UPDATE edit_plans SET plan_json = ?, updated_at = ? WHERE id = ?",
-            (
-                json.dumps(edit_plan_data, sort_keys=True, ensure_ascii=False),
-                ts,
-                edit_plan_id,
-            ),
-        )
-        conn.commit()
-        conn.close()
+
+    def save_soundtrack_plan(
+        self,
+        asset_id: int,
+        edit_plan_id: int,
+        plan: dict,
+    ) -> dict:
+        """Validate and append an immutable soundtrack plan linked to a Reel."""
+        self._validate_soundtrack_plan_for_storage(plan)
+
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        conn.executescript(self.EDIT_PLAN_SCHEMA)
+        self._ensure_edit_plan_columns(conn)
+        conn.executescript(self.SOUNDTRACK_PLAN_SCHEMA)
+        try:
+            with conn:
+                edit_plan = conn.execute(
+                    "SELECT asset_id, plan_json FROM edit_plans WHERE id = ?",
+                    (edit_plan_id,),
+                ).fetchone()
+                if not edit_plan or int(edit_plan["asset_id"]) != int(asset_id):
+                    raise ValueError(
+                        "Edit plan does not belong to the soundtrack asset"
+                    )
+
+                ts = self._now()
+                reference = self._insert_soundtrack_plan(
+                    conn,
+                    asset_id,
+                    edit_plan_id,
+                    plan,
+                    ts,
+                )
+                edit_plan_data = json.loads(edit_plan["plan_json"] or "{}")
+                edit_plan_data["soundtrack_plan"] = reference
+                conn.execute(
+                    "UPDATE edit_plans SET plan_json = ?, updated_at = ? WHERE id = ?",
+                    (
+                        json.dumps(
+                            edit_plan_data,
+                            sort_keys=True,
+                            ensure_ascii=False,
+                        ),
+                        ts,
+                        edit_plan_id,
+                    ),
+                )
+        finally:
+            conn.close()
         return reference
 
     def get_soundtrack_plan(self, soundtrack_plan_id: int) -> dict | None:

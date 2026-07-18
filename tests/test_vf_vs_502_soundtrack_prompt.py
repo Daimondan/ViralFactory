@@ -88,6 +88,15 @@ def test_llm_schema_modes_match():
 
 def test_llm_schema_has_emotional_register():
     assert "emotional_register" in SOUNDTRACK_PLAN_LLM_SCHEMA["properties"]
+    assert "emotional_register" in SOUNDTRACK_PLAN_LLM_SCHEMA["required"]
+
+
+def test_llm_schema_requires_complete_music_reference():
+    music_ref = SOUNDTRACK_PLAN_LLM_SCHEMA["properties"]["music_bed_ref"]
+    licence = music_ref["properties"]["licence"]
+
+    assert set(music_ref["required"]) == {"source_id", "licence", "cost_usd"}
+    assert set(licence["required"]) == {"type", "id", "url"}
 
 
 # ── Process Registry ─────────────────────────────────────────────────────────

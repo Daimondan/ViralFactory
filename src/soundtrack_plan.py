@@ -157,19 +157,31 @@ def validate_soundtrack_plan(plan: dict) -> list[str]:
                 errors.append(
                     "music_bed_ref.licence is required with provenance"
                 )
-            elif not licence.get("type"):
-                errors.append("music_bed_ref.licence.type is required")
+            else:
+                for field in ("type", "id", "url"):
+                    if not licence.get(field):
+                        errors.append(
+                            f"music_bed_ref.licence.{field} is required"
+                        )
             cost = ref.get("cost_usd")
-            if cost is None or not isinstance(cost, (int, float)):
+            if (
+                isinstance(cost, bool)
+                or not isinstance(cost, (int, float))
+                or cost < 0
+            ):
                 errors.append(
                     "music_bed_ref.cost_usd is required (fresh operator-approved estimate)"
                 )
 
     # ducking bounds
     ducking = plan.get("ducking")
-    if ducking and isinstance(ducking, dict):
+    if ducking is not None and not isinstance(ducking, dict):
+        errors.append("ducking must be an object or null")
+    elif ducking:
         att = ducking.get("attenuation_db")
-        if isinstance(att, (int, float)):
+        if isinstance(att, bool) or not isinstance(att, (int, float)):
+            errors.append("ducking.attenuation_db must be numeric")
+        else:
             if att < DUCKING_ATTENUATION_MIN_DB or att > DUCKING_ATTENUATION_MAX_DB:
                 errors.append(
                     f"ducking.attenuation_db {att} out of bounds "
@@ -193,15 +205,25 @@ def validate_soundtrack_plan(plan: dict) -> list[str]:
                 errors.append(f"sfx_cues[{i}]: duplicate event_id '{eid}'")
             else:
                 seen_ids.add(eid)
+            source = cue.get("source")
+            if not isinstance(source, str) or not source.strip():
+                errors.append(f"sfx_cues[{i}]: source is required")
+            purpose = cue.get("purpose")
+            if not isinstance(purpose, str) or not purpose.strip():
+                errors.append(f"sfx_cues[{i}]: purpose is required")
             gain = cue.get("gain")
-            if isinstance(gain, (int, float)):
+            if isinstance(gain, bool) or not isinstance(gain, (int, float)):
+                errors.append(f"sfx_cues[{i}]: gain must be numeric")
+            else:
                 if gain < SFX_GAIN_MIN or gain > SFX_GAIN_MAX:
                     errors.append(
                         f"sfx_cues[{i}] gain {gain} out of bounds "
                         f"[{SFX_GAIN_MIN}, {SFX_GAIN_MAX}]"
                     )
             ts = cue.get("timestamp")
-            if ts is not None and isinstance(ts, (int, float)) and ts < 0:
+            if isinstance(ts, bool) or not isinstance(ts, (int, float)):
+                errors.append(f"sfx_cues[{i}]: timestamp must be numeric")
+            elif ts < 0:
                 errors.append(f"sfx_cues[{i}] timestamp {ts} must be >= 0")
 
     return errors

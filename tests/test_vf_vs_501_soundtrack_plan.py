@@ -121,6 +121,21 @@ def test_music_bed_without_source_id_rejected():
     assert any("source_id" in e for e in errors)
 
 
+@pytest.mark.parametrize("field", ["type", "id", "url"])
+def test_music_bed_requires_complete_licence_provenance(field):
+    licence = {
+        "type": "royalty_free",
+        "id": "RF-12345",
+        "url": "https://example.com/licence",
+    }
+    del licence[field]
+    plan = make_music_bed_plan("c001", "bed_01", licence, 0.0)
+
+    errors = validate_soundtrack_plan(plan)
+
+    assert any(f"licence.{field}" in error for error in errors)
+
+
 def test_vo_plus_bed_requires_music_bed_ref():
     plan = {
         "contract_id": "c001",
@@ -174,7 +189,12 @@ def test_source_sound_without_rationale_rejected():
 def test_ducking_attenuation_within_bounds():
     plan = make_music_bed_plan(
         "c001", "bed_01",
-        licence={"type": "royalty_free"}, cost_usd=5.0,
+        licence={
+            "type": "royalty_free",
+            "id": "RF-12345",
+            "url": "https://example.com/licence",
+        },
+        cost_usd=5.0,
         ducking={"attenuation_db": -12, "envelope": []},
     )
     errors = validate_soundtrack_plan(plan)
@@ -228,6 +248,24 @@ def test_sfx_cue_duplicate_event_id_rejected():
     ]
     errors = validate_soundtrack_plan(plan)
     assert any("duplicate" in e for e in errors)
+
+
+def test_sfx_requires_source_purpose_and_numeric_timing_and_gain():
+    plan = make_vo_only_plan("c001", "The voice should stand alone.")
+    plan["sfx_cues"] = [{
+        "event_id": "sfx_01",
+        "source": "",
+        "timestamp": "later",
+        "gain": "loud",
+        "purpose": "",
+    }]
+
+    errors = validate_soundtrack_plan(plan)
+
+    assert any("source" in error for error in errors)
+    assert any("purpose" in error for error in errors)
+    assert any("timestamp" in error for error in errors)
+    assert any("gain" in error for error in errors)
 
 
 # ── Invalid mode ─────────────────────────────────────────────────────────────
