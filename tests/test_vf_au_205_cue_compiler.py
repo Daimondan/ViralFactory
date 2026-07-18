@@ -58,9 +58,11 @@ class TestCaptionCompilation:
         vo_segments = [{"beat_id": "b01", "duration": 3.0, "text": "The eighth wonder"}]
         compiler = CueCompiler()
         timeline = compiler.compile(beats, text_intents, vo_segments=vo_segments)
-        assert len(timeline.overlays) == 2
-        assert timeline.overlays[0].metadata["function"] == "hook"
-        assert timeline.overlays[1].metadata["function"] == "cta"
+        # VF-VS-604: transition cues are also stored in overlays — filter them out
+        text_overlays = [o for o in timeline.overlays if o.cue_type == "overlay"]
+        assert len(text_overlays) == 2
+        assert text_overlays[0].metadata["function"] == "hook"
+        assert text_overlays[1].metadata["function"] == "cta"
 
 
 class TestTextHash:
