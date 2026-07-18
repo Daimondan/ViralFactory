@@ -8,6 +8,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-18
 
+### VF-VS-103 — Behavioral operator/autonomous edit-plan parity [LOGIC/FIX]
+
+**What:** Replaced delegation/source-shape proof with one real measured-VO and scoped-inventory fixture executed through both `/api/assets/<id>/edit-plan` and `ProductionChain._step_edit_plan()`. The test compares identical LLM inputs, returned plans and cut lists, and persisted `plan_json`, compliance contracts, and source hashes; only append-only plan IDs may differ.
+
+**Rationale:** Both entrypoints calling a shared class does not prove behavioral equivalence. Running the same production-shaped inputs through both boundaries catches route/chain differences in configuration, persistence, and evidence.
+
+**Verification:** `pytest tests/test_vf_vs_103_dual_path_equivalence.py -q -p no:cacheprovider` — 1 passed.
+
 ### VF-AU-206 — Measured-VO edit planning integrated on the shared path [LOGIC/STRUCTURE/FIX]
 
 **What:** Voice-led Reel planning now fails closed until a complete measured VO take exists. `EditPlanningService.generate_for_asset()` extracts the approved Writer beats, validates their exact VO segments, compiles measured VO timings plus exact caption/overlay/transition cues through `CueCompiler`, and sends `assembly/edit_plan_v2.md` only the compiled timeline and real scoped inventory. The LLM chooses sources and trims but cannot author approved text or timing. Post-LLM mechanics reject invented ingredient IDs, missing/zero/invalid/out-of-range trims, unknown beats/cues, missing required beats, and any segment-duration total that differs from the measured VO. The persisted plan includes the exact VO take/path/duration, compiled cues and text hash, per-beat compliance ranges from compiled VO timings, and a canonical hash of the exact approved platform-content-and-beat source available at this boundary. `AssemblyRenderer` treats a persisted VO path as authoritative even if its file is missing and uses take-ID filename resolution only for legacy plans without a path. Renderer-facing source aliases—including stock-cache namespaces—and style/canvas values are resolved mechanically.

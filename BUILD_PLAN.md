@@ -204,7 +204,7 @@ The following tasks were marked complete but their acceptance criteria were met 
 
 - [x] VF-VS-101 **Wire operator routes to services (P0):** `/api/assets/<id>/edit-plan`, `/render`, `/generate-media` call `EditPlanningService`, `RenderReviewService`, `MediaPlanningService`. Routes handle HTTP only. — AC: same input through UI route and autonomous chain produces equivalent edit plans.
 - [x] VF-VS-102 **Retire old build_reel_plan path (P0):** Delete or gate `reel_production_runner.run_reel_production` for VO-led Reels. — AC: no operator route calls `build_reel_plan` directly.
-- [~] VF-VS-103 **Re-opened:** current test patches the service and checks delegation/source structure; it does not run identical real fixtures through both entrypoints and compare persisted plans/evidence.
+- [x] VF-VS-103 **Behavioral dual-path equivalence (P0):** identical measured-VO/inventory fixtures run through the Flask operator route and autonomous `ProductionChain`; returned plans/cut lists, LLM inputs, and persisted plan/compliance/source-hash evidence match, with only append-only plan IDs differing. — AC: behavioral parity test passes.
 
 ### Phase M13-B — Config-driven styles
 

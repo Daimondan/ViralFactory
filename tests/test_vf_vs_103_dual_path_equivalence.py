@@ -113,3 +113,12 @@ def test_operator_and_autonomous_paths_produce_equivalent_edit_plans(monkeypatch
     assert route_result["plan_id"] != chain_result["plan_id"]
     assert len(llm_calls) == 2
     assert llm_calls[0] == llm_calls[1]
+
+    route_saved = store.get_edit_plan(route_result["plan_id"])
+    chain_saved = store.get_edit_plan(chain_result["plan_id"])
+    for field in (
+        "plan_json",
+        "compliance_contract_json",
+        "source_draft_hash",
+    ):
+        assert route_saved[field] == chain_saved[field]
