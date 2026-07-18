@@ -8,6 +8,12 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-18
 
+### VF-VS-103 — Behavioral dual-path equivalence locked [STRUCTURE/LOGIC/FIX]
+**What:** Added a behavioral test that executes identical asset input through the Flask edit-plan route and `ProductionChain._step_edit_plan`, then compares the complete LLM invocation, plan, and operator cut list. Added deterministic draft-to-asset lookup and durable `production_step_data` storage required by the autonomous chain. Video polling now follows the provider returned by submission rather than a pre-submission fallback guess.
+**Why:** The prior AST checks proved only that service names appeared in source. Executing the real route and chain exposed that the autonomous path called nonexistent store methods and therefore could not run. Full-suite execution also exposed provider mismatch when a mocked/adapter-selected submission differed from the initially resolved fallback.
+**Rationale:** Shared service behavior must be proven at the transport boundary, and autonomous step outputs must survive process restarts. Provider-specific polling must follow the accepted submission contract, not stale resolver state.
+**Verification:** The new equivalence test failed first on missing `get_asset_by_draft`, then on missing step persistence, and passes after both fixes. The four affected video-handoff tests pass after provider propagation. 30 focused tests and the full 1,633-test suite pass.
+
 ### VF-VS-102 — Legacy VO-led Reel path retired [STRUCTURE/LOGIC/OPS]
 **What:** Removed the old provider/planning/render body from `reel_production_runner.run_reel_production`. The compatibility entrypoint now fails before database or provider setup. `/api/assets/<id>/produce-reel` also fails closed with HTTP 409 and does not enqueue a legacy job.
 **Why:** The old runner compiled full-beat captions, forced hard cuts, and filled speech overruns with still images. Leaving it reachable would preserve the exact dual-path defects M13 retires.

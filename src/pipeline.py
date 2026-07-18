@@ -116,6 +116,15 @@ CREATE TABLE IF NOT EXISTS assets (
     FOREIGN KEY (draft_id) REFERENCES drafts(id)
 );
 
+CREATE TABLE IF NOT EXISTS production_step_data (
+    draft_id INTEGER NOT NULL,
+    step_name TEXT NOT NULL,
+    data_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (draft_id, step_name),
+    FOREIGN KEY (draft_id) REFERENCES drafts(id)
+);
+
 CREATE TABLE IF NOT EXISTS feedback_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     business_slug TEXT NOT NULL,
@@ -138,6 +147,7 @@ CREATE INDEX IF NOT EXISTS idx_drafts_idea ON drafts(idea_card_id);
 CREATE INDEX IF NOT EXISTS idx_drafts_state ON drafts(draft_state);
 CREATE INDEX IF NOT EXISTS idx_assets_draft ON assets(draft_id);
 CREATE INDEX IF NOT EXISTS idx_assets_state ON assets(asset_state);
+CREATE INDEX IF NOT EXISTS idx_production_step_draft ON production_step_data(draft_id);
 CREATE INDEX IF NOT EXISTS idx_feedback_business ON feedback_log(business_slug);
 CREATE INDEX IF NOT EXISTS idx_feedback_draft ON feedback_log(draft_id);
 CREATE INDEX IF NOT EXISTS idx_sources_business ON sources(business_slug);
@@ -1299,6 +1309,46 @@ class PipelineStore:
         ).fetchone()
         conn.close()
         return dict(row) if row else None
+
+    def get_asset_by_draft(self, draft_id: int) -> dict:
+        """Get the first asset variant in deterministic fan-out order."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT * FROM assets WHERE draft_id = ? ORDER BY id ASC LIMIT 1",
+            (draft_id,),
+        ).fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    def _set_step_data(self, draft_id: int, step_name: str, data: dict) -> None:
+        """Persist one autonomous production-step result for restart safety."""
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            """INSERT INTO production_step_data (draft_id, step_name, data_json, updated_at)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(draft_id, step_name) DO UPDATE SET
+                   data_json = excluded.data_json,
+                   updated_at = excluded.updated_at""",
+            (draft_id, step_name, json.dumps(data, ensure_ascii=False), self._now()),
+        )
+        conn.commit()
+        conn.close()
+
+    def _get_step_data(self, draft_id: int, step_name: str) -> dict | None:
+        """Load a persisted autonomous production-step result."""
+        conn = sqlite3.connect(self.db_path)
+        row = conn.execute(
+            "SELECT data_json FROM production_step_data WHERE draft_id = ? AND step_name = ?",
+            (draft_id, step_name),
+        ).fetchone()
+        conn.close()
+        if not row:
+            return None
+        try:
+            return json.loads(row[0])
+        except (TypeError, ValueError):
+            return None
 
     def list_assets(self, draft_id: int) -> list[dict]:
         """List all asset variants for a draft."""

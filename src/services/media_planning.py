@@ -577,7 +577,7 @@ class MediaPlanningService:
             submitted.get("model", resolved.get("model") or ""),
             prompt,
             business_slug,
-            provider=resolved.get("provider"),
+            provider=submitted.get("provider") or resolved.get("provider"),
         ))
         return result
 
