@@ -767,20 +767,36 @@ function generateVisuals(assetId, btn) {
     });
 }
 
-// UX-6: One-click video generation — chains plan → render automatically.
+// UX-6: One-click video generation — chains generate images → plan → render.
 function generateVideoOneClick(assetId, btn) {
     var statusElem = document.getElementById('render-status-' + assetId);
-    if (!confirm('Generate video? This creates an edit plan and renders it. May take several minutes.')) return;
-    busyBtn(btn, 'Planning…');
+    if (!confirm('Generate video? This generates images, creates an edit plan, and renders. May take several minutes.')) return;
+    busyBtn(btn, 'Generating images…');
     if (statusElem) {
         statusElem.style.display = 'block';
         statusElem.style.color = '#4A6FA5';
-        statusElem.textContent = 'Creating edit plan…';
+        statusElem.textContent = 'Generating images…';
     }
-    // Step 1: Generate edit plan
-    fetch('/api/assets/' + assetId + '/edit-plan', {
+    // Step 0: Generate images first (if none exist yet)
+    fetch('/api/assets/' + assetId + '/generate-images', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: '{}',
+    }).then(function(r) { return r.json(); }).then(function(imgData) {
+        // Images generated (or already existed) — proceed to edit plan
+        if (imgData.error && imgData.status !== 'ok') {
+            // If image generation failed but we might have existing media, try plan anyway
+            console.log('Image generation response:', imgData);
+        }
+        if (statusElem) {
+            statusElem.style.color = '#4A6FA5';
+            statusElem.textContent = 'Creating edit plan…';
+        }
+        busyBtn(btn, 'Planning…');
+        // Step 1: Generate edit plan
+        return fetch('/api/assets/' + assetId + '/edit-plan', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: '{}',
+        });
     }).then(function(r) { return r.json(); }).then(function(planData) {
         if (planData.status !== 'ok') {
             unbusyBtn(btn);
