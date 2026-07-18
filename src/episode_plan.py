@@ -31,6 +31,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
+from services.caption_timing import _chunk_words as _chunk_words_shared
+
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
@@ -392,34 +394,21 @@ class EpisodePlanCompiler:
     def _chunk_vo_text(self, vo_text: str) -> list[str]:
         """Chunk vo_text into 3–5 word caption phrases.
 
-        Per §3.3: captions chunked 3–5 words from vo_text.
+        Per §3.3: captions chunked 3–5 words from vo_text. Delegates to the
+        shared ``caption_timing._chunk_words`` implementation (VF-VS-303) so
+        the episode compiler and the generic cue compiler share one chunking
+        algorithm. Episode format pins 3–5 per its spec; the generic reel
+        path uses the amendment's 3–6 default.
         """
         words = vo_text.strip().split()
         if not words:
             return []
-
-        chunks = []
-        i = 0
-        while i < len(words):
-            # Take 3–5 words, but don't leave a dangling 1–2 word chunk at the end
-            remaining = len(words) - i
-            if remaining <= CAPTION_CHUNK_MAX:
-                # Take all remaining if they fit in the max
-                chunk_len = remaining
-            else:
-                chunk_len = CAPTION_CHUNK_MAX
-                # If taking 5 would leave 1–2 words, take 4 or 3 instead
-                leftover = remaining - chunk_len
-                if leftover < CAPTION_CHUNK_MIN:
-                    chunk_len = remaining - CAPTION_CHUNK_MIN
-                    if chunk_len < CAPTION_CHUNK_MIN:
-                        chunk_len = CAPTION_CHUNK_MIN
-
-            chunk = " ".join(words[i:i + chunk_len])
-            chunks.append(chunk)
-            i += chunk_len
-
-        return chunks
+        return [
+            " ".join(group)
+            for group in _chunk_words_shared(
+                words, min_words=CAPTION_CHUNK_MIN, max_words=CAPTION_CHUNK_MAX
+            )
+        ]
 
     def _build_caption_overlays(self, beat: dict, beat_index: int,
                                   cumulative_start: float) -> tuple[list[dict], float]:

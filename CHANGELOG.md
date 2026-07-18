@@ -8,6 +8,12 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-18
 
+### VF-VS-303 — episode_plan delegates chunking to caption_timing [STRUCTURE]
+**What:** `episode_plan.EpisodePlanCompiler._chunk_vo_text` now delegates to `services.caption_timing._chunk_words` with episode-pinned bounds (3, 5). The duplicated no-dangling-fragment algorithm is removed; episode format keeps its 3–5 spec while the generic reel path uses the amendment's 3–6 default through the same shared function.
+**Why:** Two copies of the chunking algorithm drift. VF-VS-301 extracted the service; VF-VS-303 completes the no-duplication acceptance criterion.
+**Rationale:** Episode format's 3–5 bound is a format-spec decision, not a code decision — passing it as a parameter keeps one algorithm with two bound sets. The shared `_chunk_words` is the single source of truth for phrase splitting.
+**Verification:** 5 new delegation tests prove equivalence with the shared service, 3–5 bounds, no dangling tails, exact reconstruction, and empty handling. 83 tests across episode/caption suites green. Full suite pending.
+
 ### VF-VS-302 — Cue compiler produces phrase-level captions [LOGIC/FIX]
 **What:** `services/cue_compiler.py` now imports and calls `caption_timing.chunk_captions` for each `function=caption` text intent. A long caption splits into multiple `CompiledCue`s — one per 3–6 word phrase, timed proportionally within the beat's VO span. Short captions (≤6 words) stay a single cue. Blank/zero-duration captions emit one spanning cue so the text intent stays visible. Each phrase cue carries `metadata.phrase_index`, `metadata.word_count`, and `metadata.approximate_timing=True` (until word timestamps land).
 **Why:** The cue compiler previously emitted one full-beat caption per text intent — the Draft 8 defect (AMENDMENT-010 Condition 3, ledger §7 cause #2). Short-caption tests passed while long captions silently shipped as one giant overlay.
