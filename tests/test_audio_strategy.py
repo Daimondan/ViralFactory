@@ -119,6 +119,82 @@ class TestAudioStrategySelection:
         }, asset_id=99999)
         assert strategy == "music"
 
+    def test_exact_plan_vo_path_drives_strategy_and_mix(self, tmp_path):
+        """Measured VO path from the plan wins over guessed take-id filenames."""
+        renderer = AssemblyRenderer({}, db_path=str(tmp_path / "test.db"))
+        exact_vo = tmp_path / "complete-take.wav"
+        exact_vo.write_bytes(b"measured voice-over")
+        audio_block = {
+            "original_audio": False,
+            "music": {},
+            "vo": {
+                "take_id": "take_exact_001",
+                "path": str(exact_vo),
+                "duration_sec": 6.0,
+                "ducking": True,
+            },
+        }
+
+        def unexpected_guess(*args, **kwargs):
+            raise AssertionError("renderer must not guess a path when the exact path exists")
+
+        mixed = {}
+        renderer._resolve_vo_path = unexpected_guess
+        renderer._log_render = lambda *args, **kwargs: None
+        renderer._mix_vo = lambda output, vo_path, *args: mixed.update({
+            "output": output,
+            "vo_path": vo_path,
+        })
+
+        output = str(tmp_path / "rendered.mp4")
+        renderer._apply_audio_strategy(
+            output,
+            audio_block,
+            str(tmp_path),
+            1,
+            asset_id=7,
+            draft_id=11,
+            business_slug="test-business",
+        )
+
+        assert mixed == {"output": output, "vo_path": str(exact_vo)}
+
+    def test_missing_exact_plan_vo_path_does_not_use_legacy_guess(self, tmp_path):
+        """A v2 plan path stays authoritative even when its file is missing."""
+        renderer = AssemblyRenderer({}, db_path=str(tmp_path / "test.db"))
+        exact_vo = tmp_path / "missing-complete-take.wav"
+        legacy_guess = tmp_path / "vo_take_exact_001.wav"
+        legacy_guess.write_bytes(b"wrong voice-over")
+        audio_block = {
+            "original_audio": False,
+            "music": {},
+            "vo": {
+                "take_id": "take_exact_001",
+                "path": str(exact_vo),
+                "duration_sec": 6.0,
+            },
+        }
+        mixed = {}
+        renderer._resolve_vo_path = lambda *args: str(legacy_guess)
+        renderer._log_render = lambda *args, **kwargs: None
+        renderer._mix_vo = lambda output, vo_path, *args: mixed.update({
+            "output": output,
+            "vo_path": vo_path,
+        })
+
+        output = str(tmp_path / "rendered.mp4")
+        renderer._apply_audio_strategy(
+            output,
+            audio_block,
+            str(tmp_path),
+            1,
+            asset_id=7,
+            draft_id=11,
+            business_slug="test-business",
+        )
+
+        assert mixed == {"output": output, "vo_path": str(exact_vo)}
+
 
 class TestSilentAudio:
     """Test that silent strategy produces a silent audio track."""

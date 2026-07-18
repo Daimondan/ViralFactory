@@ -1,5 +1,6 @@
 """VF-VS-103 behavioral equivalence for operator and autonomous edit planning."""
 
+import json
 from pathlib import Path
 import sys
 
@@ -43,22 +44,36 @@ def test_operator_and_autonomous_paths_produce_equivalent_edit_plans(monkeypatch
         0,
     )
     ingredient_id = f"asset_media:{media_id}"
+    combined_path = tmp_path / "complete-take.wav"
+    segment_path = tmp_path / "vo-b01.wav"
+    combined_path.write_bytes(b"combined audio fixture")
+    segment_path.write_bytes(b"audio fixture")
+    store.save_vo_segments(asset_id, json.dumps([{
+        "frame": 1,
+        "beat_id": "b01",
+        "text": "Approved voice-over.",
+        "path": str(segment_path),
+        "combined_path": str(combined_path),
+        "duration": 3.0,
+        "take_id": "take_equivalence_001",
+    }]))
     deterministic_plan = {
         "canvas": {
             "aspect_ratio": "9:16",
             "resolution": "1080x1920",
-            "duration_target": 3,
         },
         "segments": [{
-            "in": 0,
-            "out": 3,
+            "segment_id": "seg_b01_1",
+            "beat_ids": ["b01"],
             "source": ingredient_id,
             "source_in": 0,
-            "transition_in": "cut",
-            "overlays": [],
+            "source_out": 3,
+            "timeline_duration": 3,
+            "cue_ids": ["vo_b01"],
+            "transition": "cut",
+            "transition_reason": "opens the piece",
+            "audio_contribution": "vo",
         }],
-        "audio": {"original_audio": False, "music": None, "sfx": []},
-        "captions": {"burned_in": False, "style_ref": ""},
     }
     llm_calls = []
 
@@ -90,7 +105,10 @@ def test_operator_and_autonomous_paths_produce_equivalent_edit_plans(monkeypatch
     chain_result = store._get_step_data(draft_id, "edit_plan_result")
 
     assert route_result["status"] == chain_result["status"] == "ok"
-    assert route_result["plan"] == chain_result["plan"] == deterministic_plan
+    assert route_result["plan"] == chain_result["plan"]
+    assert route_result["plan"]["audio"]["vo"]["take_id"] == "take_equivalence_001"
+    assert route_result["plan"]["canvas"]["duration_target"] == 3.0
+    assert route_result["plan"]["segments"][0]["ingredient_id"] == ingredient_id
     assert route_result["cut_list"] == chain_result["cut_list"]
     assert route_result["plan_id"] != chain_result["plan_id"]
     assert len(llm_calls) == 2

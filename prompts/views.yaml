@@ -58,6 +58,12 @@ assembly/edit_plan_v1.md:
                        key: "{format_name}", budget: 3000, fallback: index}
   visual_style:       {module: visual-style,     mode: full,  budget: 4000}
 
+assembly/edit_plan_v2.md:
+  viral_patterns:     {module: viral-patterns,   mode: full,  budget: 3000}
+  format_guide:       {module: format-guide,     mode: entry, parent: Formats,
+                       key: "{format_name}", budget: 3000, fallback: index}
+  visual_style:       {module: visual-style,     mode: full,  budget: 4000}
+
 assembly/media_plan_v1.md:
   visual_style:       {module: visual-style,     mode: full,  budget: 5000}
 

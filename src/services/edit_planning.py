@@ -9,12 +9,53 @@ Post-LLM mechanical checks: exact source IDs, bounds, required beat
 coverage, cue references, duration, no text mutation.
 """
 
+import hashlib
 import json
 import os
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Optional
 
 from services import ServiceResponse
+
+
+EDIT_PLAN_V2_SCHEMA = {
+    "type": "object",
+    "required": ["segments", "canvas"],
+    "properties": {
+        "segments": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": [
+                    "segment_id", "beat_ids", "source", "source_in",
+                    "source_out", "timeline_duration", "cue_ids",
+                    "transition", "transition_reason", "audio_contribution",
+                ],
+                "properties": {
+                    "segment_id": {"type": "string"},
+                    "beat_ids": {"type": "array", "items": {"type": "string"}},
+                    "source": {"type": "string"},
+                    "source_in": {"type": "number"},
+                    "source_out": {"type": "number"},
+                    "timeline_duration": {"type": "number"},
+                    "cue_ids": {"type": "array", "items": {"type": "string"}},
+                    "transition": {"type": "string"},
+                    "transition_reason": {"type": "string"},
+                    "audio_contribution": {"type": "string"},
+                },
+            },
+        },
+        "canvas": {
+            "type": "object",
+            "required": ["aspect_ratio", "resolution"],
+            "properties": {
+                "aspect_ratio": {"type": "string"},
+                "resolution": {"type": "string"},
+            },
+        },
+    },
+}
 
 
 @dataclass
@@ -165,6 +206,22 @@ class EditPlanningService:
                 "description": description,
             })
 
+        raw_posts = json.loads(asset.get("posts") or "[]")
+        if any(
+            isinstance(post, dict) and str(post.get("vo_text") or "").strip()
+            for post in raw_posts
+        ):
+            return self._generate_voice_led_plan(
+                asset=asset,
+                draft=draft,
+                business=business,
+                business_slug=business_slug,
+                ingredients=ingredients,
+                models_config=models_config,
+                raw_posts=raw_posts,
+                store=store,
+            )
+
         inventory_text = "\n".join(
             f"- {item['id']} ({item['kind']}, {item['duration']:.1f}s): {item['description']}"
             for item in ingredients
@@ -248,9 +305,377 @@ class EditPlanningService:
             "plan": result,
         })
 
+    def _generate_voice_led_plan(
+        self,
+        *,
+        asset: dict,
+        draft: dict,
+        business: dict,
+        business_slug: str,
+        ingredients: list[dict],
+        models_config: dict,
+        raw_posts: list[dict],
+        store,
+    ) -> ServiceResponse:
+        """Plan a voice-led asset around its exact approved measured take."""
+        from assembly import AssemblyRenderer
+        from context_assembly import assemble_module_context
+        from llm_adapter import LLMAdapter
+        from reel_production import (
+            ReelProductionError,
+            extract_reel_beats,
+            validate_vo_segments,
+        )
+        from services.cue_compiler import CueCompiler
+
+        structured_beats = extract_reel_beats(raw_posts)
+        try:
+            vo_segments = json.loads(store.get_vo_segments(asset["id"]) or "[]")
+            vo_facts = validate_vo_segments(structured_beats, vo_segments)
+        except (ReelProductionError, ValueError, TypeError, json.JSONDecodeError) as exc:
+            return ServiceResponse({
+                "status": "vo_required",
+                "message": f"Generate the complete approved voice-over before planning: {exc}",
+            }, 409)
+
+        raw_by_id = {
+            str(post.get("beat_id") or f"b{index:02d}"): post
+            for index, post in enumerate(raw_posts, 1)
+            if isinstance(post, dict)
+        }
+        beats = []
+        text_intents = []
+        for beat in structured_beats:
+            raw = raw_by_id.get(beat["beat_id"], {})
+            beats.append({
+                **beat,
+                "required": True,
+                "transition_in": str(raw.get("transition_in") or "cut"),
+                "audio_intent": raw.get("audio_intent") or {},
+            })
+            if beat.get("vo_text"):
+                text_intents.append({
+                    "text_intent_id": f"caption_{beat['beat_id']}",
+                    "beat_id": beat["beat_id"],
+                    "function": "caption",
+                    "text": beat["vo_text"],
+                    "required": True,
+                })
+            if beat.get("overlay_text"):
+                text_intents.append({
+                    "text_intent_id": f"overlay_{beat['beat_id']}",
+                    "beat_id": beat["beat_id"],
+                    "function": str(raw.get("text_function") or "emphasis"),
+                    "text": beat["overlay_text"],
+                    "required": True,
+                })
+
+        compiler = CueCompiler()
+        timeline = compiler.compile(
+            beats=beats,
+            text_intents=text_intents,
+            vo_segments=vo_segments,
+        )
+        timing_errors = compiler.validate_timing(timeline)
+        if timing_errors:
+            return ServiceResponse({
+                "status": "invalid_cues",
+                "message": "Compiled cue timing is invalid.",
+                "errors": timing_errors,
+            }, 422)
+        compiled = self._serialize_timeline(timeline)
+        render_config = (models_config.get("media", {}) or {}).get(
+            "reel_production", {}
+        ) or {}
+        required_render_config = (
+            "aspect_ratio", "resolution", "caption_style_ref", "overlay_style_ref",
+        )
+        missing_render_config = [
+            key for key in required_render_config if not render_config.get(key)
+        ]
+        if missing_render_config:
+            return ServiceResponse({
+                "error": (
+                    "Reel production config is missing: "
+                    + ", ".join(missing_render_config)
+                ),
+            }, 500)
+
+        module_vars, module_prov = assemble_module_context(
+            "assembly/edit_plan_v2.md",
+            business_slug,
+            dynamic={"format_name": draft.get("format") or ""},
+            db_path=self.db_path,
+            modules_dir=self.modules_dir,
+            prompts_dir=self.prompts_dir,
+        )
+        variables = {
+            "business_name": business["business"]["name"],
+            "platform_name": asset.get("platform", ""),
+            "format_name": draft.get("format") or "",
+            "asset_content": asset.get("content") or "",
+            "beats_json": json.dumps(beats, ensure_ascii=False, sort_keys=True),
+            "vo_take_json": json.dumps({
+                "take_id": vo_facts["take_id"],
+                "duration_sec": vo_facts["duration"],
+            }, sort_keys=True),
+            "compiled_cues_json": json.dumps(compiled, ensure_ascii=False, sort_keys=True),
+            "inventory_json": json.dumps(ingredients, ensure_ascii=False, sort_keys=True),
+            **module_vars,
+        }
+        adapter = LLMAdapter(
+            models_config,
+            db_path=self.db_path,
+            prompts_dir=self.prompts_dir,
+        )
+        try:
+            proposed = adapter.complete(
+                prompt_file="assembly/edit_plan_v2.md",
+                variables=variables,
+                schema=EDIT_PLAN_V2_SCHEMA,
+                backend="default",
+                context=(
+                    f"Measured-VO edit plan for asset {asset['id']} | "
+                    f"module_ctx: {module_prov}"
+                ),
+                business_slug=business_slug,
+            )
+        except Exception as exc:
+            return ServiceResponse({"error": str(exc)}, 500)
+
+        errors = self.validate_segments(
+            proposed.get("segments", []),
+            beats,
+            {item["id"] for item in ingredients},
+            self._compiled_cue_ids(compiled),
+            inventory_items={item["id"]: item for item in ingredients},
+            require_source_out=True,
+        )
+        proposed_duration = round(sum(
+            float(segment.get("timeline_duration") or 0)
+            for segment in proposed.get("segments", [])
+        ), 3)
+        if abs(proposed_duration - vo_facts["duration"]) > 0.05:
+            errors.append(
+                f"Planned timeline is {proposed_duration:.3f}s but measured VO is "
+                f"{vo_facts['duration']:.3f}s"
+            )
+        if errors:
+            return ServiceResponse({
+                "status": "invalid_plan",
+                "message": "The proposed edit plan failed mechanical validation.",
+                "errors": errors,
+            }, 422)
+
+        plan = self._build_render_plan(
+            proposed=proposed,
+            compiled=compiled,
+            render_config=render_config,
+            vo_facts=vo_facts,
+        )
+        compliance_contract = self._build_compliance_contract(
+            beats,
+            plan["segments"],
+            compiled,
+        )
+        platform_content = [{
+            "platform": asset.get("platform", ""),
+            "variant_type": asset.get("variant_type", ""),
+            "content": asset.get("content", ""),
+            "posts": raw_posts,
+        }]
+        source_hash = self._compute_source_draft_hash(platform_content, beats)
+        plan_id = store.save_edit_plan(
+            draft["id"],
+            asset["id"],
+            plan,
+            compliance_contract=compliance_contract,
+            source_draft_hash=source_hash,
+        )
+        cut_list = AssemblyRenderer(
+            models_config,
+            db_path=self.db_path,
+        ).format_cut_list_for_display(plan)
+        return ServiceResponse({
+            "status": "ok",
+            "plan_id": plan_id,
+            "cut_list": cut_list,
+            "plan": plan,
+        })
+
+    @staticmethod
+    def _serialize_timeline(timeline) -> dict:
+        return {
+            "vo_timings": [asdict(cue) for cue in timeline.vo_timings],
+            "captions": [asdict(cue) for cue in timeline.captions],
+            "overlays": [asdict(cue) for cue in timeline.overlays],
+            "sfx_events": [asdict(cue) for cue in timeline.sfx_events],
+            "music_events": [asdict(cue) for cue in timeline.music_events],
+            "silence_events": [asdict(cue) for cue in timeline.silence_events],
+            "text_hash": timeline.text_hash,
+            "total_duration_sec": timeline.total_duration_sec,
+        }
+
+    @staticmethod
+    def _compute_source_draft_hash(
+        platform_content: list[dict],
+        beats: list[dict],
+    ) -> str:
+        """Hash the exact approved Writer source available at this boundary."""
+        canonical = json.dumps(
+            {"platform_content": platform_content, "beats": beats},
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _compiled_cue_ids(compiled: dict) -> set[str]:
+        cue_ids = set()
+        for key in (
+            "vo_timings", "captions", "overlays", "sfx_events",
+            "music_events", "silence_events",
+        ):
+            cue_ids.update(cue["cue_id"] for cue in compiled.get(key, []))
+        return cue_ids
+
+    @staticmethod
+    def _render_source(ingredient_id: str) -> str:
+        kind, ref_id = ingredient_id.split(":", 1)
+        aliases = {
+            "asset_media": "generated",
+            "capture_upload": "upload",
+            "stock_cache": "stock",
+            "stock_media": "stock",
+        }
+        return f"{aliases.get(kind, kind)}:{ref_id}"
+
+    def _build_render_plan(
+        self,
+        *,
+        proposed: dict,
+        compiled: dict,
+        render_config: dict,
+        vo_facts: dict,
+    ) -> dict:
+        render_segments = []
+        timeline_start = 0.0
+        for segment in proposed.get("segments", []):
+            duration = float(segment.get("timeline_duration") or 0)
+            timeline_end = timeline_start + duration
+            overlays = []
+            for cue in compiled.get("captions", []) + compiled.get("overlays", []):
+                if cue.get("cue_type") == "transition":
+                    continue
+                if cue.get("beat_id") not in segment.get("beat_ids", []):
+                    continue
+                if (
+                    cue.get("end_sec", 0) <= timeline_start
+                    or cue.get("start_sec", 0) >= timeline_end
+                ):
+                    continue
+                overlays.append({
+                    "type": (
+                        "caption" if cue.get("cue_type") == "caption" else "text_card"
+                    ),
+                    "text": cue.get("text", ""),
+                    "start": round(
+                        max(0.0, cue.get("start_sec", 0) - timeline_start), 3
+                    ),
+                    "end": round(
+                        min(duration, cue.get("end_sec", 0) - timeline_start), 3
+                    ),
+                    "style_ref": (
+                        render_config["caption_style_ref"]
+                        if cue.get("cue_type") == "caption"
+                        else render_config["overlay_style_ref"]
+                    ),
+                    "position": (
+                        "bottom" if cue.get("cue_type") == "caption" else "center"
+                    ),
+                    "cue_id": cue.get("cue_id", ""),
+                })
+            render_segments.append({
+                **segment,
+                "source": self._render_source(segment["source"]),
+                "ingredient_id": segment["source"],
+                "in": float(segment.get("source_in") or 0),
+                "out": float(segment.get("source_out") or duration),
+                "transition_in": segment.get("transition") or "cut",
+                "overlays": overlays,
+                "sfx": [],
+            })
+            timeline_start = timeline_end
+
+        canvas = dict(proposed.get("canvas") or {})
+        canvas["aspect_ratio"] = render_config["aspect_ratio"]
+        canvas["resolution"] = render_config["resolution"]
+        canvas["duration_target"] = vo_facts["duration"]
+        return {
+            "segments": render_segments,
+            "audio": {
+                "vo": {
+                    "take_id": vo_facts["take_id"],
+                    "path": vo_facts["combined_path"],
+                    "duration_sec": vo_facts["duration"],
+                    "ducking": True,
+                },
+                "music": {},
+                "original_audio": False,
+            },
+            "captions": {
+                "burned_in": True,
+                "source": "compiled_cues",
+                "style_ref": render_config["caption_style_ref"],
+            },
+            "canvas": canvas,
+            "compiled_cues": compiled,
+        }
+
+    @staticmethod
+    def _build_compliance_contract(
+        beats: list[dict],
+        segments: list[dict],
+        compiled: dict,
+    ) -> dict:
+        segment_ids_by_beat = {}
+        for segment in segments:
+            for beat_id in segment.get("beat_ids", []):
+                segment_ids_by_beat.setdefault(beat_id, []).append(
+                    segment.get("segment_id", "")
+                )
+        timing_by_beat = {
+            cue["beat_id"]: cue
+            for cue in compiled.get("vo_timings", [])
+            if cue.get("beat_id")
+        }
+        contract_beats = []
+        for beat in beats:
+            timing = timing_by_beat.get(beat["beat_id"], {})
+            contract_beats.append({
+                "beat_id": beat["beat_id"],
+                "source_excerpt": beat.get("vo_text", ""),
+                "requirement_type": "spoken_dialogue",
+                "required": bool(beat.get("required")),
+                "planned_segment_ids": segment_ids_by_beat.get(beat["beat_id"], []),
+                "planned_time_range": {
+                    "start": round(float(timing.get("start_sec") or 0), 3),
+                    "end": round(float(timing.get("end_sec") or 0), 3),
+                },
+                "verification_method": "audio_transcript_match",
+            })
+        return {
+            "beats": contract_beats,
+            "summary": (
+                f"{len(contract_beats)} approved beats mapped to exact measured VO."
+            ),
+        }
+
     def validate_segments(self, segments: list[dict], beats: list[dict],
                            inventory_ingredient_ids: set[str],
-                           compiled_cue_ids: set[str]) -> list[str]:
+                           compiled_cue_ids: set[str],
+                           inventory_items: dict[str, dict] | None = None,
+                           require_source_out: bool = False) -> list[str]:
         """Post-LLM mechanical validation of edit plan segments.
 
         Checks:
@@ -262,6 +687,7 @@ class EditPlanningService:
         6. Segment IDs are unique
         """
         errors = []
+        inventory_items = inventory_items or {}
 
         beat_ids = {b["beat_id"] for b in beats if "beat_id" in b}
         required_beat_ids = {
@@ -295,8 +721,23 @@ class EditPlanningService:
             # 2. Bounds valid
             source_in = seg.get("source_in", 0)
             source_out = seg.get("source_out", 0)
-            if source_out > 0 and source_in >= source_out:
+            if source_in < 0:
+                errors.append(f"Segment '{sid}' has negative source_in: {source_in}")
+            if require_source_out and "source_out" not in seg:
+                errors.append(f"Segment '{sid}' is missing source_out")
+            if "source_out" in seg and source_in >= source_out:
                 errors.append(f"Segment '{sid}' has invalid bounds: in={source_in} >= out={source_out}")
+            source_item = inventory_items.get(source, {})
+            source_duration = float(source_item.get("duration") or 0)
+            if (
+                source_item.get("kind") == "video"
+                and source_duration > 0
+                and source_out > source_duration + 0.001
+            ):
+                errors.append(
+                    f"Segment '{sid}' source_out {source_out} exceeds video source "
+                    f"duration {source_duration}"
+                )
 
             # 3. Beat IDs reference known beats
             for bid in seg_beat_ids:
@@ -305,9 +746,10 @@ class EditPlanningService:
                 covered_beats.add(bid)
 
             # 4. Cue references resolve
-            for cue_id in seg.get("text_intent_ids", []):
+            referenced_cues = seg.get("cue_ids", seg.get("text_intent_ids", []))
+            for cue_id in referenced_cues:
                 if cue_id not in compiled_cue_ids:
-                    errors.append(f"Segment '{sid}' references unknown text_intent: {cue_id}")
+                    errors.append(f"Segment '{sid}' references unknown cue: {cue_id}")
 
         # 5. Required beat coverage
         missing = required_beat_ids - covered_beats

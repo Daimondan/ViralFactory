@@ -933,18 +933,20 @@ class AssemblyRenderer:
         """Determine the audio strategy from the edit plan's audio block.
 
         Returns one of: "silent", "original", "music", "vo".
-        VO is deferred — if take_id is set but no VO file exists, falls back
-        to the next applicable strategy.
+        The exact persisted VO path is authoritative. Only legacy plans without
+        a path fall back to take-id resolution.
         """
         original_audio = audio_block.get("original_audio", False)
         music = audio_block.get("music", {})
         vo = audio_block.get("vo", {})
         music_ref = music.get("stock_ref") if music else None
         vo_take_id = vo.get("take_id") if vo else None
-        has_vo = bool(vo_take_id)
+        exact_vo_path = vo.get("path") if vo else None
 
-        if has_vo:
-            vo_path = self._resolve_vo_path(vo_take_id, asset_id) if (vo_take_id and asset_id) else None
+        if exact_vo_path:
+            return "vo"
+        if vo_take_id:
+            vo_path = self._resolve_plan_vo_path(vo, asset_id)
             if vo_path and os.path.exists(vo_path):
                 return "vo"
             # No VO file — degrade gracefully
@@ -985,7 +987,6 @@ class AssemblyRenderer:
         music = audio_block.get("music", {})
         vo = audio_block.get("vo", {})
         music_ref = music.get("stock_ref") if music else None
-        vo_take_id = vo.get("take_id") if vo else None
 
         strategy = self._resolve_audio_strategy(audio_block, asset_id)
 
@@ -1024,7 +1025,7 @@ class AssemblyRenderer:
         elif strategy == "vo":
             # VO is primary audio; duck everything under it.
             # Music + original audio become secondary layers.
-            vo_path = self._resolve_vo_path(vo_take_id, asset_id)
+            vo_path = self._resolve_plan_vo_path(vo, asset_id)
             music_volume = music.get("volume", 0.15) if music else 0.15
             music_path = None
             if music_ref:
@@ -1033,6 +1034,16 @@ class AssemblyRenderer:
                 output_file, vo_path, music_path, music_volume,
                 original_audio, media_dir, version,
                 loudnorm_I, loudnorm_TP, loudnorm_LRA)
+
+    def _resolve_plan_vo_path(self, vo: dict, asset_id: int) -> Optional[str]:
+        """Resolve exact measured VO path, with take-id fallback for legacy plans."""
+        exact_path = vo.get("path") if vo else None
+        if exact_path:
+            return exact_path
+        take_id = vo.get("take_id") if vo else None
+        if take_id and asset_id:
+            return self._resolve_vo_path(take_id, asset_id)
+        return None
 
     def _resolve_vo_path(self, take_id: str, asset_id: int) -> Optional[str]:
         """Resolve a VO take_id to a file path.
