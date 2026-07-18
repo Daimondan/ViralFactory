@@ -628,7 +628,7 @@
                         {% if asset.videos and asset.videos|length > 0 %}
                     <button class="btn btn-render" onclick="generateVideoOneClick({{ asset.id }}, this)">Create final cut</button>
                         {% else %}
-                    <button class="btn btn-render" onclick="showVideoDialog({{ asset.id }})">Generate video ingredient</button>
+                    <button class="btn btn-render" onclick="generateVideoOneClick({{ asset.id }}, this)">Generate video & create final cut</button>
                         {% endif %}
                     {% else %}
                     <button class="btn btn-render" onclick="generateVideoOneClick({{ asset.id }}, this)">Re-render final cut</button>
