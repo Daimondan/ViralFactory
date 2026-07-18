@@ -53,6 +53,13 @@ class FullRenderReviewResult:
 class RenderReviewService:
     """Centralizes rendering, post-render review, and remediation orchestration."""
 
+    _REQUIRED_FEASIBILITY_CHECKS = {
+        "vo_timeline",
+        "beat_mapping",
+        "visual_event_coverage",
+        "talking_head_motion",
+    }
+
     def __init__(
         self,
         db_path: str = "data/viralfactory.db",
@@ -83,6 +90,37 @@ class RenderReviewService:
             return 0
         finally:
             conn.close()
+
+    @classmethod
+    def _pre_render_feasibility_error(cls, plan: dict) -> str | None:
+        """Return a blocker when persisted feasibility evidence is incomplete."""
+        feasibility = plan.get("feasibility")
+        if not isinstance(feasibility, dict):
+            return "The edit plan has no pre-render feasibility evidence."
+        checks = feasibility.get("checks")
+        if not isinstance(checks, dict):
+            return "The edit plan has incomplete pre-render feasibility evidence."
+        missing = cls._REQUIRED_FEASIBILITY_CHECKS - set(checks)
+        if missing:
+            return (
+                "The edit plan is missing feasibility checks: "
+                + ", ".join(sorted(missing))
+                + "."
+            )
+        failed = [
+            name
+            for name in sorted(cls._REQUIRED_FEASIBILITY_CHECKS)
+            if not isinstance(checks[name], dict)
+            or checks[name].get("feasible") is not True
+        ]
+        if (
+            feasibility.get("feasible") is not True
+            or feasibility.get("verdict") != "feasible"
+            or failed
+        ):
+            summary = str(feasibility.get("summary") or "").strip()
+            return summary or "The edit plan did not pass pre-render feasibility."
+        return None
 
     def _extended_review_summary(
         self,
@@ -198,7 +236,8 @@ class RenderReviewService:
 
         plan = json.loads(edit_plan.get("plan_json") or "{}")
         structured_beats = extract_reel_beats(json.loads(asset.get("posts") or "[]"))
-        if any(beat.get("vo_text") for beat in structured_beats):
+        voice_led = any(beat.get("vo_text") for beat in structured_beats)
+        if voice_led:
             try:
                 vo_segments = json.loads(store.get_vo_segments(asset_id) or "[]")
                 vo_facts = validate_vo_segments(structured_beats, vo_segments)
@@ -226,6 +265,20 @@ class RenderReviewService:
                 )
                 return ServiceResponse({
                     "status": "vo_required",
+                    "error": message,
+                }, 409)
+
+        if voice_led:
+            feasibility_error = self._pre_render_feasibility_error(plan)
+            if feasibility_error:
+                message = f"Render stopped before FFmpeg: {feasibility_error}"
+                store.update_edit_plan_status(
+                    plan_id,
+                    "needs_operator_decision",
+                    message[:500],
+                )
+                return ServiceResponse({
+                    "status": "feasibility_required",
                     "error": message,
                 }, 409)
 

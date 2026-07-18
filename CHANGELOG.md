@@ -8,6 +8,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-18
 
+### VF-AU-401 — Require feasibility evidence at the VO-led render boundary [LOGIC/FIX]
+
+**What:** The shared `RenderReviewService.render_for_asset()` now refuses a VO-led edit plan before FFmpeg unless its persisted feasibility result is structurally complete and internally passing. The boundary requires the VO timeline, beat mapping, visual-event coverage, and generated-motion checks; it rejects missing checks, failed individual checks, a non-feasible overall verdict, or contradictory top-level evidence. A blocker marks the plan `needs_operator_decision` and returns `feasibility_required`. Complete evidence proceeds through the existing renderer/reviewer path. Non-VO formats are unchanged because their current planning path does not yet produce this Reel-specific evidence.
+
+**Rationale:** Running feasibility only during new edit planning prevents newly invalid plans but does not protect render from legacy, stale, or partially persisted VO-led plans. Both operator and autonomous render entrypoints already share this service, so one fail-closed gate closes the live false-green path without duplicating business logic in routes or the chain.
+
+**Verification:** 40 boundary, feasibility, render/review, compliance, and shared-route tests pass. Full linked-worktree suite: `1,835 passed, 7 skipped`. A read-only check against the primary database classified its latest legacy VO-led plan as blocked because it has no feasibility evidence.
+
 ### VF-VS-403 — Enforce visual-event and generated-motion feasibility before persistence [LOGIC/FIX]
 
 **What:** The shared measured-VO edit planner now invokes `run_feasibility_checks()` after building the render plan and compliance contract but before saving an edit plan. Failed visual-event coverage or motion checks return `needs_operator_decision` with evidence and persist nothing; successful plans persist the complete feasibility result. Planned motion is derived only from real video ingredients and capped at each segment's actual source trim, so extending a 5-second moving clip across a 14-second timeline counts as 5 seconds, not 14. Writer `visual_intent` survives beat normalization. The pre-existing Python keyword classifier was removed: the Visual Director's explicit `generated_motion` event ranges carry semantic judgment, and code compares those ranges mechanically against planned moving-source duration. VO timeline, event coverage, and motion shortfall tolerances now live under `media.reel_production.feasibility` in `config/models.yaml`.
