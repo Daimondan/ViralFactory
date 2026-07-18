@@ -178,6 +178,19 @@ processes:
       generator_constraints: {source: dynamic}
       visual_style: {source: dynamic}
 
+  visual_director_v1:
+    prompt_file: "assembly/visual_director_v1.md"
+    backend: "drafter"
+    schema: "VISUAL_DIRECTOR_SCHEMA"
+    playbook_type: "production"
+    context_template: "Visual Director v1 for asset {asset_id} | module_ctx: {module_prov}"
+    inputs:
+      business_name: {source: business, field: "business.name"}
+      module_views: "assembly/visual_director_v1.md"
+      contract_beats: {source: dynamic}
+      vo_timeline: {source: dynamic}
+      visual_style: {source: dynamic}
+
   edit_plan_v2:
     prompt_file: "assembly/edit_plan_v2.md"
     backend: "drafter"
@@ -268,6 +281,7 @@ schemas:
   PRODUCTION_CONTRACT_V2_SCHEMA: "production_contract.PRODUCTION_CONTRACT_V2_SCHEMA"
   MEDIA_PLAN_SCHEMA: "inline:media_plan_schema"
   MOTION_PLAN_SCHEMA: "reel_production.MOTION_PLAN_SCHEMA"
+  VISUAL_DIRECTOR_SCHEMA: "pipeline.VISUAL_DIRECTOR_SCHEMA"
   EDIT_PLAN_SCHEMA: "pipeline.EDIT_PLAN_SCHEMA"
   COMPLIANCE_REVIEW_SCHEMA: "pipeline.COMPLIANCE_REVIEW_SCHEMA"
   REMEDIATION_INSTRUCTION_SCHEMA: "pipeline.REMEDIATION_INSTRUCTION_SCHEMA"

@@ -773,6 +773,69 @@ REMEDIATION_INSTRUCTION_SCHEMA = {
 }
 
 
+# ─── Visual Director Schema (VF-VS-402, AMENDMENT-010 Condition 5) ─────────
+
+VISUAL_DIRECTOR_SCHEMA = {
+    "type": "object",
+    "required": ["beats"],
+    "properties": {
+        "beats": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": ["beat_id", "visual_events"],
+                "properties": {
+                    "beat_id": {"type": "string", "minLength": 1},
+                    "visual_events": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {
+                            "type": "object",
+                            "required": [
+                                "event_id",
+                                "time_range",
+                                "narrative_function",
+                                "source_policy",
+                            ],
+                            "properties": {
+                                "event_id": {"type": "string", "minLength": 1},
+                                "time_range": {
+                                    "type": "object",
+                                    "required": ["start", "end"],
+                                    "properties": {
+                                        "start": {"type": "number"},
+                                        "end": {"type": "number"},
+                                    },
+                                },
+                                "narrative_function": {
+                                    "type": "string",
+                                    "enum": [
+                                        "hook_contrast", "context", "proof",
+                                        "explanation", "reframe", "action",
+                                        "landing", "relationship", "conflict",
+                                    ],
+                                },
+                                "source_policy": {
+                                    "type": "string",
+                                    "enum": [
+                                        "operator_capture", "licensed_stock",
+                                        "approved_reference", "generated_still",
+                                        "generated_motion", "renderer_graphic",
+                                    ],
+                                },
+                                "required_text": {"type": ["string", "null"]},
+                                "capture_policy_ref": {"type": ["string", "null"]},
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+}
+
+
 # ─── Media Plan Schema (LLM-driven missing-media generation) ────────────────
 
 MEDIA_PLAN_SCHEMA = {
