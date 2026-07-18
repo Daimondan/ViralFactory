@@ -805,9 +805,17 @@ class TestFlaskRoutes:
         db_path = str(tmp_path / "test.db")
         app = create_app(config_dir="config", db_path=db_path)
         store = PipelineStore(db_path)
-        intake = MaterialsIntake(db_path)
-        unrelated_id = intake._store(None, "stackpenni", "old-water.mp4", "audio", "capture_upload", "", "", "old unrelated clip")
-        owned_id = intake._store(None, "stackpenni", "landship.mp4", "audio", "capture_upload", "", "", "correct card clip")
+        intake = MaterialsIntake(db_path, upload_dir=str(tmp_path / "uploads"))
+        unrelated_file = tmp_path / "old-water.mp4"
+        unrelated_file.write_bytes(b"unrelated capture fixture")
+        owned_file = tmp_path / "landship.mp4"
+        owned_file.write_bytes(b"owned capture fixture")
+        unrelated_id = intake.ingest_file(
+            str(unrelated_file), business_slug="stackpenni", channel="capture_upload",
+        )
+        owned_id = intake.ingest_file(
+            str(owned_file), business_slug="stackpenni", channel="capture_upload",
+        )
 
         card_id = store.create_idea_card(
             business_slug="stackpenni",
@@ -829,15 +837,15 @@ class TestFlaskRoutes:
 
         def mock_complete(self, prompt_file, variables, schema, **kwargs):
             captured.update(variables)
-            return {"segments": [{"source": f"upload:{owned_id}", "in": 0, "out": 1}], "canvas": {"aspect_ratio": "9:16", "resolution": "1080x1920"}}
+            return {"segments": [{"source": f"capture_upload:{owned_id}", "in": 0, "out": 1}], "canvas": {"aspect_ratio": "9:16", "resolution": "1080x1920"}}
 
         with patch.object(LLMAdapter, "complete", mock_complete):
             resp = app.test_client().post(f"/api/assets/{asset_id}/edit-plan", json={})
 
         assert resp.status_code == 200
         inventory = captured["ingredient_inventory"]
-        assert f"upload:{owned_id}" in inventory
-        assert f"upload:{unrelated_id}" not in inventory
+        assert f"capture_upload:{owned_id}" in inventory
+        assert f"capture_upload:{unrelated_id}" not in inventory
 
     def test_generate_missing_media_registers_stock_as_asset_media(self, tmp_path):
         """Stock found for a missing capture must become asset-scoped media."""
@@ -1214,11 +1222,13 @@ class TestEditPlanSourceValidation:
         from media_adapter import MediaAdapter
         adapter = MediaAdapter({}, db_path=db_path)
         from datetime import datetime, timezone
+        registered_video = tmp_path / "video.mp4"
+        registered_video.write_bytes(b"render-ready video fixture")
         conn = __import__("sqlite3").connect(db_path)
         conn.execute(
             "INSERT INTO asset_media (asset_id, kind, path, model, prompt, cost_usd, owner_type, created_at) "
-            "VALUES (?, 'video', 'data/media/test/video.mp4', 'test-model', 'test prompt', 0, 'asset', ?)",
-            (asset_id, datetime.now(timezone.utc).isoformat()),
+            "VALUES (?, 'video', ?, 'test-model', 'test prompt', 0, 'asset', ?)",
+            (asset_id, str(registered_video), datetime.now(timezone.utc).isoformat()),
         )
         conn.commit()
         conn.close()

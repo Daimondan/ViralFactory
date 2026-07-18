@@ -5,7 +5,7 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-18
-**Current Phase:** AMENDMENT-010 ratified (Charter v3.7). M13 milestone (Visual + Soundtrack Pipeline) added to BUILD_PLAN — 23 tasks (VF-VS-101..703). Key finding: Assembler Full Upgrade services exist but operator routes bypass them — M13-A (dual-path reconciliation) is the foundation. Existing review-w8, review-episode-format, and M7 checkpoints remain pending. 1,621 tests passing.
+**Current Phase:** M13-A dual-path reconciliation in progress. VF-VS-101 complete: operator edit-plan, render, and generate-media routes and the autonomous chain now call the same shared service entrypoints. Next: VF-VS-102. Existing review-w8, review-episode-format, and M7 checkpoints remain pending. 1,628 tests passing.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
@@ -25,6 +25,7 @@
 | 7. Generalization proof | ⬜ | Real near-term but not blocking v1. |
 
 ## What's Done
+- [x] 2026-07-18: VF-VS-101 — Reconciled operator and autonomous Assembler paths. `/edit-plan`, `/render`, and `/generate-media` are HTTP-only handlers over shared EditPlanning, RenderReview, and MediaPlanning service entrypoints; the chain calls those same methods. Binary capture uploads now persist durable local paths for render-ready scoped inventory. 1,628 tests passing; live Flask smoke returned service-owned 404s on all three routes.
 - [x] 2026-07-18: Fixed transcription-worker test lifecycle/resource leak. SQLite connections now close on failed poll/update/backfill queries; pytest app factories explicitly disable process-level daemon workers while direct worker tests remain active. 4 regressions added; 1,621 tests passing without worker-loop spam.
 - [x] 2026-07-18: Draft 8 director’s cut v3 approved as the Reel visual standard and registered as media ID 42 (`data/media/6/final_2.mp4`) without overwriting the failed baseline. 22 semantic visual events, 51 exact phrase captions/190 words, licensed human footage + deterministic graphics, exclusive caption lane, six evidence rows, live route verification, no publication action. Pipeline upgrade plan and living learning ledger recorded. 1,621 tests passing.
 - [x] 2026-07-17: T11.5-T11.10 — Episode format complete. 6 tasks, 168 new tests, 1,598 total passing. T11.5: episode-format module schema + bootstrap flow + StackPenni show bible + visual-style amendment (pending gate). T11.6: EpisodePlan schema + Writer beats + shot spec assembly (mechanical) + edit plan with beat_id + enforced loudnorm I=-14. T11.7: storyboard gate infrastructure (shot cards with cost, approve/regenerate per shot). T11.8: Layer-2 asset QC (face-embedding identity check + color-histogram grade check, thresholds from config, flags advisory never auto-reject). T11.9: Layer-3 critic (rubric in module, advisory scores on Gate 2, never blocks). T11.10: golden episode fixtures + Layer-1 pass-rate metric (<80% = prompt/schema defect).

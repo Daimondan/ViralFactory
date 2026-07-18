@@ -6659,247 +6659,43 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     @app.route("/api/assets/<int:asset_id>/edit-plan", methods=["POST"])
     def generate_edit_plan(asset_id):
-        """Final Assembly: Generate an Edit Plan via LLM for an asset."""
+        """Generate an edit plan through the shared EditPlanningService."""
         business_slug = _get_business_slug()
         if not business_slug:
             return jsonify({"error": "Business not configured"}), 500
 
-        # F1: Idempotency guard
         is_running, job_info = _check_job_running("edit_plan", entity_id=asset_id)
         if is_running:
             return jsonify({
                 "status": "running",
                 "message": "Already generating edit plan.",
             }), 409
-        plan_job_id = job_info.get("job_id")
+        job_id = job_info.get("job_id")
 
-        store = _get_pipeline_store()
-        asset = store.get_asset(asset_id)
-        if not asset:
-            _get_jobs_store().fail_job(plan_job_id, "Asset not found")
-            return jsonify({"error": "Asset not found"}), 404
+        from services.edit_planning import EditPlanningService
 
-        draft = store.get_draft(asset["draft_id"])
-        if not draft:
-            _get_jobs_store().fail_job(plan_job_id, "Draft not found")
-            return jsonify({"error": "Draft not found"}), 404
-
-        try:
-            config = load_all(app.config["CONFIG_DIR"])
-            models_config = config["models"]
-            business = config["business"]
-        except ConfigError as e:
-            _get_jobs_store().fail_job(plan_job_id, str(e)[:200])
-            return jsonify({"error": f"Config error: {e}"}), 500
-
-        # Capture guard: if the idea card has capture_required tasks, the edit
-        # planner may only work from this asset's generated media and this
-        # card's linked capture uploads. Never substitute random old uploads
-        # from the business-wide materials library.
-        card = store.get_idea_card(draft["idea_card_id"]) if draft.get("idea_card_id") else None
-        capture_required = []
-        capture_upload_ids = set()
-        if card:
-            import json as _json
-            treatment = _json.loads(card.get("treatment") or "{}")
-            capture_required = treatment.get("capture_required", [])
-            capture_upload_ids = {int(mid) for mid in _json.loads(card.get("capture_uploads") or "[]")}
-
-        from llm_adapter import LLMAdapter, LLMAdapterError
-        from pipeline import EDIT_PLAN_SCHEMA
-        from media_adapter import MediaAdapter
-
-        # Build ingredient inventory
-        adapter_llm = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
-        media_adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
-
-        ingredients = []
-        visual_ingredient_count = 0
-        # F5 (CORRECTION-feedback-plumbing): probe real durations for videos/uploads
-        from assembly import probe_duration
-
-        # Generated media
-        for m in media_adapter.list_asset_media(asset_id):
-            kind = m.get("kind", "")
-            if kind in ("image", "video"):
-                if kind == "image":
-                    dur = 3.0  # images: 3.0s is plan intent, not a file property
-                    desc = (m.get("prompt") or "")[:100]
-                else:
-                    # F5: probe real duration for generated videos
-                    media_path = os.path.join("data", "media", str(asset_id), os.path.basename(m.get("path", "")))
-                    probed = probe_duration(media_path)
-                    if probed is not None:
-                        dur = probed
-                        desc = (m.get("prompt") or "")[:100]
-                    else:
-                        dur = 5.0  # fallback default
-                        desc = (m.get("prompt") or "")[:100] + " (duration unverified)"
-                ingredients.append({
-                    "id": f"generated:{m['id']}",
-                    "kind": kind,
-                    "duration": dur,
-                    "description": desc,
-                })
-                visual_ingredient_count += 1
-
-        # Uploaded materials — ONLY this card's linked capture uploads, never
-        # session_upload and never unrelated capture_upload history.
-        # session_upload materials are personal WhatsApp/voice recordings for voice
-        # analysis, NOT content to be stitched into public-facing videos.
-        # Privacy: personal recordings must never leak into published content.
-        from materials import MaterialsIntake
-        intake = MaterialsIntake(app.config["DB_PATH"])
-        all_materials = intake.list_materials(business_slug)
-        for mat in all_materials:
-            if int(mat.get("id")) not in capture_upload_ids:
-                continue
-            # Privacy guard: skip session uploads — these are personal voice/audio
-            # recordings used for voice analysis, never as video content.
-            if mat.get("channel") == "session_upload":
-                continue
-            if mat.get("material_type") in ("video", "audio"):
-                # F5: probe real duration for uploaded video/audio
-                mat_path = mat.get("file_path") or ""
-                if mat_path and not os.path.isabs(mat_path):
-                    mat_path = os.path.join("data", "materials", mat_path)
-                probed = probe_duration(mat_path) if mat_path else None
-                if probed is not None:
-                    dur = probed
-                    desc = (mat.get("filename") or mat.get("normalized_content", ""))[:100]
-                else:
-                    dur = 10.0  # fallback default
-                    desc = (mat.get("filename") or mat.get("normalized_content", ""))[:100] + " (duration unverified)"
-                ingredients.append({
-                    "id": f"upload:{mat['id']}",
-                    "kind": "video" if str(mat.get("filename") or "").lower().endswith((".mp4", ".mov", ".avi", ".webm")) else mat["material_type"],
-                    "duration": dur,
-                    "description": desc,
-                })
-                visual_ingredient_count += 1
-
-        if visual_ingredient_count == 0:
-            message = (
-                "No usable visual media is available. Generate missing media or upload "
-                "a capture before creating an edit plan."
-            )
-            _get_jobs_store().fail_job(plan_job_id, message[:200])
-            return jsonify({
-                "status": "missing_media",
-                "message": message,
-                "required_count": len(capture_required),
-                "available_visual_count": 0,
-                "missing_count": max(1, len(capture_required)),
-            }), 409
-
-        if capture_required and visual_ingredient_count < len(capture_required):
-            missing_count = len(capture_required) - visual_ingredient_count
-            message = (
-                f"Missing {missing_count} required visual capture(s). "
-                "Generate missing media or upload the required captures before creating an edit plan."
-            )
-            _get_jobs_store().fail_job(plan_job_id, message[:200])
-            return jsonify({
-                "status": "missing_media",
-                "message": message,
-                "required_count": len(capture_required),
-                "available_visual_count": visual_ingredient_count,
-                "missing_count": missing_count,
-            }), 409
-
-        inventory_text = "\n".join(
-            f"- {ing['id']} ({ing['kind']}, {ing['duration']:.1f}s): {ing['description']}"
-            for ing in ingredients
-        ) or "(no ingredients available)"
-
-        # Determine canvas from format/platform
-        platform_name = asset.get("platform", "")
-        variant_type = asset.get("variant_type", "").lower()
-        if "reel" in variant_type or "short" in variant_type:
-            aspect, resolution, max_seg = "9:16", "1080x1920", 3
-        elif "carousel" in variant_type:
-            aspect, resolution, max_seg = "1:1", "1080x1080", 3
-        else:
-            aspect, resolution, max_seg = "16:9", "1920x1080", 4
-
-        # Load modules via context assembly (CORRECTION-module-context-assembly)
-        from context_assembly import assemble_module_context
-
-        format_name_for_lookup = draft.get("format") or ""
-        module_vars, module_prov = assemble_module_context(
-            "assembly/edit_plan_v1.md", business_slug,
-            dynamic={"format_name": format_name_for_lookup},
-            db_path=app.config["DB_PATH"], modules_dir="modules",
+        service = EditPlanningService(
+            db_path=app.config["DB_PATH"],
+            config_dir=app.config["CONFIG_DIR"],
+            modules_dir=app.config.get("MODULES_DIR", "modules"),
+            prompts_dir="prompts",
         )
-
-        # Feedback (if regenerating with feedback)
-        feedback = request.json.get("feedback", "")
-
-        try:
-            result = adapter_llm.complete(
-                prompt_file="assembly/edit_plan_v1.md",
-                variables={
-                    "business_name": business["business"]["name"],
-                    "platform_name": platform_name,
-                    "format_name": draft.get("format") or "",
-                    "scope": draft.get("scope") or "",
-                    "asset_content": asset["content"][:2000],
-                    "vo_info": "(no VO take yet)",
-                    "ingredient_inventory": inventory_text,
-                    "max_segment_seconds": str(max_seg),
-                    **module_vars,
-                },
-                schema=EDIT_PLAN_SCHEMA,
-                backend="default",
-                context=f"Edit plan for asset {asset_id} ({platform_name}) | module_ctx: {module_prov}",
-                business_slug=business_slug,
+        body = request.get_json(silent=True) or {}
+        result = service.generate_for_asset(
+            asset_id=asset_id,
+            business_slug=business_slug,
+            feedback=body.get("feedback", ""),
+            store=_get_pipeline_store(),
+        )
+        if result.ok:
+            _get_jobs_store().complete_job(
+                job_id,
+                f"plan:{result.payload.get('plan_id', '')}",
             )
-        except (LLMAdapterError, Exception) as e:
-            _get_jobs_store().fail_job(plan_job_id, str(e)[:200])
-            return jsonify({"error": str(e)}), 500
-
-        # ── Post-LLM source validation (mechanical, not judgment) ──────────
-        # The prompt says "ONLY use ingredient ids from the inventory" but the
-        # LLM sometimes hallucinates stock: IDs anyway. This is a referential
-        # integrity guard: every segment source must exist in the inventory we
-        # just built. Invalid sources → reject plan, fail job, return error.
-        valid_source_ids = {ing["id"] for ing in ingredients}
-        invalid_sources = []
-        for seg in result.get("segments", []):
-            src = seg.get("source", "")
-            if src not in valid_source_ids:
-                invalid_sources.append(src)
-        if invalid_sources:
-            err_msg = (
-                f"Edit plan contains {len(invalid_sources)} invalid source(s): "
-                f"{', '.join(invalid_sources[:5])}. The LLM invented references "
-                f"that are not in the ingredient inventory. Valid sources: "
-                f"{', '.join(sorted(valid_source_ids)[:10])}."
-            )
-            _get_jobs_store().fail_job(plan_job_id, err_msg[:300])
-            return jsonify({
-                "status": "invalid_sources",
-                "message": err_msg,
-                "invalid_sources": invalid_sources,
-                "valid_sources": sorted(valid_source_ids),
-            }), 422
-
-        # Save the edit plan
-        plan_id = store.save_edit_plan(draft["id"], asset_id, result)
-
-        # Build readable cut list
-        from assembly import AssemblyRenderer
-        renderer = AssemblyRenderer(models_config, db_path=app.config["DB_PATH"])
-        cut_list = renderer.format_cut_list_for_display(result)
-
-        _get_jobs_store().complete_job(plan_job_id, f"plan:{plan_id}")
-
-        return jsonify({
-            "status": "ok",
-            "plan_id": plan_id,
-            "cut_list": cut_list,
-            "plan": result,
-        })
+        else:
+            message = result.payload.get("error") or result.payload.get("message") or "Edit planning failed"
+            _get_jobs_store().fail_job(job_id, message[:200])
+        return jsonify(result.payload), result.status_code
 
     @app.route("/api/assets/<int:asset_id>/edit-plans", methods=["GET"])
     def list_edit_plans(asset_id):
@@ -6916,197 +6712,48 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     @app.route("/api/assets/<int:asset_id>/render", methods=["POST"])
     def render_final_cut(asset_id):
-        """Final Assembly: Render the edit plan to a finished MP4."""
+        """Render and review an asset through the shared RenderReviewService."""
         business_slug = _get_business_slug()
         if not business_slug:
             return jsonify({"error": "Business not configured"}), 500
 
-        # F1: Idempotency guard (long stale timeout for rendering)
-        is_running, job_info = _check_job_running("assembly_render", entity_id=asset_id,
-                                                   stale_timeout_s=1200)
+        body = request.get_json(silent=True) or {}
+        plan_id = body.get("plan_id")
+        if not plan_id:
+            return jsonify({"error": "plan_id required"}), 400
+
+        is_running, job_info = _check_job_running(
+            "assembly_render",
+            entity_id=asset_id,
+            stale_timeout_s=1200,
+        )
         if is_running:
             return jsonify({
                 "status": "running",
                 "message": "Render already in progress for this asset.",
             }), 409
-        render_job_id = job_info.get("job_id")
+        job_id = job_info.get("job_id")
 
-        store = _get_pipeline_store()
-        asset = store.get_asset(asset_id)
-        if not asset:
-            _get_jobs_store().fail_job(render_job_id, "Asset not found")
-            return jsonify({"error": "Asset not found"}), 404
+        from services.render_review import RenderReviewService
 
-        plan_id = request.json.get("plan_id")
-        if not plan_id:
-            _get_jobs_store().fail_job(render_job_id, "No plan_id provided")
-            return jsonify({"error": "plan_id required"}), 400
-
-        edit_plan = store.get_edit_plan(plan_id)
-        if not edit_plan:
-            _get_jobs_store().fail_job(render_job_id, "Edit plan not found")
-            return jsonify({"error": "Edit plan not found"}), 404
-
-        try:
-            config = load_all(app.config["CONFIG_DIR"])
-            models_config = config["models"]
-        except ConfigError:
-            models_config = {}
-
-        from assembly import AssemblyRenderer, AssemblyError
-
-        plan = json.loads(edit_plan.get("plan_json") or "{}")
-
-        # VO-led assets fail closed: complete exact VO and a matching master
-        # timeline are prerequisites, never optional render enhancements.
-        from reel_production import ReelProductionError, extract_reel_beats, validate_vo_segments
-        structured_beats = extract_reel_beats(json.loads(asset.get("posts") or "[]"))
-        if any(beat.get("vo_text") for beat in structured_beats):
-            try:
-                vo_segments = json.loads(store.get_vo_segments(asset_id) or "[]")
-                vo_facts = validate_vo_segments(structured_beats, vo_segments)
-                plan_take = (plan.get("audio", {}).get("vo", {}) or {}).get("take_id", "")
-                planned_duration = float(plan.get("canvas", {}).get("duration_target") or 0)
-                if plan_take != vo_facts["take_id"]:
-                    raise ReelProductionError("The edit plan does not reference the complete approved VO take.")
-                if abs(planned_duration - vo_facts["duration"]) > 0.05:
-                    raise ReelProductionError(
-                        f"The plan is {planned_duration:.1f}s but the measured VO is "
-                        f"{vo_facts['duration']:.1f}s. Rebuild the plan around the VO."
-                    )
-            except (ReelProductionError, ValueError, TypeError, json.JSONDecodeError) as e:
-                message = f"Render stopped before FFmpeg: {e}"
-                _get_jobs_store().fail_job(render_job_id, message[:200])
-                store.update_edit_plan_status(plan_id, "needs_operator_decision", message[:500])
-                return jsonify({"status": "vo_required", "error": message}), 409
-
-        renderer = AssemblyRenderer(models_config, db_path=app.config["DB_PATH"])
-
-        # Update plan status to rendering
-        store.update_edit_plan_status(plan_id, "rendering")
-
-        try:
-            result = renderer.render(
-                plan=plan,
-                asset_id=asset_id,
-                draft_id=asset["draft_id"],
-                business_slug=business_slug,
-                plan_id=plan_id,
+        result = RenderReviewService(
+            db_path=app.config["DB_PATH"],
+            config_dir=app.config["CONFIG_DIR"],
+        ).render_for_asset(
+            asset_id=asset_id,
+            plan_id=plan_id,
+            business_slug=business_slug,
+            store=_get_pipeline_store(),
+        )
+        if result.ok:
+            _get_jobs_store().complete_job(
+                job_id,
+                f"rendered:{result.payload.get('path', '')}",
             )
-            # VH-4: validate output file size — 0 bytes = silent render failure
-            import os as _os
-            out_path = result["path"]
-            if not _os.path.exists(out_path) or _os.path.getsize(out_path) == 0:
-                # Delete the 0-byte file so it doesn't linger as a false green
-                if _os.path.exists(out_path):
-                    _os.remove(out_path)
-                err_msg = "Render produced a 0-byte output file — FFmpeg failed silently"
-                _get_jobs_store().fail_job(render_job_id, err_msg)
-                store.update_edit_plan_status(plan_id, "failed", err_msg)
-                return jsonify({"error": err_msg}), 500
-            _get_jobs_store().complete_job(render_job_id, f"rendered:{out_path}")
-
-            # ASSET-REVIEW-1: Run mechanical post-render checks (deterministic,
-            # no LLM). The review is advisory — it doesn't block the operator
-            # from seeing the video. Results are saved to asset_reviews table
-            # and displayed in the UI alongside the video.
-            review_summary = None
-            try:
-                import sqlite3 as _sqlite3
-                from asset_review import AssetReviewer
-                reviewer = AssetReviewer(models_config, db_path=app.config["DB_PATH"])
-                # Find the media_id for the final_cut we just recorded
-                conn = _sqlite3.connect(app.config["DB_PATH"])
-                conn.row_factory = _sqlite3.Row
-                media_row = conn.execute(
-                    "SELECT id FROM asset_media WHERE asset_id = ? AND kind = 'final_cut' "
-                    "ORDER BY id DESC LIMIT 1",
-                    (asset_id,),
-                ).fetchone()
-                conn.close()
-                media_id = media_row["id"] if media_row else 0
-                review_result = reviewer.review_render(
-                    out_path, plan, asset_id, media_id, business_slug)
-                review_summary = {
-                    "verdict": review_result["verdict"],
-                    "summary": review_result["summary"],
-                    "warnings": review_result["findings"].get("warnings", []),
-                }
-
-                # ASSET-REVIEW-2: Vision-based visual inspection (advisory, async)
-                # Runs after mechanical checks. If vision model is not configured,
-                # degrades gracefully (returns "skipped"). Results saved to DB.
-                visual_result = None
-                try:
-                    # Get the asset content for the vision prompt
-                    asset_content = asset.get("content") or ""
-                    visual_result = reviewer.run_visual_inspection(
-                        out_path, plan, asset_content, asset_id, media_id, business_slug)
-                    if visual_result.get("status") != "skipped":
-                        review_summary["visual"] = {
-                            "verdict": visual_result["verdict"],
-                            "summary": visual_result["summary"],
-                        }
-                except Exception as visual_err:
-                    import logging
-                    logging.warning(f"Visual inspection failed (non-blocking): {visual_err}")
-
-                # ASSET-REVIEW-3: Audio inspection via whisper (advisory)
-                audio_result = None
-                try:
-                    audio_result = reviewer.run_audio_inspection(
-                        out_path, plan, asset_id, media_id, business_slug,
-                        asset_content=asset.get("content") or "",
-                        asset_posts=asset.get("posts") or "",
-                    )
-                    if audio_result.get("status") == "complete":
-                        review_summary["audio"] = {
-                            "verdict": audio_result["verdict"],
-                            "summary": audio_result["summary"],
-                        }
-                except Exception as audio_err:
-                    import logging
-                    logging.warning(f"Audio inspection failed (non-blocking): {audio_err}")
-
-                # ASSET-REVIEW-4: Content alignment (LLM-based coherence check)
-                try:
-                    alignment_result = reviewer.run_content_alignment(
-                        asset_id, media_id,
-                        mechanical=review_result.get("findings"),
-                        visual=visual_result,
-                        audio=audio_result,
-                        business_slug=business_slug,
-                        asset_content=asset.get("content") or "",
-                        asset_posts=asset.get("posts") or "",
-                        plan=plan,
-                    )
-                    review_summary["alignment"] = {
-                        "verdict": alignment_result["verdict"],
-                        "summary": alignment_result["summary"],
-                    }
-                except Exception as align_err:
-                    import logging
-                    logging.warning(f"Content alignment failed (non-blocking): {align_err}")
-            except Exception as review_err:
-                # Review failure should not block the render result
-                import logging
-                logging.warning(f"Asset review failed (non-blocking): {review_err}")
-
-            response = {
-                "status": "ok",
-                "path": out_path,
-                "duration": result["duration"],
-                "render_time_s": result["render_time_s"],
-                "version": result["version"],
-                "cut_list": result["cut_list"],
-            }
-            if review_summary:
-                response["review"] = review_summary
-            return jsonify(response)
-        except AssemblyError as e:
-            _get_jobs_store().fail_job(render_job_id, str(e)[:200])
-            store.update_edit_plan_status(plan_id, "failed", str(e)[:500])
-            return jsonify({"error": str(e)}), 500
+        else:
+            message = result.payload.get("error") or result.payload.get("message") or "Render failed"
+            _get_jobs_store().fail_job(job_id, message[:200])
+        return jsonify(result.payload), result.status_code
 
     @app.route("/api/assets/<int:asset_id>/render-status", methods=["GET"])
     def render_status(asset_id):
@@ -7537,350 +7184,24 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     @app.route("/api/assets/<int:asset_id>/generate-media", methods=["POST"])
     def generate_missing_media(asset_id):
-        """LLM-driven media generation plan: the LLM acts as creative director,
-        deciding per-segment which generator to use and writing style-consistent
-        prompts so all clips share a cohesive visual look.
-
-        Flow: get missing captures → LLM produces media plan → execute each plan
-        item (stock download or AI generation) → register as ingredients.
-        """
+        """Plan and acquire missing media through MediaPlanningService."""
         business_slug = _get_business_slug()
         if not business_slug:
             return jsonify({"error": "Business not configured"}), 500
 
-        store = _get_pipeline_store()
-        asset = store.get_asset(asset_id)
-        if not asset:
-            return jsonify({"error": "Asset not found"}), 404
+        from services.media_planning import MediaPlanningService
 
-        draft = store.get_draft(asset["draft_id"])
-        if not draft:
-            return jsonify({"error": "Draft not found"}), 404
-
-        # Get missing captures
-        card = store.get_idea_card(draft["idea_card_id"]) if draft.get("idea_card_id") else None
-        if not card:
-            return jsonify({"error": "No idea card for this asset"}), 400
-
-        import json as _json
-        treatment = _json.loads(card.get("treatment") or "{}")
-        capture_required = treatment.get("capture_required", [])
-        uploads = _json.loads(card.get("capture_uploads") or "[]")
-        missing = capture_required[len(uploads):] if len(uploads) < len(capture_required) else []
-
-        if not missing:
-            return jsonify({"status": "ok", "message": "No missing captures — all fulfilled"})
-
-        # Build missing captures text for the prompt
-        missing_text = "\n".join(f"{i}. {task}" for i, task in enumerate(missing))
-
-        # Load config + modules
-        try:
-            config = load_all(app.config["CONFIG_DIR"])
-            models_config = config["models"]
-            business = config["business"]
-        except ConfigError as e:
-            return jsonify({"error": f"Config error: {e}"}), 500
-
-        # Assemble module context (Visual Style)
-        from context_assembly import assemble_module_context
-        module_vars, module_prov = assemble_module_context(
-            "assembly/media_plan_v1.md", business_slug,
-            db_path=app.config["DB_PATH"], modules_dir="modules",
+        result = MediaPlanningService(
+            db_path=app.config["DB_PATH"],
+            config_dir=app.config["CONFIG_DIR"],
+            modules_dir=app.config.get("MODULES_DIR", "modules"),
+            prompts_dir="prompts",
+        ).generate_for_asset(
+            asset_id=asset_id,
+            business_slug=business_slug,
+            store=_get_pipeline_store(),
         )
-
-        # Build available generators list from config — config-driven, not hardcoded
-        media_config = models_config.get("media", {})
-        stock_config = models_config.get("stock", {})
-        generators = []
-
-        # Stock footage
-        stock_providers = stock_config.get("providers", [])
-        if stock_providers:
-            import os as _os
-            stock_key_env = {"pexels": "PEXELS_API_KEY", "pixabay": "PIXABAY_API_KEY"}
-            available_stock = [p for p in stock_providers if _os.environ.get(stock_key_env.get(p, ""), "")]
-            missing_stock = [p for p in stock_providers if p not in available_stock]
-            stock_status = (
-                f"✅ available: {', '.join(available_stock)}" if available_stock
-                else f"⚠️ needs API key: {', '.join(missing_stock)}"
-            )
-            if available_stock and missing_stock:
-                stock_status += f"; unavailable: {', '.join(missing_stock)}"
-            generators.append(
-                f"- **stock** — Search {', '.join(stock_providers)} for real-world footage. "
-                f"You write a search query. Returns real video clips. {stock_status}."
-            )
-
-        # Video generators — read from video_generators list (new config)
-        video_gens = media_config.get("video_generators", [])
-        # Filter to only generators whose API key is set
-        for vg in video_gens:
-            api_key_env = vg.get("api_key_env", "")
-            import os as _os
-            api_key_set = bool(_os.environ.get(api_key_env, ""))
-            status = "✅ available" if api_key_set else "⚠️ needs API key"
-            generators.append(
-                f"- **ai_video:{vg['name']}** — {vg.get('provider', '')} video generation ({vg.get('model', '')}). "
-                f"Best for: {vg.get('best_for', '')}. {status}."
-            )
-
-        # Fallback to legacy single video generator if no list configured
-        if not video_gens:
-            video_model = media_config.get("video_default", "")
-            video_provider = media_config.get("video_provider", "")
-            if video_model:
-                generators.append(
-                    f"- **ai_video** — Generate a video clip with AI ({video_model} via {video_provider}). "
-                    f"You write the generation prompt. Full creative control over the output."
-                )
-
-        # AI image generation
-        image_model = media_config.get("image_default", "")
-        if image_model:
-            generators.append(
-                f"- **ai_image** — Generate a static image with AI ({image_model}). "
-                f"You write the generation prompt. Use for cover frames, data cards, text slides."
-            )
-
-        # Voice/narration
-        voice_config = models_config.get("voice_cloning", {})
-        voice_engine = voice_config.get("engine", "")
-        if voice_engine:
-            generators.append(
-                f"- **voice** — Generate narration/voiceover ({voice_engine}). "
-                f"You write the script text. The voice will match the business's voice profile."
-            )
-
-        # 3D/animation (check if configured and enabled)
-        animation_config = media_config.get("animation", {})
-        if animation_config.get("enabled"):
-            anim_tool = animation_config.get("tool", "blender")
-            generators.append(
-                f"- **animation** — 3D animation / motion graphics ({anim_tool}). "
-                f"Best for: {animation_config.get('best_for', 'motion graphics and 3D sequences')}. "
-                f"You write the scene description."
-            )
-
-        available_generators = "\n".join(generators) if generators else "(no generators configured)"
-
-        # Call LLM with the media plan prompt
-        from llm_adapter import LLMAdapter, LLMAdapterError
-        from pipeline import MEDIA_PLAN_SCHEMA
-
-        adapter_llm = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
-
-        # Build VO timeline and coverage gaps from stored VO segments
-        vo_timeline_text = "(no VO generated yet — plan visuals against the script beats)"
-        coverage_gaps_text = "(no VO duration data — estimate based on script structure)"
-        vo_segments_json = store.get_vo_segments(asset_id) if hasattr(store, 'get_vo_segments') else None
-        if vo_segments_json:
-            try:
-                vo_segments = json.loads(vo_segments_json)
-                timeline_lines = []
-                gap_lines = []
-                for seg in vo_segments:
-                    frame = seg.get("frame", "?")
-                    dur = seg.get("duration", 0)
-                    text_preview = seg.get("text", "")[:60]
-                    timeline_lines.append(f"  Frame {frame}: {dur:.1f}s — \"{text_preview}...\"")
-                    gap_lines.append(f"  Frame {frame}: needs {dur:.1f}s of visual coverage — no ingredient assigned yet")
-                vo_timeline_text = "\n".join(timeline_lines)
-                coverage_gaps_text = "\n".join(gap_lines)
-                total_dur = sum(s.get("duration", 0) for s in vo_segments)
-                vo_timeline_text += f"\n  TOTAL: {total_dur:.1f}s"
-            except (json.JSONDecodeError, TypeError):
-                pass
-
-        try:
-            result = adapter_llm.complete(
-                prompt_file="assembly/media_plan_v1.md",
-                variables={
-                    "business_name": business["business"]["name"],
-                    "platform_name": asset.get("platform", ""),
-                    "format_name": draft.get("format") or "",
-                    "asset_content": asset["content"][:2000],
-                    "vo_timeline": vo_timeline_text,
-                    "coverage_gaps": coverage_gaps_text,
-                    "missing_captures": missing_text,
-                    "available_generators": available_generators,
-                    **module_vars,
-                },
-                schema=MEDIA_PLAN_SCHEMA,
-                backend="default",
-                context=f"Media plan for asset {asset_id} ({asset.get('platform', '')}) | module_ctx: {module_prov}",
-                business_slug=business_slug,
-            )
-        except (LLMAdapterError, Exception) as e:
-            return jsonify({"error": str(e)}), 500
-
-        # Execute the media plan
-        from media_adapter import MediaAdapter, MediaAdapterError
-        from stock_adapter import StockAdapter, StockAdapterError
-        media_adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
-        stock_adapter = StockAdapter(models_config, db_path=app.config["DB_PATH"])
-
-        results = []
-        for plan_item in result.get("media_plan", []):
-            generator = plan_item.get("generator", "")
-            item_result = {
-                "capture_index": plan_item.get("capture_index", 0),
-                "frame": plan_item.get("frame"),
-                "generator": generator,
-            }
-
-            try:
-                if generator == "stock":
-                    # Search stock libraries
-                    query = plan_item.get("search_query", "")
-                    stock_results = stock_adapter.search(query, kind="video", per_page=3)
-                    if stock_results:
-                        # Download the first match
-                        path = stock_adapter.download(stock_results[0])
-                        # Get stock_cache ID
-                        import sqlite3 as _sqlite3
-                        conn = _sqlite3.connect(app.config["DB_PATH"])
-                        conn.row_factory = _sqlite3.Row
-                        row = conn.execute(
-                            "SELECT id FROM stock_cache WHERE local_path = ?",
-                            (path,),
-                        ).fetchone()
-                        conn.close()
-                        stock_id = row["id"] if row else 0
-                        stock_provider = stock_results[0].get("provider", "stock")
-                        media_id = media_adapter._record_media(
-                            asset_id, "video", path,
-                            f"stock:{stock_provider}", query, 0,
-                            owner_type="asset",
-                        )
-                        item_result["status"] = "ok"
-                        item_result["ingredient_id"] = f"generated:{media_id}"
-                        item_result["stock_id"] = stock_id
-                        item_result["path"] = path
-                    else:
-                        # Fallback to AI generation
-                        fallback = plan_item.get("fallback_generator", "ai_video")
-                        fallback_prompt = plan_item.get("fallback_prompt", plan_item.get("generation_prompt", ""))
-                        if fallback and fallback_prompt:
-                            try:
-                                resolved = _resolve_ai_video_generator_with_fallback(fallback, media_config)
-                            except ValueError as ve:
-                                item_result["status"] = "failed"
-                                item_result["error"] = str(ve)
-                            else:
-                                duration = plan_item.get("duration", 5)
-                                submit = media_adapter.submit_video(
-                                    prompt=fallback_prompt, asset_id=asset_id,
-                                    aspect_ratio="9:16", duration=duration,
-                                    model=resolved["model"],
-                                    provider=resolved["provider"],
-                                    context=f"Media plan fallback ({fallback}) for asset {asset_id}",
-                                    business_slug=business_slug,
-                                )
-                                ext_job = submit.get("external_job_id")
-                                if not ext_job:
-                                    item_result["status"] = "failed"
-                                    item_result["error"] = "Video API returned no job ID"
-                                else:
-                                    # VH-2: poll → download → register
-                                    poll_result = _poll_download_register_video(
-                                        media_adapter, ext_job, asset_id,
-                                        submit.get("model", resolved["model"] or ""),
-                                        fallback_prompt, business_slug,
-                                        provider=resolved["provider"],
-                                    )
-                                    item_result.update(poll_result)
-                        else:
-                            item_result["status"] = "failed"
-                            item_result["error"] = "Stock search returned nothing and no fallback configured"
-
-                elif generator.startswith("ai_video"):
-                    # Handle both "ai_video" and "ai_video:<model_name>"
-                    prompt = plan_item.get("generation_prompt", "")
-                    if prompt:
-                        resolved = _resolve_ai_video_generator_with_fallback(generator, media_config)
-                        if resolved.get("fell_back"):
-                            item_result["fallback_used"] = resolved["name"]
-                        duration = plan_item.get("duration", 5)
-                        # Submit video generation
-                        submit = media_adapter.submit_video(
-                            prompt=prompt, asset_id=asset_id,
-                            aspect_ratio="9:16", duration=duration,
-                            model=resolved["model"],
-                            provider=resolved["provider"],
-                            context=f"Media plan AI generation ({generator}) for asset {asset_id}",
-                            business_slug=business_slug,
-                        )
-                        ext_job = submit.get("external_job_id")
-                        if not ext_job:
-                            item_result["status"] = "failed"
-                            item_result["error"] = "Video API returned no job ID"
-                        else:
-                            # VH-2: poll → download → register
-                            poll_result = _poll_download_register_video(
-                                media_adapter, ext_job, asset_id,
-                                submit.get("model", resolved["model"] or ""),
-                                prompt, business_slug,
-                                provider=resolved["provider"],
-                            )
-                            item_result.update(poll_result)
-
-                elif generator == "ai_image":
-                    prompt = plan_item.get("generation_prompt", "")
-                    if prompt:
-                        img_result = media_adapter.generate_image(
-                            prompt=prompt, asset_id=asset_id,
-                            aspect_ratio="9:16",
-                            context=f"Media plan AI image for asset {asset_id}",
-                            business_slug=business_slug,
-                        )
-                        item_result["status"] = "ok"
-                        item_result["path"] = img_result["path"]
-
-                elif generator == "voice":
-                    # Voice generation — placeholder (TTS integration via voice_cloning config)
-                    script_text = plan_item.get("script_text") or plan_item.get("generation_prompt", "")
-                    if script_text:
-                        # TODO: wire to voice_cloning engine when TTS is ready
-                        item_result["status"] = "skipped"
-                        item_result["error"] = "Voice generation not yet wired — TTS engine configured but not implemented"
-
-                elif generator == "animation":
-                    # 3D/animation — placeholder
-                    prompt = plan_item.get("generation_prompt", "")
-                    if prompt:
-                        item_result["status"] = "skipped"
-                        item_result["error"] = "Animation generation not yet wired — configure and install the animation tool"
-
-                else:
-                    item_result["status"] = "skipped"
-                    item_result["error"] = f"Unknown generator: {generator}"
-
-            except (MediaAdapterError, StockAdapterError, Exception) as e:
-                item_result["status"] = "failed"
-                item_result["error"] = str(e)[:200]
-
-            results.append(item_result)
-
-        summary = _summarize_media_generation_results(results)
-        response_payload = {
-            "status": "ok",
-            "media_plan": result.get("media_plan", []),
-            "results": results,
-            "count": len(results),
-            **summary,
-        }
-        if (len(results) > 0 and summary["available_count"] == 0
-                and summary["submitted_count"] == 0
-                and summary["processing_count"] == 0):
-            response_payload["status"] = "error"
-            response_payload["error"] = (
-                f"No renderable media was generated — "
-                f"{summary['failed_count']} failed, {summary['skipped_count']} skipped."
-            )
-            return jsonify(response_payload), 500
-
-        return jsonify(response_payload)
+        return jsonify(result.payload), result.status_code
 
     # ── T3.12: Publish handoff ──
 

@@ -50,18 +50,18 @@ class TestChainStubsImplemented:
         assert len(stmts) > 0
 
     def test_media_plan_calls_shared_service(self):
-        """_step_media_plan should import and use a shared service."""
+        """The chain should call the same high-level media service as the UI."""
         with open("src/produce_chain.py", "r") as f:
             content = f.read()
-        # The method should reference the media planning service
-        assert "MediaPlanningService" in content or "media_planning" in content
-        assert "MediaInventoryService" in content or "media_inventory" in content
+        assert "MediaPlanningService" in content
+        assert ").generate_for_asset(" in content
 
-    def test_edit_plan_calls_cue_compiler(self):
-        """_step_edit_plan should use the cue compiler."""
+    def test_edit_plan_calls_shared_service(self):
+        """The chain should call the same high-level edit service as the UI."""
         with open("src/produce_chain.py", "r") as f:
             content = f.read()
-        assert "CueCompiler" in content or "cue_compiler" in content
+        assert "EditPlanningService" in content
+        assert ").generate_for_asset(" in content
 
     def test_render_calls_render_review_service(self):
         """_step_render should use the render/review service."""

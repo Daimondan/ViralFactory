@@ -202,7 +202,7 @@ The following tasks were marked complete but their acceptance criteria were met 
 
 ### Phase M13-A — Dual-path reconciliation
 
-- [ ] VF-VS-101 **Wire operator routes to services (P0):** `/api/assets/<id>/edit-plan`, `/render`, `/generate-media` call `EditPlanningService`, `RenderReviewService`, `MediaPlanningService`. Routes handle HTTP only. — AC: same input through UI route and autonomous chain produces equivalent edit plans.
+- [x] VF-VS-101 **Wire operator routes to services (P0):** `/api/assets/<id>/edit-plan`, `/render`, `/generate-media` call `EditPlanningService`, `RenderReviewService`, `MediaPlanningService`. Routes handle HTTP only. — AC: same input through UI route and autonomous chain produces equivalent edit plans.
 - [ ] VF-VS-102 **Retire old build_reel_plan path (P0):** Delete or gate `reel_production_runner.run_reel_production` for VO-led Reels. — AC: no operator route calls `build_reel_plan` directly.
 - [ ] VF-VS-103 **Behavioral dual-path test (P0):** Render same input through both paths, assert equivalence. — AC: test fails if routes diverge from chain.
 

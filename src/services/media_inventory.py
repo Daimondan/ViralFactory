@@ -94,6 +94,12 @@ class MediaInventoryService:
         """Add asset-scoped generated media, excluding draft visuals."""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
+        table_exists = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'asset_media'"
+        ).fetchone()
+        if not table_exists:
+            conn.close()
+            return
         rows = conn.execute(
             """SELECT * FROM asset_media
                WHERE asset_id = ? AND (owner_type = 'asset' OR owner_type IS NULL)
@@ -153,15 +159,22 @@ class MediaInventoryService:
             row_dict = dict(row)
             path = row_dict.get("file_path", "") or ""
             file_exists = os.path.exists(path) if path else False
+            filename = str(row_dict.get("filename") or "").lower()
+            kind = row_dict.get("material_type", "image") or "image"
+            if filename.endswith((".mp4", ".mov", ".avi", ".webm")):
+                kind = "video"
 
             inv.items.append(InventoryItem(
                 ingredient_id=f"capture_upload:{row_dict['id']}",
-                kind=row_dict.get("material_type", "image") or "image",
+                kind=kind,
                 source_type="capture_upload",
                 path=path,
                 is_render_ready=file_exists,
                 status="ready" if file_exists else "missing",
-                metadata={"channel": row_dict.get("channel", "")},
+                metadata={
+                    "channel": row_dict.get("channel", ""),
+                    "filename": row_dict.get("filename", ""),
+                },
             ))
 
     def _add_reference_assets(self, inv: Inventory, business_slug: str) -> None:

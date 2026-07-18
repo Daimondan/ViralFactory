@@ -413,176 +413,92 @@ class ProductionChain:
                 ) from e
 
     def _step_media_plan(self, draft_id: int, card_id: int, business_slug: str, store):
-        """Generate a media plan using the Media Planning Service."""
-        from services.media_planning import MediaPlanningService, MediaPlanResult
-        from services.media_inventory import MediaInventoryService
-        from config_loader import load_all, ConfigError
-        import json as _json
+        """Plan and acquire media through the same service used by the UI."""
+        from services.media_planning import MediaPlanningService
 
         asset = store.get_asset_by_draft(draft_id)
         if not asset:
             raise RuntimeError(f"No asset found for draft {draft_id}")
 
-        config = load_all(os.path.join(os.path.dirname(__file__), "..", "config"))
-        models_config = config.get("models", {})
-
-        # Build inventory
-        inv_service = MediaInventoryService(db_path=store.db_path)
-        card = store.get_idea_card(card_id) if card_id else None
-        capture_upload_ids = []
-        if card:
-            capture_upload_ids = [int(x) for x in _json.loads(card.get("capture_uploads") or "[]")]
-        inventory = inv_service.build_inventory(
-            asset_id=asset["id"], business_slug=business_slug,
-            capture_upload_ids=capture_upload_ids,
+        result = MediaPlanningService(
+            db_path=store.db_path,
+            config_dir=self.config_dir,
+            modules_dir=self.modules_dir,
+            prompts_dir=self.prompts_dir,
+        ).generate_for_asset(
+            asset_id=asset["id"],
+            business_slug=business_slug,
+            store=store,
         )
-
-        # Build media plan using the service
-        planning_service = MediaPlanningService(models_config=models_config, db_path=store.db_path)
-
-        # Get beats from the draft's platform_content (frame objects for reels)
-        draft = store.get_draft(draft_id)
-        beats = self._extract_beats_from_draft(draft)
-
-        # Build prompt inputs from the measured VO produced by the prior step.
-        measured_vo = None
-        vo_segments_json = store.get_vo_segments(asset["id"])
-        if vo_segments_json:
-            measured_vo = {"segments": _json.loads(vo_segments_json)}
-        prompt_inputs = planning_service.build_plan_prompt_inputs(
-            beats=beats,
-            measured_vo=measured_vo,
-            inventory=inventory,
-        )
-
-        # Validate the plan result structure
-        plan_result = MediaPlanResult(beats=beats, recipes=[])
-        errors = plan_result.validate()
-        if errors:
-            import logging
-            logging.warning(f"Media plan validation errors: {errors}")
-
-        # Store the inventory and plan inputs for the next step
-        store._set_step_data(draft_id, "media_plan_inputs", {
-            "inventory": inventory.summary,
-            "beats": beats,
-            "available_providers": planning_service.build_available_providers(),
-        })
+        if not result.ok:
+            raise RuntimeError(
+                result.payload.get("error")
+                or result.payload.get("message")
+                or "Media planning failed"
+            )
+        store._set_step_data(draft_id, "media_plan_result", result.payload)
 
     def _step_media_exec(self, draft_id: int, card_id: int, business_slug: str, store):
-        """Execute the media plan — acquire ingredients via the Acquisition Service."""
-        from services.media_acquisition import MediaAcquisitionService
-        from config_loader import load_all, ConfigError
-        from media_adapter import MediaAdapter
-        from stock_adapter import StockAdapter
-
-        asset = store.get_asset_by_draft(draft_id)
-        if not asset:
-            raise RuntimeError(f"No asset found for draft {draft_id}")
-
-        config = load_all(os.path.join(os.path.dirname(__file__), "..", "config"))
-        models_config = config.get("models", {})
-
-        media_adapter = MediaAdapter(models_config, db_path=store.db_path)
-        stock_adapter = StockAdapter(models_config, db_path=store.db_path)
-
-        acq_service = MediaAcquisitionService(
-            db_path=store.db_path,
-            media_adapter=media_adapter,
-            stock_adapter=stock_adapter,
-        )
-
-        # Get the media plan from the previous step
-        plan_data = store._get_step_data(draft_id, "media_plan_inputs")
+        """Verify the shared media service completed acquisition."""
+        plan_data = store._get_step_data(draft_id, "media_plan_result")
         if not plan_data:
             raise RuntimeError(f"No media plan found for draft {draft_id} — run media_plan first")
-
-        # Execute acquisition for each recipe
-        # The actual recipes come from the LLM call (not yet wired here)
-        # For now, this step is ready to execute when recipes are available
-        pass
+        if plan_data.get("results") and not plan_data.get("ready_to_render"):
+            raise RuntimeError("Media plan completed without any render-ready ingredients")
 
     def _step_edit_plan(self, draft_id: int, card_id: int, business_slug: str, store):
-        """Generate the edit plan using the Edit Planning Service."""
+        """Generate the edit plan through the same service used by the UI."""
         from services.edit_planning import EditPlanningService
-        from services.cue_compiler import CueCompiler
 
         asset = store.get_asset_by_draft(draft_id)
         if not asset:
             raise RuntimeError(f"No asset found for draft {draft_id}")
 
-        # Compile cues deterministically
-        compiler = CueCompiler()
-        draft = store.get_draft(draft_id)
-        beats = self._extract_beats_from_draft(draft)
-
-        # Get VO segments if available
-        vo_segments_json = store.get_vo_segments(asset["id"]) if hasattr(store, "get_vo_segments") else None
-        vo_segments = None
-        if vo_segments_json:
-            import json as _json
-            try:
-                vo_segments = _json.loads(vo_segments_json)
-            except (_json.JSONDecodeError, TypeError):
-                pass
-
-        timeline = compiler.compile(beats, [], vo_segments=vo_segments)
-
-        # Validate timing
-        timing_errors = compiler.validate_timing(timeline)
-        if timing_errors:
-            import logging
-            logging.warning(f"Cue compiler timing errors: {timing_errors}")
-
-        # Store the compiled timeline for the render step
-        store._set_step_data(draft_id, "compiled_timeline", {
-            "vo_timings": [{"beat_id": c.beat_id, "start": c.start_sec, "end": c.end_sec, "text": c.text}
-                           for c in timeline.vo_timings],
-            "text_hash": timeline.text_hash,
-            "total_duration": timeline.total_duration_sec,
-        })
+        result = EditPlanningService(
+            db_path=store.db_path,
+            config_dir=self.config_dir,
+            modules_dir=self.modules_dir,
+            prompts_dir=self.prompts_dir,
+        ).generate_for_asset(
+            asset_id=asset["id"],
+            business_slug=business_slug,
+            store=store,
+        )
+        if not result.ok:
+            raise RuntimeError(
+                result.payload.get("error")
+                or result.payload.get("message")
+                or "Edit planning failed"
+            )
+        store._set_step_data(draft_id, "edit_plan_result", result.payload)
 
     def _step_render(self, draft_id: int, card_id: int, business_slug: str, store):
-        """Render the final video using the Render/Review Service."""
+        """Render through the same Render/Review Service used by the UI."""
         from services.render_review import RenderReviewService
-        from assembly import AssemblyRenderer
-        from config_loader import load_all, ConfigError
 
         asset = store.get_asset_by_draft(draft_id)
         if not asset:
             raise RuntimeError(f"No asset found for draft {draft_id}")
 
-        config = load_all(os.path.join(os.path.dirname(__file__), "..", "config"))
-        models_config = config.get("models", {})
-
-        renderer = AssemblyRenderer(models_config, db_path=store.db_path)
-        review_service = RenderReviewService(
-            db_path=store.db_path,
-            renderer=renderer,
-        )
-
-        # Get the compiled timeline
-        timeline_data = store._get_step_data(draft_id, "compiled_timeline")
-        if not timeline_data:
-            raise RuntimeError(f"No compiled timeline found for draft {draft_id} — run edit_plan first")
-
-        # Get the edit plan
-        edit_plans = store.get_edit_plans_for_asset(asset["id"]) if hasattr(store, "get_edit_plans_for_asset") else []
+        edit_plans = store.list_edit_plans(asset["id"])
         if not edit_plans:
             raise RuntimeError(f"No edit plan found for asset {asset['id']}")
 
-        plan = json.loads(edit_plans[-1].get("plan_json") or "{}")
-
-        result = review_service.render_and_review(
-            plan=plan,
+        result = RenderReviewService(
+            db_path=store.db_path,
+            config_dir=self.config_dir,
+        ).render_for_asset(
             asset_id=asset["id"],
-            draft_id=draft_id,
+            plan_id=edit_plans[0]["id"],
             business_slug=business_slug,
-            plan_id=edit_plans[-1]["id"],
+            store=store,
         )
-
-        if not result.render.success:
-            raise RuntimeError(f"Render failed: {result.render.error}")
+        if not result.ok:
+            raise RuntimeError(
+                result.payload.get("error")
+                or result.payload.get("message")
+                or "Render failed"
+            )
 
     def _step_draft(self, card_id: int, business_slug: str, store) -> int:
         """Step 1: Generate draft from the approved card. Returns draft_id.

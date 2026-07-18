@@ -48,6 +48,8 @@ class MaterialsIntake:
                 created_at TEXT NOT NULL,
                 transcription_status TEXT,
                 -- NULL for non-audio; pending/processing/done/failed for audio
+                file_path TEXT,
+                -- durable local path for uploaded binary media
                 FOREIGN KEY (run_id) REFERENCES playbook_runs(id)
             );
         """)
@@ -61,6 +63,11 @@ class MaterialsIntake:
             conn.execute("SELECT excluded FROM materials LIMIT 1")
         except sqlite3.OperationalError:
             conn.execute("ALTER TABLE materials ADD COLUMN excluded INTEGER DEFAULT 0")
+        # Additive migration: durable binary path for render-ready inventory
+        try:
+            conn.execute("SELECT file_path FROM materials LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute("ALTER TABLE materials ADD COLUMN file_path TEXT")
         # Material edits log — lightweight versioning (material_id, timestamp, before_hash)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS material_edits (
@@ -178,6 +185,7 @@ class MaterialsIntake:
             dest = os.path.join(self.upload_dir, f"material_{material_id}{ext}")
             import shutil
             shutil.copy2(filepath, dest)
+            self._update_field(material_id, "file_path", dest)
             self._update_field(material_id, "normalized_content",
                              f"[Audio file stored at: {dest} — transcription pending]")
             self._update_field(material_id, "transcription_status", "pending")
@@ -187,6 +195,7 @@ class MaterialsIntake:
             dest = os.path.join(self.upload_dir, f"material_{material_id}{ext}")
             import shutil
             shutil.copy2(filepath, dest)
+            self._update_field(material_id, "file_path", dest)
 
         return material_id
 
@@ -518,6 +527,7 @@ class MaterialsIntake:
             "date_approx",
             "audience",
             "transcription_status",
+            "file_path",
             "excluded",
         }
         if field not in ALLOWED_FIELDS:
