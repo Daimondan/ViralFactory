@@ -36,7 +36,7 @@ def media_config():
                     "name": "nano-banana-2",
                     "provider": "fal",
                     "endpoint": "fal-ai/gemini-3.1-flash-image-preview",
-                    "api_key_env": "FAL_API_KEY",
+                    "api_key_env": "FAL_KEY",
                     "cost_per_image_usd": 0.039,
                     "supports_reference_images": True,
                 },
@@ -44,7 +44,7 @@ def media_config():
                     "name": "flux2-pro",
                     "provider": "fal",
                     "endpoint": "fal-ai/flux-2-pro",
-                    "api_key_env": "FAL_API_KEY",
+                    "api_key_env": "FAL_KEY",
                     "cost_per_image_usd": 0.03,
                     "supports_reference_images": True,
                 },
@@ -55,7 +55,7 @@ def media_config():
                     "name": "kling-3",
                     "provider": "fal",
                     "endpoint": "fal-ai/kling-video/v3/standard/image-to-video",
-                    "api_key_env": "FAL_API_KEY",
+                    "api_key_env": "FAL_KEY",
                     "cost_per_second_usd": 0.10,
                     "mode": "image_to_video",
                     "native_audio": False,
@@ -64,7 +64,7 @@ def media_config():
                     "name": "veo-3.1-fast",
                     "provider": "fal",
                     "endpoint": "fal-ai/veo3.1/fast/image-to-video",
-                    "api_key_env": "FAL_API_KEY",
+                    "api_key_env": "FAL_KEY",
                     "cost_per_second_usd": 0.15,
                     "mode": "image_to_video",
                     "native_audio": False,
@@ -100,7 +100,7 @@ class TestFalImageGeneration:
 
     def test_fal_image_without_reference_images(self, adapter, monkeypatch, tmp_path):
         """fal image generation works without reference images (text-only)."""
-        monkeypatch.setenv("FAL_API_KEY", "test_key")
+        monkeypatch.setenv("FAL_KEY", "test_key")
 
         # Mock fal_client.run to return an image URL
         mock_result = {"images": [{"url": "https://fal.storage/img123.png"}]}
@@ -121,7 +121,7 @@ class TestFalImageGeneration:
 
     def test_fal_image_with_reference_images(self, adapter, monkeypatch, ref_image):
         """fal image generation with reference_images uploads them and passes URLs."""
-        monkeypatch.setenv("FAL_API_KEY", "test_key")
+        monkeypatch.setenv("FAL_KEY", "test_key")
 
         mock_result = {"images": [{"url": "https://fal.storage/img456.png"}]}
         with patch("fal_client.run", return_value=mock_result) as mock_run:
@@ -147,7 +147,7 @@ class TestFalImageGeneration:
 
     def test_fal_image_missing_reference_file_raises(self, adapter, monkeypatch):
         """Missing reference image file raises MediaAdapterError."""
-        monkeypatch.setenv("FAL_API_KEY", "test_key")
+        monkeypatch.setenv("FAL_KEY", "test_key")
         from media_adapter import MediaAdapterError
         with pytest.raises(MediaAdapterError, match="Reference image not found"):
             adapter.generate_image(
@@ -158,10 +158,10 @@ class TestFalImageGeneration:
             )
 
     def test_fal_image_no_api_key_raises(self, adapter, monkeypatch):
-        """Missing FAL_API_KEY raises MediaAdapterError."""
-        monkeypatch.delenv("FAL_API_KEY", raising=False)
+        """Missing FAL_KEY raises MediaAdapterError."""
+        monkeypatch.delenv("FAL_KEY", raising=False)
         from media_adapter import MediaAdapterError
-        with pytest.raises(MediaAdapterError, match="FAL_API_KEY not set"):
+        with pytest.raises(MediaAdapterError, match="FAL_KEY not set"):
             adapter.generate_image(
                 prompt="test",
                 asset_id=1,
@@ -170,7 +170,7 @@ class TestFalImageGeneration:
 
     def test_fal_image_cost_from_config(self, adapter, monkeypatch, tmp_path):
         """Cost is read from config, not hardcoded."""
-        monkeypatch.setenv("FAL_API_KEY", "test_key")
+        monkeypatch.setenv("FAL_KEY", "test_key")
         mock_result = {"images": [{"url": "https://fal.storage/img789.png"}]}
         with patch("fal_client.run", return_value=mock_result):
             with patch("requests.get") as mock_get:
@@ -186,7 +186,7 @@ class TestFalImageGeneration:
 
     def test_fal_image_endpoint_from_config(self, adapter, monkeypatch):
         """The fal endpoint is read from config, not hardcoded."""
-        monkeypatch.setenv("FAL_API_KEY", "test_key")
+        monkeypatch.setenv("FAL_KEY", "test_key")
         mock_result = {"images": [{"url": "https://fal.storage/img000.png"}]}
         with patch("fal_client.run", return_value=mock_result) as mock_run:
             with patch("requests.get") as mock_get:
@@ -204,7 +204,7 @@ class TestFalImageGeneration:
 
     def test_fal_image_provenance_logged(self, adapter, monkeypatch):
         """Provenance records the call with provider='fal'."""
-        monkeypatch.setenv("FAL_API_KEY", "test_key")
+        monkeypatch.setenv("FAL_KEY", "test_key")
         mock_result = {"images": [{"url": "https://fal.storage/prov.png"}]}
         with patch("fal_client.run", return_value=mock_result):
             with patch("requests.get") as mock_get:
@@ -237,7 +237,7 @@ class TestFalVideoGeneration:
 
     def test_fal_video_submit_image_to_video(self, adapter, monkeypatch, ref_image):
         """fal video submission (image-to-video) uploads the source image."""
-        monkeypatch.setenv("FAL_API_KEY", "test_key")
+        monkeypatch.setenv("FAL_KEY", "test_key")
 
         mock_handle = MagicMock()
         mock_handle.request_id = "fal-req-12345"
@@ -266,7 +266,7 @@ class TestFalVideoGeneration:
 
     def test_fal_video_image_to_video_requires_source_image(self, adapter, monkeypatch):
         """image-to-video mode without source_image raises error."""
-        monkeypatch.setenv("FAL_API_KEY", "test_key")
+        monkeypatch.setenv("FAL_KEY", "test_key")
         from media_adapter import MediaAdapterError
         with pytest.raises(MediaAdapterError, match="source_image is required"):
             adapter.submit_video(
@@ -277,10 +277,10 @@ class TestFalVideoGeneration:
             )
 
     def test_fal_video_no_api_key_raises(self, adapter, monkeypatch):
-        """Missing FAL_API_KEY raises MediaAdapterError."""
-        monkeypatch.delenv("FAL_API_KEY", raising=False)
+        """Missing FAL_KEY raises MediaAdapterError."""
+        monkeypatch.delenv("FAL_KEY", raising=False)
         from media_adapter import MediaAdapterError
-        with pytest.raises(MediaAdapterError, match="FAL_API_KEY not set"):
+        with pytest.raises(MediaAdapterError, match="FAL_KEY not set"):
             adapter.submit_video(
                 prompt="test",
                 asset_id=1,
@@ -291,7 +291,7 @@ class TestFalVideoGeneration:
 
     def test_fal_video_cost_from_config(self, adapter, monkeypatch, ref_image):
         """Video cost is computed from config cost_per_second_usd."""
-        monkeypatch.setenv("FAL_API_KEY", "test_key")
+        monkeypatch.setenv("FAL_KEY", "test_key")
         mock_handle = MagicMock()
         mock_handle.request_id = "fal-req-67890"
         with patch("fal_client.submit", return_value=mock_handle):
@@ -308,7 +308,7 @@ class TestFalVideoGeneration:
 
     def test_fal_video_endpoint_from_config(self, adapter, monkeypatch, ref_image):
         """The fal endpoint is read from config, not hardcoded."""
-        monkeypatch.setenv("FAL_API_KEY", "test_key")
+        monkeypatch.setenv("FAL_KEY", "test_key")
         mock_handle = MagicMock()
         mock_handle.request_id = "fal-req-endpoint"
         with patch("fal_client.submit", return_value=mock_handle) as mock_submit:
@@ -326,7 +326,7 @@ class TestFalVideoGeneration:
 
     def test_fal_video_provenance_logged(self, adapter, monkeypatch, ref_image):
         """Provenance records the video submission with provider='fal'."""
-        monkeypatch.setenv("FAL_API_KEY", "test_key")
+        monkeypatch.setenv("FAL_KEY", "test_key")
         mock_handle = MagicMock()
         mock_handle.request_id = "fal-req-prov"
         with patch("fal_client.submit", return_value=mock_handle):
@@ -359,7 +359,7 @@ class TestFalJobPolling:
 
     def test_fal_job_processing(self, adapter, monkeypatch):
         """Polling returns 'processing' when the job is still running."""
-        monkeypatch.setenv("FAL_API_KEY", "test_key")
+        monkeypatch.setenv("FAL_KEY", "test_key")
         import fal_client
         with patch("fal_client.status", return_value=fal_client.InProgress(logs=None)):
             result = adapter.check_fal_job(
@@ -371,7 +371,7 @@ class TestFalJobPolling:
 
     def test_fal_job_completed(self, adapter, monkeypatch):
         """Polling returns 'completed' with download_url when done."""
-        monkeypatch.setenv("FAL_API_KEY", "test_key")
+        monkeypatch.setenv("FAL_KEY", "test_key")
         import fal_client
         mock_result = {"video": {"url": "https://fal.storage/video.mp4"}}
         completed = fal_client.Completed(logs=None, metrics={})
@@ -413,7 +413,7 @@ class TestZeroHardcodedEndpoints:
 
     def test_endpoints_resolved_from_config(self, adapter, monkeypatch, ref_image):
         """The adapter resolves endpoints from config, not from code constants."""
-        monkeypatch.setenv("FAL_API_KEY", "test_key")
+        monkeypatch.setenv("FAL_KEY", "test_key")
         mock_handle = MagicMock()
         mock_handle.request_id = "fal-req-check"
         with patch("fal_client.submit", return_value=mock_handle) as mock_submit:

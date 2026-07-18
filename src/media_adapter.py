@@ -261,9 +261,11 @@ class MediaAdapter:
         return None
 
     def _get_fal_api_key(self, gen_config: dict) -> str:
-        """Get the FAL API key from env var specified in config."""
-        env_var = gen_config.get("api_key_env", "FAL_API_KEY") if gen_config else "FAL_API_KEY"
-        return os.environ.get(env_var, "")
+        """Get the FAL API key from env var specified in config.
+        fal_client uses FAL_KEY (not FAL_API_KEY). We check both for compatibility.
+        """
+        env_var = gen_config.get("api_key_env", "FAL_KEY") if gen_config else "FAL_KEY"
+        return os.environ.get(env_var, "") or os.environ.get("FAL_KEY", "")
 
     def generate_image(
         self,
@@ -326,7 +328,7 @@ class MediaAdapter:
 
         api_key = self._get_fal_api_key(fal_gen)
         if not api_key:
-            raise MediaAdapterError(f"FAL_API_KEY not set — cannot generate image with fal provider '{model}'")
+            raise MediaAdapterError(f"FAL_KEY not set — cannot generate image with fal provider '{model}'")
 
         endpoint = fal_gen.get("endpoint", model)
 
@@ -788,7 +790,7 @@ class MediaAdapter:
 
         api_key = self._get_fal_api_key(fal_gen)
         if not api_key:
-            raise MediaAdapterError(f"FAL_API_KEY not set — cannot generate video with fal provider '{model}'")
+            raise MediaAdapterError(f"FAL_KEY not set — cannot generate video with fal provider '{model}'")
 
         endpoint = fal_gen.get("endpoint", model)
         gen_mode = mode or fal_gen.get("mode", "image_to_video")

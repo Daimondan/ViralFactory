@@ -106,7 +106,7 @@ voice_cloning:
 # Add new generators here — they automatically appear in the LLM's options.
 #
 # Auth: set the env var for each provider you want active.
-# FAL_API_KEY for fal.ai providers (kling, veo, flux, nano-banana).
+# FAL_KEY for fal.ai providers (kling, veo, flux, nano-banana).
 # OPENROUTER_API_KEY for legacy Gemini image generation via OpenRouter.
 # XAI_API_KEY for legacy Grok video (non-default named backend).
 # GOOGLE_API_KEY for legacy Google Veo direct (non-default named backend).
@@ -118,14 +118,14 @@ media:
     - name: "nano-banana-2"
       provider: "fal"
       endpoint: "fal-ai/gemini-3.1-flash-image-preview"
-      api_key_env: "FAL_API_KEY"
+      api_key_env: "FAL_KEY"
       cost_per_image_usd: 0.039
       supports_reference_images: true
       best_for: "recurring characters, identity-critical shots (up to 5 characters / 14 refs)"
     - name: "flux2-pro"
       provider: "fal"
       endpoint: "fal-ai/flux-2-pro"
-      api_key_env: "FAL_API_KEY"
+      api_key_env: "FAL_KEY"
       cost_per_image_usd: 0.03
       supports_reference_images: true
       best_for: "b-roll and non-character shots, highest photorealism"
@@ -142,7 +142,7 @@ media:
     - name: "kling-3"
       provider: "fal"
       endpoint: "fal-ai/kling-video/v3/standard/image-to-video"
-      api_key_env: "FAL_API_KEY"
+      api_key_env: "FAL_KEY"
       cost_per_second_usd: 0.10
       mode: "image_to_video"
       native_audio: false
@@ -150,7 +150,7 @@ media:
     - name: "veo-3.1-fast"
       provider: "fal"
       endpoint: "fal-ai/veo3.1/fast/image-to-video"
-      api_key_env: "FAL_API_KEY"
+      api_key_env: "FAL_KEY"
       cost_per_second_usd: 0.15
       mode: "image_to_video"
       native_audio: false
