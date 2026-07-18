@@ -8,6 +8,12 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-18
 
+### VF-VS-402 — Invoke and persist Visual Director output [LOGIC/FIX]
+
+**What:** Wired the registered `visual_director_v1` process into the shared measured-VO edit-planning service. The call receives approved Writer beats, compiled VO timing, and assembled visual-style context; mechanically invalid beat/event output and unapproved audience text are rejected. Validated `visual_events[]` and process/module provenance are persisted in each edit plan. Fixed Process Registry inputs without explicit `field` keys so they resolve from same-named dynamic values, then fall back to assembled module context.
+
+**Rationale:** The Visual Director prompt/schema/registry existed but had no production invocation. Both operator and autonomous entrypoints must execute the same judgment process, preserve its output, and leave every LLM call in the existing adapter provenance ledger.
+
 ### VF-VS-103 — Behavioral operator/autonomous edit-plan parity [LOGIC/FIX]
 
 **What:** Replaced delegation/source-shape proof with one real measured-VO and scoped-inventory fixture executed through both `/api/assets/<id>/edit-plan` and `ProductionChain._step_edit_plan()`. The test compares identical LLM inputs, returned plans and cut lists, and persisted `plan_json`, compliance contracts, and source hashes; only append-only plan IDs may differ.

@@ -39,6 +39,7 @@ processes:
       subjects: {source: business, field: "subjects", transform: "join_comma"}
       module_views: "test/prompt_v1.md"
       origin_type: {source: dynamic, default: "ai_originated"}
+      visual_style: {source: dynamic}
       num_cards: {source: static, value: "3"}
       existing_ideas: {source: dynamic, builder: "existing_ideas"}
 
@@ -172,7 +173,7 @@ class TestComposeAndRun:
 
         # Mock context_assembly.assemble_module_context
         with patch("context_assembly.assemble_module_context") as mock_assemble:
-            mock_assemble.return_value = ({}, "no modules")
+            mock_assemble.return_value = ({"visual_style": "cream editorial"}, "modules:v1")
 
             inline_schemas = {"test_schema": {"type": "object", "required": [], "properties": {}}}
             builders = {"existing_ideas": lambda: "(no existing ideas)"}
@@ -180,7 +181,7 @@ class TestComposeAndRun:
             result, prov = compose_and_run(
                 "test_process",
                 "testbrand",
-                {"origin_type": "ai_originated"},
+                {"origin_type": "operator_seed"},
                 {"models": {}},
                 db_path=str(tmp_path / "test.db"),
                 config_dir=tmp_config,
@@ -199,7 +200,8 @@ class TestComposeAndRun:
 
         assert variables["business_name"] == "TestBrand"
         assert variables["subjects"] == "AI"
-        assert variables["origin_type"] == "ai_originated"
+        assert variables["origin_type"] == "operator_seed"
+        assert variables["visual_style"] == "cream editorial"
         assert variables["num_cards"] == "3"
         assert variables["existing_ideas"] == "(no existing ideas)"
 

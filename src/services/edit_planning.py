@@ -321,6 +321,7 @@ class EditPlanningService:
         from assembly import AssemblyRenderer
         from context_assembly import assemble_module_context
         from llm_adapter import LLMAdapter
+        from process_engine import compose_and_run
         from reel_production import (
             ReelProductionError,
             extract_reel_beats,
@@ -384,6 +385,52 @@ class EditPlanningService:
                 "errors": timing_errors,
             }, 422)
         compiled = self._serialize_timeline(timeline)
+        enriched_beats = beats
+        visual_director_provenance = None
+        if any(beat.get("visual") for beat in beats):
+            try:
+                directed, module_prov = compose_and_run(
+                    "visual_director_v1",
+                    business_slug,
+                    {
+                        "asset_id": asset["id"],
+                        "contract_beats": json.dumps(
+                            beats, ensure_ascii=False, sort_keys=True,
+                        ),
+                        "vo_timeline": json.dumps(
+                            compiled["vo_timings"],
+                            ensure_ascii=False,
+                            sort_keys=True,
+                        ),
+                    },
+                    models_config=models_config,
+                    db_path=self.db_path,
+                    config_dir=self.config_dir,
+                    modules_dir=self.modules_dir,
+                    prompts_dir=self.prompts_dir,
+                    business_config=business,
+                )
+            except Exception as exc:
+                return ServiceResponse({"error": str(exc)}, 500)
+            director_errors = self.validate_visual_director_output(directed, beats)
+            if director_errors:
+                return ServiceResponse({
+                    "status": "invalid_visual_events",
+                    "message": "Visual Director output failed mechanical validation.",
+                    "errors": director_errors,
+                }, 422)
+            events_by_beat = {
+                beat["beat_id"]: beat["visual_events"]
+                for beat in directed["beats"]
+            }
+            enriched_beats = [
+                {**beat, "visual_events": events_by_beat[beat["beat_id"]]}
+                for beat in beats
+            ]
+            visual_director_provenance = {
+                "process": "visual_director_v1",
+                "module_context": module_prov,
+            }
         render_config = (models_config.get("media", {}) or {}).get(
             "reel_production", {}
         ) or {}
@@ -473,6 +520,9 @@ class EditPlanningService:
             render_config=render_config,
             vo_facts=vo_facts,
         )
+        plan["contract_beats"] = enriched_beats
+        if visual_director_provenance:
+            plan["visual_director_provenance"] = visual_director_provenance
         compliance_contract = self._build_compliance_contract(
             beats,
             plan["segments"],
@@ -515,6 +565,45 @@ class EditPlanningService:
             "text_hash": timeline.text_hash,
             "total_duration_sec": timeline.total_duration_sec,
         }
+
+    @staticmethod
+    def validate_visual_director_output(
+        output: dict,
+        approved_beats: list[dict],
+    ) -> list[str]:
+        """Reject missing beats, invalid events, and invented audience text."""
+        from production_contract import validate_visual_events
+
+        directed_beats = output.get("beats") if isinstance(output, dict) else None
+        if not isinstance(directed_beats, list) or not directed_beats:
+            return ["Visual Director output must contain a non-empty beats array"]
+
+        errors = validate_visual_events(directed_beats)
+        expected_ids = {beat["beat_id"] for beat in approved_beats}
+        directed_ids = [str(beat.get("beat_id") or "") for beat in directed_beats]
+        if len(directed_ids) != len(set(directed_ids)):
+            errors.append("Visual Director output contains duplicate beat_id values")
+        if set(directed_ids) != expected_ids:
+            errors.append("Visual Director beat IDs do not match approved Writer beats")
+
+        approved_text = {
+            text
+            for beat in approved_beats
+            for text in (beat.get("vo_text"), beat.get("overlay_text"))
+            if text
+        }
+        for beat in directed_beats:
+            if not beat.get("visual_events"):
+                errors.append(
+                    f"Beat '{beat.get('beat_id', '?')}' has no visual events"
+                )
+            for event in beat.get("visual_events") or []:
+                required_text = event.get("required_text")
+                if required_text and required_text not in approved_text:
+                    errors.append(
+                        f"Visual event '{event.get('event_id', '?')}' invents audience text"
+                    )
+        return errors
 
     @staticmethod
     def _compute_source_draft_hash(

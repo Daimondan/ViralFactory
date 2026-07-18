@@ -221,7 +221,7 @@ The following tasks were marked complete but their acceptance criteria were met 
 ### Phase M13-D — Semantic visual events
 
 - [x] VF-VS-401 **Add visual_events to production contract (P1):** `PRODUCTION_CONTRACT_V2` beat schema gains `visual_events[]`. Compatibility: no events → one event from `visual_intent`. — AC: contract validates multi-event beats; old contracts degrade gracefully.
-- [~] VF-VS-402 **Re-opened for integration:** prompt/schema/registry entry exist, but no production path invokes the Visual Director or persists provenance for its output.
+- [x] VF-VS-402 **Integration closed:** shared `EditPlanningService` invokes registered `visual_director_v1` from approved Writer beats and measured CueCompiler VO timings, rejects beat mismatches/invalid events/invented audience copy, and persists enriched contract beats with process/module provenance. Implicit Process Registry dynamic inputs resolve by variable name with module-context fallback. — AC: 57 focused tests and linked-worktree full equivalent `1,829 passed, 7 skipped`; real Draft 11 check confirms visual intent on all six Reel beats.
 - [~] VF-VS-403 **Re-opened for integration:** checks pass isolated fixtures, but `run_feasibility_checks()` has no production caller before render.
 
 ### Phase M13-E — Soundtrack plan

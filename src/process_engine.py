@@ -216,7 +216,22 @@ def compose_and_run(
             # Spread module context variables
             variables.update(module_vars)
         else:
-            value = _resolve_input(input_spec, business_config, dynamic, builders, module_vars)
+            resolved_spec = input_spec
+            if (
+                input_spec.get("source") == "dynamic"
+                and not input_spec.get("field")
+                and not input_spec.get("builder")
+            ):
+                resolved_spec = {**input_spec, "field": var_name}
+            value = _resolve_input(
+                resolved_spec,
+                business_config,
+                dynamic,
+                builders,
+                module_vars,
+            )
+            if value == "" and var_name in module_vars:
+                value = module_vars[var_name]
             variables[var_name] = value
 
     # Resolve schema
