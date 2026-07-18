@@ -115,7 +115,7 @@ def test_upgraded_path_feasibility_catches_draft8_pattern():
             "meaning": "talking head",
         },
         "visual_events": [
-            {"event_id": "ev_b01_1", "time_range": {"start": 0.0, "end": 5.0},
+            {"event_id": "ev_b01_1", "time_range": {"start": 0.0, "end": 14.0},
              "narrative_function": "context", "source_policy": "generated_motion"},
         ],
     }
@@ -124,6 +124,8 @@ def test_upgraded_path_feasibility_catches_draft8_pattern():
         beats=[beat],
         vo_segments=[{"beat_id": "b01", "duration": 14.0, "text": "..."}],
         motion_durations={"b01": 5.0},
+        event_coverage_tolerance_s=0.25,
+        motion_shortfall_ratio=0.5,
     )
     assert result["verdict"] == "needs_operator_decision"
 

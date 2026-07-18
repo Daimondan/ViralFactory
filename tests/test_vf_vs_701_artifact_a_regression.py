@@ -111,7 +111,7 @@ def test_defect_still_fallback_after_motion():
         "visual_events": [
             {
                 "event_id": "ev_b01_1",
-                "time_range": {"start": 0.0, "end": 5.0},
+                "time_range": {"start": 0.0, "end": 14.0},
                 "narrative_function": "context",
                 "source_policy": "generated_motion",
             },
@@ -120,9 +120,10 @@ def test_defect_still_fallback_after_motion():
     result = check_talking_head_motion_coverage(
         [beat],
         motion_durations={"b01": 5.0},
+        shortfall_ratio=0.5,
     )
     assert not result["feasible"]
-    assert any(iss["type"] == "talking_head_motion_shortfall" for iss in result["issues"])
+    assert any(iss["type"] == "generated_motion_shortfall" for iss in result["issues"])
 
 
 def test_defect_still_fallback_with_explicit_cutaway_passes():
@@ -153,6 +154,7 @@ def test_defect_still_fallback_with_explicit_cutaway_passes():
     result = check_talking_head_motion_coverage(
         [beat],
         motion_durations={"b01": 5.0},
+        shortfall_ratio=0.5,
     )
     assert result["feasible"]
 
@@ -241,7 +243,7 @@ def test_defect_visual_event_gap():
              "narrative_function": "proof", "source_policy": "generated_still"},
         ],
     }]
-    result = check_visual_event_coverage(beats)
+    result = check_visual_event_coverage(beats, tolerance_s=0.25)
     assert not result["feasible"]
     assert any(iss["type"] == "gap" for iss in result["issues"])
 

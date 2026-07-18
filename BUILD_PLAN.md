@@ -222,7 +222,7 @@ The following tasks were marked complete but their acceptance criteria were met 
 
 - [x] VF-VS-401 **Add visual_events to production contract (P1):** `PRODUCTION_CONTRACT_V2` beat schema gains `visual_events[]`. Compatibility: no events → one event from `visual_intent`. — AC: contract validates multi-event beats; old contracts degrade gracefully.
 - [x] VF-VS-402 **Integration closed:** shared `EditPlanningService` invokes registered `visual_director_v1` from approved Writer beats and measured CueCompiler VO timings, rejects beat mismatches/invalid events/invented audience copy, and persists enriched contract beats with process/module provenance. Implicit Process Registry dynamic inputs resolve by variable name with module-context fallback. — AC: 57 focused tests and linked-worktree full equivalent `1,829 passed, 7 skipped`; real Draft 11 check confirms visual intent on all six Reel beats.
-- [~] VF-VS-403 **Re-opened for integration:** checks pass isolated fixtures, but `run_feasibility_checks()` has no production caller before render.
+- [x] VF-VS-403 **Integration closed:** shared measured-VO edit planning invokes visual-event and generated-motion feasibility before persistence, returns `needs_operator_decision` on failure, and persists successful feasibility evidence. Motion coverage is measured from real video source trims rather than timeline holds; Visual Director `generated_motion` events carry judgment, while Python performs only mechanical duration checks. Tolerances are config-driven. — AC: Draft 8 Artifact A's 5s-motion/14s-VO still fallback is caught and blocked; full linked-worktree suite `1,831 passed, 7 skipped`.
 
 ### Phase M13-E — Soundtrack plan
 

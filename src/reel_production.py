@@ -62,6 +62,7 @@ def extract_reel_beats(posts: Iterable[object]) -> list[dict]:
             "vo_text": vo_text,
             "overlay_text": overlay,
             "visual": visual,
+            "visual_intent": visual,
         })
     return beats
 

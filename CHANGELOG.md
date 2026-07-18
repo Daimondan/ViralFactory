@@ -8,6 +8,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-18
 
+### VF-VS-403 — Enforce visual-event and generated-motion feasibility before persistence [LOGIC/FIX]
+
+**What:** The shared measured-VO edit planner now invokes `run_feasibility_checks()` after building the render plan and compliance contract but before saving an edit plan. Failed visual-event coverage or motion checks return `needs_operator_decision` with evidence and persist nothing; successful plans persist the complete feasibility result. Planned motion is derived only from real video ingredients and capped at each segment's actual source trim, so extending a 5-second moving clip across a 14-second timeline counts as 5 seconds, not 14. Writer `visual_intent` survives beat normalization. The pre-existing Python keyword classifier was removed: the Visual Director's explicit `generated_motion` event ranges carry semantic judgment, and code compares those ranges mechanically against planned moving-source duration. VO timeline, event coverage, and motion shortfall tolerances now live under `media.reel_production.feasibility` in `config/models.yaml`.
+
+**Rationale:** The checks previously passed isolated fixtures but had no production caller, allowing the exact Draft 8 still-fallback defect to reach render. Wiring them before persistence closes the false-green path while preserving the charter boundary: LLMs make visual judgments; scripts validate IDs, ranges, inventory types, durations, and configured bounds.
+
+**Verification:** 53 focused Visual Director, feasibility, Artifact A, measured-VO, and dual-path tests pass. Full linked-worktree suite: `1,831 passed, 7 skipped`; only the known primary-database real-Reel test is excluded from the linked worktree.
+
 ### VF-VS-402 — Invoke and persist Visual Director output [LOGIC/FIX]
 
 **What:** Wired the registered `visual_director_v1` process into the shared measured-VO edit-planning service. The call receives approved Writer beats, compiled VO timing, and assembled visual-style context; mechanically invalid beat/event output and unapproved audience text are rejected. Validated `visual_events[]` and process/module provenance are persisted in each edit plan. Fixed Process Registry inputs without explicit `field` keys so they resolve from same-named dynamic values, then fall back to assembled module context.

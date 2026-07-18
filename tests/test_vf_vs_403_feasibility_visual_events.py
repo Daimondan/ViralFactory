@@ -12,12 +12,30 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
 from feasibility_checks import (
-    check_visual_event_coverage,
-    check_talking_head_motion_coverage,
-    run_feasibility_checks,
-    MOTION_SHORTFALL_THRESHOLD,
-    EVENT_COVERAGE_TOLERANCE_S,
+    check_visual_event_coverage as _check_visual_event_coverage,
+    check_talking_head_motion_coverage as _check_talking_head_motion_coverage,
+    run_feasibility_checks as _run_feasibility_checks,
 )
+
+TEST_EVENT_TOLERANCE_S = 0.25
+TEST_MOTION_SHORTFALL_RATIO = 0.5
+
+
+def check_visual_event_coverage(*args, **kwargs):
+    kwargs.setdefault("tolerance_s", TEST_EVENT_TOLERANCE_S)
+    return _check_visual_event_coverage(*args, **kwargs)
+
+
+def check_talking_head_motion_coverage(*args, **kwargs):
+    kwargs.setdefault("shortfall_ratio", TEST_MOTION_SHORTFALL_RATIO)
+    return _check_talking_head_motion_coverage(*args, **kwargs)
+
+
+def run_feasibility_checks(*args, **kwargs):
+    if kwargs.get("beats") is not None:
+        kwargs.setdefault("event_coverage_tolerance_s", TEST_EVENT_TOLERANCE_S)
+        kwargs.setdefault("motion_shortfall_ratio", TEST_MOTION_SHORTFALL_RATIO)
+    return _run_feasibility_checks(*args, **kwargs)
 
 
 # ── Multi-event coverage ─────────────────────────────────────────────────────
@@ -126,7 +144,7 @@ def test_measured_vo_segments_used_for_span():
 
 
 def test_tolerance_allows_small_gaps():
-    """Gaps within EVENT_COVERAGE_TOLERANCE_S are not flagged."""
+    """Gaps within the configured event tolerance are not flagged."""
     beats = [{
         "beat_id": "b01",
         "intended_duration_sec": {"min": 0, "max": 10.0},
@@ -152,7 +170,7 @@ def _make_talking_head_beat(span=14.0):
             "meaning": "talking head addressing the viewer",
         },
         "visual_events": [
-            _make_event(0.0, 5.0, "ev_b01_1", "generated_motion"),
+            _make_event(0.0, span, "ev_b01_1", "generated_motion"),
         ],
     }
 
@@ -165,7 +183,7 @@ def test_talking_head_with_short_motion_blocked():
         motion_durations={"b01": 5.0},
     )
     assert not result["feasible"]
-    assert any(iss["type"] == "talking_head_motion_shortfall" for iss in result["issues"])
+    assert any(iss["type"] == "generated_motion_shortfall" for iss in result["issues"])
 
 
 def test_talking_head_with_enough_motion_passes():
@@ -191,8 +209,8 @@ def test_talking_head_with_explicit_cutaway_passes():
     assert result["feasible"]
 
 
-def test_non_talking_head_beat_not_checked():
-    """A beat without talking-head intent is not flagged even with short motion."""
+def test_motion_event_with_sufficient_source_passes():
+    """Judgment stays in events; Python checks only requested motion duration."""
     beat = {
         "beat_id": "b01",
         "intended_duration_sec": {"min": 0, "max": 14.0},
@@ -207,7 +225,7 @@ def test_non_talking_head_beat_not_checked():
 
 
 def test_small_shortfall_within_tolerance():
-    """Shortfall below MOTION_SHORTFALL_THRESHOLD is not flagged."""
+    """Shortfall below the configured motion ratio is not flagged."""
     beat = _make_talking_head_beat(10.0)
     # 6s motion for 10s beat = 40% shortfall, below 50% threshold
     result = check_talking_head_motion_coverage(

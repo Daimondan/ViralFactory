@@ -176,6 +176,10 @@ media:
     resolution: "1080x1920"
     caption_style_ref: "caption"
     overlay_style_ref: "emphasis"
+    feasibility:
+      vo_timeline_tolerance_seconds: 2.0
+      visual_event_coverage_tolerance_seconds: 0.25
+      motion_shortfall_ratio: 0.5
     job_stale_timeout_seconds: 14400
     worker_poll_seconds: 2
 

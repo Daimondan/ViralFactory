@@ -33,10 +33,14 @@ def test_visual_director_rejects_invented_audience_copy():
     assert any("invents audience text" in error for error in errors)
 
 
-def test_shared_edit_planner_invokes_and_persists_visual_director(
-    monkeypatch,
+def make_visual_reel(
     tmp_path,
+    *,
+    vo_duration=3.0,
+    media_kind="image",
+    visual_intent="Show the approved concept as a concrete action.",
 ):
+    """Create one measured-VO Reel with approved visual intent and inventory."""
     db_path = str(tmp_path / "pipeline.db")
     store = PipelineStore(db_path)
     draft_id = store.create_draft(
@@ -45,7 +49,7 @@ def test_shared_edit_planner_invokes_and_persists_visual_director(
     posts = [{
         "beat_id": "b01",
         "vo_text": "Approved words stay unchanged.",
-        "visual_intent": "Show the approved concept as a concrete action.",
+        "visual_intent": visual_intent,
     }]
     store.save_draft_content(
         draft_id,
@@ -57,10 +61,10 @@ def test_shared_edit_planner_invokes_and_persists_visual_director(
     asset_id = store.create_asset(
         "stackpenni", draft_id, "Instagram", "reel", "Approved asset", posts=posts,
     )
-    image_path = tmp_path / "source.png"
-    image_path.write_bytes(b"image")
+    image_path = tmp_path / ("source.mp4" if media_kind == "video" else "source.png")
+    image_path.write_bytes(b"media")
     media_id = MediaAdapter({"media": {}}, db_path=db_path)._record_media(
-        asset_id, "image", str(image_path), "fixture", "source", 0,
+        asset_id, media_kind, str(image_path), "fixture", "source", 0,
     )
     vo_path = tmp_path / "vo.wav"
     vo_path.write_bytes(b"audio")
@@ -70,9 +74,17 @@ def test_shared_edit_planner_invokes_and_persists_visual_director(
         "text": posts[0]["vo_text"],
         "path": str(vo_path),
         "combined_path": str(vo_path),
-        "duration": 3.0,
+        "duration": vo_duration,
         "take_id": "take_visual_001",
     }]))
+    return db_path, store, asset_id, media_id
+
+
+def test_shared_edit_planner_invokes_and_persists_visual_director(
+    monkeypatch,
+    tmp_path,
+):
+    db_path, store, asset_id, media_id = make_visual_reel(tmp_path)
     director_calls = []
 
     def fake_compose(process_name, business_slug, dynamic, **kwargs):

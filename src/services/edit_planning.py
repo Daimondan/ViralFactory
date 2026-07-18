@@ -320,6 +320,7 @@ class EditPlanningService:
         """Plan a voice-led asset around its exact approved measured take."""
         from assembly import AssemblyRenderer
         from context_assembly import assemble_module_context
+        from feasibility_checks import run_feasibility_checks
         from llm_adapter import LLMAdapter
         from process_engine import compose_and_run
         from reel_production import (
@@ -440,6 +441,16 @@ class EditPlanningService:
         missing_render_config = [
             key for key in required_render_config if not render_config.get(key)
         ]
+        feasibility_config = render_config.get("feasibility") or {}
+        missing_render_config.extend(
+            f"feasibility.{key}"
+            for key in (
+                "vo_timeline_tolerance_seconds",
+                "visual_event_coverage_tolerance_seconds",
+                "motion_shortfall_ratio",
+            )
+            if feasibility_config.get(key) is None
+        )
         if missing_render_config:
             return ServiceResponse({
                 "error": (
@@ -528,6 +539,33 @@ class EditPlanningService:
             plan["segments"],
             compiled,
         )
+        feasibility = run_feasibility_checks(
+            plan=plan,
+            compliance_contract=compliance_contract,
+            vo_duration=vo_facts["duration"],
+            tolerance_s=float(
+                feasibility_config["vo_timeline_tolerance_seconds"]
+            ),
+            beats=enriched_beats,
+            vo_segments=vo_segments,
+            motion_durations=self._planned_motion_durations(
+                proposed.get("segments", []),
+                ingredients,
+            ),
+            event_coverage_tolerance_s=float(
+                feasibility_config["visual_event_coverage_tolerance_seconds"]
+            ),
+            motion_shortfall_ratio=float(
+                feasibility_config["motion_shortfall_ratio"]
+            ),
+        )
+        if not feasibility["feasible"]:
+            return ServiceResponse({
+                "status": feasibility["verdict"],
+                "message": feasibility["summary"],
+                "feasibility": feasibility,
+            }, 422)
+        plan["feasibility"] = feasibility
         platform_content = [{
             "platform": asset.get("platform", ""),
             "variant_type": asset.get("variant_type", ""),
@@ -627,6 +665,33 @@ class EditPlanningService:
         ):
             cue_ids.update(cue["cue_id"] for cue in compiled.get(key, []))
         return cue_ids
+
+    @staticmethod
+    def _planned_motion_durations(
+        segments: list[dict],
+        ingredients: list[dict],
+    ) -> dict[str, float]:
+        """Measure planned video time per beat without counting still fallbacks."""
+        video_ids = {
+            ingredient["id"]
+            for ingredient in ingredients
+            if ingredient.get("kind") == "video"
+        }
+        durations: dict[str, float] = {}
+        for segment in segments:
+            beat_ids = segment.get("beat_ids") or []
+            if segment.get("source") not in video_ids or not beat_ids:
+                continue
+            timeline_duration = float(segment.get("timeline_duration") or 0)
+            source_duration = max(
+                0.0,
+                float(segment.get("source_out") or 0)
+                - float(segment.get("source_in") or 0),
+            )
+            share = min(timeline_duration, source_duration) / len(beat_ids)
+            for beat_id in beat_ids:
+                durations[beat_id] = durations.get(beat_id, 0.0) + share
+        return durations
 
     @staticmethod
     def _render_source(ingredient_id: str) -> str:
