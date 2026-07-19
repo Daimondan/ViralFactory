@@ -461,6 +461,29 @@ class EditPlanningService:
                 beat["beat_id"]: beat["visual_events"]
                 for beat in directed["beats"]
             }
+            # F-009: Override source_policy for motion_graphic beats.
+            # The Visual Director doesn't know about media_type — it may
+            # assign generated_motion to beats the Writer marked as
+            # motion_graphic. Respect the Writer's choice: motion_graphic
+            # beats use generated_still, video beats use generated_motion.
+            raw_posts_for_mt = json.loads(asset.get("posts") or "[]")
+            beat_media_type = {}
+            for i, post in enumerate(raw_posts_for_mt):
+                if isinstance(post, dict):
+                    bid = post.get("beat_id") or f"b{i+1:02d}"
+                    visual = post.get("visual", {}) or {}
+                    beat_media_type[bid] = visual.get("media_type", "")
+            for beat_id, events in events_by_beat.items():
+                mt = beat_media_type.get(beat_id, "")
+                if mt == "motion_graphic":
+                    for event in events:
+                        if event.get("source_policy") == "generated_motion":
+                            event["source_policy"] = "generated_still"
+                elif mt == "video":
+                    for event in events:
+                        if event.get("source_policy") == "generated_still":
+                            event["source_policy"] = "generated_motion"
+
             enriched_beats = [
                 {**beat, "visual_events": events_by_beat[beat["beat_id"]]}
                 for beat in beats
