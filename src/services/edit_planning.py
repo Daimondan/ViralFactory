@@ -11,11 +11,24 @@ coverage, cue references, duration, no text mutation.
 
 import hashlib
 import json
+import logging
 import os
 from dataclasses import asdict, dataclass, field
 from typing import Optional
 
 from services import ServiceResponse
+
+logger = logging.getLogger(__name__)
+
+
+def _phase_from_beat_index(i: int, beats: list | None = None) -> str:
+    """Map a beat index to a default energy phase for the soundtrack mix.
+
+    The phases correspond to the energy curve config mapping:
+    intro → build → duck → lift → settle → settle.
+    """
+    phases = ["intro", "build", "duck", "lift", "settle", "settle"]
+    return phases[min(i, len(phases) - 1)]
 
 
 EDIT_PLAN_V2_SCHEMA = {
@@ -592,6 +605,139 @@ class EditPlanningService:
         plan["feasibility"] = feasibility
 
         soundtrack_contract_id = f"asset:{asset['id']}"
+
+        # ── VF-VS-510..513: Soundtrack discovery → ranking → auto-mix ──
+        # (DIVERGENCE-015: auto-apply-mix, not gate-before-mix)
+        # Discover music candidates, LLM-rank them, auto-mix the top pick
+        # under the VO. The operator reviews the final video with music
+        # already applied; alternatives are persisted for optional swapping.
+        soundtrack_ranking_result = None
+        soundtrack_mix_result = None
+        mixed_audio_path = None
+
+        try:
+            soundtrack_config = models_config.get("soundtrack", {})
+            if soundtrack_config:
+                from soundtrack_discovery import discover_soundtrack_candidates
+                from soundtrack_ranking import rank_soundtrack_candidates
+
+                # Build audio intent for discovery/ranking
+                disc_audio_intent = {
+                    "audio_intents": audio_intents,
+                    "content_summary": asset.get("content", "")[:500],
+                }
+
+                # Discover candidates
+                disc_result = discover_soundtrack_candidates(
+                    disc_audio_intent,
+                    draft.get("visual_direction"),
+                    soundtrack_config,
+                )
+                candidates = disc_result.get("candidates", [])
+
+                if candidates:
+                    # LLM ranking
+                    emotional_register_for_ranking = "neutral"
+                    # Extract from the existing soundtrack content contract
+                    # (the LLM planner would set this, but we need it first)
+                    beats_for_emotion = beats[:3] if beats else []
+                    for beat in beats_for_emotion:
+                        ai = beat.get("audio_intent") or {}
+                        if ai.get("mood"):
+                            emotional_register_for_ranking = ai["mood"]
+                            break
+
+                    ranking = rank_soundtrack_candidates(
+                        candidates=candidates,
+                        audio_intent=disc_audio_intent,
+                        visual_direction=draft.get("visual_direction"),
+                        vo_duration_s=vo_facts["duration"],
+                        emotional_register=emotional_register_for_ranking,
+                        config=soundtrack_config,
+                        models_config=models_config,
+                        db_path=self.db_path,
+                        config_dir=self.config_dir,
+                        modules_dir=self.modules_dir,
+                        prompts_dir=self.prompts_dir,
+                        business_slug=business_slug,
+                        business_config=business,
+                    )
+                    soundtrack_ranking_result = ranking
+
+                    # If we have a recommended track, auto-mix it
+                    recommended = ranking.get("recommended")
+                    if recommended and not ranking.get("vo_only_fallback"):
+                        # Find the candidate with the recommended audio_id
+                        rec_id = recommended.get("audio_id", "")
+                        rec_candidate = next(
+                            (c for c in candidates if c["audio_id"] == rec_id),
+                            None,
+                        )
+                        if rec_candidate and rec_candidate.get("download_url"):
+                            from soundtrack_mix import mix_soundtrack
+                            media_dir = os.path.join(
+                                "data", "media", str(asset["id"]),
+                            )
+                            mixed_audio_path = os.path.join(
+                                media_dir, "mixed_audio.aac",
+                            )
+
+                            # Build VO timeline for the energy curve
+                            vo_timeline_for_mix = [
+                                {
+                                    "start_sec": vt.get("start_sec", 0),
+                                    "end_sec": vt.get("end_sec", 5),
+                                    "energy_phase": _phase_from_beat_index(i, beats),
+                                }
+                                for i, vt in enumerate(
+                                    compiled.get("vo_timings", [])
+                                )
+                            ]
+
+                            mix_result = mix_soundtrack(
+                                vo_path=plan.get("audio", {}).get("vo", {}).get(
+                                    "path", ""
+                                ),
+                                bed_url=rec_candidate["download_url"],
+                                vo_timeline=vo_timeline_for_mix,
+                                energy_curve=None,
+                                config=soundtrack_config,
+                                output_path=mixed_audio_path,
+                            )
+                            soundtrack_mix_result = mix_result
+
+                            if not mix_result.get("errors"):
+                                # The mixed audio replaces the VO in the plan
+                                plan["audio"]["vo"]["path"] = mixed_audio_path
+                                plan["audio"]["vo"]["mixed_with_bed"] = True
+                                plan["audio"]["music"] = {
+                                    "stock_ref": f"bundle:{rec_id}",
+                                    "title": rec_candidate.get("title", ""),
+                                    "artist": rec_candidate.get("artist", ""),
+                                    "volume": 0.20,
+                                }
+                            else:
+                                logger.warning(
+                                    "Soundtrack mix failed: %s",
+                                    mix_result.get("errors"),
+                                )
+                                mixed_audio_path = None
+                else:
+                    logger.info(
+                        "No soundtrack candidates found (queries: %s, errors: %s)",
+                        disc_result.get("queries", []),
+                        disc_result.get("errors", []),
+                    )
+        except Exception as exc:
+            logger.warning("Soundtrack discovery/ranking/mix failed: %s", exc)
+            # Non-fatal — fall through to vo_only soundtrack plan
+
+        # Persist the ranking + alternatives on the plan for the operator UI
+        if soundtrack_ranking_result:
+            plan["soundtrack_ranking"] = soundtrack_ranking_result
+        if soundtrack_mix_result:
+            plan["soundtrack_mix_evidence"] = soundtrack_mix_result
+
         soundtrack_content_contract = {
             "contract_id": soundtrack_contract_id,
             "platform": asset.get("platform", ""),

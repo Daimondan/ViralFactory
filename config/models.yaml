@@ -87,10 +87,10 @@ voice_cloning:
     device: "cpu"                      # cpu | cuda (if GPU available)
     exaggeration: 0.5                 # 0.0-2.0 (ignored by Turbo, kept for full model fallback)
     cfg_weight: 0.5                    # 0.0-1.0 (ignored by Turbo, kept for full model fallback)
-    preferred_reference: "PTT-20240310-WA0003.wav"  # operator-calibrated clip (41s, 67Hz F0)
+    preferred_reference: "penni-bajan-accent-reference.wav"  # Bajan strong reference (36s) — Penni's voice, default voice id 4. Operator A/B/C test winner 2026-07-18.
     # Turbo ignores exaggeration/cfg_weight — uses its own internal voice matching.
     # Turbo gave better Bajan accent + deeper male voice in operator listening test.
-    # Reference: PTT-20240310-WA0003.wav (41s, 67Hz F0 — deepest male clip)
+    # Previous references: PTT-20240310-WA0003.wav (Daimon's voice, 41s), penni-clean-reference-20260718.wav (clean, 66s).
     # Models auto-download from HuggingFace on first use (~2 GB total, cached)
     # On CPU-only VPS: Turbo RTF ~7-8x (faster than full model's ~10-13x).
   # Gemini TTS fallback (preset voices only, no cloning)
@@ -313,3 +313,40 @@ buffer:
       id: "6a4168f95ab6d2f10680f598"
       name: "stackwellpennifold"
       service: "instagram"
+
+# ── Soundtrack discovery + ranking + mixing (VF-VS-510..515, DIVERGENCE-015) ──
+# Auto-discover music from commercial-safe catalogs, LLM-rank by mood/fit (80%)
+# + popularity (20%), auto-mix the top pick into the render. Operator reviews
+# the final video with music already applied; alternatives shown for swapping.
+# Auth: BUNDLE_SOCIAL_API_KEY + BUNDLE_TEAM_ID + PIXABAY_API_KEY env vars.
+soundtrack:
+  discovery:
+    sources:
+      - name: "bundle_instagram"
+        provider: "bundle.social"
+        api_key_env: "BUNDLE_SOCIAL_API_KEY"
+        team_id_env: "BUNDLE_TEAM_ID"
+      - name: "pixabay"
+        provider: "pixabay"
+        api_key_env: "PIXABAY_API_KEY"
+    min_duration_s: 30
+    require_preview_url: true
+    require_commercial_safe: true
+    max_candidates_per_source: 50
+  ranking:
+    mood_fit_weight: 0.80
+    popularity_weight: 0.20
+    max_candidates_to_llm: 30
+  mixing:
+    bed_target_loudness_lufs: -18
+    final_target_loudness_lufs: -16
+    ducking:
+      default_depth: 0.20
+      attack_s: 0.3
+      release_s: 0.5
+    energy_curve_mapping:
+      intro: 0.25
+      build: 0.35
+      duck: 0.18
+      lift: 0.40
+      settle: 0.35

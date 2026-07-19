@@ -444,6 +444,51 @@
             </div>
             {% endif %}
 
+            {# VF-VS-513: Soundtrack alternatives box — operator can switch music #}
+            {% if is_reel and asset.soundtrack_ranking and asset.soundtrack_ranking.recommended %}
+            <div class="soundtrack-alternatives-panel" style="margin: 12px 16px; background: #F5F2E9; border: 1px solid #D8D4C8; border-radius: 8px; padding: 12px;">
+                <div style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #8A857C; margin-bottom: 8px;">Soundtrack — Auto-Selected</div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span style="font-family: var(--font-serif); font-size: 1rem; font-weight: 700;">♪ {{ asset.soundtrack_ranking.recommended.title }}</span>
+                    <span style="color: #8A857C; font-size: 0.82rem;">— {{ asset.soundtrack_ranking.recommended.artist }}</span>
+                    <span class="badge badge-approved" style="font-size: 0.68rem;">Top pick</span>
+                </div>
+                {% if asset.soundtrack_ranking.recommended.rationale %}
+                <p style="font-size: 0.78rem; color: #6B655E; margin: 0 0 10px 0;">{{ asset.soundtrack_ranking.recommended.rationale }}</p>
+                {% endif %}
+
+                {% if asset.soundtrack_ranking.alternatives %}
+                <div style="font-size: 0.72rem; font-weight: 600; color: #8A857C; margin-bottom: 4px;">Alternatives (click to switch):</div>
+                {% for alt in asset.soundtrack_ranking.alternatives %}
+                <div style="display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid #E8E4D8;">
+                    <span style="font-size: 0.85rem;">♪ {{ alt.title }}</span>
+                    <span style="color: #8A857C; font-size: 0.78rem;">— {{ alt.artist }}</span>
+                    {% if alt.preview_url %}
+                    <a href="{{ alt.preview_url }}" target="_blank" style="font-size: 0.72rem; color: var(--accent); text-decoration: none;">Preview ↗</a>
+                    {% endif %}
+                    <button onclick="switchSoundtrack({{ asset.id }}, '{{ alt.audio_id }}')" style="font-size: 0.72rem; padding: 2px 8px; background: var(--accent); color: white; border: none; border-radius: 4px; cursor: pointer;">Switch</button>
+                </div>
+                {% if alt.trade_off %}
+                <p style="font-size: 0.72rem; color: #8A857C; margin: 0 0 4px 0;">{{ alt.trade_off }}</p>
+                {% endif %}
+                {% endfor %}
+                {% endif %}
+            </div>
+            <script>
+            function switchSoundtrack(assetId, audioId) {
+                if (!confirm('Switch to this track? The video will re-render with the new music.')) return;
+                fetch('/api/assets/' + assetId + '/soundtrack-switch', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({audio_id: audioId})
+                }).then(r => r.json()).then(d => {
+                    if (d.status === 'ok') { alert('Re-rendering with new track. Check back in ~2 min.'); location.reload(); }
+                    else { alert('Switch failed: ' + (d.error || 'unknown')); }
+                });
+            }
+            </script>
+            {% endif %}
+
             {# ── T10.7: Compliance & remediation history panel ── #}
             {% if has_final %}
             <div id="compliance-panel-{{ asset.id }}" class="compliance-panel" style="display: none;">

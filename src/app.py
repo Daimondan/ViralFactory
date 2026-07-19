@@ -6070,6 +6070,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
             # VF-VS-503: expose only the current persisted soundtrack contract.
             a["soundtrack_review"] = None
+            a["soundtrack_ranking"] = None
             if a["edit_plans"]:
                 from services.soundtrack_review import SoundtrackReviewService
 
@@ -6082,6 +6083,18 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 )
                 if review_result.ok:
                     a["soundtrack_review"] = review_result.payload
+
+                # VF-VS-513: extract soundtrack ranking + alternatives from the
+                # edit plan for the alternatives box in the review UI.
+                try:
+                    plan_json = json.loads(
+                        a["edit_plans"][0].get("plan_json") or "{}"
+                    )
+                    ranking = plan_json.get("soundtrack_ranking")
+                    if ranking:
+                        a["soundtrack_ranking"] = ranking
+                except (json.JSONDecodeError, KeyError, IndexError):
+                    pass
 
             # Build post_images mapping: index by post index → image dict or None.
             # Only posts whose image_prompt is not "none" should get an image.

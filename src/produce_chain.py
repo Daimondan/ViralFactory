@@ -345,9 +345,10 @@ class ProductionChain:
             self._step_media_plan(draft_id, card_id, business_slug, store)
             self._step_media_exec(draft_id, card_id, business_slug, store)
             self._step_edit_plan(draft_id, card_id, business_slug, store)
-            if not self._step_soundtrack_gate(draft_id, card_id, business_slug, store):
-                store.update_card_state(card_id, "awaiting_soundtrack_approval")
-                return
+            # VF-VS-513 (DIVERGENCE-015): Soundtrack is auto-mixed during edit
+            # planning (discovery → ranking → auto-mix). No separate gate —
+            # the operator reviews the final video with music already applied.
+            # The old awaiting_soundtrack_approval blocking is removed.
             self._step_render(draft_id, card_id, business_slug, store)
 
             # Success — card is ready for asset review
