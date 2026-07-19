@@ -918,25 +918,26 @@ class EditPlanningService:
         source_hash = self._compute_source_draft_hash(platform_content, beats)
 
         # ── Guardrail: distinct media coverage ──
-        # Every segment must have a distinct media source when the asset has
-        # distinct image prompts. If N prompts exist but the plan reuses fewer
-        # than N distinct sources, reject it — this was the root cause of the
-        # "one image for 41 seconds" defect. (QA-loop F-007)
+        # Every beat must have a distinct media source when the asset has
+        # distinct image prompts. If N prompts exist but the plan has fewer
+        # than N distinct media sources, reject it — this was the root cause
+        # of the "one image for 41 seconds" defect. (QA-loop F-007)
+        # Note: segments can outnumber beats (a beat may split into 2
+        # segments — e.g. video + still). The check is distinct sources >=
+        # distinct prompts, NOT distinct sources >= segments.
         segments = plan.get("segments", [])
         sources = [seg.get("source", "") for seg in segments]
         distinct_sources = set(sources)
         image_prompts_count = len(json.loads(asset.get("image_prompts") or "[]"))
         if (
             image_prompts_count > 1
-            and len(segments) > 1
-            and len(distinct_sources) < len(segments)
+            and len(distinct_sources) < image_prompts_count
         ):
             return ServiceResponse({
                 "status": "insufficient_media_coverage",
                 "message": (
-                    f"Edit plan has {len(segments)} segments but only "
-                    f"{len(distinct_sources)} distinct media source(s). "
-                    f"The asset has {image_prompts_count} image prompts — "
+                    f"Edit plan has {len(distinct_sources)} distinct media source(s) "
+                    f"but the asset has {image_prompts_count} image prompts — "
                     f"every beat needs its own visual. Reuse of the same "
                     f"image across beats is rejected."
                 ),
