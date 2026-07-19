@@ -8,6 +8,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-18
 
+### VF-VS-602 — Invoke beat-aware final visual evidence [LOGIC/FIX]
+
+**What:** Live `AssetReviewer.run_visual_inspection()` now calls `_extract_beat_aware_keyframes()` with the exact persisted edit plan instead of always selecting five generic frames. The existing mechanical extractor samples the first, middle, and last frame of every planned beat and both sides of each cut; when the plan has no usable timing it retains the generic extraction fallback.
+
+**Rationale:** A tested helper does not improve final compliance until the production visual-review method invokes it. Deriving evidence selection from persisted plan timing gives the vision judgment representative evidence for every beat and transition without adding visual judgment to Python.
+
+**Verification:** 6 focused tests include the live `run_visual_inspection()` call boundary; 41 related visual/skipped-evidence/artifact/shared-service tests pass. Full linked-worktree suite: `1,876 passed, 7 skipped`.
+
 ### VF-VS-504 — Invoke soundtrack-mix review in final compliance [LOGIC/FIX/OPS]
 
 **What:** `RenderReviewService.render_for_asset()` now carries the exact persisted soundtrack plan and server-verified gate decision into `render_and_review()`, which invokes deterministic soundtrack-mix review before Gate 3 readiness. `AssemblyRenderer` returns factual audio-strategy evidence. FFprobe/FFmpeg measure integrated loudness, true peak, silence, and audible VO windows. The review compares expected music/SFX IDs with source-bound render evidence and requires event-time windows, VO-to-bed measurements, source-sound proof, and successful VO execution as applicable. Results are attached to final review findings and missing evidence forces `needs_operator_decision`.

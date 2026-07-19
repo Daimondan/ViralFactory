@@ -665,11 +665,14 @@ class AssetReviewer:
             }
 
         # Extract keyframes
-        max_keyframes = review_config.get("max_keyframes", 5)
         keyframe_dir = os.path.join(os.path.dirname(video_path), f"review_keyframes_{media_id}")
         os.makedirs(keyframe_dir, exist_ok=True)
 
-        keyframes = self._extract_keyframes(video_path, keyframe_dir, max_keyframes)
+        keyframes = self._extract_beat_aware_keyframes(
+            video_path,
+            keyframe_dir,
+            plan=plan,
+        )
 
         if not keyframes:
             return {

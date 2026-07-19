@@ -110,5 +110,56 @@ def test_keyframes_include_cut_boundaries(reviewer, video_file, tmp_path):
     assert len(keyframes) >= 6
 
 
+def test_live_visual_inspection_uses_exact_plan_for_beat_aware_frames(
+    reviewer, video_file, tmp_path, monkeypatch
+):
+    """The production visual review must invoke beat-aware extraction."""
+    plan = {
+        "segments": [
+            {"source": "generated:1", "in": 0, "out": 2.0, "beat_id": "b01"},
+            {"source": "generated:2", "in": 0, "out": 4.0, "beat_id": "b02"},
+        ],
+    }
+    frame = tmp_path / "frame.jpg"
+    frame.write_bytes(b"frame")
+    received = []
+    reviewer.models_config = {
+        "asset_review": {
+            "enabled": True,
+            "vision_model": "test-vision",
+            "vision_api_key_env": "TEST_VISION_KEY",
+        }
+    }
+    monkeypatch.setenv("TEST_VISION_KEY", "not-a-real-key")
+    monkeypatch.setattr(
+        reviewer,
+        "_extract_beat_aware_keyframes",
+        lambda path, output_dir, plan=None, vo_segments=None: (
+            received.append(plan) or [(0, str(frame))]
+        ),
+    )
+    monkeypatch.setattr(
+        reviewer,
+        "_call_vision_model",
+        lambda *args, **kwargs: {
+            "verdict": "pass",
+            "issues": [],
+            "summary": "Beat-aware frames match.",
+        },
+    )
+
+    result = reviewer.run_visual_inspection(
+        video_file,
+        plan,
+        "approved content",
+        asset_id=1,
+        media_id=1,
+        business_slug="test-business",
+    )
+
+    assert result["verdict"] == "pass"
+    assert received == [plan]
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))

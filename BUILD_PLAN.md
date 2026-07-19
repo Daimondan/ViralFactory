@@ -234,7 +234,7 @@ The following tasks were marked complete but their acceptance criteria were met 
 ### Phase M13-F — False-green fixes
 
 - [x] VF-VS-601 **Skipped evidence blocks readiness (P0):** `asset_review.py` — `skipped` → `needs_operator_decision`, never `ready_for_operator`. — AC: skipped visual/transcript creates saved row and blocks readiness.
-- [~] VF-VS-602 **Re-opened for integration:** beat-aware extraction helper exists but has no production caller; live review still does not prove beat-aware evidence.
+- [x] VF-VS-602 **Integration closed:** live `AssetReviewer.run_visual_inspection()` now invokes the existing beat-aware extractor with the exact persisted edit plan. Final visual review samples first/middle/last frames for each planned beat plus both sides of cuts; plans without usable timing retain the existing generic fallback. — AC: 6 focused beat-aware tests including the production method, 41 related review/regression tests, full linked-worktree suite `1,876 passed, 7 skipped`.
 - [~] VF-VS-603 **Re-opened for integration:** deterministic checker exists but has no production caller.
 - [~] VF-VS-604 **Re-opened for integration:** CueCompiler supports transition intent in isolation, but the live EditPlanningService never invokes CueCompiler.
 
