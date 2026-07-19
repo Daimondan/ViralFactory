@@ -590,14 +590,23 @@ class EditPlanningService:
 
         # Map segments to media_type by beat_id (using enriched beats order)
         beat_ids_ordered = [beat.get("beat_id", "") for beat in enriched_beats]
-        video_ingredients = {
-            item["id"]: item for item in ingredients if item.get("kind") == "video"
+        # Ingredient IDs from inventory are 'asset_media:N' but segment sources
+        # are rendered as 'generated:N' by _render_source. Build lookup using
+        # the rendered format.
+        def _to_source(ingredient_id):
+            kind, ref_id = ingredient_id.split(":", 1)
+            aliases = {"asset_media": "generated", "capture_upload": "upload",
+                       "stock_cache": "stock", "stock_media": "stock"}
+            return f"{aliases.get(kind, kind)}:{ref_id}"
+
+        video_sources = {
+            _to_source(item["id"]): item for item in ingredients if item.get("kind") == "video"
         }
-        image_ingredients = {
-            item["id"]: item for item in ingredients if item.get("kind") == "image"
+        image_sources = {
+            _to_source(item["id"]): item for item in ingredients if item.get("kind") == "image"
         }
 
-        if beat_media_types and video_ingredients:
+        if beat_media_types and video_sources:
             for segment in proposed.get("segments", []):
                 beat_ids = segment.get("beat_ids", [])
                 if not beat_ids:
@@ -608,22 +617,22 @@ class EditPlanningService:
                     continue
                 # This is a video beat — check if the segment uses an image
                 current_source = segment.get("source", "")
-                if current_source in image_ingredients:
-                    # Find a video ingredient not already used by another segment
+                if current_source in image_sources:
+                    # Find a video source not already used by another segment
                     used_video_sources = {
                         s.get("source") for s in proposed.get("segments", [])
-                        if s.get("source") in video_ingredients
+                        if s.get("source") in video_sources
                         and s is not segment
                     }
                     available_videos = [
-                        vid_id for vid_id in video_ingredients
+                        vid_id for vid_id in video_sources
                         if vid_id not in used_video_sources
                     ]
                     if available_videos:
                         segment["source"] = available_videos[0]
                         segment["source_in"] = 0
                         segment["source_out"] = min(
-                            video_ingredients[available_videos[0]]["duration"],
+                            video_sources[available_videos[0]]["duration"],
                             float(segment.get("source_out") or 5),
                         )
 
