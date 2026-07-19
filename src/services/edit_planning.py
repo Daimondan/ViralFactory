@@ -739,9 +739,16 @@ class EditPlanningService:
                 }
 
                 # Discover candidates
+                # Parse visual_direction from JSON string if needed
+                vd = draft.get("visual_direction")
+                if isinstance(vd, str):
+                    try:
+                        vd = json.loads(vd)
+                    except (json.JSONDecodeError, TypeError):
+                        vd = {}
                 disc_result = discover_soundtrack_candidates(
                     disc_audio_intent,
-                    draft.get("visual_direction"),
+                    vd,
                     soundtrack_config,
                 )
                 candidates = disc_result.get("candidates", [])
@@ -761,7 +768,7 @@ class EditPlanningService:
                     ranking = rank_soundtrack_candidates(
                         candidates=candidates,
                         audio_intent=disc_audio_intent,
-                        visual_direction=draft.get("visual_direction"),
+                        visual_direction=vd,
                         vo_duration_s=vo_facts["duration"],
                         emotional_register=emotional_register_for_ranking,
                         config=soundtrack_config,
