@@ -166,8 +166,8 @@ def _derive_search_queries(
     """Derive search queries from the Writer's audio/visual intent.
 
     The Writer produces `visual_direction.music` with mood, genre, tempo.
-    We map those to search terms. No business values — the mapping is
-    structural (mood → keyword, genre → keyword).
+    We map those to short search terms (max 100 chars per Bundle.social API
+    limit). No business values — the mapping is structural.
     """
     queries = []
 
@@ -176,32 +176,41 @@ def _derive_search_queries(
     mood = music_block.get("mood", "")
     genre = music_block.get("genre", "")
 
-    if mood and genre:
-        queries.append(f"{mood} {genre}")
-    if mood:
-        queries.append(mood)
-    if genre:
-        queries.append(genre)
+    # Use short keywords — the full mood/genre strings can exceed the
+    # 100-char API limit. Extract the first few words.
+    def _short(s, max_words=3):
+        words = str(s).split()
+        return " ".join(words[:max_words])
+
+    mood_short = _short(mood)
+    genre_short = _short(genre)
+
+    if mood_short and genre_short:
+        queries.append(f"{mood_short} {genre_short}")
+    if mood_short:
+        queries.append(mood_short)
+    if genre_short:
+        queries.append(genre_short)
 
     # From beat audio_intent blocks
     intents = audio_intent.get("audio_intents", [])
     for intent in intents:
         ai = intent.get("audio_intent", {})
         if ai.get("mood") and ai["mood"] not in [q for q in queries]:
-            queries.append(ai["mood"])
+            queries.append(_short(ai["mood"]))
 
     # Fallback: if no queries derived, use a generic term
     if not queries:
         queries.append("instrumental")
 
-    # Deduplicate, limit to 6 queries
+    # Deduplicate, limit to 6 queries, truncate each to 90 chars (safe margin)
     seen = set()
     unique = []
     for q in queries:
-        ql = q.lower().strip()
+        ql = q.lower().strip()[:90]
         if ql and ql not in seen:
             seen.add(ql)
-            unique.append(q)
+            unique.append(q[:90])
     return unique[:6]
 
 
