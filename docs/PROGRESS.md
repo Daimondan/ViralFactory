@@ -9,6 +9,8 @@
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
+2026-07-19 — DIVERGENCE-016 filed: operator approved a top-level Inspiration surface; live Bundle.social/TikHub evidence, provider limitations, proposed read-only VF-INSP-001 acceptance criteria, and five architecture questions are awaiting architect ruling in `docs/inbox/BUILDER-NOTE-016-inspiration-center.md`. No Inspiration code or schema was added before review.
+
 2026-07-19 — VF-VS-604 complete: live measured-VO planning persists CueCompiler transition intent into render segments, blocks silent LLM cut overrides, applies beat-entry jobs once, and records unsupported fallbacks; 26 focused tests, 107 related tests, full suite 1,883 passed / 7 skipped.
 
 2026-07-18 — VF-VS-603 complete: final shared render review invokes deterministic caption/approved-VO integrity checks, persists evidence, blocks Gate 3 on missing/corrupt/mismatched text evidence, and avoids keyword false positives; 4 production tests, 37 focused/related tests, full suite 1,881 passed / 7 skipped.

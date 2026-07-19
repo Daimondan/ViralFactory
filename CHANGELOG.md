@@ -8,6 +8,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-19
 
+### DIVERGENCE-016 — Inspiration Center and trend discovery filed [STRATEGIC/STRUCTURE]
+
+**What:** Filed the operator-approved proposal for a top-level Inspiration workbench with separate Top Trending Audio and Top Trending Videos sections. The divergence records live Bundle.social and TikHub capability evidence, provider-specific limitations, proposed audio/video/snapshot boundaries, rights and stale-data rules, and the acceptance criteria for a read-only `VF-INSP-001` vertical slice. A concise architect request is in `docs/inbox/BUILDER-NOTE-016-inspiration-center.md`.
+
+**Rationale:** The requested top-level surface is absent from the Build Plan and changes the charter's role-based operator information architecture. Trend evidence also has different freshness, metrics, and rights semantics from the durable Source Bank and production soundtrack catalog. Recording these questions before adding routes or schema prevents Flask code from silently deciding architecture.
+
+**Verification:** The divergence cites authenticated live provider probes: Bundle.social Instagram audio and TikHub TikTok audio/video plus Instagram recommended Reels returned usable records; Bundle.social TikTok account access and TikHub Instagram Explore did not. No credentials, production code, database schema, paid generation, or publish behavior changed.
+
 ### QA-loop F-001 — Generate AI visuals when capture_required is empty [FIX/LOGIC]
 
 **What:** `MediaPlanningService.generate_for_asset` no longer short-circuits with "No missing captures — all fulfilled" when an asset carries unfulfilled `image_prompts`. When `capture_required` is empty (or all uploads fulfilled) but the asset has more `image_prompts` than `generated_images`, the service proceeds to the LLM media-plan path and surfaces the Writer image_prompts as the media to generate (one AI image per beat), so the edit planner has render-ready ingredients.
