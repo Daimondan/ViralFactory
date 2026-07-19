@@ -562,6 +562,56 @@ class EditPlanningService:
                 "errors": errors,
             }, 422)
 
+        # F-009: Post-process segments to prefer video ingredients for
+        # video beats. The LLM may pick the reference image instead of the
+        # generated video clip. For each segment on a beat with
+        # media_type=video, swap the source to the video ingredient if the
+        # current source is an image.
+        raw_posts_for_routing = json.loads(asset.get("posts") or "[]")
+        beat_media_types = {}
+        for i, post in enumerate(raw_posts_for_routing):
+            if isinstance(post, dict):
+                beat_id = post.get("beat_id", f"b{i+1:02d}")
+                visual = post.get("visual", {}) or {}
+                beat_media_types[beat_id] = visual.get("media_type", "")
+
+        video_ingredients = {
+            item["id"]: item for item in ingredients if item.get("kind") == "video"
+        }
+        image_ingredients = {
+            item["id"]: item for item in ingredients if item.get("kind") == "image"
+        }
+
+        if beat_media_types and video_ingredients:
+            for segment in proposed.get("segments", []):
+                beat_ids = segment.get("beat_ids", [])
+                if not beat_ids:
+                    continue
+                beat_id = beat_ids[0]
+                media_type = beat_media_types.get(beat_id, "")
+                if media_type != "video":
+                    continue
+                # This is a video beat — check if the segment uses an image
+                current_source = segment.get("source", "")
+                if current_source in image_ingredients:
+                    # Find a video ingredient not already used by another segment
+                    used_video_sources = {
+                        s.get("source") for s in proposed.get("segments", [])
+                        if s.get("source") in video_ingredients
+                        and s is not segment
+                    }
+                    available_videos = [
+                        vid_id for vid_id in video_ingredients
+                        if vid_id not in used_video_sources
+                    ]
+                    if available_videos:
+                        segment["source"] = available_videos[0]
+                        segment["source_in"] = 0
+                        segment["source_out"] = min(
+                            video_ingredients[available_videos[0]]["duration"],
+                            float(segment.get("source_out") or 5),
+                        )
+
         plan = self._build_render_plan(
             proposed=proposed,
             compiled=compiled,
