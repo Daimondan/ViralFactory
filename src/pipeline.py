@@ -1077,8 +1077,10 @@ class PipelineStore:
                 (state, json.dumps(production_error), ts, card_id),
             )
         else:
+            # Normal state advance — clear any stale production_error so the
+            # UI doesn't show an old failure on a healthy card. (QA-loop F-002)
             conn.execute(
-                "UPDATE idea_cards SET card_state = ?, updated_at = ? WHERE id = ?",
+                "UPDATE idea_cards SET card_state = ?, production_error = NULL, updated_at = ? WHERE id = ?",
                 (state, ts, card_id),
             )
         conn.commit()

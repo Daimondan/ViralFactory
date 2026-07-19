@@ -51,6 +51,22 @@
         <a href="/ideas?tab=queue" class="btn">+ New seed</a>
     </div>
 
+    {# F-004: Gate stat summary cards — same counts as home page #}
+    <div class="gate-stats">
+        <div class="gate-stat-card">
+            <p class="stat-label">Gate 1 · Ideas</p>
+            <p class="stat-num">{{ gate_counts.ideas }} <span class="stat-sub">awaiting your approval</span></p>
+        </div>
+        <div class="gate-stat-card">
+            <p class="stat-label">Gate 2 · Drafts</p>
+            <p class="stat-num">{{ gate_counts.drafts }} <span class="stat-sub">awaiting your review</span></p>
+        </div>
+        <div class="gate-stat-card">
+            <p class="stat-label">Gate 3 · Assets</p>
+            <p class="stat-num">{{ gate_counts.assets }} <span class="stat-sub">awaiting your preview</span></p>
+        </div>
+    </div>
+
     {# Pipeline tab bar #}
     <div class="tab-bar">
         <a href="/ideas?tab=queue" class="{% if active_tab == 'queue' %}tab-active{% endif %}">Ideas <span class="tab-count">{{ counts.new }}</span></a>

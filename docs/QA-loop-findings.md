@@ -23,20 +23,20 @@ Start: 2026-07-19
 - **Reproduction:** Card 49 failed at edit_plan (F-001). After retry succeeded and the card advanced to `awaiting_soundtrack_approval`, the `production_error` column still held the old `{"step":"edit_plan","error":"No usable visual media..."}` JSON.
 - **Expected:** A successful retry (or any state advance past the failed step) should clear `production_error` so the UI doesn't show a stale error on a healthy card.
 - **Actual:** `production_error` retains the failure record until overwritten by a new failure.
-- **Fix:** (pending)
+- **Fix:** `src/pipeline.py:update_card_state` — the `else` branch (normal state advance, no production_error arg) now sets `production_error = NULL`. Any successful transition clears the error. Test: `tests/test_qa_loop_minor_fixes.py::test_F002_*`. Commit (pending).
 
 ### F-003 — MINOR — Soundtrack decision API field name mismatch
 - **Surface:** `/api/assets/<id>/soundtrack-decision`
 - **Reproduction:** The endpoint reads `body.get("action")` but a natural operator/test call uses `"decision"`. Calling with `{"decision":"approved"}` returns `{"error":"Unsupported soundtrack decision"}` with no hint about the correct field.
 - **Expected:** Either accept both `action` and `decision`, or return a clear error naming the expected field.
 - **Actual:** Silent rejection — the operator sees an unhelpful error.
-- **Fix:** (pending)
+- **Fix:** `src/app.py:soundtrack_decision` — now reads `body.get("action") or body.get("decision")`. Test: `tests/test_qa_loop_minor_fixes.py::test_F003_*`. Commit (pending).
 
 ### F-004 — MINOR — /ideas page has no gate-stat summary cards
 - **Surface:** `/ideas`
 - **Reproduction:** The home page (`/`) shows Gate 1/2/3 stat cards with counts. The `/ideas` Pipeline page (where the operator actually works) shows only the nav-count badge and the card list — no at-a-glance gate summary.
 - **Expected:** The page the operator lives on should surface the same gate counts as home, so they don't have to bounce back to see what's waiting.
-- **Fix:** (pending)
+- **Fix:** `src/app.py:ideas_queue` computes `gate_counts` (same logic as home) and passes to template; `ideas.html` renders the same `gate-stats` / `gate-stat-card` HTML. Tests: `tests/test_qa_loop_minor_fixes.py::test_F004_*`. Commit (pending).
 
 ### F-005 — BLOCKER — Final render is cut off at the end; last 2.5s of VO lost
 - **Surface:** `/api/assets/<id>/render` → `src/assembly.py` xfade concat + `_mix_vo`
@@ -45,4 +45,4 @@ Start: 2026-07-19
 - **Actual:** Two compounding bugs:
   1. `src/assembly.py:469` — `has_transitions = any(t in ("crossfade", "slide", "whip") for t in transition_types)` triggers the xfade path when ANY segment has a non-cut transition. The xfade path then applies `xfade_map.get(trans_type, "fade")` to ALL transitions, including "cut" ones — defaulting them to 0.5s fade. With 6 segments (5 transitions: 4 cuts + 1 crossfade), that's 5 × 0.5s = 2.5s eaten from the timeline: 39.4s → 36.9s.
   2. `src/assembly.py:1258` — `_mix_vo` trims the VO to the (already too-short) video duration: `[1:a]atrim=0:{duration}`. The last 2.5s of VO (the CTA) is silently discarded.
-- **Fix:** (in progress)
+- **Fix:** `src/assembly.py:469-523` — cut transitions now use 0.001s xfade (negligible, ~5ms total) instead of 0.5s fade; only crossfade/slide/whip consume 0.5s. `src/assembly.py:_mix_vo` — VO is no longer trimmed to video duration; the video is extended via `tpad` to cover the full VO (master timeline). Tests: `tests/test_qa_loop_render_cutoff.py` (2 RED→GREEN with real ffmpeg). Commit (pending).

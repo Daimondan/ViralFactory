@@ -11,6 +11,7 @@ import os
 import json
 import hashlib
 import shutil
+import subprocess
 from datetime import datetime, timezone
 from flask import Flask, render_template, request, redirect, url_for, jsonify, send_from_directory
 
@@ -336,6 +337,16 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             response.headers['Expires'] = '0'
         return response
 
+    def _latest_draft_by_card(drafts):
+        """Map each idea card to its newest draft, independent of query ordering."""
+        latest = {}
+        for draft in drafts:
+            card_id = draft["idea_card_id"]
+            current = latest.get(card_id)
+            if current is None or draft["id"] > current["id"]:
+                latest[card_id] = draft
+        return latest
+
     # UX-1: Context processor — inject nav_counts + business_name into every template
     @app.context_processor
     def inject_nav_counts():
@@ -354,21 +365,29 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             store = PipelineStore(db_path=db_path)
             all_cards = store.list_idea_cards(business_slug)
             all_drafts = store.list_drafts(business_slug)
-            draft_by_card = {d["idea_card_id"]: d for d in all_drafts}
+            draft_by_card = _latest_draft_by_card(all_drafts)
             counts = {"new": 0, "ready_review": 0, "asset_ready": 0}
             for card in all_cards:
                 cs = card["card_state"]
+                draft = draft_by_card.get(card["id"])
+                if draft and draft["draft_state"] == "killed":
+                    continue
                 if cs == "new":
                     counts["new"] += 1
                 elif cs in ("writing", "draft_ready", "drafted"):
                     counts["ready_review"] += 1
                 elif cs in ("asset_ready", "assembling"):
+                    assets = store.list_assets(draft["id"]) if draft else []
+                    if assets and all(a["asset_state"] == "killed" for a in assets):
+                        continue
                     counts["asset_ready"] += 1
                 elif cs == "approved":
-                    draft = draft_by_card.get(card["id"])
                     if draft and draft["draft_state"] in ("draft_ready", "revised", "drafted"):
                         counts["ready_review"] += 1
                     elif draft and draft["draft_state"] == "shipped":
+                        assets = store.list_assets(draft["id"])
+                        if assets and all(a["asset_state"] == "killed" for a in assets):
+                            continue
                         counts["asset_ready"] += 1
                     else:
                         counts["ready_review"] += 1
@@ -428,15 +447,26 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
             # Build a grouped activity log: each idea gets one entry with sub-events
             all_cards = store.list_idea_cards(business_slug)
+            all_drafts = store.list_drafts(business_slug)
+            latest_draft_by_card = _latest_draft_by_card(all_drafts)
             grouped = {}  # {idea_title: {type, state, title, link, time, sub_events: []}}
 
             for card in all_cards:
                 title = card["idea"][:100]  # longer truncation, CSS handles overflow
                 cs = card["card_state"]
                 card_num = card.get("id", 0)
+                latest_draft = latest_draft_by_card.get(card_num)
+                latest_assets = store.list_assets(latest_draft["id"]) if latest_draft else []
+                pipeline_state = cs
+                if latest_draft and latest_draft["draft_state"] == "killed":
+                    pipeline_state = "killed"
+                elif latest_assets and all(
+                    asset["asset_state"] == "killed" for asset in latest_assets
+                ):
+                    pipeline_state = "killed"
 
                 # Count pipeline stages
-                if cs == "new":
+                if pipeline_state == "new":
                     gate_counts["ideas"] += 1
                     pipeline_counts["ideas"] += 1
                     decision_queue.append({
@@ -447,9 +477,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                         "link": "/ideas",
                         "gate_type": "gate1",
                     })
-                elif cs in ("writing", "draft_ready", "drafted"):
+                elif pipeline_state in ("writing", "draft_ready", "drafted"):
                     pipeline_counts["drafting"] += 1
-                    if cs in ("draft_ready", "drafted"):
+                    if pipeline_state in ("draft_ready", "drafted"):
                         gate_counts["drafts"] += 1
                         decision_queue.append({
                             "num": card_num,
@@ -459,14 +489,11 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                             "link": f"/create/draft/{card_num}",
                             "gate_type": "gate2",
                         })
-                elif cs in ("asset_ready", "assembling"):
+                elif pipeline_state in ("asset_ready", "assembling"):
                     pipeline_counts["assets"] += 1
-                    if cs == "asset_ready":
+                    if pipeline_state == "asset_ready":
                         gate_counts["assets"] += 1
-                        # find the draft id for link
-                        card_drafts = [d for d in store.list_drafts(business_slug) if d["idea_card_id"] == card["id"]]
-                        if card_drafts:
-                            latest_draft = max(card_drafts, key=lambda d: d.get("draft_version", 1))
+                        if latest_draft:
                             decision_queue.append({
                                 "num": card_num,
                                 "title": title,
@@ -475,7 +502,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                                 "link": f"/create/assets/{latest_draft['id']}",
                                 "gate_type": "gate3",
                             })
-                elif cs == "approved":
+                elif pipeline_state == "approved":
                     pipeline_counts["drafting"] += 1
                     gate_counts["drafts"] += 1
                     decision_queue.append({
@@ -486,7 +513,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                         "link": f"/create/draft/{card_num}",
                         "gate_type": "gate2",
                     })
-                elif cs == "shipped":
+                elif pipeline_state == "shipped":
                     pipeline_counts["published"] += 1
 
                 if title not in grouped:
@@ -498,11 +525,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                         "time": card.get("created_at", ""),
                         "sub_events": [],
                     }
-                # Check for drafts on this card — group assets under each draft
-                card_drafts = [d for d in store.list_drafts(business_slug) if d["idea_card_id"] == card["id"]]
-                # Only show the latest draft version to avoid repetition
-                if card_drafts:
-                    latest_draft = max(card_drafts, key=lambda d: d.get("draft_version", 1))
+                # Show only the newest draft and its assets to avoid repetition.
+                if latest_draft:
                     draft_sub = {
                         "type": "draft",
                         "state": latest_draft["draft_state"],
@@ -4478,11 +4502,39 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             "all": len(all_cards),
         }
 
+        # F-004: Gate stat summary cards — same counts as home page, so the
+        # operator doesn't have to bounce back to see what's waiting.
+        gate_counts = {"ideas": 0, "drafts": 0, "assets": 0}
+        all_drafts = store.list_drafts(business_slug)
+        latest_draft_by_card = {}
+        for d in all_drafts:
+            cid = d.get("idea_card_id")
+            if cid not in latest_draft_by_card:
+                latest_draft_by_card[cid] = d
+        for card in all_cards:
+            cs = card["card_state"]
+            card_num = card.get("id", 0)
+            latest_draft = latest_draft_by_card.get(card_num)
+            latest_assets = store.list_assets(latest_draft["id"]) if latest_draft else []
+            pipeline_state = cs
+            if latest_draft and latest_draft["draft_state"] == "killed":
+                pipeline_state = "killed"
+            elif latest_assets and all(
+                a["asset_state"] == "killed" for a in latest_assets
+            ):
+                pipeline_state = "killed"
+            if pipeline_state == "new":
+                gate_counts["ideas"] += 1
+            elif pipeline_state in ("draft_ready", "drafted", "approved"):
+                gate_counts["drafts"] += 1
+            elif pipeline_state == "asset_ready":
+                gate_counts["assets"] += 1
+
         return render_template("ideas.html",
             business_name=business_name, business_slug=business_slug,
             cards=cards, active_tab=active_tab, counts=counts_display,
             scope_labels=SCOPE_LABELS, platform_options=platform_options,
-            format_options=format_options)
+            format_options=format_options, gate_counts=gate_counts)
 
     def _run_idea_concept_and_treatment_stages(
         adapter, business_slug: str, business: dict, generation_vars: dict,
@@ -5795,6 +5847,11 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         elif action == "kill":
             store.update_draft_state(draft_id, "killed")
             reason = request.json.get("kill_reason", "")
+            store.update_card_state(
+                draft["idea_card_id"],
+                "killed",
+                kill_reason=reason or None,
+            )
             if reason:
                 store.add_feedback(
                     business_slug=business_slug,
@@ -6208,6 +6265,14 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         state_map = {"approve": "approved", "fix": "fix", "kill": "killed"}
         store.update_asset_state(asset_id, state_map[action])
+
+        if action == "kill":
+            draft = store.get_draft(asset["draft_id"])
+            sibling_assets = store.list_assets(asset["draft_id"])
+            if draft and sibling_assets and all(
+                sibling["asset_state"] == "killed" for sibling in sibling_assets
+            ):
+                store.update_card_state(draft["idea_card_id"], "killed")
         return jsonify({"status": "ok", "new_state": state_map[action]})
 
     # ── F4: Media generation (image + video) ──
@@ -6674,7 +6739,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         result = SoundtrackReviewService(app.config["DB_PATH"]).decide(
             asset_id=asset_id,
             edit_plan_id=plans[0]["id"],
-            action=str(body.get("action") or ""),
+            action=str(body.get("action") or body.get("decision") or ""),
             business_slug=business_slug,
             reason=body.get("reason"),
             replacement_plan_id=body.get("replacement_plan_id"),
@@ -7788,9 +7853,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             business_name = "Not configured"
 
         # Build draft lookup by idea_card_id
-        draft_by_card = {}
-        for d in drafts:
-            draft_by_card[d["idea_card_id"]] = d
+        draft_by_card = _latest_draft_by_card(drafts)
 
         # Build unified card list with state + provenance trail
         # UX-3: Writer only shows cards that have been approved (not new/killed/parked).
@@ -7805,14 +7868,16 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         for card in idea_cards:
             if card["card_state"] not in writer_eligible_states:
                 continue
+            draft = draft_by_card.get(card["id"])
+            if draft and draft["draft_state"] == "killed":
+                continue
             c = dict(card)
             c["idea_short"] = card["idea"][:80]
-            c["draft"] = draft_by_card.get(card["id"])
+            c["draft"] = draft
 
             # Provenance trail: which stages are approved
             trail = []
             trail.append({"stage": "Idea", "state": "approved" if card["card_state"] not in ("new", "killed", "parked") else card["card_state"], "label": "Idea approved"})
-            draft = draft_by_card.get(card["id"])
             if draft:
                 if draft["draft_state"] in ("draft_ready", "revised"):
                     trail.append({"stage": "Script", "state": "ready", "label": "Script ready for review"})
@@ -7896,26 +7961,27 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             business_name = "Not configured"
 
         # Build draft lookup by idea_card_id
-        draft_by_card = {}
-        for d in drafts:
-            draft_by_card[d["idea_card_id"]] = d
+        draft_by_card = _latest_draft_by_card(drafts)
 
         # Build unified card list — only cards that have shipped drafts or assets
         assembler_cards = []
         for card in idea_cards:
+            if card["card_state"] in ("killed", "parked"):
+                continue
             draft = draft_by_card.get(card["id"])
             if not draft:
                 continue
-            # Only show cards that are at or past the assembler stage
             if draft["draft_state"] != "shipped" and card["card_state"] not in ("assembling", "asset_ready", "published"):
                 continue
 
+            assets = store.list_assets(draft["id"])
+            if assets and all(a["asset_state"] == "killed" for a in assets):
+                continue
+            assets = [a for a in assets if a["asset_state"] != "killed"]
             c = dict(card)
             c["idea_short"] = card["idea"][:80]
             c["draft"] = draft
 
-            # Load assets for this draft
-            assets = store.list_assets(draft["id"])
             c["assets"] = assets
             c["asset_count"] = len(assets)
             c["approved_assets"] = [a for a in assets if a["asset_state"] == "approved"]
