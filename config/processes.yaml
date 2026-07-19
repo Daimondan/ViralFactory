@@ -193,7 +193,7 @@ processes:
 
   soundtrack_plan_v1:
     prompt_file: "assembly/soundtrack_plan_v1.md"
-    backend: "drafter"
+    backend: "default"
     schema: "SOUNDTRACK_PLAN_LLM_SCHEMA"
     playbook_type: "production"
     context_template: "Soundtrack plan v1 for asset {asset_id} | module_ctx: {module_prov}"

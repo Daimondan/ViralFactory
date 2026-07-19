@@ -8,6 +8,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-19
 
+### VF-VS-702 — Fail closed when soundtrack candidates are unavailable [FIX/LOGIC]
+
+**What:** Soundtrack Planning v1.1 now runs on the deterministic processing backend, forbids invented source/licence/cost facts, requires VO-only with rationale when no verified music candidates are supplied, and explicitly defines `ducking.envelope` as an array. Shared busy-state feedback now unhides its status container so planning failures remain visible to the operator.
+
+**Rationale:** Live Asset 8 planning failed twice after valid Visual Director and edit-plan output because the ambiguous soundtrack prompt produced a string envelope and fabricated music provenance. Atomic persistence correctly rejected both outputs, but the UI wrote the backend error inside a hidden element and appeared to reset silently.
+
+**Verification:** 80 focused process-registry, soundtrack-contract, provenance, production-integration, and operator-feedback tests pass.
+
 ### VF-VS-702 — Route the Reel operator action through shared services [FIX/STRUCTURE]
 
 **What:** The Reel asset card now plans through the shared Edit Planning route, pauses for the persisted soundtrack decision, and renders the exact approved plan through Render Review. The card no longer calls or polls the retired VO-led `/produce-reel` workflow, and stale soundtrack approval discovered at render time reloads the gate instead of showing a generic failure.

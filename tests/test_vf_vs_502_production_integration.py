@@ -278,7 +278,7 @@ def test_registered_soundtrack_process_logs_real_adapter_provenance(
 
     assert len(row["input_hash"]) == 64
     assert row["prompt_file"] == "assembly/soundtrack_plan_v1.md"
-    assert row["prompt_version"] == "1.0"
+    assert row["prompt_version"] == "1.1"
     assert row["model"] == "test-soundtrack-model"
     assert row["provider"] == "openai_compatible"
     assert json.loads(row["raw_output"]) == proposal

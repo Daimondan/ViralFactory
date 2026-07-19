@@ -41,6 +41,7 @@ function unbusyBtn(btn) {
 
 function setStatusLine(elem, text, isError) {
     if (!elem) return;
+    elem.style.display = 'block';
     if (!elem.id) {
         elem.id = 'status-' + Math.random().toString(36).slice(2, 9);
     }

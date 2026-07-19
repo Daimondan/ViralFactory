@@ -78,6 +78,13 @@ def test_prompt_requires_licence_provenance():
     assert "provenance" in content
 
 
+def test_prompt_fails_closed_without_verified_music_candidates():
+    content = open(_prompt_path()).read()
+    assert "<!-- version: 1.1 -->" in content
+    assert "If no verified music candidates are provided" in content
+    assert '"envelope": []' in content
+
+
 # ── Schema ───────────────────────────────────────────────────────────────────
 
 
@@ -112,7 +119,7 @@ def test_soundtrack_plan_registry_fields():
     proc = registry["processes"]["soundtrack_plan_v1"]
     assert proc["prompt_file"] == "assembly/soundtrack_plan_v1.md"
     assert proc["schema"] == "SOUNDTRACK_PLAN_LLM_SCHEMA"
-    assert proc["backend"] == "drafter"
+    assert proc["backend"] == "default"
 
 
 def test_soundtrack_plan_playbook_type_production():

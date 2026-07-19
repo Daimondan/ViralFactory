@@ -947,6 +947,7 @@ class TestFlaskRoutes:
         resp = client.get("/static/busy.js")
         assert resp.status_code == 200
         assert b"busyAction" in resp.data
+        assert b"elem.style.display = 'block';" in resp.data
 
     def test_draft_generate_visuals_endpoint_exists(self, tmp_path):
         from app import create_app
