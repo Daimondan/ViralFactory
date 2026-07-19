@@ -1100,8 +1100,16 @@ class EditPlanningService:
         ingredients: list[dict],
     ) -> dict[str, float]:
         """Measure planned video time per beat without counting still fallbacks."""
+        # Ingredient IDs are 'asset_media:N' but segment sources are rendered
+        # as 'generated:N'. Convert to the rendered format for matching.
+        def _to_source(ingredient_id):
+            kind, ref_id = ingredient_id.split(":", 1)
+            aliases = {"asset_media": "generated", "capture_upload": "upload",
+                       "stock_cache": "stock", "stock_media": "stock"}
+            return f"{aliases.get(kind, kind)}:{ref_id}"
+
         video_ids = {
-            ingredient["id"]
+            _to_source(ingredient["id"])
             for ingredient in ingredients
             if ingredient.get("kind") == "video"
         }
