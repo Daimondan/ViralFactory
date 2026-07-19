@@ -140,7 +140,7 @@ def test_prompt_file_exists():
 def test_prompt_file_has_version():
     content = open(_prompt_path()).read()
     assert "version:" in content
-    assert "1.0" in content
+    assert "1.1" in content
 
 
 def test_prompt_file_has_no_tenant_strings():

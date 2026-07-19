@@ -8,6 +8,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-19
 
+### VF-VS-702 — Enforce beat-local Visual Director timing during live proof [FIX/LOGIC]
+
+**What:** Visual Director prompt v1.1 now receives measured per-beat durations expressed only as local `0..duration` ranges instead of cumulative CueCompiler timestamps. The live edit-planning validator independently rejects events that begin away from local zero, exceed the measured beat duration, or have non-positive spans before edit planning continues.
+
+**Rationale:** The first fresh deployed Reel proof exposed a producer/consumer mismatch: prompt v1.0 received cumulative whole-piece VO timings, the LLM copied those values into later beats, and the structural validator accepted them before feasibility correctly failed closed. Visual-event `time_range` is constitutionally beat-local; correcting the prompt input and validator fixes the source without post-hoc output rewriting.
+
+**Verification:** 41 focused Visual Director and feasibility integration tests pass, including the exact cumulative-timestamp regression, malformed mixed-type fail-closed behavior, and production-call proof that every prompt beat starts at `0.0`.
+
 ### VF-VS-604 — Make compiled transition intent authoritative in live plans [LOGIC/FIX]
 
 **What:** Live measured-VO edit planning now derives each beat-entry render transition from the exact persisted `CueCompiler` transition cue rather than the LLM segment proposal. The compiled transition applies only to the first render segment entering that beat, so within-beat edit transitions are not overwritten. Unsupported transition requests now emit an explicit `cut` fallback while preserving the requested value and warning evidence.

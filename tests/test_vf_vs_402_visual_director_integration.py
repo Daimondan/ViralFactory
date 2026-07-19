@@ -33,6 +33,72 @@ def test_visual_director_rejects_invented_audience_copy():
     assert any("invents audience text" in error for error in errors)
 
 
+def test_visual_director_rejects_cumulative_timestamps_for_later_beats():
+    output = {"beats": [
+        {
+            "beat_id": "b01",
+            "visual_events": [{
+                "event_id": "ev_b01_1",
+                "time_range": {"start": 0.0, "end": 5.24},
+                "narrative_function": "action",
+                "source_policy": "generated_still",
+                "required_text": None,
+            }],
+        },
+        {
+            "beat_id": "b02",
+            "visual_events": [{
+                "event_id": "ev_b02_1",
+                "time_range": {"start": 5.24, "end": 11.32},
+                "narrative_function": "context",
+                "source_policy": "generated_still",
+                "required_text": None,
+            }],
+        },
+    ]}
+
+    errors = EditPlanningService.validate_visual_director_output(
+        output,
+        [
+            {"beat_id": "b01", "vo_text": "First approved beat."},
+            {"beat_id": "b02", "vo_text": "Second approved beat."},
+        ],
+        vo_durations_by_beat={"b01": 5.24, "b02": 20.0},
+    )
+
+    assert any("ev_b02_1" in error and "beat-local" in error for error in errors)
+
+
+def test_visual_director_malformed_mixed_start_types_fail_closed_without_crashing():
+    output = {"beats": [{
+        "beat_id": "b01",
+        "visual_events": [
+            {
+                "event_id": "ev_b01_1",
+                "time_range": {"start": "bad", "end": 1.0},
+                "narrative_function": "action",
+                "source_policy": "generated_still",
+                "required_text": None,
+            },
+            {
+                "event_id": "ev_b01_2",
+                "time_range": {"start": 1.0, "end": 2.0},
+                "narrative_function": "action",
+                "source_policy": "generated_still",
+                "required_text": None,
+            },
+        ],
+    }]}
+
+    errors = EditPlanningService.validate_visual_director_output(
+        output,
+        [{"beat_id": "b01", "vo_text": "Approved beat."}],
+        vo_durations_by_beat={"b01": 2.0},
+    )
+
+    assert errors
+
+
 def make_visual_reel(
     tmp_path,
     *,
@@ -143,7 +209,11 @@ def test_shared_edit_planner_invokes_and_persists_visual_director(
     assert result.status_code == 200
     assert director_calls[0][0:2] == ("visual_director_v1", "stackpenni")
     assert director_calls[0][2]["contract_beats"]
-    assert director_calls[0][2]["vo_timeline"]
+    assert json.loads(director_calls[0][2]["vo_timeline"]) == [{
+        "beat_id": "b01",
+        "duration_sec": 3.0,
+        "time_range": {"start": 0.0, "end": 3.0},
+    }]
     assert result.payload["plan"]["contract_beats"][0]["visual_events"][0][
         "event_id"
     ] == "ev_b01_1"

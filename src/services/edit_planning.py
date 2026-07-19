@@ -389,6 +389,23 @@ class EditPlanningService:
         enriched_beats = beats
         visual_director_provenance = None
         if any(beat.get("visual") for beat in beats):
+            visual_director_timeline = [
+                {
+                    "beat_id": timing["beat_id"],
+                    "duration_sec": round(
+                        float(timing["end_sec"]) - float(timing["start_sec"]),
+                        3,
+                    ),
+                    "time_range": {
+                        "start": 0.0,
+                        "end": round(
+                            float(timing["end_sec"]) - float(timing["start_sec"]),
+                            3,
+                        ),
+                    },
+                }
+                for timing in compiled["vo_timings"]
+            ]
             try:
                 directed, module_prov = compose_and_run(
                     "visual_director_v1",
@@ -399,7 +416,7 @@ class EditPlanningService:
                             beats, ensure_ascii=False, sort_keys=True,
                         ),
                         "vo_timeline": json.dumps(
-                            compiled["vo_timings"],
+                            visual_director_timeline,
                             ensure_ascii=False,
                             sort_keys=True,
                         ),
@@ -413,7 +430,14 @@ class EditPlanningService:
                 )
             except Exception as exc:
                 return ServiceResponse({"error": str(exc)}, 500)
-            director_errors = self.validate_visual_director_output(directed, beats)
+            director_errors = self.validate_visual_director_output(
+                directed,
+                beats,
+                vo_durations_by_beat={
+                    timing["beat_id"]: timing["duration_sec"]
+                    for timing in visual_director_timeline
+                },
+            )
             if director_errors:
                 return ServiceResponse({
                     "status": "invalid_visual_events",
@@ -710,8 +734,9 @@ class EditPlanningService:
     def validate_visual_director_output(
         output: dict,
         approved_beats: list[dict],
+        vo_durations_by_beat: dict[str, float] | None = None,
     ) -> list[str]:
-        """Reject missing beats, invalid events, and invented audience text."""
+        """Reject missing beats, invalid local timing, and invented copy."""
         from production_contract import validate_visual_events
 
         directed_beats = output.get("beats") if isinstance(output, dict) else None
@@ -733,15 +758,59 @@ class EditPlanningService:
             if text
         }
         for beat in directed_beats:
-            if not beat.get("visual_events"):
+            visual_events = beat.get("visual_events") or []
+            if not visual_events:
                 errors.append(
                     f"Beat '{beat.get('beat_id', '?')}' has no visual events"
                 )
-            for event in beat.get("visual_events") or []:
+            duration = (vo_durations_by_beat or {}).get(beat.get("beat_id"))
+            numeric_events = [
+                event
+                for event in visual_events
+                if not isinstance(
+                    (event.get("time_range") or {}).get("start"),
+                    bool,
+                )
+                and isinstance(
+                    (event.get("time_range") or {}).get("start"),
+                    (int, float),
+                )
+            ]
+            if duration is not None and numeric_events:
+                first_event = min(
+                    numeric_events,
+                    key=lambda event: (event.get("time_range") or {})["start"],
+                )
+                first_start = (first_event.get("time_range") or {}).get("start")
+                if (
+                    not isinstance(first_start, bool)
+                    and isinstance(first_start, (int, float))
+                    and abs(first_start) > 0.001
+                ):
+                    errors.append(
+                        f"Visual event '{first_event.get('event_id', '?')}' time_range "
+                        "must be beat-local and start at 0.0s"
+                    )
+            for event in visual_events:
                 required_text = event.get("required_text")
                 if required_text and required_text not in approved_text:
                     errors.append(
                         f"Visual event '{event.get('event_id', '?')}' invents audience text"
+                    )
+                time_range = event.get("time_range") or {}
+                start = time_range.get("start")
+                end = time_range.get("end")
+                if (
+                    duration is not None
+                    and not isinstance(start, bool)
+                    and isinstance(start, (int, float))
+                    and not isinstance(end, bool)
+                    and isinstance(end, (int, float))
+                    and (start < 0 or end > duration or end <= start)
+                ):
+                    errors.append(
+                        f"Visual event '{event.get('event_id', '?')}' time_range "
+                        f"must be beat-local within 0..{duration:.3f}s"
                     )
         return errors
 
