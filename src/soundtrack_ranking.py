@@ -145,8 +145,6 @@ def rank_soundtrack_candidates(
     adapter = LLMAdapter(
         models_config=models_config,
         db_path=db_path,
-        config_dir=config_dir,
-        modules_dir=modules_dir,
         prompts_dir=prompts_dir,
     )
 
