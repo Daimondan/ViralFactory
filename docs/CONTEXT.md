@@ -1,6 +1,6 @@
 # Context: ViralFactory
 
-> **This is an operational mirror of `docs/CHARTER-v3.7.md`.** It captures
+> **This is an operational mirror of `docs/CHARTER-v3.8.md`.** It captures
 > current shared language, workflows, and implementation state. It conforms
 > to the charter and BUILD_PLAN; where it conflicts, that conflict is a bug
 > or a new divergence to file — never a silent override.
@@ -12,8 +12,8 @@
 > **On change:** bump `updated_at` date, add/update a decision note in
 > `docs/decisions/` if the change is non-obvious.
 
-**Updated:** 2026-07-18 (AMENDMENT-010 ratified: operator-facing and autonomous production paths must use the same services; Visual Director and semantic visual events; explicit gated soundtrack plans; config/module-driven renderer styles and SFX; phrase-level captions; skipped evidence cannot pass. Charter v3.6 → v3.7.)
-**Conforms to:** `docs/CHARTER-v3.7.md` (v3.7 — incorporates DIVERGENCE-001, DIVERGENCE-002, AMENDMENT-003 staged content pipeline, AMENDMENT-004 treatment block, AMENDMENT-005 process compositions, AMENDMENT-006 Writer/Assembler split + four-role nav, AMENDMENT-007 Writer per-platform + Assembler media-only + AI review loop, DIVERGENCE-008 Postiz→Buffer swap, AMENDMENT-008 final-output compliance loop, AMENDMENT-009 assembler production-contract boundaries, DIVERGENCE-014 and AMENDMENT-010 visual + soundtrack pipeline and dual-path reconciliation)
+**Updated:** 2026-07-19 (AMENDMENT-011: rights-safe soundtrack auto-assembly and exact-artifact Gate 3 approval; AMENDMENT-012: Researcher-owned Inspiration evidence workbench with truthful trend semantics. Charter v3.7 → v3.8.)
+**Conforms to:** `docs/CHARTER-v3.8.md` (v3.8 — all prior amendments through AMENDMENT-010 remain in force; adds AMENDMENT-011 soundtrack discovery/rights/acquisition/approval boundaries and AMENDMENT-012 Inspiration observations, navigation, and explicit promotion boundaries)
 
 ---
 
@@ -95,7 +95,10 @@ AI work runs under **named profiles** — Researcher (ideation, source scouting,
 An Assembler-side, schema-validated production process that translates approved Writer `visual_intent` plus measured VO timings into concrete `visual_events[]`. It plans visual jobs; it never creates or revises audience-facing copy. It is registered in the Process Registry with `playbook_type: production`.
 
 ### Soundtrack plan
-A versioned production contract linked by `contract_id` that makes each Reel's audio mode explicit: `vo_only`, `music_bed`, `source_sound`, or `vo_plus_bed`. VO-only requires a rationale and explicit operator approval. Music and SFX acquisition require source/licence provenance; paid acquisition requires a fresh cost estimate; non-VO-only modes require a soundtrack preview gate.
+A versioned production contract linked by `contract_id` that makes each Reel's audio mode explicit: `vo_only`, `music_bed`, `source_sound`, or `vo_plus_bed`. The planner supplies search intent; configured adapters gather observations; an independent rights record determines whether an exact recording may be acquired and synchronized; only a non-empty, measured, hashed local artifact enters FFmpeg. Preview discovery/mixing may run automatically, but Gate 3 approves the exact active soundtrack-bearing asset. Switching track creates a new asset version and invalidates prior Gate 3 approval. VO-only shows its rationale at Gate 3. Paid acquisition still requires fresh cost approval before spend. Discovery API access is never licence evidence. (AMENDMENT-011)
+
+### Inspiration
+A top-level Researcher-owned operator workbench at `/inspiration`, not a fifth AI profile and not a living module. Scheduled jobs write tenant-scoped, append-only observations with provider, endpoint meaning, platform, region, exact metric/rank, and collection time; the page reads the database and remains useful when providers fail. “Trending” and “Top” are evidence claims: chart-backed audio may say “Trending audio,” while recommendation/seed feeds say “Video inspiration” or “Provider recommendations.” The first slice is read-only. Later Bookmark, Source Bank, experiment, module, and production paths are explicit and keep their own gates/contracts. No trend audio is production-safe without AMENDMENT-011 rights resolution.
 
 ## The 8 Living Modules
 
@@ -123,6 +126,11 @@ Sources Engine scouts per the person's seed sources + anti-examples
 ingests + scores every item against Source Criteria
 new sources enter status='new' → operator review → status='active'
         │
+        ▼
+INSPIRATION (parallel Researcher observatory)
+scheduled provider observations → truthful audio/video evidence labels
+read-only first slice; no automatic Source Bank/module/production transfer
+        │ explicit later promotion only
         ▼
 IDEAS  ◄── living modules ground idea generation
 cards from 3 origins: ai-originated · human-seeded · human-seeded-ai-developed
@@ -152,13 +160,14 @@ second-AI alignment check against approved idea + surviving HIGH-confidence AI t
         ▼
 ASSEMBLER CHAIN (survivors only — MEDIA ONLY, no audience-copy generation)
 Visual Director maps approved visual intent + measured VO to semantic visual events
-soundtrack plan declares VO/music/source-sound mode and passes its conditional preview gate
+soundtrack plan declares mode + search intent; rights-valid local media is preview-mixed automatically
 real images/video generated per Visual Style Guide + visual events
 phrase-level captions (3–6 words) and media assembled with approved Writer text
 renderer styles, fonts, colors, and SFX resolve from config/modules
         │
         ▼
-■ GATE 3 — QUICK, PER PLATFORM: approve / fix / kill, side by side
+■ GATE 3 — QUICK, PER PLATFORM: approve / fix / kill exact asset version, side by side
+  exact active soundtrack + rights evidence visible; track switch invalidates approval
         │
         ▼
 ■ GATE 4 — PUBLISH: go/hold + timing only
@@ -242,9 +251,11 @@ Scheduled research of what works in the wild: monitors top accounts/hashtags/cha
 18. **Production playbooks are Process Registry compositions, not onboarding cards.** Every playbook carries `playbook_type: onboarding | production | learning` metadata. The Onboarding UI filters mechanically on `playbook_type: onboarding` and fails closed on missing metadata. (Per AMENDMENT-009)
 19. **Operator-facing routes and the autonomous chain call the same production services.** Equivalent input must produce equivalent plans; route-specific production logic is a defect. (Per AMENDMENT-010)
 20. **Skipped evidence is not pass.** Any required visual, transcript, text-integrity, semantic-coverage, or soundtrack evidence that is missing or skipped yields `needs_operator_decision`, never `ready_for_operator`. (Per AMENDMENT-010)
-21. **Every Reel has an explicit soundtrack mode.** VO-only requires a rationale and operator approval; music/SFX require source/licence provenance and preview approval, with fresh cost approval before paid acquisition. (Per AMENDMENT-010)
+21. **Every Reel has an explicit soundtrack mode.** VO-only requires a visible rationale and exact-asset Gate 3 approval. Music/SFX require independent rights evidence, a validated local artifact, and exact-asset Gate 3 approval; a track switch invalidates prior approval. Fresh cost approval is required before paid acquisition. Discovery metadata is not a licence. (Per AMENDMENT-010, amended by AMENDMENT-011)
 22. **Renderer presentation values live in config/modules, not Python.** Overlay styles, fonts, colors, and SFX presets must vary by tenant with zero code edits. (Per AMENDMENT-010)
 23. **Captions are phrase-level.** Caption cues contain 3–6 words timed within the VO beat and must reconstruct the approved text exactly; full-beat captions are a defect. (Per AMENDMENT-010)
+24. **External evidence preserves meaning.** Provider, endpoint type, platform, region, metric/rank, and collection time travel with each observation. Recommendation, popularity, trend, usage rights, and creative interpretation are distinct. (Per AMENDMENT-012)
+25. **Inspiration never silently teaches or produces.** It is read-only in the first slice. Later promotion to Source Bank, experiments, modules, or production is explicit and retains the destination's gate/contract. (Per AMENDMENT-012)
 
 ## Edge Cases
 
@@ -280,7 +291,11 @@ AMENDMENT-010 is ratified. Component implementations for M13 exist, but the firs
 - Operator and autonomous entrypoints require a real behavioral equivalence test, not source inspection or a patched service response.
 - VF-VS-702/703 remain open until a genuinely fresh deployed Reel passes the complete path, mechanical evidence, and operator review.
 
-Charter v3.7 remains the binding target and `BUILD_PLAN.md` records the implementation order. Existing M13 component tests are not proof that the deployed path uses those components.
+Charter v3.8 is now the binding target. AMENDMENT-011 replaces the duplicate soundtrack micro-gate with automatic rights-valid preview assembly and Gate 3 approval of the exact mixed artifact. The implementation filed while DIVERGENCE-015 was pending contains blocking false-ready, rights, dual-contract, ranking-evidence, and dead-control defects; VF-VS-510..516 must close them before VF-VS-702/703. Existing component tests are not fresh deployed proof.
+
+## M14 Inspiration status
+
+AMENDMENT-012 is ratified as design only. M14 begins after M13 proof. VF-INSP-001..004 define the read-only first slice: strict evidence contracts and redacted fixtures; scheduled append-only collection; DB-only top-level UI; and separate deployed live-provider smoke. VF-INSP-005 adds explicit bookmark/promotion paths only after operator sign-off. No Inspiration code or schema existed at ratification.
 
 **Video generation handoff status (2026-07-10):** VH-1 through VH-6 corrections applied. Both video generation routes (`generate-clip` and `generate-media`) poll, download, and register AI-generated video in `asset_media` with valid file paths. Google/Veo bugs were fixed (aspect ratio, response nesting, download API key, env var). Duration is read from the LLM media plan. Zero-byte render files are cleaned up and output size validation is present. See `docs/reviews/REVIEW-video-generation-handoff-2026-07-09.md` and `docs/inbox/processed/CORRECTION-video-generation-handoff-v1.0.md`.
 
@@ -300,4 +315,4 @@ Charter v3.7 remains the binding target and `BUILD_PLAN.md` records the implemen
 
 ## System Diagram
 
-See `docs/diagrams/README.md` for the authoritative system overview (vertical-flow text + Mermaid + SVG), current as of Charter v3.6. The diagram reflects the staged pipeline: Gather → Ideas+Treatment (Gate 1, format+platforms locked, capture policy approved) → Writer Chain (per-platform text + AI review loop) → Gate 2 → Media Planner (provider-aware prompts, translates intent not redefines it) → Assembler Chain (media + compliance) → Gate 3 → Publish (Gate 4) → Learn.
+See `docs/diagrams/README.md` for the system overview (vertical-flow text + Mermaid + SVG). It predates Charter v3.8 and must be refreshed when M14 lands. The binding flow is: Gather plus parallel Inspiration observations → explicit promotion where chosen → Ideas+Treatment (Gate 1) → Writer Chain → Gate 2 → Media Planner/Assembler with rights-safe soundtrack assembly → Gate 3 exact-artifact approval → Publish (Gate 4) → Learn.

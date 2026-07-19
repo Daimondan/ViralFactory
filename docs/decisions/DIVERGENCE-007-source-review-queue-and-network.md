@@ -2,7 +2,9 @@
 
 **Filed:** 2026-07-04
 **Filed by:** Builder (Hermes)
-**Status:** Requires architect design
+**Status:** PARTIALLY RESOLVED — source review gate implemented; source-network design remains open (2026-07-19 clarification)
+
+> **Status clarification:** Items 1 and 2 are now implemented and governed by the hard `status='new'` review gate described in Charter v3.8. Item 3, the source-connection network, remains an unresolved design question. AMENDMENT-012's Inspiration evidence tables do not implement or silently resolve that network.
 
 ## Context
 

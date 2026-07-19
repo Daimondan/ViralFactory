@@ -2,9 +2,9 @@
 
 **Filed:** 2026-07-19
 **Filed by:** Builder (vf-coder)
-**Status:** PENDING — awaiting architect review
+**Status:** RATIFIED WITH BINDING CONDITIONS — see `AMENDMENT-012-inspiration-evidence-workbench.md` (2026-07-19)
 **Operator ruling:** Build Inspiration as a top-level operator surface, beginning with separate Top Trending Audio and Top Trending Videos sections
-**Related:** Charter v3.7 §§2–4, §15, §20; M6 outward research loop; `playbooks/viral-patterns-starter.md`; DIVERGENCE-015
+**Related:** Charter v3.8 §§2–4, §15, §20; M6 outward research loop; `playbooks/viral-patterns-starter.md`; DIVERGENCE-015
 **Tracking issue:** https://github.com/Daimondan/ViralFactory/issues/4
 
 ## Summary
@@ -16,7 +16,9 @@ The operator approved a new top-level **Inspiration** surface that discovers cur
 
 This is not a soundtrack picker and not a replacement for the Source Bank. It is an evidence-led creative discovery surface upstream of the existing idea queue. Audio records and video/example records remain separate but linkable.
 
-The requested top-level navigation item diverges from Charter v3.7 §3, which organizes the working system around Researcher, Writer, Assembler, and Analyst roles, and from the current five-group operator navigation. The Build Plan contains no Inspiration milestone or task. This file records the design question before implementation.
+> **Architect ruling:** Inspiration is a top-level Researcher-owned workbench, not a fifth profile. It uses scheduled collection and dedicated append-only evidence tables. Trend claims must match endpoint evidence: chart-backed audio may say “Trending audio”; recommendation/seed video feeds must say “Video inspiration,” not “Top Trending Videos.” The first slice is read-only and cannot feed ideation, modules, or production.
+
+The requested top-level navigation item diverged from Charter v3.7 §3, which organized the working system around Researcher, Writer, Assembler, and Analyst roles, and from the prior five-group operator navigation. AMENDMENT-012 resolves the divergence: operator workbenches are not a one-to-one list of AI profiles, and M14 now defines the implementation.
 
 ## Operator problem
 

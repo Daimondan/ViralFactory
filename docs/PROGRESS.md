@@ -5,11 +5,13 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-19
-**Current Phase:** M13 integration repair authorized by operator ruling. VF-AU-206 exact measured VO/CueCompiler edit planning is repaired on the shared path. Work continues top-down through behavioral parity; Visual Director + feasibility; soundtrack contract/planner/operator gate/review; beat-aware and text-integrity evidence; then VF-VS-702/703 with a genuinely fresh deployed Reel. Existing review-w8, review-episode-format, and M7 checkpoints remain pending.
+**Current Phase:** Charter v3.8 ratified. M13 is blocked on VF-VS-510..516: correct the pre-ruling soundtrack auto-apply implementation (rights evidence, one contract, local acquisition, evidence-honest ranking, immutable mixes, coherent Gate 3 UX), then prove VF-VS-702/703 on a genuinely fresh deployed Reel. M14 Inspiration is designed but must not begin before M13 proof. Existing review-w8, review-episode-format, and M7 checkpoints remain pending.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
-2026-07-19 — DIVERGENCE-016 filed: operator approved a top-level Inspiration surface; live Bundle.social/TikHub evidence, provider limitations, proposed read-only VF-INSP-001 acceptance criteria, and five architecture questions are awaiting architect ruling in `docs/inbox/BUILDER-NOTE-016-inspiration-center.md`. No Inspiration code or schema was added before review.
+2026-07-19 — Architect ratified DIVERGENCE-015 and DIVERGENCE-016 with binding conditions as AMENDMENT-011/012 → Charter v3.8. Soundtrack auto-assembly is allowed only with independent rights evidence and Gate 3 approval of the exact artifact; the existing pre-ruling implementation requires VF-VS-510..516. Inspiration is a top-level Researcher evidence workbench with append-only observations and truthful trend labels; M14 follows M13 proof. Review: `docs/reviews/REVIEW-inbox-divergences-015-016-2026-07-19.md`.
+
+2026-07-19 — DIVERGENCE-016 filed: operator approved a top-level Inspiration surface; live Bundle.social/TikHub evidence, provider limitations, and architecture questions were sent for architect review. No Inspiration code or schema was added before review. Resolved the same day by AMENDMENT-012.
 
 2026-07-19 — VF-VS-604 complete: live measured-VO planning persists CueCompiler transition intent into render segments, blocks silent LLM cut overrides, applies beat-entry jobs once, and records unsupported fallbacks; 26 focused tests, 107 related tests, full suite 1,883 passed / 7 skipped.
 
@@ -27,8 +29,10 @@
 | 3. Co-production loop | ✅ | T3.1–T3.12 all done. Idea cards, Ideas gate, awaiting-capture, drafter, human pass (chips+direct edit), assets fan-out, Gate 3, publish handoff, series spawning, experimental format debut, origin/format/scope threading. 310 tests. |
 | 4. Publish + metrics automation | ✅ | T4.1 Postiz adapter + API wiring. T4.2 Metrics collection + nightly cron. 471 tests. Postiz not yet installed on VPS — adapter ready. |
 | 5. Inward learning loop | ✅ | T5.1–T5.3 done. Proposal store, weekly proposal cron, gate queue UI, superseding, bulk approve/reject, Voice Profile update path. 492 tests. |
-| 6. Outward research loop | ⬜ | Continuous from v1 of this phase. |
+| 6. Outward research loop | ✅ | Existing scheduled source research complete; AMENDMENT-012 adds M14's operator-facing observation workbench without replacing M6. |
 | 7. Generalization proof | ⬜ | Real near-term but not blocking v1. |
+| 13. Visual + soundtrack pipeline | 🔧 | Core components exist; VF-VS-510..516 and fresh VF-VS-702/703 proof are blocking under AMENDMENT-011. |
+| 14. Inspiration evidence workbench | ⬜ | Design ratified by AMENDMENT-012; implementation follows M13 proof. |
 
 ## What's Done
 - [x] 2026-07-18: VF-VS-602 — Connected beat-aware frame extraction to live final visual inspection. `run_visual_inspection()` now passes the exact persisted edit plan into the existing deterministic extractor, which samples each beat’s first/middle/last frames and both sides of cuts; absent timing falls back to the existing generic sampler. Proof: production-method test plus 6 focused, 41 related, and full linked suite `1,876 passed, 7 skipped`.

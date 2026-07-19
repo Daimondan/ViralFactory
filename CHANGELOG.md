@@ -1436,3 +1436,29 @@ Compiled actionable research on what makes short-form video go viral, covering: 
 
 **Correction tasks:** VH-1 (fix generate-clip), VH-2 (fix generate-media poll/download/register), VH-3 (fix Google/Veo 5 bugs), VH-4 (0-byte cleanup + size validation), VH-5 (duration from plan_item), VH-6 (document render limits in CONTEXT.md). Blocking — builder must apply before new milestone work.
 
+---
+
+### 2026-07-19 — AMENDMENT-011: rights-safe soundtrack auto-assembly [STRATEGIC/LOGIC/FIX]
+
+**What:** Ratified DIVERGENCE-015 with binding conditions and advanced Charter v3.7 → v3.8. Soundtrack discovery, ranking, rights resolution, local acquisition, preview mixing, and alternatives may run automatically during Asset assembly; Gate 3 approves the exact active soundtrack-bearing artifact. A track switch creates a new version and invalidates earlier approval. Paid acquisition still requires fresh cost approval.
+
+**Why:** A separate soundtrack micro-gate duplicated Gate 3 once the operator could judge the real mixed asset. However, the implementation filed before architect approval contained unsafe assumptions and state contradictions: Bundle/Instagram results were hardcoded `commercial_safe`, an unconditional Boolean could skip the gate after failed work, ranking omitted the popularity evidence it claimed to use, the mixed track could disagree with the later soundtrack plan, and visible alternative controls had no route.
+
+**Rationale:** Reduce unnecessary operator clicks without weakening exact-piece approval or rights discipline. Discovery API access is not a synchronization/republication licence. Rights validity precedes ranking; popularity is only a bounded tie-breaker over comparable observations, not a universal 20% score. Added blocking BUILD_PLAN tasks VF-VS-510..516 and filed `docs/reviews/REVIEW-inbox-divergences-015-016-2026-07-19.md`. Existing code is audit evidence, not completion proof.
+
+### 2026-07-19 — AMENDMENT-012: Inspiration evidence workbench [STRATEGIC/STRUCTURE/LOGIC]
+
+**What:** Ratified DIVERGENCE-016 with binding conditions and added M14 (VF-INSP-001..005). Inspiration becomes a top-level Researcher-owned operator workbench between Home and Pipeline, backed by scheduled, tenant-scoped, append-only collection/item/observation evidence. The first slice is read-only; later bookmark, Source Bank, experiment, and module paths are explicit promotions.
+
+**Why:** ViralFactory lacked an in-product daily surface for current social-native examples. The existing Source Bank row model cannot preserve repeated rank/metric observations, and provider recommendation/seed endpoints do not justify a universal “Top Trending Videos” claim.
+
+**Rationale:** Operator surfaces are human jobs, not one tab per AI profile; no fifth profile is introduced. Trend labels must preserve provider, endpoint meaning, platform, region, metric/rank, and observation time. Chart-backed audio may say “Trending audio”; recommendation/seed video feeds say “Video inspiration” or “Provider recommendations.” Trend audio never becomes a production soundtrack without AMENDMENT-011 rights resolution. M14 begins after M13 fresh proof.
+
+### 2026-07-19 — Inbox architecture review and document alignment [FIX/OPS]
+
+**What:** Filed AMENDMENT-011, AMENDMENT-012, Charter v3.8, the combined inbox review, and actionable Build Plan tasks. Updated README, CONTEXT, PROGRESS, DIVERGENCE-007/015/016 statuses, and the architect→builder inbox handoff.
+
+**Why:** Both inbox notes required constitutional rulings rather than chat answers. CHANGELOG itself had also stopped at the 2026-07-09 audit while PROGRESS contained later implementation and design activity.
+
+**Rationale:** The charter is current, the operational mirror names the real blockers, and the builder has unambiguous top-down work. This entry records the architect decisions; the builder must backfill any omitted TECH/LOGIC/STRUCTURE/STRATEGIC/OPS/FIX decisions from the intervening implementation period when processing the handoff. No production code changed in this pass.
+

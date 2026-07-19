@@ -1,9 +1,7 @@
-# ViralFactory Charter — v3.7
-
-> **SUPERSEDED — 2026-07-19.** This version is superseded by `docs/CHARTER-v3.8.md`, which incorporates AMENDMENT-011 (rights-safe soundtrack discovery and exact-artifact Gate 3 approval) and AMENDMENT-012 (Inspiration evidence workbench). Preserved for history; do not use as the current constitution.
+# ViralFactory Charter — v3.8
 
 *The constitution of the system. Any AI or collaborator reads this before working on it.*
-*v3.7 — 2026-07-18 — supersedes v3.6. Incorporates AMENDMENT-010 (`docs/decisions/AMENDMENT-010-visual-soundtrack-pipeline.md`) — operator/autonomous dual-path reconciliation, semantic visual events, explicit soundtrack planning, config-driven renderer styles, phrase-level captions, and fail-closed evidence completeness. All prior amendments (DIVERGENCE-001, DIVERGENCE-002, AMENDMENT-003, AMENDMENT-004, AMENDMENT-005, AMENDMENT-006, AMENDMENT-007, DIVERGENCE-008, AMENDMENT-008, AMENDMENT-009) remain in force. Repo location: `docs/CHARTER-v3.7.md`.*
+*v3.8 — 2026-07-19 — supersedes v3.7. Incorporates AMENDMENT-011 (`docs/decisions/AMENDMENT-011-soundtrack-discovery-rights-and-asset-gate.md`) and AMENDMENT-012 (`docs/decisions/AMENDMENT-012-inspiration-evidence-workbench.md`) — rights-safe soundtrack discovery with exact-artifact Gate 3 approval, and a Researcher-owned Inspiration evidence workbench with truth-preserving trend semantics. All prior amendments (DIVERGENCE-001, DIVERGENCE-002, AMENDMENT-003, AMENDMENT-004, AMENDMENT-005, AMENDMENT-006, AMENDMENT-007, DIVERGENCE-008, AMENDMENT-008, AMENDMENT-009, AMENDMENT-010) remain in force. Repo location: `docs/CHARTER-v3.8.md`.*
 
 ## What this is
 
@@ -30,7 +28,7 @@ The system never *requires* the person to produce. It defaults to AI production 
 
 - **Laptop-first, mobile-friendly.** The primary operator works on a laptop (1280px+); every screen scales responsively to mobile. Mobile-friendliness is a hard requirement for future customers, not an afterthought — but it does not constrain the primary design.
 - **Voice available everywhere, assumed nowhere.** Every input point offers recording; typed text and chips are equal citizens.
-- **Evidence beside every AI claim.** Proposals, flags, and scores always show their supporting evidence.
+- **Evidence beside every AI claim.** Proposals, flags, scores, and trend labels always show their supporting evidence. Provider, endpoint meaning, region, metric, and observation time travel with external evidence; recommendation, popularity, trend, usage rights, and causal interpretation are never treated as synonyms.
 - **One-go intake.** All human materials are gathered in a single onboarding session; afterward the system returns to the person only for reactions, edits, and gate decisions.
 
 ## The repeatability rule
@@ -68,21 +66,23 @@ Eight versioned markdown documents per business in `modules/{business}/` — the
 3. **Draft** — AI, all modules loaded, self-audited against the Tells Checklist, **auto-fixes flagged items**, and passes a **second-AI alignment check** (max 3 rounds) before the human sees it at Gate 2. A draft is: **complete per-platform text in voice + light visual direction** (image prompts, reference notes, shot/format choices per the Visual Style Guide). The Writer produces all platform variants in one pass — the format and platforms come from the locked treatment, not re-derived in code. **No rendered images at this stage** — visual direction is text; render cost is only spent on survivors. *(Amendable: if co-production evidence shows drafts can't be judged without pixels, a single rough reference render per draft may be added via a future amendment — evidence first.)*
    **GATE (the human pass, unchanged from v3.1):** react via chips + text and/or direct edits (authoritative, highest Feedback Log weight); AI revises; **ship-forward or kill.** The self-audit flags and their fixes are shown to the human for transparency.
 4. **Assets** — for surviving drafts only: real images/video generated per the visual direction, media stitched with the approved per-platform text. **The Assembler does no audience-copy generation** — it receives finished per-platform text and semantic intent from the Writer and produces media, edit plans, and compliance evidence. The Media Planner owns provider-aware acquisition and generation prompts, translating approved semantic intent into production instructions. It may use schema-validated LLM judgment for media planning, edit planning, and compliance review, but may never generate or revise audience-facing content. (AMENDMENT-009) The format and platform set are locked from the treatment; the Assembler does not re-derive them. A **compliance contract** (LLM-authored alongside the edit plan) defines every required narrative beat and its planned representation. After render, a **final-output compliance review** checks the rendered asset against the approved script and contract. **A bounded remediation loop (max 3 rounds, config-driven cost cap) automatically fixes safe-to-fix defects** (plan timing, media prompts, audio mixing, render mechanics) — but never modifies approved text. If the approved content cannot fit the format, the system escalates to `needs_operator_decision` rather than silently truncating. The operator sees the full remediation history: what changed, why the loop stopped, and per-beat coverage evidence. (AMENDMENT-008)
-   A **Visual Director** step (Assembler-side, schema-validated LLM) translates the Writer's `visual_intent` + measured VO timings into `visual_events[]` — concrete visual jobs within each beat. A **soundtrack plan** (parallel contract) makes audio intent explicit: every Reel has a `mode` (`vo_only`, `music_bed`, `source_sound`, `vo_plus_bed`); VO-only requires a rationale and explicit operator approval. The operator gates the soundtrack preview before any music/SFX acquisition. (AMENDMENT-010)
-   **GATE (quick, per platform):** approve / fix / kill per variant, side by side.
+   A **Visual Director** step (Assembler-side, schema-validated LLM) translates the Writer's `visual_intent` + measured VO timings into `visual_events[]` — concrete visual jobs within each beat. A **soundtrack plan** (parallel contract) makes audio intent explicit: every Reel has a `mode` (`vo_only`, `music_bed`, `source_sound`, `vo_plus_bed`); VO-only requires a rationale. Rights-valid discovery, local acquisition, and preview mixing may run automatically during assembly. Discovery metadata never implies synchronization/republication rights; only a non-empty local artifact with a current rights snapshot can enter FFmpeg. (AMENDMENT-010, amended by AMENDMENT-011)
+   **GATE (quick, per platform):** approve / fix / kill per exact variant, side by side. Gate 3 approval binds the active soundtrack-bearing asset version and its evidence. Switching soundtrack creates a new version and invalidates the prior approval. Paid acquisition requires fresh cost approval before spend; cost approval is not Gate 3 approval. (AMENDMENT-011)
 5. **Publish** — **every piece passes human approval before posting. No auto-publish, ever, at any trust level. Hard rule.** Go/hold + timing only; everything upstream is already approved. Approved pieces flow to Buffer for scheduling, posting, and metrics. *(Postiz→Buffer swap per DIVERGENCE-008, operator confirmed.)*
 6. **Learn** — two loops (below)
 7. **Improve** — gate-approved proposals update modules; every future draft inherits them
 
 Gate intensity tapers: Ideas is rigorous, Draft is the deep human pass, Assets is quick, Publish is go/hold. All four feed the same async gate queue (DIVERGENCE-001 rules apply: age visible, superseding, no pressure mechanics).
 
-The operator-facing navigation is organized by four roles (Researcher, Writer, Assembler, Analyst) that map to the pipeline gates and AI profiles (AMENDMENT-006):
-| Role | Nav label | Route | AI Profile | What happens here |
-|---|---|---|---|---|
-| Researcher | Researcher (Ideas) | `/ideas` | researcher | Gate 1: approve/kill/park idea cards |
-| Writer | Writer (Script) | `/create` | drafter | Gate 2: review draft, edit, ship or kill |
-| Assembler | Assembler (Studio) | `/assemble` | drafter | Gate 3: review per-platform assets, approve/fix/kill |
-| Analyst | Analyst (Learnings) | `/published` | analyst | Gate 4: publish, metrics, learning loops |
+The system retains four AI responsibilities — Researcher, Writer, Assembler, Analyst — but operator navigation is organized by human jobs, not one tab per profile. Inspiration is a Researcher-owned workbench, not a fifth profile. The primary groups are `Home · Inspiration · Pipeline · Knowledge · Results · Setup`; Pipeline contains Ideas, Drafting, Assets, and Publish/Results transitions. (AMENDMENT-006, clarified by AMENDMENT-012)
+
+| Operator surface | Primary route | AI owner | What happens here |
+|---|---|---|---|
+| Inspiration | `/inspiration` | researcher | Read current external creative observations; no automatic promotion |
+| Pipeline · Ideas | `/ideas` | researcher | Gate 1: approve/kill/park idea cards |
+| Pipeline · Drafting | `/create` | drafter/writer | Gate 2: review draft, edit, ship or kill |
+| Pipeline · Assets | `/assemble` | assembler production processes | Gate 3: review exact per-platform asset versions, approve/fix/kill |
+| Results / Publish | `/published` | analyst | Gate 4: go/hold, metrics, learning loops |
 
 ## Provenance requirement
 
@@ -92,7 +92,7 @@ The operator-facing navigation is organized by four roles (Researcher, Writer, A
 
 **Inward loop** — generated on a schedule (weekly): results + Feedback Log (direct edits weighted highest) → specific proposed module updates with evidence and exact diffs.
 
-**Outward loop — continuous from v1, not deferred.** Scheduled research of the domain: monitors the sources/channels/queries the Sources Engine maintains, pulls top performers, analyzes hook/structure/format/emotion/pacing — **as hypotheses, never facts**. Findings flow to the Source Bank (self-growing), proposed module updates, and the **Experiments Queue** (untried formats become deliberate experiments; results feed the inward loop — exploration built in, the cure for the convergence trap).
+**Outward loop — continuous from v1, not deferred.** Scheduled research of the domain: monitors the sources/channels/queries the Sources Engine maintains and writes append-only external observations with provider, endpoint meaning, platform, region, metric, and time. The Inspiration workbench renders those observations without converting recommendation into trend or trend into rights. Researcher analysis of hook/structure/format/emotion/pacing is stored **as hypotheses, never facts**. Nothing flows automatically from Inspiration: explicit operator actions create Source Bank candidates, experiment proposals, or module proposals, each retaining evidence and its existing gate. (AMENDMENT-012)
 
 **The Gate is a persistent asynchronous queue,** not a scheduled sitting. Proposals accumulate; the person clears them when ready. Rules:
 - Every card shows its age; staleness is always visible.
@@ -135,6 +135,9 @@ The operator-facing navigation is organized by four roles (Researcher, Writer, A
 - **The operator-facing route and the autonomous chain must call the same services.** Two code paths producing different outputs from the same input is a defect. (AMENDMENT-010)
 - **Skipped evidence is not pass.** `ready_for_operator` requires all required evidence present and non-skipped. Missing evidence → `needs_operator_decision`. (AMENDMENT-010)
 - **Every Reel has an explicit soundtrack mode.** VO-only requires a rationale and operator approval. Silent VO-only is not valid. (AMENDMENT-010)
+- **Soundtrack discovery evidence is not a licence.** Only rights-valid, locally acquired, hashed media may enter the renderer. Gate 3 approves the exact active soundtrack-bearing asset; changing the track creates a new version and invalidates prior approval. Paid acquisition requires fresh cost approval before spend. (AMENDMENT-011)
+- **External observation semantics are immutable evidence.** Provider, endpoint meaning, platform, region, metric, rank, and observation time travel with a claim. Recommendation, popularity, measured trend, production rights, and creative interpretation remain distinct. (AMENDMENT-012)
+- **Inspiration never silently teaches or produces.** It is a Researcher-owned evidence workbench. Bookmarking does not ground ideation; Source Bank, experiment, module, and soundtrack paths require explicit promotion and their own contracts/gates. (AMENDMENT-012)
 - **Renderer styles, fonts, colors, and SFX presets come from config/modules, not Python.** Two tenants must render differently with zero Python edits. (AMENDMENT-010)
 - **Captions are phrase-level (3–6 words), timed within the beat.** Full-beat captions are a defect. (AMENDMENT-010)
 
