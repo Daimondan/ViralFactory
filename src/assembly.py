@@ -437,14 +437,23 @@ class AssemblyRenderer:
                 else:
                     # Video source — may or may not have audio.
                     # Check if it has audio; if not, add silent audio for concat.
+                    # F-009: If the video clip is shorter than the segment
+                    # duration (e.g. 5s Kling clip for an 8s beat), extend
+                    # by holding the last frame via tpad.
                     has_audio = self._has_audio_stream(src_path)
+                    src_dur = self._get_duration(src_path)
+                    needs_tpad = (src_dur > 0 and duration > src_dur + 0.1)
+                    tpad_vf = ""
+                    if needs_tpad:
+                        tpad_vf = f",tpad=stop_mode=clone:stop_duration={duration - src_dur:.3f}"
+                    vf_str = f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1{tpad_vf}"
                     if has_audio:
                         cmd = [
                             "ffmpeg", "-y",
                             "-ss", str(in_pt),
                             "-i", src_path,
                             "-t", str(duration),
-                            "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                            "-vf", vf_str,
                             "-c:v", "libx264", "-pix_fmt", "yuv420p",
                             "-c:a", "aac",
                             "-r", "30",
@@ -456,9 +465,9 @@ class AssemblyRenderer:
                             "ffmpeg", "-y",
                             "-ss", str(in_pt),
                             "-i", src_path,
-                            "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+                            "-f", "lavfi", "-i", f"anullsrc=channel_layout=stereo:sample_rate=44100",
                             "-t", str(duration),
-                            "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                            "-vf", vf_str,
                             "-map", "0:v:0", "-map", "1:a:0",
                             "-c:v", "libx264", "-pix_fmt", "yuv420p",
                             "-c:a", "aac",

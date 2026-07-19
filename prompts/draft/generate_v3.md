@@ -101,10 +101,12 @@ For video formats, each frame in the `posts` array MUST be an object with these 
     "animation": "fade-in | word-by-word-sync | slide-in-from-left | typewriter"
   },
   "visual": {
+    "media_type": "video | motion_graphic",
     "shot_type": "medium close-up talking head | over-the-shoulder | tight close-up | wide establishing",
     "movement": "static | slow push-in | whip pan | pull-back",
     "b_roll": "none | description of B-roll insert (e.g. '1s cut to phone screen showing AI chat')",
-    "image_prompt": "Generation-ready prompt: subject, composition, style anchors from Visual Style module, aspect ratio, lighting"
+    "image_prompt": "Generation-ready prompt: subject, composition, style anchors from Visual Style module, aspect ratio, lighting",
+    "video_prompt": "When media_type=video: describe a 5-second motion clip — the subject, action, camera movement, and mood. This is what the video generator produces."
   },
   "transition_in": "cut | crossfade | slide | whip",
   "sfx": [
@@ -122,6 +124,10 @@ For video formats, each frame in the `posts` array MUST be an object with these 
 - `label` and `vo_text` are REQUIRED on every frame
 - `text_on_screen` is optional per frame. When used, it must perform one function: hook, orientation, accessibility caption, emphasis, proof, reframe, or CTA. Do not add decorative text merely to fill a frame.
 - `visual.image_prompt` is REQUIRED for reels — the Assembler generates media from this
+- `visual.media_type` is REQUIRED for reels — choose `video` or `motion_graphic`:
+  - `video`: the beat shows a person, place, or action that benefits from motion (talking head, hands working, market scene, walking). The media planner generates a 5-second video clip. You MUST also provide `visual.video_prompt`.
+  - `motion_graphic`: the beat is an abstract concept, data visualization, text emphasis, or visual metaphor. The media planner generates a still image + the renderer applies Ken Burns motion + text overlays.
+- `visual.video_prompt` is REQUIRED when `media_type=video` — describe the 5-second motion clip.
 - `transition_in` is REQUIRED for reels — the Assembler cuts segments together using this
 - `sfx` may be empty `[]` if no SFX for this frame
 - `music` is required only when the frame changes an established audio treatment. Voice-only, meaningful original sound, and intentional silence are valid choices.

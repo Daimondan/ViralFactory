@@ -297,6 +297,11 @@ class MediaAdapter:
         Generate an image. Supports fal.ai (reference-conditioned) and
         OpenRouter (text-only) providers.
 
+        Multi-provider fallback: if the primary image generator fails after
+        retries, try the next configured generator. This prevents the
+        "5 of 6 images failed" defect where a transient FAL error left the
+        pipeline with insufficient media coverage. (QA-loop F-008)
+
         Args:
             reference_images: List of local file paths to use as reference
                              (fal providers only). Files are uploaded to fal
@@ -309,22 +314,81 @@ class MediaAdapter:
         """
         model = model or self.media_config.get("image_default", "google/gemini-3.1-flash-image")
 
-        # Check if this is a fal provider
-        fal_gen = self._resolve_fal_image_generator(model)
-        if fal_gen:
-            return self._generate_image_fal(
-                prompt=prompt, asset_id=asset_id, model=model,
-                fal_gen=fal_gen, aspect_ratio=aspect_ratio,
-                context=context, business_slug=business_slug,
-                owner_type=owner_type, reference_images=reference_images,
-            )
+        # Try the primary generator, then fall back to others
+        image_gens = self.media_config.get("image_generators", [])
+        tried_models = set()
+        # Build the ordered list: primary first, then others
+        models_to_try = [model]
+        for gen in image_gens:
+            gen_name = gen.get("name", "")
+            if gen_name and gen_name not in tried_models:
+                models_to_try.append(gen_name)
 
-        # Fall back to OpenRouter path (existing code)
-        return self._generate_image_openrouter(
-            prompt=prompt, asset_id=asset_id, model=model,
-            aspect_ratio=aspect_ratio, context=context,
-            business_slug=business_slug, owner_type=owner_type,
-        )
+        last_error = None
+        for try_model in models_to_try:
+            if try_model in tried_models:
+                continue
+            tried_models.add(try_model)
+            try:
+                # Check if this is a fal provider
+                fal_gen = self._resolve_fal_image_generator(try_model)
+                if fal_gen:
+                    return self._generate_image_fal_with_retry(
+                        prompt=prompt, asset_id=asset_id, model=try_model,
+                        fal_gen=fal_gen, aspect_ratio=aspect_ratio,
+                        context=context, business_slug=business_slug,
+                        owner_type=owner_type, reference_images=reference_images,
+                    )
+                # Fall back to OpenRouter path (existing code)
+                return self._generate_image_openrouter(
+                    prompt=prompt, asset_id=asset_id, model=try_model,
+                    aspect_ratio=aspect_ratio, context=context,
+                    business_slug=business_slug, owner_type=owner_type,
+                )
+            except MediaAdapterError as e:
+                last_error = e
+                if try_model != models_to_try[-1]:
+                    pass  # try next provider
+                continue
+
+        raise last_error or MediaAdapterError("All image generators failed")
+
+    def _generate_image_fal_with_retry(
+        self,
+        prompt: str,
+        asset_id: int,
+        model: str,
+        fal_gen: dict,
+        aspect_ratio: str,
+        context: str,
+        business_slug: str,
+        owner_type: str,
+        reference_images: list,
+    ) -> dict:
+        """Generate an image via fal.ai with retry + backoff.
+
+        Retry once after 2s, then 4s. Most transient FAL failures
+        (rate limits, server errors) recover on the second attempt.
+        (QA-loop F-008)
+        """
+        delays = [0, 2, 4]  # initial try, retry 1, retry 2
+        last_error = None
+        for attempt, delay in enumerate(delays):
+            if delay > 0:
+                time.sleep(delay)
+            try:
+                return self._generate_image_fal(
+                    prompt=prompt, asset_id=asset_id, model=model,
+                    fal_gen=fal_gen, aspect_ratio=aspect_ratio,
+                    context=context, business_slug=business_slug,
+                    owner_type=owner_type, reference_images=reference_images,
+                )
+            except MediaAdapterError as e:
+                last_error = e
+                if attempt < len(delays) - 1:
+                    pass  # retry
+                continue
+        raise last_error
 
     def _generate_image_fal(
         self,

@@ -381,10 +381,12 @@ DRAFT_SCHEMA = {
                                         "visual": {
                                             "type": "object",
                                             "properties": {
+                                                "media_type": {"type": "string"},  # video | motion_graphic
                                                 "shot_type": {"type": "string"},  # medium close-up, over-the-shoulder, etc.
                                                 "movement": {"type": "string"},  # static, slow push-in, whip pan
                                                 "b_roll": {"type": "string"},  # none or description
                                                 "image_prompt": {"type": "string"},  # generation-ready prompt for this frame
+                                                "video_prompt": {"type": "string"},  # 5-second motion clip description (when media_type=video)
                                             },
                                         },
                                         "transition_in": {"type": "string"},  # cut | crossfade | slide | whip

@@ -357,18 +357,34 @@ class MediaPlanningService:
         )
         # F-001 (QA-loop): when there are no missing captures but the asset
         # has unfulfilled image_prompts, surface those prompts as the media
-        # the plan must generate (AI images for each beat).
+        # the plan must generate. Route by media_type: video beats use the
+        # video generator (Kling/Veo), motion_graphic beats use image gen.
+        # (F-009: mix of video + motion graphics per beat)
         if missing:
             missing_captures_text = "\n".join(
                 f"{index}. {task}" for index, task in enumerate(missing)
             )
         elif prompts_unfulfilled:
+            # Read posts to get media_type + video_prompt per beat
+            posts = json.loads(asset.get("posts") or "[]")
+            beat_lines = []
+            for i, prompt in enumerate(asset_image_prompts):
+                post = posts[i] if i < len(posts) and isinstance(posts[i], dict) else {}
+                visual = post.get("visual", {}) or {}
+                media_type = visual.get("media_type", "motion_graphic")
+                video_prompt = visual.get("video_prompt", "")
+                if media_type == "video" and video_prompt:
+                    beat_lines.append(
+                        f"{i}. [VIDEO] {video_prompt} "
+                        f"(also provide image_prompt: {prompt})"
+                    )
+                else:
+                    beat_lines.append(f"{i}. [IMAGE] {prompt}")
             missing_captures_text = (
-                "No operator captures required. Generate one AI image per "
-                "Writer image_prompt to cover every beat:\n"
-                + "\n".join(
-                    f"{i}. {prompt}" for i, prompt in enumerate(asset_image_prompts)
-                )
+                "No operator captures required. Generate media for every beat. "
+                "Beats marked [VIDEO] need a 5-second video clip (use ai_video). "
+                "Beats marked [IMAGE] need a static image (use ai_image):\n"
+                + "\n".join(beat_lines)
             )
         else:
             missing_captures_text = ""
@@ -580,6 +596,35 @@ class MediaPlanningService:
         resolved = _resolve_video_generator_with_fallback(generator, media_config)
         if resolved.get("fell_back"):
             result["fallback_used"] = resolved["name"]
+
+        # F-009: For image-to-video generators (Kling, Veo), generate a
+        # reference image first from the image_prompt, then animate it.
+        # This produces a coherent starting frame for the motion clip.
+        source_image = None
+        video_mode = None
+        for vg in media_config.get("video_generators", []):
+            if vg.get("name") == resolved.get("name"):
+                video_mode = vg.get("mode", "")
+                break
+
+        if video_mode == "image_to_video":
+            # Generate a reference image from the plan_item's image_prompt
+            image_prompt = plan_item.get("image_prompt") or plan_item.get("generation_prompt", "")
+            if image_prompt:
+                try:
+                    ref_image = media_adapter.generate_image(
+                        prompt=image_prompt,
+                        asset_id=asset_id,
+                        aspect_ratio="9:16",
+                        context=f"Reference image for video generation, asset {asset_id}",
+                        business_slug=business_slug,
+                    )
+                    source_image = ref_image["path"]
+                    result["reference_image"] = source_image
+                except Exception as e:
+                    # If image gen fails, try text-to-video without a reference
+                    pass
+
         submitted = media_adapter.submit_video(
             prompt=prompt,
             asset_id=asset_id,
@@ -589,6 +634,8 @@ class MediaPlanningService:
             provider=resolved.get("provider"),
             context=f"Media plan AI generation ({generator}) for asset {asset_id}",
             business_slug=business_slug,
+            source_image=source_image,
+            mode=video_mode,
         )
         external_job_id = submitted.get("external_job_id")
         if not external_job_id:
