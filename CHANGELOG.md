@@ -6,6 +6,16 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-19
+
+### VF-VS-604 — Make compiled transition intent authoritative in live plans [LOGIC/FIX]
+
+**What:** Live measured-VO edit planning now derives each beat-entry render transition from the exact persisted `CueCompiler` transition cue rather than the LLM segment proposal. The compiled transition applies only to the first render segment entering that beat, so within-beat edit transitions are not overwritten. Unsupported transition requests now emit an explicit `cut` fallback while preserving the requested value and warning evidence.
+
+**Rationale:** The live planner already invoked `CueCompiler` after VF-AU-206, but `_build_render_plan()` discarded transition cues and trusted a parallel LLM field. That allowed a proposed cut to silently override Writer-approved crossfade or hold intent. The deterministic cue is the authoritative contract; the LLM remains responsible only for its narrative reason and within-beat edit choices.
+
+**Verification:** 26 focused compiler/live-edit-planning tests include an adversarial LLM cut, persisted-plan proof, cut/crossfade/hold jobs, unsupported fallback evidence, and multi-segment beat boundaries. 107 related compiler/visual/feasibility/assembly tests pass. Full linked-worktree suite: `1,883 passed, 7 skipped`.
+
 ## 2026-07-18
 
 ### VF-VS-603 — Invoke deterministic text-integrity final review [LOGIC/FIX]

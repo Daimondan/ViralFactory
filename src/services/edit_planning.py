@@ -816,9 +816,27 @@ class EditPlanningService:
     ) -> dict:
         render_segments = []
         timeline_start = 0.0
+        transition_by_beat = {
+            cue.get("beat_id"): (cue.get("metadata") or {}).get("transition_in")
+            for cue in compiled.get("overlays", [])
+            if cue.get("cue_type") == "transition" and cue.get("beat_id")
+        }
+        entered_beat_ids = set()
         for segment in proposed.get("segments", []):
             duration = float(segment.get("timeline_duration") or 0)
             timeline_end = timeline_start + duration
+            beat_ids = segment.get("beat_ids", [])
+            first_beat_id = beat_ids[0] if beat_ids else None
+            transition_in = (
+                (
+                    transition_by_beat.get(first_beat_id)
+                    if first_beat_id not in entered_beat_ids
+                    else None
+                )
+                or segment.get("transition")
+                or "cut"
+            )
+            entered_beat_ids.update(beat_ids)
             overlays = []
             for cue in compiled.get("captions", []) + compiled.get("overlays", []):
                 if cue.get("cue_type") == "transition":
@@ -857,7 +875,7 @@ class EditPlanningService:
                 "ingredient_id": segment["source"],
                 "in": float(segment.get("source_in") or 0),
                 "out": float(segment.get("source_out") or duration),
-                "transition_in": segment.get("transition") or "cut",
+                "transition_in": transition_in,
                 "overlays": overlays,
                 "sfx": [],
             })

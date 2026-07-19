@@ -113,12 +113,14 @@ class CueCompiler:
                     start_sec=vo_timing.start_sec,
                     end_sec=vo_timing.end_sec,
                     metadata={
-                        "transition_in": transition_in,
+                        "transition_in": "cut",
+                        "requested_transition": transition_in,
                         "warning": (
                             f"Unsupported transition '{transition_in}' — "
                             f"defaulting to 'cut' with this warning"
                         ),
                         "unsupported": True,
+                        "fallback": True,
                     },
                 ))
                 continue

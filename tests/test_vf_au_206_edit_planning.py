@@ -137,8 +137,8 @@ def test_generate_for_asset_compiles_exact_measured_vo_and_persists_contract(
                     "source_out": 2.75,
                     "timeline_duration": 2.75,
                     "cue_ids": ["vo_b02"],
-                    "transition": "crossfade",
-                    "transition_reason": "connects the payoff",
+                    "transition": "cut",
+                    "transition_reason": "LLM incorrectly requested a cut",
                     "audio_contribution": "vo",
                 },
             ],
@@ -182,6 +182,12 @@ def test_generate_for_asset_compiles_exact_measured_vo_and_persists_contract(
     assert plan["audio"]["vo"]["duration_sec"] == 6.0
     assert plan["canvas"]["duration_target"] == 6.0
     assert plan["compiled_cues"]["text_hash"] == compiled["text_hash"]
+    transition_cues = {
+        cue["beat_id"]: cue["metadata"]["transition_in"]
+        for cue in plan["compiled_cues"]["overlays"]
+        if cue["cue_type"] == "transition"
+    }
+    assert transition_cues == {"b01": "cut", "b02": "crossfade"}
     assert [segment["beat_ids"] for segment in plan["segments"]] == [["b01"], ["b02"]]
     assert plan["segments"][1]["transition_in"] == "crossfade"
     assert all(segment["source"].startswith("generated:") for segment in plan["segments"])
@@ -201,6 +207,7 @@ def test_generate_for_asset_compiles_exact_measured_vo_and_persists_contract(
     saved_plan = json.loads(saved["plan_json"])
     assert saved_plan["audio"]["vo"]["take_id"] == "take_exact_001"
     assert saved_plan["canvas"]["duration_target"] == 6.0
+    assert saved_plan["segments"][1]["transition_in"] == "crossfade"
 
 
 def test_generate_for_asset_stops_before_llm_when_complete_vo_is_missing(

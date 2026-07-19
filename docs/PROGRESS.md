@@ -4,10 +4,12 @@
 > blocked, or changed. Any agent should be able to read this and know
 > exactly where we are.
 
-**Last Updated:** 2026-07-18
+**Last Updated:** 2026-07-19
 **Current Phase:** M13 integration repair authorized by operator ruling. VF-AU-206 exact measured VO/CueCompiler edit planning is repaired on the shared path. Work continues top-down through behavioral parity; Visual Director + feasibility; soundtrack contract/planner/operator gate/review; beat-aware and text-integrity evidence; then VF-VS-702/703 with a genuinely fresh deployed Reel. Existing review-w8, review-episode-format, and M7 checkpoints remain pending.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
+
+2026-07-19 — VF-VS-604 complete: live measured-VO planning persists CueCompiler transition intent into render segments, blocks silent LLM cut overrides, applies beat-entry jobs once, and records unsupported fallbacks; 26 focused tests, 107 related tests, full suite 1,883 passed / 7 skipped.
 
 2026-07-18 — VF-VS-603 complete: final shared render review invokes deterministic caption/approved-VO integrity checks, persists evidence, blocks Gate 3 on missing/corrupt/mismatched text evidence, and avoids keyword false positives; 4 production tests, 37 focused/related tests, full suite 1,881 passed / 7 skipped.
 
