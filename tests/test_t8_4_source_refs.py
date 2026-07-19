@@ -201,4 +201,4 @@ class TestPromptSourceDigestFormat:
         """Legacy combined prompt reflects the affordance-selection redesign."""
         with open(os.path.join(os.path.dirname(__file__), "..", "prompts", "ideas", "generate_v1.md")) as f:
             first_line = f.readline().strip()
-        assert "2.0" in first_line
+        assert "2.1" in first_line

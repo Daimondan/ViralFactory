@@ -1,4 +1,4 @@
-<!-- version: 1.0 -->
+<!-- version: 1.1 -->
 # Idea Treatment Selection
 
 The creative concepts below are locked. Choose how each one should be expressed without changing its claim, sources, or voice.
@@ -45,7 +45,9 @@ For each treatment:
 3. Set `constraint_source` to `user_request` for platform-constrained or exact-format requests; otherwise use `llm_selected`.
 4. Explain `selection_reason` through the particular idea's expressive needs, audience experience, native mechanics, evidence, limitations, and production feasibility.
 5. In open mode, record up to two genuine `alternatives_considered`. In exact-format mode, use an empty list; the user already decided.
-6. Add specific `capture_required` tasks only where the treatment actually needs them.
+6. Add specific `capture_required` tasks only for real material the operator must supply because its reality is part of the evidence, identity, product, or lived action.
+   - Do not list production outputs as capture_required: voiceover, captions, music, edits, and generated media are created later by the production pipeline.
+   - Do not require generic context that downstream production may generate or source without impersonating real evidence. Leave `capture_required` empty for those visuals.
 7. Keep `reuse` optional. There is no obligation to produce for both X and Instagram.
 8. In `rationale`, explain scope and source contributions as well as the format decision.
 9. Existing guide entries use `experimental: false`. A new format requires `experimental: true` and a complete `format_spec`.

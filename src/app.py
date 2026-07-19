@@ -5130,7 +5130,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     @app.route("/ideas/<int:card_id>/capture")
     def capture_page(card_id):
-        """T3.3: Awaiting-capture state UI — capture task list + upload flow."""
+        """Show non-blocking real-capture tasks for an idea card."""
         business_slug = _get_business_slug()
         if not business_slug:
             return "Business not configured", 500
@@ -5139,6 +5139,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         card = store.get_idea_card(card_id)
         if not card:
             return "Card not found", 404
+        if card["business_slug"] != business_slug:
+            return "Card does not belong to this business", 403
 
         treatment = json.loads(card.get("treatment") or "{}")
         capture_required = treatment.get("capture_required", [])
@@ -5157,7 +5159,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     @app.route("/api/ideas/<int:card_id>/capture-upload", methods=["POST"])
     def capture_upload(card_id):
-        """T3.3: Upload capture material for an awaiting-capture card."""
+        """Store real capture without changing the card's Gate 1 state."""
         business_slug = _get_business_slug()
         if not business_slug:
             return jsonify({"error": "Business not configured"}), 500
@@ -5166,6 +5168,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         card = store.get_idea_card(card_id)
         if not card:
             return jsonify({"error": "Card not found"}), 404
+        if card["business_slug"] != business_slug:
+            return jsonify({"error": "Card does not belong to this business"}), 403
 
         # Accept text-based capture (paste) or file upload
         content = request.json.get("content", "").strip() if request.is_json else ""
@@ -5192,24 +5196,14 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 channel="capture_upload",
             )
 
-        # Record upload against the card
+        # Record upload against the card without mutating its approval state.
         store.add_capture_upload(card_id, material_id)
-
-        # Check if all capture tasks are fulfilled
-        if store.check_capture_fulfilled(card_id):
-            store.update_card_state(card_id, "capture_fulfilled")
 
         return jsonify({"status": "ok", "material_id": material_id})
 
     @app.route("/api/ideas/<int:card_id>/generate-capture", methods=["POST"])
     def generate_capture_media(card_id):
-        """Generate missing capture material using the AI creative director.
-
-        Analyzes the idea, visual style, and missing capture tasks, then generates
-        style-consistent media (images via the configured image generator).
-        Each generated image is registered as a capture upload, fulfilling the
-        capture task.
-        """
+        """Fail closed: generated media cannot fulfill required real capture."""
         business_slug = _get_business_slug()
         if not business_slug:
             return jsonify({"error": "Business not configured"}), 500
@@ -5218,91 +5212,15 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         card = store.get_idea_card(card_id)
         if not card:
             return jsonify({"error": "Card not found"}), 404
-
-        treatment = json.loads(card.get("treatment") or "{}")
-        capture_required = treatment.get("capture_required") or []
-        uploads = json.loads(card.get("capture_uploads") or "[]")
-        missing = capture_required[len(uploads):] if len(uploads) < len(capture_required) else []
-
-        if not missing:
-            return jsonify({"status": "ok", "message": "No missing captures", "fulfilled_count": 0})
-
-        try:
-            config = load_all(app.config["CONFIG_DIR"])
-            models_config = config["models"]
-        except ConfigError as e:
-            return jsonify({"error": f"Config error: {e}"}), 500
-
-        # Assemble visual style context
-        from context_assembly import assemble_module_context
-        module_vars, module_prov = assemble_module_context(
-            "assembly/media_plan_v1.md", business_slug,
-            db_path=app.config["DB_PATH"], modules_dir="modules",
-        )
-
-        visual_style = module_vars.get("module_visual_style", "")
-        business_name = module_vars.get("business_name", "")
-
-        # Get the idea text and format
-        idea_text = card.get("idea", "")
-        format_name = treatment.get("format", {}).get("format_name", "")
-
-        from media_adapter import MediaAdapter, MediaAdapterError
-        media_adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
-
-        # Get default image model from config
-        media_config = models_config.get("media", {})
-        image_default = media_config.get("image_default", "nano-banana-2")
-
-        results = []
-        fulfilled = 0
-
-        for i, task in enumerate(missing):
-            # Build a generation prompt from the task description + idea + visual style
-            prompt = (
-                f"Cinematic still for a {format_name}. "
-                f"Idea: {idea_text[:300]}. "
-                f"Required shot: {task}. "
-                f"Visual style: {visual_style[:500]}. "
-                f"9:16 vertical, high quality, no text overlays."
-            )
-
-            try:
-                result = media_adapter.generate_image(
-                    prompt=prompt,
-                    asset_id=card_id,
-                    model=image_default,
-                    aspect_ratio="9:16",
-                    context=f"Capture generation for card {card_id}, task {i+1}",
-                    business_slug=business_slug,
-                    owner_type="asset",
-                )
-                # Register as a capture upload
-                from materials import MaterialsIntake
-                intake = MaterialsIntake(db_path=app.config["DB_PATH"])
-                material_id = intake.ingest_text(
-                    content=f"AI-generated capture: {task}\nImage: {result['path']}",
-                    business_slug=business_slug,
-                    channel="capture_upload",
-                    material_type="ai_generated",
-                )
-                store.add_capture_upload(card_id, material_id)
-                fulfilled += 1
-                results.append({"task": task, "status": "ok", "path": result["path"]})
-            except MediaAdapterError as e:
-                results.append({"task": task, "status": "failed", "error": str(e)[:200]})
-            except Exception as e:
-                results.append({"task": task, "status": "failed", "error": str(e)[:200]})
-
-        # Check if all capture tasks are now fulfilled
-        if store.check_capture_fulfilled(card_id):
-            store.update_card_state(card_id, "capture_fulfilled")
+        if card["business_slug"] != business_slug:
+            return jsonify({"error": "Card does not belong to this business"}), 403
 
         return jsonify({
-            "status": "ok",
-            "fulfilled_count": fulfilled,
-            "results": results,
-        })
+            "error": (
+                "AI-generated media cannot fulfill required real capture. "
+                "Approve the idea to continue production and add real material before final review."
+            )
+        }), 409
 
     # ── T3.5: Drafter ──
 
