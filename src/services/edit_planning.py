@@ -606,6 +606,13 @@ class EditPlanningService:
 
         soundtrack_contract_id = f"asset:{asset['id']}"
 
+        # Build audio intents from beats — needed by both the discovery
+        # ranking step and the soundtrack planner below.
+        audio_intents = [{
+            "beat_id": beat["beat_id"],
+            "audio_intent": beat.get("audio_intent") or {},
+        } for beat in beats]
+
         # ── VF-VS-510..513: Soundtrack discovery → ranking → auto-mix ──
         # (DIVERGENCE-015: auto-apply-mix, not gate-before-mix)
         # Discover music candidates, LLM-rank them, auto-mix the top pick
@@ -737,6 +744,11 @@ class EditPlanningService:
             plan["soundtrack_ranking"] = soundtrack_ranking_result
         if soundtrack_mix_result:
             plan["soundtrack_mix_evidence"] = soundtrack_mix_result
+        # Mark the plan as auto-processed so the render gate is skipped —
+        # the operator reviews the final video at Gate 2, not a separate
+        # soundtrack gate. This flag is set whether or not discovery found
+        # music (vo_only fallback is also auto-processed). (DIVERGENCE-015)
+        plan["soundtrack_auto_processed"] = True
 
         soundtrack_content_contract = {
             "contract_id": soundtrack_contract_id,
@@ -745,10 +757,6 @@ class EditPlanningService:
             "content": asset.get("content") or "",
             "beats": beats,
         }
-        audio_intents = [{
-            "beat_id": beat["beat_id"],
-            "audio_intent": beat.get("audio_intent") or {},
-        } for beat in beats]
         try:
             soundtrack_plan, soundtrack_module_prov = compose_and_run(
                 "soundtrack_plan_v1",

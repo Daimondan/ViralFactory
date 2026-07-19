@@ -318,13 +318,16 @@ class RenderReviewService:
         structured_beats = extract_reel_beats(json.loads(asset.get("posts") or "[]"))
         voice_led = any(beat.get("vo_text") for beat in structured_beats)
 
-        # VF-VS-513 (DIVERGENCE-015): If the soundtrack was auto-mixed during
-        # edit planning (discovery → ranking → auto-mix), the music is already
-        # in the audio track. Skip the gate-before-mix check — the operator
-        # reviews the final video with music applied at Gate 2.
-        auto_mixed = bool(plan.get("soundtrack_ranking"))
+        # VF-VS-513 (DIVERGENCE-015): If the soundtrack was auto-processed
+        # during edit planning (discovery → ranking → auto-mix, or vo_only
+        # fallback), the music decision is already made. Skip the gate —
+        # the operator reviews the final video at Gate 2.
+        auto_processed = bool(
+            plan.get("soundtrack_ranking")
+            or plan.get("soundtrack_auto_processed")
+        )
 
-        if (voice_led or plan.get("soundtrack_plan")) and not auto_mixed:
+        if (voice_led or plan.get("soundtrack_plan")) and not auto_processed:
             from soundtrack_gate import SoundtrackGateError, SoundtrackPreviewGate
 
             soundtrack_ref = plan.get("soundtrack_plan")
