@@ -287,7 +287,19 @@ class MediaPlanningService:
         capture_required = treatment.get("capture_required", [])
         uploads = json.loads(card.get("capture_uploads") or "[]")
         missing = capture_required[len(uploads):]
-        if not missing:
+
+        # F-001 (QA-loop): when no capture tasks remain, still generate AI
+        # visuals for Reels/carousels that carry image_prompts. The early
+        # return here used to skip media generation entirely, leaving the
+        # edit planner with no render-ready ingredients. Only short-circuit
+        # when there are no image_prompts to fulfill either.
+        asset_image_prompts = json.loads(asset.get("image_prompts") or "[]")
+        generated_images = json.loads(asset.get("generated_images") or "[]")
+        prompts_unfulfilled = (
+            len(asset_image_prompts) > len(generated_images)
+            if asset_image_prompts else False
+        )
+        if not missing and not prompts_unfulfilled:
             return ServiceResponse({
                 "status": "ok",
                 "message": "No missing captures — all fulfilled",
@@ -343,6 +355,23 @@ class MediaPlanningService:
             db_path=self.db_path,
             prompts_dir=self.prompts_dir,
         )
+        # F-001 (QA-loop): when there are no missing captures but the asset
+        # has unfulfilled image_prompts, surface those prompts as the media
+        # the plan must generate (AI images for each beat).
+        if missing:
+            missing_captures_text = "\n".join(
+                f"{index}. {task}" for index, task in enumerate(missing)
+            )
+        elif prompts_unfulfilled:
+            missing_captures_text = (
+                "No operator captures required. Generate one AI image per "
+                "Writer image_prompt to cover every beat:\n"
+                + "\n".join(
+                    f"{i}. {prompt}" for i, prompt in enumerate(asset_image_prompts)
+                )
+            )
+        else:
+            missing_captures_text = ""
         try:
             plan = adapter.complete(
                 prompt_file="assembly/media_plan_v1.md",
@@ -353,9 +382,7 @@ class MediaPlanningService:
                     "asset_content": asset["content"][:2000],
                     "vo_timeline": vo_timeline,
                     "coverage_gaps": coverage_gaps,
-                    "missing_captures": "\n".join(
-                        f"{index}. {task}" for index, task in enumerate(missing)
-                    ),
+                    "missing_captures": missing_captures_text,
                     "available_generators": generator_lines,
                     **module_vars,
                 },

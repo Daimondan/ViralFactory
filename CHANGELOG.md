@@ -8,6 +8,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-19
 
+### QA-loop F-001 — Generate AI visuals when capture_required is empty [FIX/LOGIC]
+
+**What:** `MediaPlanningService.generate_for_asset` no longer short-circuits with "No missing captures — all fulfilled" when an asset carries unfulfilled `image_prompts`. When `capture_required` is empty (or all uploads fulfilled) but the asset has more `image_prompts` than `generated_images`, the service proceeds to the LLM media-plan path and surfaces the Writer image_prompts as the media to generate (one AI image per beat), so the edit planner has render-ready ingredients.
+
+**Rationale:** The autonomous assembler chain (`produce_chain._step_media_plan`) called the same shared service as the UI, but the shared service treated "no capture tasks" as "nothing to do", skipping AI image generation entirely. The UI's "Generate visuals" button used a different code path (`/api/assets/<id>/generate-images`) that DID generate from image_prompts. This divergence left every Reel with no operator captures stuck at `assembly_failed` ("No usable visual media is available") in the autonomous path while the manual path worked. Found during QA-loop pass 1 (adapted from ForwardFuture loop #010). Per charter §19 (operator-facing and autonomous paths must use the same production services) and §16 (capture policy is approved with the treatment — empty capture_required is a valid state that still needs generated B-roll).
+
+**Verification:** New test `tests/test_qa_loop_media_shortcircuit.py::test_generates_ai_images_from_prompts_when_no_captures` (RED → GREEN). All 112 existing media-planning, edit-planning, media-inventory, and pipeline-assembly tests still pass.
+
 ### VF-VS-702 — Fail closed when soundtrack candidates are unavailable [FIX/LOGIC]
 
 **What:** Soundtrack Planning v1.1 now runs on the deterministic processing backend, forbids invented source/licence/cost facts, requires VO-only with rationale when no verified music candidates are supplied, and explicitly defines `ducking.envelope` as an array. Shared busy-state feedback now unhides its status container so planning failures remain visible to the operator.
