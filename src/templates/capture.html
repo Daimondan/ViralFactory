@@ -30,8 +30,8 @@
     {% set active_page = "ideas" %}
         {% include "_nav.html" %}
 
-    <h1>Awaiting Capture</h1>
-    <p class="subtle">Capture real material for this idea before drafting.</p>
+    <h1>Capture material</h1>
+    <p class="subtle">Add real material when it is available. Production can continue now; required capture must be present before final review.</p>
 
     <div class="card">
         <div class="card-idea">{{ card.idea }}</div>
@@ -42,7 +42,7 @@
     <ul class="task-list">
         {% for task in capture_required %}
         <li>
-            <div class="task-icon {{ 'done' if uploads|length > loop.index0 }}"></div>
+            <div class="task-icon"></div>
             <span>{{ task }}</span>
         </li>
         {% endfor %}
@@ -60,19 +60,12 @@
         </div>
     </div>
 
-    {# AI generate option — for capture_required tasks that are generated_allowed #}
-    <div id="ai-generate-section" style="margin-top: 20px;">
+    <div style="margin-top: 20px;">
         <div style="background: rgba(229, 75, 44, 0.06); border: 1px solid rgba(229, 75, 44, 0.2); border-radius: 10px; padding: 16px;">
-            <p style="font-size: 0.88rem; color: #E54B2C; font-weight: 600; margin-bottom: 6px;">No footage to capture?</p>
+            <p style="font-size: 0.88rem; color: #E54B2C; font-weight: 600; margin-bottom: 6px;">Required capture must be real</p>
             <p style="font-size: 0.82rem; color: #5A554C; line-height: 1.5; margin-bottom: 12px;">
-                Let the AI creative director generate style-consistent media for the missing capture tasks.
-                This analyzes the idea, visual style, and format to produce media that matches your brand.
-                May take several minutes.
+                AI-generated media cannot satisfy these items. Approve the idea when the treatment is right — production can continue before capture is added, and final review remains blocked until the required real material is present.
             </p>
-            <button class="btn btn-render" id="aiGenBtn" style="background: #1a3a3a; color: #4accaa; padding: 8px 20px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 500;" onclick="generateCaptureMedia()">
-                Generate missing capture with AI
-            </button>
-            <div id="aiGenStatus" style="font-size: 0.78rem; margin-top: 8px; display: none;"></div>
         </div>
     </div>
 
@@ -87,12 +80,13 @@
     </div>
     {% endif %}
 
-    {% if card.card_state == 'capture_fulfilled' %}
-    <div class="fulfilled-msg">✓ All capture tasks fulfilled — ready to draft!</div>
     <div style="text-align: center; margin-top: 16px;">
-        <button class="btn btn-draft" onclick="window.location.href='/create/draft/{{ card.id }}'">Start draft →</button>
+        {% if card.card_state == 'new' %}
+        <a class="btn btn-draft" href="/ideas?tab=queue#card-{{ card.id }}">Continue to idea review →</a>
+        {% else %}
+        <a class="btn btn-draft" href="/create/draft/{{ card.id }}">Continue in Writer →</a>
+        {% endif %}
     </div>
-    {% endif %}
 </div>
 
 <script>
@@ -123,38 +117,6 @@ function uploadFile() {
     });
 }
 
-function generateCaptureMedia() {
-    var btn = document.getElementById('aiGenBtn');
-    var status = document.getElementById('aiGenStatus');
-    if (!confirm('The AI creative director will analyze the idea, visual style, and missing captures, then generate style-consistent media. This may take several minutes. Continue?')) return;
-    btn.disabled = true;
-    btn.textContent = 'Generating…';
-    status.style.display = 'block';
-    status.style.color = '#4A6FA5';
-    status.textContent = 'Analyzing idea and generating media…';
-    fetch('/api/ideas/{{ card.id }}/generate-capture', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: '{}',
-    }).then(function(r) { return r.json(); }).then(function(data) {
-        btn.disabled = false;
-        btn.textContent = 'Generate missing capture with AI';
-        if (data.status === 'ok') {
-            var count = data.fulfilled_count || 0;
-            status.style.color = '#4A7C3A';
-            status.textContent = '✓ Generated ' + count + ' capture item' + (count === 1 ? '' : 's') + '. Loading…';
-            setTimeout(function() { window.location.reload(); }, 1500);
-        } else {
-            status.style.color = '#C0392B';
-            status.textContent = data.error || 'Generation failed';
-        }
-    }).catch(function(err) {
-        btn.disabled = false;
-        btn.textContent = 'Generate missing capture with AI';
-        status.style.color = '#C0392B';
-        status.textContent = 'Error: ' + err;
-    });
-}
 </script>
 </body>
 </html>

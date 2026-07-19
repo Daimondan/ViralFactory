@@ -16,6 +16,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 **Verification:** 80 focused process-registry, soundtrack-contract, provenance, production-integration, and operator-feedback tests pass.
 
+### VF-VS-702 — Restore non-blocking real-capture flow [FIX/LOGIC]
+
+**What:** Idea cards with capture tasks once again retain the Gate 1 Approve action and present real capture as a secondary action. The capture page no longer marks tasks complete by upload position, mutates approval state, or offers the retired image-only generator. Both idea-treatment prompts now reserve `capture_required` for operator-supplied real material and exclude production outputs and generatable generic context.
+
+**Rationale:** Live Card 41 had three legacy capture strings, including the production output “Clear voiceover audio.” The image-only endpoint generated an image for that audio task, counted it against the first B-roll task, swallowed two provider failures, and left the operator blocked from approval. This contradicted AMENDMENT-009: drafting and planning continue with outstanding capture; required real evidence blocks only final compliance.
+
+**Verification:** Six behavioral regressions and 97 related Ideas/Treatment, auto-chain, and architect-correction tests pass. Full suite: 1,892 passed, 7 skipped. Read-only Flask verification against live Card 41 confirms Approve is present, capture stays accessible after approval, no false task is checked, and the retired generator fails closed before paid media.
+
 ### VF-VS-702 — Route the Reel operator action through shared services [FIX/STRUCTURE]
 
 **What:** The Reel asset card now plans through the shared Edit Planning route, pauses for the persisted soundtrack decision, and renders the exact approved plan through Render Review. The card no longer calls or polls the retired VO-led `/produce-reel` workflow, and stale soundtrack approval discovered at render time reloads the gate instead of showing a generic failure.

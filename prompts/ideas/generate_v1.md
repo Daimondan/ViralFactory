@@ -1,4 +1,4 @@
-<!-- version: 2.0 -->
+<!-- version: 2.1 -->
 # Idea Card Generation
 
 You are generating idea cards for a content co-creation system. Each card is the first artifact in the staged pipeline — it carries the idea, hook options, and a full treatment block.
@@ -122,6 +122,9 @@ Generate {num_cards} idea card(s) as JSON. Each card MUST include:
 - The treatment's format MUST come from the Format Guide (existing entry) OR be a new experimental format (experimental=true with full spec)
 - There is no obligation to target both X and Instagram, and reuse notes must not manufacture cross-platform derivatives
 - capture_required tasks must be specific and actionable — not vague
+- `capture_required` is only for real material the operator must supply because its reality is part of the evidence, identity, product, or lived action.
+- Do not list production outputs as capture_required: voiceover, captions, music, edits, and generated media are created later by the production pipeline.
+- Do not require generic context that downstream production may generate or source without impersonating real evidence. Leave `capture_required` empty for those visuals.
 - The rationale must cite which modules were consulted and why this format/scope fits
 - For ai_originated: cross-reference Source Bank items with Viral Patterns, Audience Insights, Story Frameworks, and Format Guide
 - For human_seeded: the idea IS the person's seed; don't change it — build the treatment around it

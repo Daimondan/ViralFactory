@@ -179,11 +179,10 @@
             {% endif %}
         </div>
         <div class="expanded-actions">
-            {% if card.capture_tasks %}
-            <button class="btn" onclick="window.location.href='/ideas/{{ card.id }}/capture'">Upload capture first →</button>
-            <span class="expanded-cost">capture required before the chain runs — approving without it will stall</span>
-            {% else %}
             <button class="btn" onclick="cardAction({{ card.id }}, 'approve')">Approve → drafts & assets run</button>
+            {% if card.capture_tasks %}
+            <a class="btn btn-small" href="/ideas/{{ card.id }}/capture">Add real capture</a>
+            <span class="expanded-cost">production continues now; required capture must arrive before final review</span>
             {% endif %}
             <button class="btn btn-small" onclick="document.getElementById('kill-reason-{{ card.id }}').classList.add('show')">Kill · give reason</button>
             <button class="btn btn-small" onclick="cardAction({{ card.id }}, 'park')">Park</button>
@@ -223,17 +222,22 @@
             </div>
             {% if card.card_state == 'new' %}
             <div class="queue-actions">
-                {% if card.capture_tasks %}
-                <a href="/ideas/{{ card.id }}/capture" class="btn btn-small">Upload capture</a>
-                {% else %}
                 <button class="btn btn-small" onclick="cardAction({{ card.id }}, 'approve')">Approve</button>
+                {% if card.capture_tasks %}
+                <a href="/ideas/{{ card.id }}/capture" class="btn btn-small">Add real capture</a>
                 {% endif %}
                 <button class="btn btn-small" onclick="document.getElementById('kill-reason-{{ card.id }}').classList.add('show')">Kill</button>
             </div>
             {% elif card.card_state == 'approved' or card.card_state == 'capture_fulfilled' %}
-            <a href="/create/draft/{{ card.id }}" class="btn btn-small">View in Writer →</a>
+            <div class="queue-actions">
+                <a href="/create/draft/{{ card.id }}" class="btn btn-small">View in Writer →</a>
+                {% if card.capture_tasks %}<a href="/ideas/{{ card.id }}/capture" class="btn btn-small">Add real capture</a>{% endif %}
+            </div>
             {% elif card.card_state in ('writing', 'draft_ready', 'drafted', 'drafting') %}
-            <a href="/create/draft/{{ card.id }}" class="btn btn-small">Review draft →</a>
+            <div class="queue-actions">
+                <a href="/create/draft/{{ card.id }}" class="btn btn-small">Review draft →</a>
+                {% if card.capture_tasks %}<a href="/ideas/{{ card.id }}/capture" class="btn btn-small">Add real capture</a>{% endif %}
+            </div>
             {% elif card.card_state == 'parked' %}
             <button class="btn btn-small" onclick="cardAction({{ card.id }}, 'approve')">Reactivate</button>
             {% elif card.card_state == 'awaiting_capture' %}
