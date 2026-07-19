@@ -504,23 +504,34 @@ class AssemblyRenderer:
                 for idx, trans_type in enumerate(transition_types):
                     seg_idx = idx + 1
                     xfade_type = xfade_map.get(trans_type, "fade")
-                    offset = max(cumulative_dur - xfade_dur, 0)
+                    # "cut" transitions are hard cuts — no overlap, no time lost.
+                    # Only crossfade/slide/whip consume 0.5s of overlap.
+                    # Without this guard, the old code applied a 0.5s fade to
+                    # every "cut" transition, silently eating 0.5s per cut and
+                    # truncating the tail of the video (QA-loop F-005).
+                    # We use a near-zero duration (0.001s) for cuts to keep the
+                    # xfade filter chain uniform (mixing concat and xfade in one
+                    # filter_complex fails with "Invalid argument"). 5ms total
+                    # over 5 cuts is negligible and far below the 2.5s loss
+                    # that caused the cut-off.
+                    cur_xfade_dur = xfade_dur if trans_type in xfade_map else 0.001
+                    offset = max(cumulative_dur - cur_xfade_dur, 0)
 
                     v_out_label = f"vt{idx}" if idx < len(transition_types) - 1 else "vout"
                     a_out_label = f"at{idx}" if idx < len(transition_types) - 1 else "aout"
 
                     filter_parts.append(
                         f"[{prev_v_label}][{seg_idx}:v]xfade=transition={xfade_type}:"
-                        f"duration={xfade_dur}:offset={offset:.3f}[{v_out_label}]"
+                        f"duration={cur_xfade_dur}:offset={offset:.3f}[{v_out_label}]"
                     )
-                    # Audio crossfade (acrossfade) or simple concat
+                    # Audio crossfade (acrossfade)
                     filter_parts.append(
-                        f"[{prev_a_label}][{seg_idx}:a]acrossfade=d={xfade_dur}[{a_out_label}]"
+                        f"[{prev_a_label}][{seg_idx}:a]acrossfade=d={cur_xfade_dur}[{a_out_label}]"
                     )
 
                     prev_v_label = v_out_label
                     prev_a_label = a_out_label
-                    cumulative_dur += seg_durations[seg_idx] - xfade_dur
+                    cumulative_dur += seg_durations[seg_idx] - cur_xfade_dur
 
                 filter_str = ";".join(filter_parts)
 
@@ -1210,11 +1221,39 @@ class AssemblyRenderer:
                 original_audio: bool, media_dir: str, version: int,
                 loudnorm_I: float = -16.0, loudnorm_TP: float = -1.5,
                 loudnorm_LRA: float = 11.0):
-        """Mix VO as primary audio, ducking clip/music under it."""
-        duration = self._get_duration(output_file)
+        """Mix VO as primary audio, ducking clip/music under it.
+
+        The VO is the master timeline — the output must be at least as
+        long as the VO. If the concatenated video is shorter than the VO
+        (e.g. due to transition overlap), the video is extended (last
+        frame held) to cover the full VO. Trimming the VO to the video
+        duration silently discards the tail — QA-loop F-005.
+        """
+        video_duration = self._get_duration(output_file)
+        vo_duration = self._get_duration(vo_path) if vo_path and os.path.exists(vo_path) else 0.0
+        # Master timeline: output must cover the full VO.
+        target_duration = max(video_duration, vo_duration) if vo_duration > 0 else video_duration
         normalized = os.path.join(media_dir, f"final_{version}_vo.mp4")
 
-        inputs = ["-i", output_file, "-i", vo_path]
+        # If the video is shorter than the VO, extend the video (tpad) so
+        # the VO is not trimmed. We extend the last frame to fill the gap.
+        video_input = output_file
+        extend_needed = (vo_duration > 0 and target_duration > video_duration + 0.05)
+        if extend_needed:
+            extended = os.path.join(media_dir, f"final_{version}_ext.mp4")
+            cmd_ext = [
+                "ffmpeg", "-y", "-i", output_file,
+                "-vf", f"tpad=stop_mode=clone:stop_duration={target_duration - video_duration:.3f}",
+                "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                "-an", extended,
+            ]
+            r = subprocess.run(cmd_ext, capture_output=True, text=True, timeout=300)
+            if r.returncode == 0 and os.path.exists(extended):
+                video_input = extended
+            elif os.path.exists(extended):
+                os.remove(extended)
+
+        inputs = ["-i", video_input, "-i", vo_path]
         # Only process [0:a] (concat audio) if we'll actually use it
         # — i.e., when original_audio is true (we mix clip audio under VO)
         if original_audio:
@@ -1226,7 +1265,7 @@ class AssemblyRenderer:
             inputs.extend(["-i", music_path])
             music_idx = 2
             filter_parts.append(
-                f"[{music_idx}:a]aloop=loop=-1:size=2e9,atrim=0:{duration},"
+                f"[{music_idx}:a]aloop=loop=-1:size=2e9,atrim=0:{target_duration},"
                 f"volume={music_volume},loudnorm=I={loudnorm_I - 8}:TP={loudnorm_TP}:LRA={loudnorm_LRA}[bed]"
             )
             if original_audio:
@@ -1252,10 +1291,12 @@ class AssemblyRenderer:
                     "[main][vo]amix=inputs=2:duration=first:dropout_transition=0,"
                     "volume=1.5[aout]")
             else:
-                # VO replaces audio entirely — trim VO to video duration,
-                # normalize, map directly to [aout]
+                # VO replaces audio entirely. The VO is the master timeline —
+                # do NOT trim it to the (possibly shorter) video duration.
+                # Just normalize and map the full VO. The video was extended
+                # above to cover the full VO. (QA-loop F-005)
                 filter_parts.append(
-                    f"[1:a]atrim=0:{duration},loudnorm=I={loudnorm_I}:TP={loudnorm_TP}:LRA={loudnorm_LRA}[aout]")
+                    f"[1:a]loudnorm=I={loudnorm_I}:TP={loudnorm_TP}:LRA={loudnorm_LRA}[aout]")
 
         filter_str = ";".join(filter_parts)
         cmd = [
@@ -1264,7 +1305,7 @@ class AssemblyRenderer:
             "-filter_complex", filter_str,
             "-map", "0:v:0", "-map", "[aout]",
             "-c:v", "copy", "-c:a", "aac",
-            "-t", str(max(duration, 1)),
+            "-t", str(max(target_duration, 1)),
             normalized,
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
