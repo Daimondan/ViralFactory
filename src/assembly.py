@@ -195,7 +195,12 @@ class AssemblyRenderer:
             return False
 
     def _get_duration(self, file_path: str) -> float:
-        """Get media file duration in seconds via ffprobe."""
+        """Get media file duration in seconds via ffprobe.
+
+        Returns the format (container) duration, which includes the
+        longest stream. For the video-stream duration specifically, use
+        _get_video_duration.
+        """
         try:
             result = subprocess.run(
                 ["ffprobe", "-v", "quiet", "-print_format", "json",
@@ -204,6 +209,29 @@ class AssemblyRenderer:
             )
             data = json.loads(result.stdout)
             return float(data.get("format", {}).get("duration", 0))
+        except Exception:
+            return 0.0
+
+    def _get_video_duration(self, file_path: str) -> float:
+        """Get the VIDEO stream duration specifically.
+
+        The xfade filter can produce a video stream shorter than the
+        audio stream (and shorter than the format/container duration).
+        When deciding whether to tpad-extend the video to cover the VO,
+        we must use the video stream duration, not the container duration.
+        (QA-loop F-005)
+        """
+        try:
+            result = subprocess.run(
+                ["ffprobe", "-v", "quiet", "-print_format", "json",
+                 "-show_streams", file_path],
+                capture_output=True, text=True, timeout=30,
+            )
+            data = json.loads(result.stdout)
+            for stream in data.get("streams", []):
+                if stream.get("codec_type") == "video":
+                    return float(stream.get("duration", 0))
+            return 0.0
         except Exception:
             return 0.0
 
@@ -1229,7 +1257,7 @@ class AssemblyRenderer:
         frame held) to cover the full VO. Trimming the VO to the video
         duration silently discards the tail — QA-loop F-005.
         """
-        video_duration = self._get_duration(output_file)
+        video_duration = self._get_video_duration(output_file)
         vo_duration = self._get_duration(vo_path) if vo_path and os.path.exists(vo_path) else 0.0
         # Master timeline: output must cover the full VO.
         target_duration = max(video_duration, vo_duration) if vo_duration > 0 else video_duration
