@@ -564,17 +564,32 @@ class EditPlanningService:
 
         # F-009: Post-process segments to prefer video ingredients for
         # video beats. The LLM may pick the reference image instead of the
-        # generated video clip. For each segment on a beat with
-        # media_type=video, swap the source to the video ingredient if the
-        # current source is an image.
+        # generated video clip for video beats. For each segment on a beat
+        # with media_type=video, swap the source to the video ingredient
+        # if the current source is an image.
         raw_posts_for_routing = json.loads(asset.get("posts") or "[]")
         beat_media_types = {}
         for i, post in enumerate(raw_posts_for_routing):
             if isinstance(post, dict):
-                beat_id = post.get("beat_id", f"b{i+1:02d}")
+                # beat_id may not be in raw posts — use index-based ID
+                beat_id = post.get("beat_id") or f"b{i+1:02d}"
                 visual = post.get("visual", {}) or {}
                 beat_media_types[beat_id] = visual.get("media_type", "")
 
+        # Also map enriched beats (which have beat_id from extract_reel_beats)
+        for beat in enriched_beats:
+            bid = beat.get("beat_id", "")
+            raw_idx = None
+            for i, post in enumerate(raw_posts_for_routing):
+                if isinstance(post, dict) and post.get("beat_id") == bid:
+                    raw_idx = i
+                    break
+            if raw_idx is not None:
+                visual = raw_posts_for_routing[raw_idx].get("visual", {}) or {}
+                beat_media_types[bid] = visual.get("media_type", "")
+
+        # Map segments to media_type by beat_id (using enriched beats order)
+        beat_ids_ordered = [beat.get("beat_id", "") for beat in enriched_beats]
         video_ingredients = {
             item["id"]: item for item in ingredients if item.get("kind") == "video"
         }
