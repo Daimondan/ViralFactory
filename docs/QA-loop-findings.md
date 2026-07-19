@@ -10,6 +10,13 @@ Each pass drives the staged pipeline end-to-end through the operator UI, produce
 
 Start: 2026-07-19
 
+### F-006 — BLOCKER — Soundtrack not auto-discovered; pipeline blocks on vo_only gate
+- **Surface:** `produce_chain._step_soundtrack_gate` → `awaiting_soundtrack_approval` / `RenderReviewService` soundtrack gate
+- **Reproduction:** Card 49 reached the soundtrack gate with a `vo_only` plan. The pipeline blocked on `awaiting_soundtrack_approval` and required operator approval before render. The soundtrack discovery service (DIVERGENCE-015) was never wired into the production chain — the planner defaulted to vo_only because no music candidates were provided.
+- **Expected:** The pipeline auto-discovers music (Bundle.social/Instagram + Pixabay), LLM-ranks candidates (mood/fit 80%, popularity 20%), auto-mixes the top pick into the render, and shows alternatives in the review UI for optional swapping. No gate-before-mix.
+- **Actual:** `soundtrack_discovery.py`, `soundtrack_ranking.py`, `soundtrack_mix.py` did not exist. The soundtrack planner received no candidates and produced `vo_only`. The autonomous chain blocked at `awaiting_soundtrack_approval`.
+- **Fix:** Built all three modules (VF-VS-510..515). Wired discovery → ranking → auto-mix into `edit_planning.py` before the soundtrack plan. Removed `awaiting_soundtrack_approval` blocking from `produce_chain.py`. `RenderReviewService` skips the gate when `soundtrack_ranking` is present on the plan. Added alternatives box to `assets.html` with preview links and switch buttons. Config block in `models.yaml`. 11 tests in `test_soundtrack_discovery.py`. Commit: `VF-VS-510..515`.
+
 ### F-001 — BLOCKER — Autonomous assembler produces no visuals when capture_required is empty
 - **Surface:** `/api/draft/<id>/gate` (action=ship) → `produce_chain.run_assembler_chain` → `_step_media_plan` → `MediaPlanningService.generate_for_asset`
 - **Reproduction:** Approve a Reel idea card whose treatment has `capture_required=[]`. Ship the draft. Assembler chain runs, VO generates, but `generated_images` stays `[]`. `_step_edit_plan` fails: "No usable visual media is available. Generate missing media or upload a capture before creating an edit plan." Card ends in `assembly_failed`.
