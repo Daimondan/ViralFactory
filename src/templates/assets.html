@@ -599,21 +599,23 @@
 
                 {# Video generation (only for reel/video formats) #}
                 {% if is_reel %}
+                {% set soundtrack = asset.soundtrack_review %}
                 <div class="step">
                     <div class="step-label">
                         <span class="step-num {{ 'done' if has_final else 'active' }}">{{ '✓' if has_final else '1' }}</span>
                         {% if has_final %}
                         Final cut rendered
-                        {% elif asset.videos and asset.videos|length > 0 %}
-                        Video ingredient ready — create final cut
+                        {% elif soundtrack and soundtrack.approval.approved %}
+                        Approved plan ready to render
+                        {% elif soundtrack %}
+                        Soundtrack decision required
                         {% else %}
-                        Generate video ingredient
+                        Plan final cut
                         {% endif %}
                     </div>
                     {# Missing captures panel — always available so operator can generate
                        more media even after a final cut exists (re-render with new images). #}
                     <div id="missing-captures-{{ asset.id }}" style="margin-bottom: 10px;"></div>
-                    {% set soundtrack = asset.soundtrack_review %}
                     {% if soundtrack %}
                     <div class="soundtrack-gate" style="background:#F5F2E9;border:1px solid #D8D2C4;border-radius:10px;padding:14px;margin:10px 0;">
                         <div style="font-family:Georgia,serif;font-size:1rem;margin-bottom:5px;">Soundtrack proposal · {{ soundtrack.mode|replace('_', ' ')|title }}</div>
@@ -657,16 +659,12 @@
                         {% endif %}
                     </div>
                     {% endif %}
-                    {% if not has_final %}
-                        {% if soundtrack and not soundtrack.approval.approved %}
+                    {% if soundtrack and not soundtrack.approval.approved %}
                     <p style="font-size:.78rem;color:#9A5A24;">Final render is paused until you decide on this soundtrack.</p>
-                        {% elif asset.videos and asset.videos|length > 0 %}
-                    <button class="btn btn-render" onclick="generateVideoOneClick({{ asset.id }}, this)">Create final cut</button>
-                        {% else %}
-                    <button class="btn btn-render" onclick="generateVideoOneClick({{ asset.id }}, this)">Generate video & create final cut</button>
-                        {% endif %}
+                    {% elif soundtrack and soundtrack.approval.approved and asset.edit_plans %}
+                    <button class="btn btn-render" onclick="renderFinalCut({{ asset.id }}, {{ asset.edit_plans[0].id }}, this)">{{ 'Re-render final cut' if has_final else 'Render final cut' }}</button>
                     {% else %}
-                    <button class="btn btn-render" onclick="generateVideoOneClick({{ asset.id }}, this)">Re-render final cut</button>
+                    <button class="btn btn-render" onclick="generateEditPlan({{ asset.id }}, this)">{{ 'Plan replacement cut' if has_final else 'Plan final cut' }}</button>
                     {% endif %}
                     <div class="status-line" id="render-status-{{ asset.id }}" style="display: none;"></div>
                 </div>
@@ -779,145 +777,6 @@ function generateVisuals(assetId, btn) {
         reloadOnSuccess: true,
         onError: function(msg) { statusElem.style.color = '#C0392B'; statusElem.textContent = msg; }
     });
-}
-
-// VO-first reel production: storyboard stills → cost gate → VO + motion → render.
-function generateVideoOneClick(assetId, btn) {
-    var statusElem = document.getElementById('render-status-' + assetId);
-    function show(message, color) {
-        if (!statusElem) return;
-        statusElem.style.display = 'block';
-        statusElem.style.color = color || '#4A6FA5';
-        statusElem.textContent = message;
-    }
-    function json(response) {
-        return response.text().then(function(text) {
-            var data;
-            try { data = JSON.parse(text); }
-            catch (err) {
-                throw new Error('The server returned an invalid response (' + response.status + '). Please retry; approved work will not be duplicated.');
-            }
-            var accepted = !data.status || data.status === 'ok' ||
-                data.status === 'queued' || data.status === 'running';
-            if (!response.ok || !accepted) {
-                throw new Error(data.message || data.error || 'Production step failed');
-            }
-            return data;
-        });
-    }
-
-    busyBtn(btn, 'Preparing storyboard…');
-    show('Preparing storyboard stills…');
-    fetch('/api/assets/' + assetId + '/generate-images', {
-        method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}',
-    }).then(json).then(function() {
-        show('Calculating motion cost…');
-        return fetch('/api/assets/' + assetId + '/reel-production-estimate').then(json);
-    }).then(function(estimate) {
-        if (!estimate.ready) {
-            throw new Error('Storyboard stills are missing for ' + estimate.missing_source_beat_ids.join(', ') + '.');
-        }
-        var message = 'Create this VO-led reel?\n\n' +
-            '• ' + estimate.spoken_word_count + ' approved spoken words\n' +
-            '• ' + estimate.clip_count + ' new motion clips × ' + estimate.clip_duration_seconds + 's\n' +
-            '• ' + estimate.generator + '\n' +
-            '• Estimated animation cost: $' + estimate.estimated_cost_usd.toFixed(2) + '\n\n' +
-            'The complete voice-over sets the final duration. No video spend occurs unless you approve.';
-        if (!confirm(message)) {
-            var cancelled = new Error('cancelled'); cancelled.cancelled = true; throw cancelled;
-        }
-        busyBtn(btn, 'Creating VO + motion…');
-        show('Creating the complete voice-over, then animating approved storyboard stills. This may take several minutes…');
-        return fetch('/api/assets/' + assetId + '/produce-reel', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({approved_cost_usd: estimate.estimated_cost_usd}),
-        }).then(json);
-    }).then(function(data) {
-        show(data.message || 'Reel production is running in the background. You can leave this page.');
-        pollReelProductionJob(assetId, data.job_id, btn, statusElem);
-    }).catch(function(err) {
-        unbusyBtn(btn);
-        if (err.cancelled) {
-            show('Animation cancelled — no motion spend was made.', '#6B675D');
-            return;
-        }
-        show(err.message || String(err), '#C0392B');
-    });
-}
-
-function pollReelProductionJob(assetId, jobId, btn, statusElem) {
-    var pollCount = 0;
-    var maxPolls = 2880; // four hours at five-second intervals
-    function check() {
-        pollCount++;
-        fetch('/api/reel-production-jobs/' + jobId)
-            .then(function(response) { return response.text(); })
-            .then(function(text) {
-                var data;
-                try { data = JSON.parse(text); }
-                catch (err) { throw new Error('Temporary server response error'); }
-                if (data.status === 'queued' || data.status === 'running') {
-                    if (statusElem) {
-                        statusElem.style.color = '#4A6FA5';
-                        statusElem.textContent = 'Creating complete VO and motion in the background… ' +
-                            Math.floor((pollCount * 5) / 60) + ' min elapsed. You can leave this page.';
-                    }
-                    if (pollCount < maxPolls) setTimeout(check, 5000);
-                    else {
-                        unbusyBtn(btn);
-                        if (statusElem) statusElem.textContent = 'Production is still running. Refresh later to check.';
-                    }
-                    return;
-                }
-                if (data.status === 'failed') {
-                    unbusyBtn(btn);
-                    if (statusElem) {
-                        statusElem.style.color = '#C0392B';
-                        statusElem.textContent = data.error || 'Reel production failed.';
-                    }
-                    return;
-                }
-                if (data.status === 'done' && data.result) {
-                    busyBtn(btn, 'Rendering…');
-                    if (statusElem) statusElem.textContent = 'VO and motion are ready. Rendering the final reel…';
-                    fetch('/api/assets/' + assetId + '/render', {
-                        method: 'POST', headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({plan_id: data.result.plan_id}),
-                    }).then(function(response) { return response.text(); })
-                      .then(function(renderText) {
-                          var rendered = JSON.parse(renderText);
-                          if (rendered.status === 'soundtrack_approval_required') {
-                              unbusyBtn(btn);
-                              if (statusElem) {
-                                  statusElem.style.color = '#9A5A24';
-                                  statusElem.textContent = 'Soundtrack review required before final render. Loading…';
-                              }
-                              setTimeout(function() { window.location.reload(); }, 700);
-                              return;
-                          }
-                          if (rendered.status !== 'ok') throw new Error(rendered.error || 'Render failed');
-                          unbusyBtn(btn);
-                          if (statusElem) {
-                              statusElem.style.color = '#4A7C3A';
-                              statusElem.textContent = '✓ Reel rendered with complete VO and motion clips. Loading…';
-                          }
-                          setTimeout(function() { window.location.reload(); }, 1000);
-                      }).catch(function() {
-                          if (statusElem) statusElem.textContent = 'Final render is continuing in the background…';
-                          pollRenderStatus(assetId, btn, statusElem);
-                      });
-                    return;
-                }
-                throw new Error(data.error || 'Unknown reel job status');
-            }).catch(function(err) {
-                if (pollCount < maxPolls) setTimeout(check, 5000);
-                else {
-                    unbusyBtn(btn);
-                    if (statusElem) statusElem.textContent = err.message || String(err);
-                }
-            });
-    }
-    setTimeout(check, 1000);
 }
 
 function prepareSoundtrackPreview(assetId, btn) {
@@ -1035,7 +894,14 @@ function renderFinalCut(assetId, planId, btn) {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({plan_id: planId}),
     }).then(function(r) { return r.json(); }).then(function(data) {
-        if (data.status === 'ok') {
+        if (data.status === 'soundtrack_approval_required') {
+            unbusyBtn(btn);
+            if (statusElem) {
+                statusElem.style.color = '#9A5A24';
+                statusElem.textContent = 'Soundtrack review required before final render. Loading…';
+            }
+            setTimeout(function() { window.location.reload(); }, 700);
+        } else if (data.status === 'ok') {
             unbusyBtn(btn);
             if (statusElem) {
                 statusElem.style.color = '#4A7C3A';

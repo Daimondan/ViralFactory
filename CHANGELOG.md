@@ -8,6 +8,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-19
 
+### VF-VS-702 — Route the Reel operator action through shared services [FIX/STRUCTURE]
+
+**What:** The Reel asset card now plans through the shared Edit Planning route, pauses for the persisted soundtrack decision, and renders the exact approved plan through Render Review. The card no longer calls or polls the retired VO-led `/produce-reel` workflow, and stale soundtrack approval discovered at render time reloads the gate instead of showing a generic failure.
+
+**Rationale:** The fresh deployed proof exposed a false-green UI contract: the backend correctly retired the legacy path, but the only operator button still called it and always received HTTP 409. Reusing the existing shared-service UI functions restores one clear action per gate without reviving legacy production code or bypassing soundtrack approval.
+
+**Verification:** 43 affected asset, soundtrack, render, and retired-route tests pass, including direct Jinja rendering of the approved-plan label and action.
+
 ### VF-VS-702 — Enforce beat-local Visual Director timing during live proof [FIX/LOGIC]
 
 **What:** Visual Director prompt v1.1 now receives measured per-beat durations expressed only as local `0..duration` ranges instead of cumulative CueCompiler timestamps. The live edit-planning validator independently rejects events that begin away from local zero, exceed the measured beat duration, or have non-positive spans before edit planning continues.

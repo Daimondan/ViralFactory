@@ -69,14 +69,17 @@ def test_assets_template_does_not_count_submitted_jobs_as_generated_media():
     assert "Not ready to render yet" in source
 
 
-def test_reel_asset_template_uses_vo_first_cost_approved_motion_flow():
-    """The reel action must produce real clips, not a mislabeled slideshow."""
+def test_reel_asset_template_uses_shared_edit_and_render_services():
+    """The Reel action must never call the retired VO-led production path."""
     template_path = os.path.join(os.path.dirname(__file__), "..", "src", "templates", "assets.html")
     source = open(template_path).read()
 
     assert "showVideoDialog" not in source
-    assert 'onclick="generateVideoOneClick({{ asset.id }}, this)"' in source
-    assert "'/reel-production-estimate'" in source
-    assert "approved_cost_usd: estimate.estimated_cost_usd" in source
-    assert "'/produce-reel'" in source
-    assert "The complete voice-over sets the final duration" in source
+    assert "generateVideoOneClick" not in source
+    assert "'/reel-production-estimate'" not in source
+    assert "'/produce-reel'" not in source
+    assert 'onclick="generateEditPlan({{ asset.id }}, this)"' in source
+    assert (
+        'onclick="renderFinalCut({{ asset.id }}, '
+        '{{ asset.edit_plans[0].id }}, this)"'
+    ) in source

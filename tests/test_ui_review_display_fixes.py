@@ -210,6 +210,55 @@ def test_reel_video_generation_step_is_numbered_one(template_app):
     assert '<span class="step-num active">2</span>' not in html
 
 
+def test_reel_approved_soundtrack_label_matches_render_action(template_app):
+    asset = AttrDict(
+        id=7,
+        platform="Instagram",
+        variant_type="reel",
+        asset_state="pending",
+        content="Reel summary",
+        posts_parsed=["Full reel script"],
+        image_prompts_parsed=["none"],
+        post_images=[],
+        images=[],
+        generated_images_parsed=[],
+        videos=[],
+        final_cuts=[],
+        edit_plans=[AttrDict(id=71)],
+        soundtrack_review=AttrDict(
+            mode="vo_only",
+            emotional_register="direct",
+            rationale="The approved voice stands alone.",
+            preview=AttrDict(instructions="Listen first.", tracks=[]),
+            approval=AttrDict(approved=True),
+            preview_acknowledged=True,
+            alternatives=[],
+        ),
+    )
+    draft = AttrDict(
+        id=11,
+        draft_state="shipped",
+        format="Instagram Reel Script",
+        draft_text="summary",
+        platform_content_parsed=[],
+    )
+
+    with template_app.test_request_context("/create/assets/11"):
+        html = render_template(
+            "assets.html",
+            business_name="TestBiz",
+            idea_card=AttrDict(idea="Original idea"),
+            draft=draft,
+            assets=[asset],
+            platforms=[],
+            trail=[],
+        )
+
+    assert "Approved plan ready to render" in html
+    assert 'onclick="renderFinalCut(7, 71, this)"' in html
+    assert ">Render final cut</button>" in html
+
+
 def test_reel_without_final_cut_does_not_show_active_approve(template_app):
     """A reel cannot be approved until a final cut exists for human review."""
     asset = AttrDict(

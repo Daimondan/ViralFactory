@@ -67,14 +67,12 @@ def test_worker_records_failure_instead_of_leaving_running_job(tmp_path):
     assert "voice model ran out of memory" in status["error"]
 
 
-def test_assets_ui_polls_reel_job_instead_of_parsing_long_request():
+def test_assets_ui_has_no_retired_reel_job_polling():
     source = (ROOT / "src" / "templates" / "assets.html").read_text()
 
-    assert "pollReelProductionJob(assetId, data.job_id" in source
-    assert "'/api/reel-production-jobs/' + jobId" in source
-    assert "data.status === 'queued' || data.status === 'running'" in source
-    assert "response.text()" in source
-    assert "JSON.parse" in source
+    assert "pollReelProductionJob" not in source
+    assert "'/api/reel-production-jobs/' + jobId" not in source
+    assert "pollRenderStatus(assetId, btn, statusElem)" in source
 
 
 def test_legacy_vo_led_runner_is_retired_before_any_pipeline_work(monkeypatch, tmp_path):
