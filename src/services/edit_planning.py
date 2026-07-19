@@ -640,7 +640,12 @@ class EditPlanningService:
                     continue
                 # This is a video beat — check if the segment uses an image
                 current_source = segment.get("source", "")
-                if current_source in image_sources:
+                # Check both rendered (generated:N) and raw (asset_media:N) formats
+                is_image = (
+                    current_source in image_sources
+                    or current_source.replace("asset_media:", "generated:") in image_sources
+                )
+                if is_image:
                     # Find a video source not already used by another segment
                     used_video_sources = {
                         s.get("source") for s in proposed.get("segments", [])
@@ -652,6 +657,8 @@ class EditPlanningService:
                         if vid_id not in used_video_sources
                     ]
                     if available_videos:
+                        # Set to the rendered format (generated:N) since
+                        # _build_render_plan will pass it through _render_source
                         segment["source"] = available_videos[0]
                         segment["source_in"] = 0
                         segment["source_out"] = min(
