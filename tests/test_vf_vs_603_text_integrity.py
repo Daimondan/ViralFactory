@@ -55,6 +55,19 @@ def test_position_style_keywords_detected():
     assert any(i.category == "debug_token" for i in result.issues)
 
 
+def test_normal_audience_use_of_style_and_position_is_not_metadata():
+    captions = [{
+        "cue_id": "cap_0",
+        "text": "Style reflects your position.",
+        "start_sec": 0.0,
+        "end_sec": 3.0,
+    }]
+
+    result = check_text_integrity(captions)
+
+    assert not any(i.category == "debug_token" for i in result.issues)
+
+
 def test_long_caption_flagged():
     captions = [
         {"cue_id": "cap_0", "text": "A" * 50, "start_sec": 0.0, "end_sec": 3.0},

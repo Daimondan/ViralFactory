@@ -235,7 +235,7 @@ The following tasks were marked complete but their acceptance criteria were met 
 
 - [x] VF-VS-601 **Skipped evidence blocks readiness (P0):** `asset_review.py` — `skipped` → `needs_operator_decision`, never `ready_for_operator`. — AC: skipped visual/transcript creates saved row and blocks readiness.
 - [x] VF-VS-602 **Integration closed:** live `AssetReviewer.run_visual_inspection()` now invokes the existing beat-aware extractor with the exact persisted edit plan. Final visual review samples first/middle/last frames for each planned beat plus both sides of cuts; plans without usable timing retain the existing generic fallback. — AC: 6 focused beat-aware tests including the production method, 41 related review/regression tests, full linked-worktree suite `1,876 passed, 7 skipped`.
-- [~] VF-VS-603 **Re-opened for integration:** deterministic checker exists but has no production caller.
+- [x] VF-VS-603 **Integration closed:** shared final review now invokes deterministic text-integrity checks for persisted VO/caption plans before Gate 3 readiness. Exact `compiled_cues.captions` are checked against approved `contract_beats[].vo_text`; malformed/missing evidence, metadata leaks, reconstruction mismatches, overlap, and existing safe-zone failures persist in review findings and force `needs_operator_decision`. Metadata detection now requires structural dict/key-value evidence rather than business-text keyword matches. — AC: 4 production-boundary tests, 37 focused/related regression tests, full linked-worktree suite `1,881 passed, 7 skipped`.
 - [~] VF-VS-604 **Re-opened for integration:** CueCompiler supports transition intent in isolation, but the live EditPlanningService never invokes CueCompiler.
 
 ### Phase M13-G — Regression and proof

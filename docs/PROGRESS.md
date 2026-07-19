@@ -9,6 +9,8 @@
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.
 
+2026-07-18 — VF-VS-603 complete: final shared render review invokes deterministic caption/approved-VO integrity checks, persists evidence, blocks Gate 3 on missing/corrupt/mismatched text evidence, and avoids keyword false positives; 4 production tests, 37 focused/related tests, full suite 1,881 passed / 7 skipped.
+
 ---
 
 ## Overall Status

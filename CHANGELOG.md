@@ -8,6 +8,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-18
 
+### VF-VS-603 — Invoke deterministic text-integrity final review [LOGIC/FIX]
+
+**What:** Shared `RenderReviewService.render_and_review()` now invokes deterministic text-integrity review for persisted VO/caption plans before calculating Gate 3 readiness. The adapter compares exact `compiled_cues.captions` with approved `contract_beats[].vo_text`, serializes findings into the final review, and fails closed when compiled captions, approved VO, or valid evidence are missing. Empty captions can no longer bypass reconstruction checks. Existing metadata-leak detection was narrowed from raw keyword matching to structural dict/key-value evidence so legitimate audience uses of words such as “style” and “position” do not false-positive.
+
+**Rationale:** An isolated checker does not protect production output. Final compliance must prove approved text survived cue compilation and block readiness when evidence is corrupt, incomplete, or mismatched, while respecting the charter prohibition on keyword heuristics for business text.
+
+**Verification:** 4 production-boundary tests cover corrupt, compliant, missing, and independently noncompliant review paths; 37 focused text-integrity/artifact/readiness/soundtrack tests pass. Full linked-worktree suite: `1,881 passed, 7 skipped`.
+
 ### VF-VS-602 — Invoke beat-aware final visual evidence [LOGIC/FIX]
 
 **What:** Live `AssetReviewer.run_visual_inspection()` now calls `_extract_beat_aware_keyframes()` with the exact persisted edit plan instead of always selecting five generic frames. The existing mechanical extractor samples the first, middle, and last frame of every planned beat and both sides of each cut; when the plan has no usable timing it retains the generic extraction fallback.

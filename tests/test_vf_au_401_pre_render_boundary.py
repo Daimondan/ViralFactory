@@ -166,6 +166,19 @@ def test_voice_led_render_accepts_complete_feasibility_evidence(tmp_path):
                 "resolution": "1080x1920",
                 "duration_target": 3.0,
             },
+            "captions": {"burned_in": True, "source": "compiled_cues"},
+            "contract_beats": [{
+                "beat_id": "b01",
+                "vo_text": "Approved words stay unchanged.",
+            }],
+            "compiled_cues": {"captions": [{
+                "cue_id": "caption_b01_0",
+                "beat_id": "b01",
+                "text": "Approved words stay unchanged.",
+                "start_sec": 0.0,
+                "end_sec": 3.0,
+                "position": "bottom",
+            }]},
             "feasibility": complete_feasibility(),
         },
     )

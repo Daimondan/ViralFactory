@@ -28,7 +28,7 @@ FORBIDDEN_DEBUG_TOKENS = frozenset({
 _DICT_LEAK_PATTERNS = [
     re.compile(r"\{[^}]*['\"]?\w+['\"]?\s*:"),  # {key: value
     re.compile(r"\'\w+\':\s*"),  # 'key': 
-    re.compile(r"\bposition\b.*\bstyle\b", re.IGNORECASE),  # position ... style
+    re.compile(r"\b(?:position|style|prompt)\b\s*[:=]", re.IGNORECASE),
 ]
 
 
@@ -88,43 +88,21 @@ def check_text_integrity(
         cue_id = cap.get("cue_id", f"cap_{i}")
         position = cap.get("position", "bottom")
 
-        # 1. Forbidden debug tokens
-        for token in FORBIDDEN_DEBUG_TOKENS:
-            if token in text:
-                # Some tokens like ":" and "," are valid in normal text.
-                # Only flag if they appear in dict-like patterns.
-                if token in (":", ","):
-                    # Check for dict-like pattern
-                    for pattern in _DICT_LEAK_PATTERNS:
-                        if pattern.search(text):
-                            issues.append(TextIntegrityIssue(
-                                severity="high",
-                                category="debug_token",
-                                description=(
-                                    f"Caption '{cue_id}' contains dict/JSON metadata as "
-                                    f"audience text: '{text[:80]}'"
-                                ),
-                                cue_id=cue_id,
-                                evidence=text[:200],
-                            ))
-                            break
-                    else:
-                        continue  # : or , in normal text — not a leak
-                    break  # already flagged for this caption
-                else:
-                    # {, }, position, style, prompt, dict, None, True, False
-                    # These are never valid in audience-facing caption text
-                    issues.append(TextIntegrityIssue(
-                        severity="high",
-                        category="debug_token",
-                        description=(
-                            f"Caption '{cue_id}' contains forbidden debug token "
-                            f"'{token}': '{text[:80]}'"
-                        ),
-                        cue_id=cue_id,
-                        evidence=text[:200],
-                    ))
-                    break
+        # 1. Structural dict/JSON evidence (never plain keyword matching)
+        metadata_leak = "{" in text or "}" in text or any(
+            pattern.search(text) for pattern in _DICT_LEAK_PATTERNS
+        )
+        if metadata_leak:
+            issues.append(TextIntegrityIssue(
+                severity="high",
+                category="debug_token",
+                description=(
+                    f"Caption '{cue_id}' contains dict/JSON metadata as "
+                    f"audience text: '{text[:80]}'"
+                ),
+                cue_id=cue_id,
+                evidence=text[:200],
+            ))
 
         # 2. Long unwrapped caption
         if len(text) > max_chars_per_line:
@@ -152,7 +130,7 @@ def check_text_integrity(
         normalized_vo = " ".join(vo_text.split())
         caption_join = " ".join(cap.get("text", "") for cap in captions)
         normalized_captions = " ".join(caption_join.split())
-        if normalized_captions and normalized_vo and normalized_captions != normalized_vo:
+        if normalized_vo and normalized_captions != normalized_vo:
             issues.append(TextIntegrityIssue(
                 severity="high",
                 category="reconstruction",

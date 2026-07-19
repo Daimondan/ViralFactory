@@ -1,7 +1,9 @@
 """VF-VS-504 — production soundtrack-mix review integration."""
 
 from pathlib import Path
+import json
 import os
+import sqlite3
 import subprocess
 import sys
 
@@ -190,6 +192,25 @@ def test_render_for_asset_passes_exact_gate_decision_into_final_mix_review(
         tmp_path,
         _vo_only(),
     )
+    edit_plan = store.get_edit_plan(edit_plan_id)
+    plan = json.loads(edit_plan["plan_json"])
+    plan.update({
+        "captions": {"burned_in": True, "source": "compiled_cues"},
+        "contract_beats": [{"beat_id": "b01", "vo_text": "Approved copy"}],
+        "compiled_cues": {"captions": [{
+            "cue_id": "caption_b01_0",
+            "beat_id": "b01",
+            "text": "Approved copy",
+            "start_sec": 0.0,
+            "end_sec": 1.0,
+            "position": "bottom",
+        }]},
+    })
+    with sqlite3.connect(store.db_path) as conn:
+        conn.execute(
+            "UPDATE edit_plans SET plan_json = ? WHERE id = ?",
+            (json.dumps(plan), edit_plan_id),
+        )
     soundtrack = store.list_soundtrack_plans(asset_id)[0]
     SoundtrackPreviewGate(store.db_path).record_approval(
         soundtrack["contract_id"],

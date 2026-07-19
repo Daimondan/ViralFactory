@@ -127,6 +127,78 @@ class RenderReviewService:
             return summary or "The edit plan did not pass pre-render feasibility."
         return None
 
+    @staticmethod
+    def _text_integrity_review(plan: dict) -> dict:
+        """Check exact persisted caption cues against approved Writer VO text."""
+        from text_integrity import check_text_integrity
+
+        compiled = plan.get("compiled_cues")
+        beats = plan.get("contract_beats")
+        if not isinstance(compiled, dict) or not isinstance(beats, list):
+            return {
+                "verdict": "needs_operator_decision",
+                "issues": [{
+                    "severity": "high",
+                    "category": "missing_evidence",
+                    "description": "Compiled captions or approved contract beats are missing",
+                }],
+                "summary": "Text integrity could not be proven from persisted plan evidence.",
+            }
+        captions = compiled.get("captions")
+        if not isinstance(captions, list) or any(
+            not isinstance(caption, dict) for caption in captions
+        ):
+            return {
+                "verdict": "needs_operator_decision",
+                "issues": [{
+                    "severity": "high",
+                    "category": "missing_evidence",
+                    "description": "Compiled caption evidence is malformed",
+                }],
+                "summary": "Text integrity could not be proven from persisted caption cues.",
+            }
+        approved_vo = " ".join(
+            str(beat.get("vo_text") or "").strip()
+            for beat in beats
+            if isinstance(beat, dict) and str(beat.get("vo_text") or "").strip()
+        )
+        if not approved_vo:
+            return {
+                "verdict": "needs_operator_decision",
+                "issues": [{
+                    "severity": "high",
+                    "category": "missing_evidence",
+                    "description": "Approved VO text is missing from contract beats",
+                }],
+                "summary": "Text integrity could not be proven without approved VO text.",
+            }
+        try:
+            result = check_text_integrity(captions, vo_text=approved_vo)
+        except (AttributeError, TypeError, ValueError) as exc:
+            return {
+                "verdict": "needs_operator_decision",
+                "issues": [{
+                    "severity": "high",
+                    "category": "invalid_evidence",
+                    "description": f"Caption integrity evidence is invalid: {exc}",
+                }],
+                "summary": "Text integrity evidence could not be evaluated.",
+            }
+        return {
+            "verdict": result.verdict,
+            "issues": [
+                {
+                    "severity": issue.severity,
+                    "category": issue.category,
+                    "description": issue.description,
+                    "cue_id": issue.cue_id,
+                    "evidence": issue.evidence,
+                }
+                for issue in result.issues
+            ],
+            "summary": result.summary,
+        }
+
     def _extended_review_summary(
         self,
         *,
@@ -483,6 +555,19 @@ class RenderReviewService:
                 result.review.summary = (
                     f"{result.review.summary} "
                     f"{result.soundtrack_mix['summary']}"
+                ).strip()
+
+        text_required = bool(
+            (plan.get("audio", {}).get("vo", {}) or {}).get("take_id")
+            or (plan.get("captions", {}) or {}).get("burned_in")
+        )
+        if text_required:
+            text_integrity = self._text_integrity_review(plan)
+            result.review.findings["text_integrity"] = text_integrity
+            if text_integrity["verdict"] != "compliant":
+                result.review.verdict = "needs_operator_decision"
+                result.review.summary = (
+                    f"{result.review.summary} {text_integrity['summary']}"
                 ).strip()
 
         # 3. Verify writer contract hash (AMENDMENT-009 Condition 4)
