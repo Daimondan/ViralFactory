@@ -7,6 +7,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 ---
 
 ## 2026-07-20
+### VF-INSP-002 — Collection store and provider adapters [STRUCTURE/TECH/LOGIC]
+
+**What:** Added InspirationStore with three tenant-scoped append-only tables (insp_collection_runs, insp_trend_items, insp_observations) initialized by PipelineStore._init_db. Four provider adapters (Bundle.social Instagram audio, TikHub TikTok audio charts, TikHub TikTok video feed, TikHub Instagram reels) normalize documented responses into the evidence contract and preserve provider-specific metric names. Shared HTTP, rate-limit, auth-failure, redaction, and cache mechanics. Unknown response shapes fail visibly as MalformedResponse, never empty success. Missing credentials fail closed (auth_failed). A failed collection preserves the last good snapshot. Item identity deduped by (business_slug, provider, native_id); observations append-only with movement history preserved; first observation has no fabricated movement label. Secret URL params and payload fields stripped before persistence. Tenant scoping isolates data. The collection runner accepts a fixture override (tests) or a live fetcher (deployed smoke).
+
+**Rationale:** AMENDMENT-012 C1/C2/C3 require scheduled collection into dedicated append-only tables with tenant scoping, provider adapters that normalize mechanics not meaning, and provider failure that cannot erase prior data or report success. The first slice is read-only and cannot feed ideation, modules, or production. Distinct endpoint semantics (chart vs recommendation) remain distinct.
+
+**Verification:** 22 focused tests pass: schema initialization (store + PipelineStore), adapter normalization (chart audio metrics, recommendation video missing-metric-not-zero, reels), chart-vs-recommendation label distinctness, secret stripping from DB (URL params + payload fields), empty/partial/malformed/auth/rate-limit states, prior data preservation after failure, append-only history with repeated runs, item metadata update without overwriting history, tenant isolation, missing credential fail-closed, adapter registry completeness, no live network. Full suite 2045 passed, 2 skipped.
+
 
 ### VF-INSP-001 — Evidence contracts, provider config, redacted fixtures [STRUCTURE/TECH/LOGIC]
 
