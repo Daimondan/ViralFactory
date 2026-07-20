@@ -967,8 +967,10 @@ class PipelineStore:
         conn.executescript(SCHEMA_SQL)
         from soundtrack_rights import SoundtrackRightsStore
         from soundtrack_mix import SoundtrackMixStore
+        from inspiration_store import InspirationStore
         conn.executescript(SoundtrackRightsStore.SCHEMA)
         conn.executescript(SoundtrackMixStore.SCHEMA)
+        conn.executescript(InspirationStore.SCHEMA)
         # Migrations for existing databases (idempotent)
         # T8.3: add source_refs column to idea_cards if not present
         cols = [r[1] for r in conn.execute("PRAGMA table_info(idea_cards)").fetchall()]
