@@ -142,7 +142,7 @@
         <div class="expanded-head">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-4);">
                 <div>
-                    <p class="expanded-meta">№ {{ "%03d" | format(card.id) }} · {{ {'ai_originated': 'proposed by Researcher', 'human_seeded': 'from your seed', 'human_seeded_ai_developed': 'from your seed · AI developed'}.get(card.origin, card.origin) }}{% if card.created_at %} · {{ card.created_at[:16] }}{% endif %}</p>
+                    <p class="expanded-meta">№ {{ "%03d" | format(card.id) }} · {{ {'ai_originated': 'proposed by Researcher', 'human_seeded': 'from your seed', 'human_seeded_ai_developed': 'from your seed · AI developed', 'inspiration': '💡 from Inspiration Center'}.get(card.origin, card.origin) }}{% if card.created_at %} · {{ card.created_at[:16] }}{% endif %}</p>
                     <p class="expanded-title">{{ card.idea }}</p>
                     <p class="expanded-sub">
                         {{ card.treatment_compact[1] | default('') | replace('Format: ', '') | safe }}

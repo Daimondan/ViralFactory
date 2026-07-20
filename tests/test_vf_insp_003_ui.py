@@ -291,22 +291,21 @@ def test_no_secrets_in_page(app_client):
 # ─── No ideation / production actions ────────────────────────────────────────
 
 def test_no_ideation_or_publish_actions(app_client):
-    """The first slice has no action that feeds ideation/modules/production.
-    The nav links to /published (Results) are shared and not Inspiration actions."""
+    """The Inspiration page has a 'Create idea' button (operator-directed per DIVERGENCE-017)
+    that creates an idea card through the normal Gate 1 flow. No silent ideation,
+    no publish, no media download actions."""
     client, *_ = app_client
     resp = client.get("/inspiration")
     html = resp.data.decode()
-    # Check the content area (after the nav) for ideation/publish/download actions
-    # The nav has /published link which is the Results page — that's fine.
-    # The Inspiration page itself must not have create-idea/publish/download buttons.
-    assert "create idea" not in html.lower()
-    # No download button — the disclaimer says "no media download" which is correct
+    # The Create idea button exists (operator-directed) but it goes through Gate 1
+    assert "Create idea" in html or "create idea" in html.lower()
+    # No publish or download buttons
     assert "download media" not in html.lower()
     assert "download video" not in html.lower()
     assert "download audio" not in html.lower()
     # Read-only disclaimer is present
     assert "read-only" in html.lower()
-    # No "add to source bank" or "propose experiment" actions in the first slice
+    # No "propose experiment" in the first slice
     # (VF-INSP-005 adds these as distinct gated actions — they are now present
     # but do not silently change anything; update the assertion)
     # The actions exist as buttons but they go through the promotion gate.

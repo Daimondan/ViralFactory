@@ -916,6 +916,80 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         result = store.bulk_revert(business_slug=business_slug, bookmark_ids=ids)
         return jsonify({"status": "ok", "reverted": result["reverted"], "errors": result["errors"]})
 
+    @app.route("/api/inspiration/<int:trend_item_id>/<int:observation_id>/create-idea", methods=["POST"])
+    def api_inspiration_create_idea(trend_item_id, observation_id):
+        """Create an idea card directly from an Inspiration observation.
+        Origin = 'inspiration'. Enters Gate 1 as 'new' — does not bypass approval."""
+        try:
+            config = load_all(config_dir)
+            business_slug = config["business"]["business"]["slug"]
+        except ConfigError:
+            return jsonify({"status": "error", "message": "Business not configured"}), 400
+
+        from inspiration_store import InspirationStore
+        insp_store = InspirationStore(app.config["DB_PATH"])
+        # Get the trend item and latest observation
+        import sqlite3 as _sqlite3
+        conn = _sqlite3.connect(app.config["DB_PATH"])
+        conn.row_factory = _sqlite3.Row
+        item = conn.execute(
+            "SELECT * FROM insp_trend_items WHERE id=? AND business_slug=?",
+            (trend_item_id, business_slug),
+        ).fetchone()
+        if not item:
+            conn.close()
+            return jsonify({"status": "error", "message": "trend item not found"}), 404
+        obs = conn.execute(
+            "SELECT * FROM insp_observations WHERE id=? AND trend_item_id=?",
+            (observation_id, trend_item_id),
+        ).fetchone()
+        if not obs:
+            conn.close()
+            return jsonify({"status": "error", "message": "observation not found"}), 404
+        conn.close()
+
+        # Build the idea text from the item
+        title = dict(item).get("title", "") or ""
+        creator = dict(item).get("creator", "") or ""
+        platform = dict(item).get("platform", "") or ""
+        provider = dict(item).get("provider", "") or ""
+        description = dict(item).get("description", "") or ""
+        content_type = dict(item).get("content_type", "") or "item"
+
+        idea_text = f"Inspired by: {title}"
+        if creator:
+            idea_text += f" by {creator}"
+        idea_text += f" — {platform} {content_type}"
+        if description:
+            idea_text += f"\n\n{description[:500]}"
+        idea_text += f"\n\n(Source: {provider}, collected {dict(obs).get('collected_at', '')})"
+
+        # Evidence link pointing back to the observation
+        evidence_links = [{
+            "url": dict(item).get("canonical_url", "") or dict(item).get("preview_url", ""),
+            "note": f"Inspiration Center: {title} by {creator} ({platform})",
+        }]
+
+        # Create the idea card with origin='inspiration'
+        from pipeline import PipelineStore
+        pipe_store = _get_pipeline_store()
+        card_id = pipe_store.create_idea_card(
+            business_slug=business_slug,
+            idea=idea_text,
+            hook_options=[],  # hooks generated at Gate 1
+            treatment={"scope": "social", "format": "reel", "capture_required": False,
+                        "reuse": "none", "rationale": "inspiration-driven", "experimental": True},
+            origin="inspiration",
+            evidence_links=evidence_links,
+            seed_text=f"From Inspiration Center: {title} ({provider})",
+        )
+
+        return jsonify({
+            "status": "ok",
+            "idea_card_id": card_id,
+            "message": "Idea created — review it in Pipeline → Ideas",
+        })
+
     @app.route("/onboard")
     def onboard():
         """Single-thread onboarding — one conversation for all 8 playbooks.

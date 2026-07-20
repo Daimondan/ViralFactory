@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS idea_cards (
     idea TEXT NOT NULL,
     hook_options TEXT NOT NULL,          -- JSON array of hook/title strings
     treatment TEXT NOT NULL,             -- JSON: {scope, format, capture_required, reuse, rationale, experimental}
-    origin TEXT NOT NULL,                -- ai_originated | human_seeded | human_seeded_ai_developed
+    origin TEXT NOT NULL,                -- ai_originated | human_seeded | human_seeded_ai_developed | inspiration
     evidence_links TEXT,                 -- JSON array of {url, note} (derived display field)
     source_refs TEXT,                     -- JSON array of source IDs from the sources table
     seed_text TEXT,                      -- original seed (for human-seeded origins)
