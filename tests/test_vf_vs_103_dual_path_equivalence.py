@@ -100,6 +100,7 @@ def test_operator_and_autonomous_paths_produce_equivalent_edit_plans(monkeypatch
                 "vo_only_rationale": "The approved voice should stand alone.",
                 "source_sound_rationale": None,
                 "emotional_register": "direct",
+                "search_queries": ["direct restrained pulse"],
                 "operator_approval": None,
             }
         return deterministic_plan

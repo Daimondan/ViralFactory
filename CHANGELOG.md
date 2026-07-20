@@ -8,6 +8,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-20
 
+### VF-VS-512 — Move search judgment into the planner [STRUCTURE/LOGIC/TECH]
+
+**What:** Versioned Soundtrack Planner v1.2 now emits bounded `search_queries[]`. Removed Python mood/genre query derivation and the hardcoded `instrumental` fallback. Discovery mechanics normalize, deduplicate, cap, cache, and execute only those planner-authored queries. Provider enablement, adapter identity, endpoint, region, capability declaration, env credential references, audio types, candidate/request limits, timeout, cache TTL, and budget are config-driven.
+
+**Rationale:** Search phrases require semantic judgment and therefore belong in a prompt-backed, schema-validated LLM process. Python should perform only deterministic mechanics. Config-owned provider capabilities and limits let tenants select different discovery systems without source edits while keeping credentials out of persisted configuration.
+
+**Verification:** Behavioral tests first failed because planner query schema and mechanical execution did not exist. Tenant fixtures now execute different queries/providers/endpoints/regions with redacted fake credentials and no network. Grep finds no query-derivation function, provider endpoint constants, or `instrumental` fallback. 65 focused tests and the full suite (`1,956 passed, 2 skipped`) pass.
+
 ### VF-VS-511 — Persist rights evidence and local soundtrack artifacts [TECH/STRUCTURE/LOGIC]
 
 **What:** Added versioned, append-only soundtrack rights snapshots and immutable local artifact registration. Render eligibility now requires explicit verified commercial, synchronization, and download permissions; stable terms evidence; unexpired constraints; and a fresh approval record for paid acquisition. Authorized downloads land in controlled local storage, must be non-empty with measurable duration, receive a SHA-256 identity, and retain provenance without signed URL credentials. Failed acquisition leaves the prior active artifact unchanged. Discovery candidates now carry `rights_status: unknown` and an observation field rather than fabricated `commercial_safe` or provider-derived licence claims.

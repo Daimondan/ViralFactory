@@ -38,6 +38,7 @@ def _soundtrack_output(contract_id, **overrides):
         "The approved voice carries the intended emotional weight on its own.",
     )
     output["emotional_register"] = "direct"
+    output["search_queries"] = ["direct restrained pulse"]
     output.update(overrides)
     return output
 
@@ -278,7 +279,7 @@ def test_registered_soundtrack_process_logs_real_adapter_provenance(
 
     assert len(row["input_hash"]) == 64
     assert row["prompt_file"] == "assembly/soundtrack_plan_v1.md"
-    assert row["prompt_version"] == "1.1"
+    assert row["prompt_version"] == "1.2"
     assert row["model"] == "test-soundtrack-model"
     assert row["provider"] == "openai_compatible"
     assert json.loads(row["raw_output"]) == proposal

@@ -1,46 +1,25 @@
-"""Soundtrack discovery service (VF-VS-510, DIVERGENCE-015).
+"""Planner-led, config-driven soundtrack discovery (VF-VS-512).
 
-Searches configured audio catalogs via API and preserves discovery evidence.
-Discovery never implies production rights.
-
-Sources are config-driven — no business values in code. The discovery service
-is purely mechanical: it searches, filters, and returns candidates. The LLM
-ranking step (VF-VS-511) does the judgment.
-
-Config block (config/models.yaml):
-  soundtrack:
-    discovery:
-      sources:
-        - name: "bundle_instagram"
-          provider: "bundle.social"
-          api_key_env: "BUNDLE_SOCIAL_API_KEY"
-          team_id_env: "BUNDLE_TEAM_ID"
-        - name: "pixabay"
-          provider: "pixabay"
-          api_key_env: "PIXABAY_API_KEY"
-      search_queries_from: "draft.visual_direction.music"
-      min_duration_s: 30
-      require_preview_url: true
-      max_candidates_per_source: 50
+The Soundtrack Planner owns search-query judgment. This module only normalizes,
+deduplicates, caps, caches, and executes configured provider requests. Discovery
+observations never imply production rights.
 """
 
 from __future__ import annotations
 
-import json
-import os
 import logging
-from typing import Any, Optional
+import os
+import time
+from typing import Callable
 
 import requests
 
 logger = logging.getLogger(__name__)
 
 
-class SoundtrackDiscoveryError(Exception):
-    """Raised when discovery fails critically (all sources down)."""
+class SoundtrackDiscoveryError(ValueError):
+    """Raised when the planner/discovery contract cannot execute safely."""
 
-
-# ── Candidate shape ──────────────────────────────────────────────────────────
 
 def _make_candidate(
     source: str,
@@ -55,7 +34,6 @@ def _make_candidate(
     usage_count: int = 0,
     raw: dict | None = None,
 ) -> dict:
-    """Build a normalized candidate dict."""
     return {
         "source": source,
         "external_id": str(external_id),
@@ -72,246 +50,218 @@ def _make_candidate(
     }
 
 
-# ── Bundle.social (Instagram audio) ─────────────────────────────────────────
+def normalize_search_queries(
+    search_queries: list[str], *, max_queries: int, max_query_chars: int
+) -> list[str]:
+    """Normalize planner output without deriving or adding query meaning."""
+    if not isinstance(search_queries, list):
+        raise SoundtrackDiscoveryError("search_queries must be an array")
+    if max_queries < 1 or max_query_chars < 1:
+        raise SoundtrackDiscoveryError("search query limits must be positive")
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw_query in search_queries:
+        if not isinstance(raw_query, str):
+            raise SoundtrackDiscoveryError("every search_queries item must be text")
+        query = " ".join(raw_query.split())[:max_query_chars]
+        key = query.casefold()
+        if query and key not in seen:
+            normalized.append(query)
+            seen.add(key)
+        if len(normalized) >= max_queries:
+            break
+    if not normalized:
+        raise SoundtrackDiscoveryError("search_queries must contain planner-authored text")
+    return normalized
 
-BUNDLE_API_BASE = "https://api.bundle.social/api/v1"
-BUNDLE_LICENSE = ""
+
+def _limits(source: dict) -> tuple[int, float]:
+    limits = source.get("limits") or {}
+    return (
+        max(1, int(limits.get("max_candidates", 1))),
+        max(0.1, float(limits.get("timeout_seconds", 10))),
+    )
 
 
-def _search_bundle_instagram(
-    query: str, api_key: str, team_id: str, limit: int = 50,
-) -> list[dict]:
-    """Search Bundle.social Instagram audio API."""
-    candidates = []
-    # Search both music and original_sound types
-    for audio_type in ("music", "original_sound"):
+def _bundle_adapter(query: str, source: dict, credentials: dict) -> list[dict]:
+    limit, timeout = _limits(source)
+    candidates: list[dict] = []
+    audio_types = source.get("audio_types") or ["music", "original_sound"]
+    for audio_type in audio_types:
         try:
-            resp = requests.get(
-                f"{BUNDLE_API_BASE}/misc/instagram/audio",
+            response = requests.get(
+                source["endpoint"],
                 params={
-                    "teamId": team_id,
+                    "teamId": credentials.get("team_id", ""),
                     "audioType": audio_type,
                     "searchQuery": query,
+                    "region": source.get("region", ""),
                 },
-                headers={"x-api-key": api_key},
-                timeout=30,
+                headers={"x-api-key": credentials["api_key"]},
+                timeout=timeout,
             )
-            resp.raise_for_status()
-            data = resp.json()
-            for a in data.get("audio", []):
-                duration_ms = a.get("duration_in_ms") or 0
-                duration_s = duration_ms / 1000.0 if duration_ms else 0.0
+            response.raise_for_status()
+            for item in response.json().get("audio", []):
+                duration_ms = item.get("duration_in_ms") or 0
                 candidates.append(_make_candidate(
-                    source="bundle_instagram",
-                    external_id=a.get("audio_id", ""),
-                    audio_id=a.get("audio_id", ""),
-                    title=a.get("title", ""),
-                    artist=a.get("display_artist", "") or a.get("ig_username", ""),
-                    duration_s=duration_s,
-                    preview_url=a.get("download_url", ""),
-                    download_url=a.get("download_url", ""),
-                    license_type=BUNDLE_LICENSE,
-                    raw=a,
+                    source=source["name"],
+                    external_id=item.get("audio_id", ""),
+                    audio_id=item.get("audio_id", ""),
+                    title=item.get("title", ""),
+                    artist=item.get("display_artist", "") or item.get("ig_username", ""),
+                    duration_s=duration_ms / 1000.0 if duration_ms else 0.0,
+                    preview_url=item.get("download_url", ""),
+                    download_url=item.get("download_url", ""),
+                    license_type="",
+                    usage_count=item.get("usage_count") or 0,
+                    raw=item,
                 ))
-        except requests.RequestException as e:
-            logger.warning("Bundle.social audio search failed for '%s' (%s): %s",
-                           query, audio_type, e)
+        except (KeyError, requests.RequestException, ValueError) as exc:
+            logger.warning("Soundtrack provider %s failed: %s", source.get("name"), exc)
     return candidates[:limit]
 
 
-# ── Pixabay audio ────────────────────────────────────────────────────────────
-
-PIXABAY_API_BASE = "https://pixabay.com/api"
-PIXABAY_LICENSE = ""
-
-
-def _search_pixabay(
-    query: str, api_key: str, limit: int = 50,
-) -> list[dict]:
-    """Search Pixabay audio API."""
+def _pixabay_adapter(query: str, source: dict, credentials: dict) -> list[dict]:
+    limit, timeout = _limits(source)
     try:
-        resp = requests.get(
-            f"{PIXABAY_API_BASE}/audio/",
-            params={"key": api_key, "q": query, "per_page": min(limit, 50)},
-            timeout=30,
+        response = requests.get(
+            source["endpoint"],
+            params={
+                "key": credentials["api_key"],
+                "q": query,
+                "per_page": limit,
+                "region": source.get("region", ""),
+            },
+            timeout=timeout,
         )
-        resp.raise_for_status()
-        data = resp.json()
-    except requests.RequestException as e:
-        logger.warning("Pixabay audio search failed for '%s': %s", query, e)
+        response.raise_for_status()
+        hits = response.json().get("hits", [])
+    except (KeyError, requests.RequestException, ValueError) as exc:
+        logger.warning("Soundtrack provider %s failed: %s", source.get("name"), exc)
         return []
-
-    candidates = []
-    for m in data.get("hits", []):
-        candidates.append(_make_candidate(
-            source="pixabay",
-            external_id=m.get("id", ""),
-            title=m.get("tags", f"Track {m.get('id')}"),
-            artist=m.get("user", ""),
-            duration_s=float(m.get("duration", 0)),
-            preview_url=m.get("audio", ""),
-            download_url=m.get("audio", ""),
-            license_type=PIXABAY_LICENSE,
-            raw=m,
-        ))
-    return candidates[:limit]
-
-
-# ── Query derivation ──────────────────────────────────────────────────────────
-
-def _derive_search_queries(
-    audio_intent: dict, visual_direction: dict | None = None,
-) -> list[str]:
-    """Derive search queries from the Writer's audio/visual intent.
-
-    The Writer produces `visual_direction.music` with mood, genre, tempo.
-    We map those to short search terms (max 100 chars per Bundle.social API
-    limit). No business values — the mapping is structural.
-    """
-    queries = []
-
-    # From visual_direction.music block
-    music_block = (visual_direction or {}).get("music", {})
-    mood = music_block.get("mood", "")
-    genre = music_block.get("genre", "")
-
-    # Use short keywords — the full mood/genre strings can exceed the
-    # 100-char API limit. Extract the first few words.
-    def _short(s, max_words=3):
-        words = str(s).split()
-        return " ".join(words[:max_words])
-
-    mood_short = _short(mood)
-    genre_short = _short(genre)
-
-    if mood_short and genre_short:
-        queries.append(f"{mood_short} {genre_short}")
-    if mood_short:
-        queries.append(mood_short)
-    if genre_short:
-        queries.append(genre_short)
-
-    # From beat audio_intent blocks
-    intents = audio_intent.get("audio_intents", [])
-    for intent in intents:
-        ai = intent.get("audio_intent", {})
-        if ai.get("mood") and ai["mood"] not in [q for q in queries]:
-            queries.append(_short(ai["mood"]))
-
-    # Fallback: if no queries derived, use a generic term
-    if not queries:
-        queries.append("instrumental")
-
-    # Deduplicate, limit to 6 queries, truncate each to 90 chars (safe margin)
-    seen = set()
-    unique = []
-    for q in queries:
-        ql = q.lower().strip()[:90]
-        if ql and ql not in seen:
-            seen.add(ql)
-            unique.append(q[:90])
-    return unique[:6]
+    return [
+        _make_candidate(
+            source=source["name"],
+            external_id=item.get("id", ""),
+            title=item.get("tags", ""),
+            artist=item.get("user", ""),
+            duration_s=item.get("duration") or 0,
+            preview_url=item.get("audio", ""),
+            download_url=item.get("audio", ""),
+            license_type="",
+            raw=item,
+        )
+        for item in hits[:limit]
+    ]
 
 
-# ── Filter ───────────────────────────────────────────────────────────────────
+PROVIDER_ADAPTERS: dict[str, Callable[[str, dict, dict], list[dict]]] = {
+    "bundle_social_instagram": _bundle_adapter,
+    "pixabay_audio": _pixabay_adapter,
+}
+_CACHE: dict[tuple, tuple[float, list[dict]]] = {}
+
+
+def _credentials(source: dict) -> dict:
+    values = {}
+    for key, config_key in (("api_key", "api_key_env"), ("team_id", "team_id_env")):
+        env_name = source.get(config_key)
+        if env_name:
+            values[key] = os.environ.get(env_name, "")
+    return values
+
+
+def _validate_source(source: dict) -> list[str]:
+    errors = []
+    for field in ("name", "adapter", "endpoint", "region"):
+        if not source.get(field):
+            errors.append(f"provider {field} is required")
+    capabilities = source.get("capabilities")
+    if not isinstance(capabilities, list) or "audio_search" not in capabilities:
+        errors.append("provider lacks audio_search capability")
+    return errors
+
 
 def _filter_candidates(
     candidates: list[dict],
     min_duration_s: float = 30.0,
     require_preview_url: bool = True,
 ) -> list[dict]:
-    """Filter candidates by hard constraints."""
-    filtered = []
-    for c in candidates:
-        if require_preview_url and not c.get("preview_url"):
+    return [
+        candidate for candidate in candidates
+        if (not require_preview_url or candidate.get("preview_url"))
+        and (
+            candidate.get("duration_s", 0) == 0
+            or candidate.get("duration_s", 0) >= min_duration_s
+        )
+    ]
+
+
+def discover_soundtrack_candidates(search_queries: list[str], config: dict) -> dict:
+    """Execute planner-authored queries against configured provider adapters."""
+    discovery = config.get("discovery") or {}
+    queries = normalize_search_queries(
+        search_queries,
+        max_queries=int(discovery.get("max_queries", 1)),
+        max_query_chars=int(discovery.get("max_query_chars", 1)),
+    )
+    max_requests = max(0, int((discovery.get("budget") or {}).get("max_requests", 0)))
+    ttl = max(0, int(discovery.get("cache_ttl_seconds", 0)))
+    all_candidates: list[dict] = []
+    sources_searched: list[str] = []
+    errors: list[str] = []
+    request_count = 0
+
+    for source in discovery.get("sources") or []:
+        if not source.get("enabled", False):
             continue
-        if c["duration_s"] > 0 and c["duration_s"] < min_duration_s:
+        source_errors = _validate_source(source)
+        adapter = PROVIDER_ADAPTERS.get(source.get("adapter"))
+        if not adapter:
+            source_errors.append("provider adapter is not registered")
+        credentials = _credentials(source)
+        if source.get("api_key_env") and not credentials.get("api_key"):
+            source_errors.append("provider credential is unavailable")
+        if source.get("team_id_env") and not credentials.get("team_id"):
+            source_errors.append("provider team credential is unavailable")
+        if source_errors:
+            errors.extend(f"{source.get('name', 'provider')}: {error}" for error in source_errors)
             continue
-        filtered.append(c)
-    return filtered
 
+        sources_searched.append(source["name"])
+        for query in queries:
+            if request_count >= max_requests:
+                break
+            cache_key = (
+                source["name"], source["endpoint"], source["region"], query.casefold()
+            )
+            cached = _CACHE.get(cache_key)
+            if cached and time.monotonic() - cached[0] <= ttl:
+                results = cached[1]
+            else:
+                results = adapter(query, source, credentials)
+                _CACHE[cache_key] = (time.monotonic(), results)
+                request_count += 1
+            all_candidates.extend(results)
 
-# ── Main entry point ─────────────────────────────────────────────────────────
-
-def discover_soundtrack_candidates(
-    audio_intent: dict,
-    visual_direction: dict | None,
-    config: dict,
-) -> dict:
-    """Discover soundtrack candidates from configured sources.
-
-    Args:
-        audio_intent: Beat-level audio intents from the Writer.
-        visual_direction: The draft's visual_direction block (contains music).
-        config: The soundtrack config block from models.yaml.
-
-    Returns:
-        {
-            "candidates": [...],
-            "queries": [...],
-            "sources_searched": [...],
-            "errors": [...],
-        }
-    """
-    discovery_config = config.get("discovery", {})
-    sources = discovery_config.get("sources", [])
-    min_duration_s = float(discovery_config.get("min_duration_s", 30))
-    require_preview = bool(discovery_config.get("require_preview_url", True))
-    max_per_source = int(discovery_config.get("max_candidates_per_source", 50))
-
-    queries = _derive_search_queries(audio_intent, visual_direction)
-
-    all_candidates = []
-    sources_searched = []
-    errors = []
-
-    for source_cfg in sources:
-        provider = source_cfg.get("provider", "")
-        api_key_env = source_cfg.get("api_key_env", "")
-        api_key = os.environ.get(api_key_env, "")
-
-        if provider == "bundle.social":
-            team_id_env = source_cfg.get("team_id_env", "")
-            team_id = os.environ.get(team_id_env, "")
-            if not api_key or not team_id:
-                errors.append(f"{provider}: missing API key or team ID")
-                continue
-            sources_searched.append(provider)
-            for q in queries:
-                results = _search_bundle_instagram(
-                    q, api_key, team_id, max_per_source,
-                )
-                all_candidates.extend(results)
-
-        elif provider == "pixabay":
-            if not api_key:
-                errors.append(f"{provider}: missing API key")
-                continue
-            sources_searched.append(provider)
-            for q in queries:
-                results = _search_pixabay(q, api_key, max_per_source)
-                all_candidates.extend(results)
-
-        else:
-            errors.append(f"Unknown provider: {provider}")
-
-    # Deduplicate by source + external_id
-    seen = set()
+    seen: set[tuple[str, str]] = set()
     deduped = []
-    for c in all_candidates:
-        key = f"{c['source']}:{c['external_id']}"
+    for candidate in all_candidates:
+        key = (candidate["source"], candidate["external_id"])
         if key not in seen:
             seen.add(key)
-            deduped.append(c)
-
-    # Filter by hard constraints
-    filtered = _filter_candidates(deduped, min_duration_s, require_preview)
-
+            deduped.append(candidate)
+    filtered = _filter_candidates(
+        deduped,
+        min_duration_s=float(discovery.get("min_duration_s", 0)),
+        require_preview_url=bool(discovery.get("require_preview_url", False)),
+    )
     return {
         "candidates": filtered,
         "queries": queries,
         "sources_searched": sources_searched,
         "total_found": len(deduped),
         "total_filtered": len(filtered),
+        "request_count": request_count,
         "errors": errors,
     }

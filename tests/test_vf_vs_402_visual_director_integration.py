@@ -166,6 +166,7 @@ def test_shared_edit_planner_invokes_and_persists_visual_director(
                 "vo_only_rationale": "The approved voice should stand alone.",
                 "source_sound_rationale": None,
                 "emotional_register": "direct",
+                "search_queries": ["direct restrained pulse"],
                 "operator_approval": None,
             }, "soundtrack-context:v1")
         return ({"beats": [{

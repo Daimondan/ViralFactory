@@ -9,25 +9,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 # ── Discovery ────────────────────────────────────────────────────────────────
 
-def test_discovery_query_derivation():
-    """Search queries are derived from the Writer's audio/visual intent."""
-    from soundtrack_discovery import _derive_search_queries
-    queries = _derive_search_queries(
-        {"audio_intents": [{"beat_id": "b01", "audio_intent": {"mood": "motivational"}}]},
-        {"music": {"mood": "reflective", "genre": "minimal"}},
-    )
-    assert "reflective minimal" in queries
-    assert "reflective" in queries
-    assert "minimal" in queries
-
-
-def test_discovery_query_fallback():
-    """When no mood/genre is provided, falls back to 'instrumental'."""
-    from soundtrack_discovery import _derive_search_queries
-    queries = _derive_search_queries({"audio_intents": []}, None)
-    assert "instrumental" in queries
-
-
 def test_discovery_filter_min_duration():
     """Candidates shorter than min_duration_s are filtered out."""
     from soundtrack_discovery import _filter_candidates

@@ -870,6 +870,23 @@ class EditPlanningService:
         emotional_register = output.get("emotional_register")
         if not isinstance(emotional_register, str) or not emotional_register.strip():
             errors.append("emotional_register must be a non-empty string")
+        search_queries = output.get("search_queries")
+        if not isinstance(search_queries, list) or not search_queries:
+            errors.append("search_queries must be a non-empty array")
+        elif len(search_queries) > 6:
+            errors.append("search_queries must contain at most 6 items")
+        else:
+            seen_queries = set()
+            for index, query in enumerate(search_queries):
+                if not isinstance(query, str) or not query.strip():
+                    errors.append(f"search_queries[{index}] must be non-empty text")
+                    continue
+                if len(query) > 90:
+                    errors.append(f"search_queries[{index}] must be at most 90 characters")
+                normalized = " ".join(query.split()).casefold()
+                if normalized in seen_queries:
+                    errors.append("search_queries must be unique")
+                seen_queries.add(normalized)
 
         for index, cue in enumerate(output.get("sfx_cues") or []):
             if not isinstance(cue, dict):

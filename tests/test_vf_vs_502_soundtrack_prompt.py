@@ -31,7 +31,7 @@ def test_prompt_file_exists():
 def test_prompt_has_version():
     content = open(_prompt_path()).read()
     assert "version:" in content
-    assert "1.0" in content
+    assert "1.2" in content
 
 
 def test_prompt_has_no_tenant_strings():
@@ -80,7 +80,7 @@ def test_prompt_requires_licence_provenance():
 
 def test_prompt_fails_closed_without_verified_music_candidates():
     content = open(_prompt_path()).read()
-    assert "<!-- version: 1.1 -->" in content
+    assert "<!-- version: 1.2 -->" in content
     assert "If no verified music candidates are provided" in content
     assert '"envelope": []' in content
 
@@ -96,6 +96,13 @@ def test_llm_schema_modes_match():
 def test_llm_schema_has_emotional_register():
     assert "emotional_register" in SOUNDTRACK_PLAN_LLM_SCHEMA["properties"]
     assert "emotional_register" in SOUNDTRACK_PLAN_LLM_SCHEMA["required"]
+
+
+def test_llm_schema_requires_planner_authored_search_queries():
+    queries = SOUNDTRACK_PLAN_LLM_SCHEMA["properties"]["search_queries"]
+    assert "search_queries" in SOUNDTRACK_PLAN_LLM_SCHEMA["required"]
+    assert queries["minItems"] == 1
+    assert queries["maxItems"] == 6
 
 
 def test_llm_schema_requires_complete_music_reference():

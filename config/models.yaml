@@ -314,21 +314,40 @@ buffer:
       name: "stackwellpennifold"
       service: "instagram"
 
-# ── Soundtrack discovery + ranking + mixing (VF-VS-510..515, DIVERGENCE-015) ──
-# Auto-discover music from commercial-safe catalogs, LLM-rank by mood/fit (80%)
-# + popularity (20%), auto-mix the top pick into the render. Operator reviews
-# the final video with music already applied; alternatives shown for swapping.
+# ── Soundtrack discovery + ranking + mixing (VF-VS-510..515) ──
+# Planner-authored queries execute against enabled provider capabilities.
+# Discovery observations do not imply production rights.
 # Auth: BUNDLE_SOCIAL_API_KEY + BUNDLE_TEAM_ID + PIXABAY_API_KEY env vars.
 soundtrack:
   discovery:
+    max_queries: 6
+    max_query_chars: 90
+    cache_ttl_seconds: 900
+    budget:
+      max_requests: 12
     sources:
       - name: "bundle_instagram"
-        provider: "bundle.social"
+        adapter: "bundle_social_instagram"
+        enabled: true
+        endpoint: "https://api.bundle.social/api/v1/misc/instagram/audio"
         api_key_env: "BUNDLE_SOCIAL_API_KEY"
         team_id_env: "BUNDLE_TEAM_ID"
+        region: "global"
+        capabilities: ["audio_search", "preview", "trend_observation"]
+        audio_types: ["music", "original_sound"]
+        limits:
+          max_candidates: 50
+          timeout_seconds: 30
       - name: "pixabay"
-        provider: "pixabay"
+        adapter: "pixabay_audio"
+        enabled: true
+        endpoint: "https://pixabay.com/api/audio/"
         api_key_env: "PIXABAY_API_KEY"
+        region: "global"
+        capabilities: ["audio_search", "preview"]
+        limits:
+          max_candidates: 50
+          timeout_seconds: 30
     min_duration_s: 30
     require_preview_url: true
     max_candidates_per_source: 50

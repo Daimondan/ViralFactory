@@ -791,6 +791,7 @@ SOUNDTRACK_PLAN_LLM_SCHEMA = {
         "mode",
         "sfx_cues",
         "emotional_register",
+        "search_queries",
         "operator_approval",
     ],
     "properties": {
@@ -841,6 +842,13 @@ SOUNDTRACK_PLAN_LLM_SCHEMA = {
         "vo_only_rationale": {"type": ["string", "null"]},
         "source_sound_rationale": {"type": ["string", "null"]},
         "emotional_register": {"type": "string"},
+        "search_queries": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 6,
+            "uniqueItems": True,
+            "items": {"type": "string", "minLength": 1, "maxLength": 90},
+        },
         "operator_approval": {"type": ["string", "null"]},
     },
 }
