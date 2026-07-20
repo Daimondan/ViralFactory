@@ -232,6 +232,7 @@ def _tikhub_tiktok_video_feed_adapter(response: dict, provider: dict) -> dict:
             normalized.append({
                 "native_id": native_id, "desc": ai.get("desc", "") or "",
                 "nickname": author.get("nickname", "") or "",
+                "unique_id": author.get("unique_id", "") or "",
                 "play_count": stats.get("play_count"), "digg_count": stats.get("digg_count"),
                 "comment_count": stats.get("comment_count"), "share_count": stats.get("share_count"),
                 "music_id": str(music.get("id", "") or ""), "music_title": music.get("title", "") or "",
@@ -255,6 +256,7 @@ def _tikhub_tiktok_video_feed_adapter(response: dict, provider: dict) -> dict:
             normalized.append({
                 "native_id": native_id, "desc": raw.get("desc", "") or "",
                 "nickname": raw.get("nickname", "") or "",
+                "unique_id": raw.get("unique_id", "") or raw.get("nickname", "") or "",
                 "play_count": raw.get("play_count"), "digg_count": raw.get("digg_count"),
                 "comment_count": raw.get("comment_count"), "share_count": raw.get("share_count"),
                 "music_id": str(raw.get("music_id", "") or ""), "music_title": raw.get("music_title", "") or "",
@@ -281,6 +283,8 @@ def _tikhub_tiktok_video_feed_adapter(response: dict, provider: dict) -> dict:
             thumbnail_url=norm.get("cover", "") or "",
             availability="available" if norm.get("play_url") else "link_only",
         )
+        # Store the author handle for canonical URL construction
+        item["_handle"] = norm.get("unique_id", "") or ""
         item["_posted_at"] = norm.get("posted_at", "")
         item["_linked_audio_id"] = norm.get("music_id", "")
         item["_linked_audio_title"] = norm.get("music_title", "")
@@ -410,9 +414,9 @@ ADAPTERS: dict[str, AdapterFn] = {
 
 
 def _platform_url(platform: str, content_type: str, native_id: str,
-                   platform_urls: dict | None = None) -> str:
+                   platform_urls: dict | None = None, handle: str = "") -> str:
     """Construct a canonical platform URL from the native ID using config templates.
-    Returns empty string if no template matches."""
+    Supports {native_id} and {handle} placeholders. Returns empty string if no template matches."""
     if not platform_urls or not native_id:
         return ""
     # Build the lookup key: platform + content_type
@@ -423,7 +427,9 @@ def _platform_url(platform: str, content_type: str, native_id: str,
         template = platform_urls.get(platform, "")
     if not template:
         return ""
-    return template.replace("{native_id}", native_id)
+    url = template.replace("{native_id}", native_id)
+    url = url.replace("{handle}", handle or "")
+    return url
 
 
 # ─── HTTP fetch (shared mechanics) ───────────────────────────────────────────
@@ -903,7 +909,7 @@ def run_collection(
         if not item.get("canonical_url"):
             item["canonical_url"] = _platform_url(
                 item.get("platform", ""), item.get("content_type", ""),
-                item.get("native_id", ""), p_urls)
+                item.get("native_id", ""), p_urls, item.pop("_handle", ""))
         # Redact URL fields on the item itself before persistence
         for url_field in ("preview_url", "thumbnail_url", "canonical_url"):
             if item.get(url_field):
