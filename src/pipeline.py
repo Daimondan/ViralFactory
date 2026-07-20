@@ -966,7 +966,9 @@ class PipelineStore:
         conn = sqlite3.connect(self.db_path)
         conn.executescript(SCHEMA_SQL)
         from soundtrack_rights import SoundtrackRightsStore
+        from soundtrack_mix import SoundtrackMixStore
         conn.executescript(SoundtrackRightsStore.SCHEMA)
+        conn.executescript(SoundtrackMixStore.SCHEMA)
         # Migrations for existing databases (idempotent)
         # T8.3: add source_refs column to idea_cards if not present
         cols = [r[1] for r in conn.execute("PRAGMA table_info(idea_cards)").fetchall()]

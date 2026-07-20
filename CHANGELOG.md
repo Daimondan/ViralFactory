@@ -8,6 +8,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-20
 
+### VF-VS-514 — Persist immutable soundtrack mix sets [STRUCTURE/LOGIC/TECH]
+
+**What:** Replaced URL-driven fixed-filename soundtrack mixing with a local-artifact-only mix service and append-only `soundtrack_mix_versions`. Content-derived mix-set identity binds the asset, soundtrack plan, ordered track and rights hashes, approved VO hash, mixing-config hash, timeline, and energy curve. FFmpeg normalizes VO and bed outside `filter_complex`, then creates separate preview and finished outputs for the recommendation and up to three alternatives. Each version records source provider, rights/artifact/VO/config hashes, immutable output hash/path, bytes, duration, loudness evidence, and version number. Activation revalidates the finished file hash and swaps in one transaction.
+
+**Rationale:** Remote URLs, fixed temp filenames, and caller-selected outputs cannot prove which licensed recording was mixed or preserve prior valid output after failure. Content-addressed sets make retries idempotent, retain provider identity, let every alternative be auditioned against the same sacred VO, and prevent partial generation from replacing the active mix.
+
+**Verification:** Real FFmpeg fixtures create eight playable, distinct, measured preview/finished outputs for a top pick plus three alternatives. Tests activate each alternative, verify exact hash/provider/rights/VO/config provenance, prove identical retry reuse without overwriting files, inject a missing local artifact during replacement and confirm the prior active version survives, and verify pipeline databases initialize the schema. 37 focused tests and the full suite (`1,971 passed, 2 skipped`) pass.
+
 ### VF-VS-513 — Bind ranking to rights-valid evidence [LOGIC/STRUCTURE/TECH]
 
 **What:** Replaced the universal 80/20 soundtrack score, inferred popularity tiers, and loose audio IDs with strict evidence contracts. Ranking candidates must carry verified rights records, immutable local and preview artifact identities, observed fit fields, and exact popularity metric provenance. Prompt v2.0 requires field-cited rationale evidence and permits popularity only as a bounded tie-breaker. Validation rejects malformed candidate children, absent rationale fields, invented or duplicate selection IDs, and comparisons across different metric/provider/region signatures.
