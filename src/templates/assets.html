@@ -444,47 +444,88 @@
             </div>
             {% endif %}
 
-            {# VF-VS-513: Soundtrack alternatives box — operator can switch music #}
+            {# VF-VS-515: Unified Gate 3 soundtrack panel — shows actual finished media,
+               active track, alternatives with "Use this track" action, all states.
+               Uses "Suggested" not "Approved" before human decision. #}
             {% if is_reel and asset.soundtrack_ranking and asset.soundtrack_ranking.recommended %}
-            <div class="soundtrack-alternatives-panel" style="margin: 12px 16px; background: #F5F2E9; border: 1px solid #D8D4C8; border-radius: 8px; padding: 12px;">
-                <div style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #8A857C; margin-bottom: 8px;">Soundtrack — Auto-Selected</div>
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                    <span style="font-family: var(--font-serif); font-size: 1rem; font-weight: 700;">♪ {{ asset.soundtrack_ranking.recommended.title }}</span>
-                    <span style="color: #8A857C; font-size: 0.82rem;">— {{ asset.soundtrack_ranking.recommended.artist }}</span>
-                    <span class="badge badge-approved" style="font-size: 0.68rem;">Top pick</span>
+            <div class="soundtrack-alternatives-panel" style="margin: 12px 16px; background: #F5F2E9; border: 1px solid #D8D4C8; border-radius: 8px; padding: 12px;" id="gate3-soundtrack-{{ asset.id }}">
+                <div style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #8A857C; margin-bottom: 8px;">Soundtrack</div>
+                <div id="gate3-soundtrack-loading-{{ asset.id }}" style="font-size: 0.82rem; color: #8A857C; padding: 8px 0;">
+                    <span class="spinner"></span> Loading soundtrack status…
                 </div>
-                {% if asset.soundtrack_ranking.recommended.rationale %}
-                <p style="font-size: 0.78rem; color: #6B655E; margin: 0 0 10px 0;">{{ asset.soundtrack_ranking.recommended.rationale }}</p>
-                {% endif %}
-
-                {% if asset.soundtrack_ranking.alternatives %}
-                <div style="font-size: 0.72rem; font-weight: 600; color: #8A857C; margin-bottom: 4px;">Alternatives (click to switch):</div>
-                {% for alt in asset.soundtrack_ranking.alternatives %}
-                <div style="display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid #E8E4D8;">
-                    <span style="font-size: 0.85rem;">♪ {{ alt.title }}</span>
-                    <span style="color: #8A857C; font-size: 0.78rem;">— {{ alt.artist }}</span>
-                    {% if alt.preview_url %}
-                    <a href="{{ alt.preview_url }}" target="_blank" style="font-size: 0.72rem; color: var(--accent); text-decoration: none;">Preview ↗</a>
-                    {% endif %}
-                    <button onclick="switchSoundtrack({{ asset.id }}, '{{ alt.audio_id }}')" style="font-size: 0.72rem; padding: 2px 8px; background: var(--accent); color: white; border: none; border-radius: 4px; cursor: pointer;">Switch</button>
+                <div id="gate3-soundtrack-body-{{ asset.id }}" style="display:none;">
+                    {# Populated by JS from /api/assets/<id>/soundtrack-status #}
                 </div>
-                {% if alt.trade_off %}
-                <p style="font-size: 0.72rem; color: #8A857C; margin: 0 0 4px 0;">{{ alt.trade_off }}</p>
-                {% endif %}
-                {% endfor %}
-                {% endif %}
             </div>
             <script>
-            function switchSoundtrack(assetId, audioId) {
-                if (!confirm('Switch to this track? The video will re-render with the new music.')) return;
-                fetch('/api/assets/' + assetId + '/soundtrack-switch', {
+            (function() {
+                const assetId = {{ asset.id }};
+                fetch(`/api/assets/${assetId}/soundtrack-status`)
+                    .then(r => r.json())
+                    .then(data => {
+                        document.getElementById('gate3-soundtrack-loading-{{ asset.id }}').style.display = 'none';
+                        const body = document.getElementById('gate3-soundtrack-body-{{ asset.id }}');
+                        body.style.display = 'block';
+
+                        if (data.state === 'no_mix') {
+                            body.innerHTML = '<p style="font-size:.82rem;color:#8A857C;">No soundtrack mix generated yet. The video will use VO only.</p>';
+                            return;
+                        }
+
+                        let html = '';
+                        // Active track
+                        if (data.active) {
+                            const stateLabel = data.state === 'approved' ? '✓ Approved' : 'Suggested';
+                            const stateClass = data.state === 'approved' ? 'color:#4A7C3A' : 'color:#E54B2C';
+                            html += `<div style="margin-bottom:10px;">
+                                <span style="font-family:var(--font-serif);font-size:1rem;font-weight:700;">♪ ${data.active.provider || 'Track'}</span>
+                                <span style="font-size:.78rem;${stateClass};margin-left:8px;">${stateLabel}</span>
+                            </div>`;
+                            // Playable preview of the actual finished media
+                            if (data.active.preview_path) {
+                                html += `<video controls preload="none" style="width:100%;max-width:400px;margin:8px 0;border-radius:8px;" src="${data.active.preview_path}"></video>`;
+                            }
+                        }
+
+                        // Alternatives
+                        if (data.alternatives && data.alternatives.length > 0) {
+                            html += '<div style="font-size:.72rem;font-weight:600;color:#8A857C;margin:10px 0 4px;">Alternatives:</div>';
+                            data.alternatives.forEach(alt => {
+                                html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid #E8E4D8;">
+                                    <span style="font-size:.85rem;">♪ ${alt.provider || 'Alt'}</span>
+                                    ${alt.preview_path ? `<a href="${alt.preview_path}" target="_blank" style="font-size:.72rem;color:var(--accent);">Preview ↗</a>` : ''}
+                                    <button onclick="switchGate3Soundtrack(${assetId}, '${alt.candidate_id}')" style="font-size:.72rem;padding:2px 8px;background:var(--accent);color:white;border:none;border-radius:4px;cursor:pointer;">Use this track</button>
+                                </div>`;
+                            });
+                        }
+
+                        // State messages
+                        if (data.state === 'suggested') {
+                            html += '<p style="font-size:.78rem;color:#6B655E;margin-top:10px;">This is a suggestion — review the media above before approving.</p>';
+                        } else if (data.state === 'approved') {
+                            html += '<p style="font-size:.78rem;color:#4A7C3A;margin-top:10px;">✓ You approved this soundtrack. Switching tracks will require re-approval.</p>';
+                        }
+
+                        body.innerHTML = html;
+                    })
+                    .catch(() => {
+                        document.getElementById('gate3-soundtrack-loading-{{ asset.id }}').innerHTML = '<span style="color:#C0392B;font-size:.82rem;">Failed to load soundtrack status.</span>';
+                    });
+            })();
+            function switchGate3Soundtrack(assetId, candidateId) {
+                if (!confirm('Switch to this track? Gate 3 approval will be invalidated — you must re-review.')) return;
+                fetch(`/api/assets/${assetId}/soundtrack-switch`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({audio_id: audioId})
+                    body: JSON.stringify({candidate_id: candidateId})
                 }).then(r => r.json()).then(d => {
-                    if (d.status === 'ok') { alert('Re-rendering with new track. Check back in ~2 min.'); location.reload(); }
-                    else { alert('Switch failed: ' + (d.error || 'unknown')); }
-                });
+                    if (d.status === 'ok') {
+                        alert('Track switched. Re-review the media above.');
+                        location.reload();
+                    } else {
+                        alert('Switch failed: ' + (d.message || 'unknown error'));
+                    }
+                }).catch(() => alert('Switch request failed.'));
             }
             </script>
             {% endif %}

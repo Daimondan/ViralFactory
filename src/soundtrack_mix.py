@@ -170,6 +170,20 @@ class SoundtrackMixStore:
             ).fetchone()
         return dict(row) if row else None
 
+    def list_all_versions(self, asset_id: int, kind: str = "finished") -> list[dict]:
+        """List all mix versions for an asset (finished or preview).
+        Used by Gate 3 to show the active track + alternatives."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            conn.executescript(self.SCHEMA)
+            rows = conn.execute(
+                """SELECT * FROM soundtrack_mix_versions
+                   WHERE asset_id = ? AND kind = ?
+                   ORDER BY active DESC, id ASC""",
+                (asset_id, kind),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
     def activate_candidate(
         self, asset_id: int, mix_set_id: str, candidate_id: str
     ) -> dict:

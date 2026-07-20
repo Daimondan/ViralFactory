@@ -4563,6 +4563,29 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         except ConfigError:
             return None
 
+    # ── VF-VS-515: Gate 3 soundtrack approval helpers ──
+    def _gate3_approved(asset_id: int) -> bool:
+        """Check if Gate 3 (asset approval) is currently approved."""
+        import sqlite3 as _sqlite3
+        conn = _sqlite3.connect(app.config["DB_PATH"])
+        row = conn.execute(
+            "SELECT asset_state FROM assets WHERE id = ?", (asset_id,)
+        ).fetchone()
+        conn.close()
+        return row and row[0] == "approved"
+
+    def _invalidate_gate3_approval(asset_id: int):
+        """Switching soundtrack invalidates prior Gate 3 approval — the operator
+        must re-review the asset with the new track."""
+        import sqlite3 as _sqlite3
+        conn = _sqlite3.connect(app.config["DB_PATH"])
+        conn.execute(
+            "UPDATE assets SET asset_state = 'pending', updated_at = ? WHERE id = ?",
+            (datetime.now(timezone.utc).isoformat(), asset_id),
+        )
+        conn.commit()
+        conn.close()
+
     # ── T9.1: Format Guide metadata parsers (mechanical, no keyword heuristics) ──
     # These replace the charter-violating _resolve_format_platforms (regex parser)
     # and _determine_variant_type (keyword heuristic). Per AMENDMENT-007, the
@@ -7151,6 +7174,91 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             store=store,
         )
         return jsonify(result.payload), result.status_code
+
+    # ─── VF-VS-515: Gate 3 soundtrack switch + status ───────────────────────
+    @app.route("/api/assets/<int:asset_id>/soundtrack-status", methods=["GET"])
+    def soundtrack_status(asset_id):
+        """Get the current soundtrack state for Gate 3: active mix, alternatives,
+        rights status, and evidence age. UI render and backend readiness agree."""
+        from soundtrack_mix import SoundtrackMixStore
+        mix_store = SoundtrackMixStore(app.config["DB_PATH"])
+        active = mix_store.get_active_version(asset_id)
+        versions = mix_store.list_all_versions(asset_id, "finished")
+
+        if not versions:
+            return jsonify({
+                "state": "no_mix",
+                "active": None,
+                "alternatives": [],
+                "message": "No soundtrack mix has been generated for this asset.",
+            })
+
+        # Build alternatives (non-active versions)
+        alternatives = []
+        for v in versions:
+            entry = {
+                "id": v["id"],
+                "candidate_id": v["candidate_id"],
+                "provider": v.get("provider", ""),
+                "active": bool(v.get("active", 0)),
+                "preview_path": v.get("local_path", ""),
+                "duration_seconds": v.get("duration_seconds", 0),
+                "loudness_lufs": v.get("loudness_lufs", 0),
+                "version_number": v.get("version_number", 1),
+                "byte_size": v.get("byte_size", 0),
+            }
+            if entry["active"]:
+                active_entry = entry
+            else:
+                alternatives.append(entry)
+
+        active_entry = active or (versions[0] if versions else None)
+        state = "suggested" if active_entry and not _gate3_approved(asset_id) else "approved"
+
+        return jsonify({
+            "state": state,
+            "active": active_entry,
+            "alternatives": alternatives[:3],
+            "total_versions": len(versions),
+        })
+
+    @app.route("/api/assets/<int:asset_id>/soundtrack-switch", methods=["POST"])
+    def soundtrack_switch(asset_id):
+        """Atomically switch the active soundtrack mix to a different candidate.
+        Invalidates prior Gate 3 approval. The operator picks from alternatives."""
+        body = request.get_json(silent=True) or {}
+        candidate_id = body.get("candidate_id") or body.get("audio_id")
+        mix_set_id = body.get("mix_set_id", "")
+
+        if not candidate_id:
+            return jsonify({"status": "error", "message": "candidate_id is required"}), 400
+
+        from soundtrack_mix import SoundtrackMixStore, SoundtrackMixError
+        mix_store = SoundtrackMixStore(app.config["DB_PATH"])
+
+        # Find the mix set ID from the candidate
+        if not mix_set_id:
+            versions = mix_store.list_all_versions(asset_id, "finished")
+            match = [v for v in versions if v["candidate_id"] == candidate_id]
+            if not match:
+                return jsonify({"status": "error", "message": "candidate mix not found"}), 404
+            mix_set_id = match[0]["mix_set_id"]
+
+        try:
+            activated = mix_store.activate_candidate(
+                asset_id=asset_id,
+                mix_set_id=mix_set_id,
+                candidate_id=candidate_id,
+            )
+            # Invalidate prior Gate 3 approval (switching soundtrack = new approval needed)
+            _invalidate_gate3_approval(asset_id)
+            return jsonify({
+                "status": "ok",
+                "message": "Soundtrack switched. Gate 3 approval invalidated — review the new track.",
+                "active": activated,
+            })
+        except SoundtrackMixError as exc:
+            return jsonify({"status": "error", "message": str(exc)}), 400
 
     @app.route("/api/assets/<int:asset_id>/render", methods=["POST"])
     def render_final_cut(asset_id):
