@@ -135,4 +135,4 @@ platform_urls:
   instagram_audio: "https://www.instagram.com/reels/audio/{native_id}/"
   instagram_reel: "https://www.instagram.com/reel/{native_id}/"
   tiktok_audio: "https://www.tiktok.com/music/{native_id}"
-  tiktok_video: "https://www.tiktok.com/@{handle}/video/{native_id}"
+  tiktok_video: "https://www.tiktok.com/embed/v2/{native_id}"
