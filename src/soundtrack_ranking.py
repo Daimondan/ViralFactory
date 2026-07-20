@@ -73,7 +73,8 @@ def _build_candidates_json(candidates: list[dict], max_n: int = 30) -> str:
             "source": c["source"],
             "duration_s": c["duration_s"],
             "preview_url": c.get("preview_url", "")[:80],
-            "license": c.get("license", ""),
+            "license_observation": c.get("license_observation", ""),
+            "rights_status": c.get("rights_status", "unknown"),
         })
     return json.dumps(compact, indent=2, ensure_ascii=False)
 

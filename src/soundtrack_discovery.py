@@ -1,7 +1,7 @@
 """Soundtrack discovery service (VF-VS-510, DIVERGENCE-015).
 
-Searches commercial-safe audio catalogs via API, collects candidates, and
-filters by hard constraints (duration, commercial-safe, preview available).
+Searches configured audio catalogs via API and preserves discovery evidence.
+Discovery never implies production rights.
 
 Sources are config-driven — no business values in code. The discovery service
 is purely mechanical: it searches, filters, and returns candidates. The LLM
@@ -21,7 +21,6 @@ Config block (config/models.yaml):
       search_queries_from: "draft.visual_direction.music"
       min_duration_s: 30
       require_preview_url: true
-      require_commercial_safe: true
       max_candidates_per_source: 50
 """
 
@@ -66,8 +65,8 @@ def _make_candidate(
         "duration_s": float(duration_s) if duration_s else 0.0,
         "preview_url": preview_url or "",
         "download_url": download_url or "",
-        "license": license_type,
-        "commercial_safe": True,
+        "license_observation": license_type or "",
+        "rights_status": "unknown",
         "usage_count": int(usage_count),
         "raw": raw or {},
     }
@@ -76,7 +75,7 @@ def _make_candidate(
 # ── Bundle.social (Instagram audio) ─────────────────────────────────────────
 
 BUNDLE_API_BASE = "https://api.bundle.social/api/v1"
-BUNDLE_LICENSE = "Meta-authorized Instagram audio (commercial-safe for Reels)"
+BUNDLE_LICENSE = ""
 
 
 def _search_bundle_instagram(
@@ -123,7 +122,7 @@ def _search_bundle_instagram(
 # ── Pixabay audio ────────────────────────────────────────────────────────────
 
 PIXABAY_API_BASE = "https://pixabay.com/api"
-PIXABAY_LICENSE = "Pixabay License (free, commercial-safe, no attribution required)"
+PIXABAY_LICENSE = ""
 
 
 def _search_pixabay(
@@ -227,8 +226,6 @@ def _filter_candidates(
         if require_preview_url and not c.get("preview_url"):
             continue
         if c["duration_s"] > 0 and c["duration_s"] < min_duration_s:
-            continue
-        if not c.get("commercial_safe", True):
             continue
         filtered.append(c)
     return filtered

@@ -8,6 +8,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-20
 
+### VF-VS-511 — Persist rights evidence and local soundtrack artifacts [TECH/STRUCTURE/LOGIC]
+
+**What:** Added versioned, append-only soundtrack rights snapshots and immutable local artifact registration. Render eligibility now requires explicit verified commercial, synchronization, and download permissions; stable terms evidence; unexpired constraints; and a fresh approval record for paid acquisition. Authorized downloads land in controlled local storage, must be non-empty with measurable duration, receive a SHA-256 identity, and retain provenance without signed URL credentials. Failed acquisition leaves the prior active artifact unchanged. Discovery candidates now carry `rights_status: unknown` and an observation field rather than fabricated `commercial_safe` or provider-derived licence claims.
+
+**Rationale:** API access, provider identity, and temporary playable URLs are discovery evidence—not synchronization or republication rights. Durable rights snapshots plus content-addressed local media let the exact recording remain auditable after provider URLs expire and prevent remote, unverified audio from reaching later FFmpeg stages.
+
+**Verification:** Behavioral tests failed first without the rights module. The completed contract passes 119 focused rights/discovery/soundtrack/gate tests and the full suite (`1,951 passed, 2 skipped`).
+
 ### VF-VS-510 — Contain false-ready and dual-contract soundtrack paths [FIX/STRUCTURE/LOGIC]
 
 **What:** Removed the parallel discovery → ranking → mix branch that ran before the registered Soundtrack Planner, deleted `soundtrack_auto_processed` as readiness evidence, restored the autonomous exact-plan pause, and made the shared render boundary ignore legacy ranking/auto flags. The persisted planner contract is again the only soundtrack authority.

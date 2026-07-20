@@ -32,9 +32,9 @@ def test_discovery_filter_min_duration():
     """Candidates shorter than min_duration_s are filtered out."""
     from soundtrack_discovery import _filter_candidates
     candidates = [
-        {"duration_s": 15, "preview_url": "http://x", "commercial_safe": True},
-        {"duration_s": 45, "preview_url": "http://y", "commercial_safe": True},
-        {"duration_s": 0, "preview_url": "http://z", "commercial_safe": True},  # unknown duration = kept
+        {"duration_s": 15, "preview_url": "http://x"},
+        {"duration_s": 45, "preview_url": "http://y"},
+        {"duration_s": 0, "preview_url": "http://z"},  # unknown duration = kept
     ]
     filtered = _filter_candidates(candidates, min_duration_s=30, require_preview_url=True)
     # The 15s track is filtered, the 45s and unknown-duration (0) are kept
@@ -46,8 +46,8 @@ def test_discovery_filter_no_preview():
     """Candidates without a preview URL are filtered when require_preview_url is True."""
     from soundtrack_discovery import _filter_candidates
     candidates = [
-        {"duration_s": 60, "preview_url": "", "commercial_safe": True},
-        {"duration_s": 60, "preview_url": "http://x", "commercial_safe": True},
+        {"duration_s": 60, "preview_url": ""},
+        {"duration_s": 60, "preview_url": "http://x"},
     ]
     filtered = _filter_candidates(candidates, min_duration_s=30, require_preview_url=True)
     assert len(filtered) == 1

@@ -331,7 +331,6 @@ soundtrack:
         api_key_env: "PIXABAY_API_KEY"
     min_duration_s: 30
     require_preview_url: true
-    require_commercial_safe: true
     max_candidates_per_source: 50
   ranking:
     mood_fit_weight: 0.80
