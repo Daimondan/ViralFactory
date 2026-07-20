@@ -395,10 +395,10 @@ def test_preview_payload_uses_persisted_current_plan(tmp_path):
     assert result.payload["current"] is True
 
 
-def test_autonomous_chain_pauses_before_render_and_resumes_after_approval(tmp_path, monkeypatch):
+def test_autonomous_chain_pauses_for_exact_artifact_approval(tmp_path, monkeypatch):
     from produce_chain import ProductionChain
 
-    store, card_id, draft_id, asset_id, edit_plan_id = _persist_asset_plan(tmp_path)
+    store, card_id, draft_id, asset_id, _edit_plan_id = _persist_asset_plan(tmp_path)
     chain = ProductionChain(
         db_path=store.db_path,
         config_dir=str(ROOT / "config"),
@@ -421,6 +421,42 @@ def test_autonomous_chain_pauses_before_render_and_resumes_after_approval(tmp_pa
     chain.run_assembler_chain(draft_id, card_id, "test-business")
     render.assert_called_once()
     assert store.get_idea_card(card_id)["card_state"] == "asset_ready"
+
+
+@pytest.mark.parametrize("legacy_flag", [
+    {"soundtrack_auto_processed": True},
+    {"soundtrack_ranking": {"recommended": {"audio_id": "unlicensed"}}},
+])
+def test_legacy_auto_flags_cannot_bypass_exact_artifact_approval(
+    tmp_path, legacy_flag
+):
+    store, _, _, asset_id, edit_plan_id = _persist_asset_plan(tmp_path)
+    row = store.get_edit_plan(edit_plan_id)
+    plan = json.loads(row["plan_json"])
+    plan.update(legacy_flag)
+    with sqlite3.connect(store.db_path) as conn:
+        conn.execute(
+            "UPDATE edit_plans SET plan_json = ? WHERE id = ?",
+            (json.dumps(plan), edit_plan_id),
+        )
+        conn.commit()
+
+    renderer = MagicMock()
+    result = RenderReviewService(
+        db_path=store.db_path,
+        renderer=renderer,
+        reviewer=MagicMock(),
+        models_config={},
+    ).render_for_asset(
+        asset_id=asset_id,
+        plan_id=edit_plan_id,
+        business_slug="test-business",
+        store=store,
+    )
+
+    assert result.status_code == 409
+    assert result.payload["status"] == "soundtrack_approval_required"
+    renderer.render.assert_not_called()
 
 
 def test_missing_source_sound_media_cannot_be_acknowledged(tmp_path):

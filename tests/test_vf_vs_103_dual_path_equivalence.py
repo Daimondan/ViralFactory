@@ -76,6 +76,11 @@ def test_operator_and_autonomous_paths_produce_equivalent_edit_plans(monkeypatch
         }],
     }
     llm_calls = []
+    premature_discovery_calls = []
+
+    def premature_discovery(*args, **kwargs):
+        premature_discovery_calls.append((args, kwargs))
+        return {"candidates": [], "queries": [], "errors": ["fixture failure"]}
 
     def deterministic_complete(self, prompt_file, variables, schema, **kwargs):
         llm_calls.append({
@@ -100,6 +105,10 @@ def test_operator_and_autonomous_paths_produce_equivalent_edit_plans(monkeypatch
         return deterministic_plan
 
     monkeypatch.setattr("llm_adapter.LLMAdapter.complete", deterministic_complete)
+    monkeypatch.setattr(
+        "soundtrack_discovery.discover_soundtrack_candidates",
+        premature_discovery,
+    )
 
     route_response = app.test_client().post(
         f"/api/assets/{asset_id}/edit-plan",
@@ -118,6 +127,9 @@ def test_operator_and_autonomous_paths_produce_equivalent_edit_plans(monkeypatch
     chain_result = store._get_step_data(draft_id, "edit_plan_result")
 
     assert route_result["status"] == chain_result["status"] == "ok"
+    assert premature_discovery_calls == []
+    assert "soundtrack_auto_processed" not in route_result["plan"]
+    assert "soundtrack_ranking" not in route_result["plan"]
     route_plan = json.loads(json.dumps(route_result["plan"]))
     chain_plan = json.loads(json.dumps(chain_result["plan"]))
     route_plan["soundtrack_plan"].pop("soundtrack_plan_id")

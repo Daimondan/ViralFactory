@@ -5,6 +5,8 @@
 > exactly where we are.
 
 **Last Updated:** 2026-07-19
+
+2026-07-20 · VF-VS-510 · Removed the rejected pre-planner discovery/ranking/mix path and Boolean false-ready bypass; one persisted planner contract again governs both operator and autonomous render boundaries, which require exact-artifact approval. Behavioral RED→GREEN coverage plus 109 focused and 1,933 full-suite tests pass · Q: VF-VS-511 adds rights/local acquisition before discovery can re-enter production
 **Current Phase:** Charter v3.8 ratified. M13 is blocked on VF-VS-510..516: correct the pre-ruling soundtrack auto-apply implementation (rights evidence, one contract, local acquisition, evidence-honest ranking, immutable mixes, coherent Gate 3 UX), then prove VF-VS-702/703 on a genuinely fresh deployed Reel. M14 Inspiration is designed but must not begin before M13 proof. Existing review-w8, review-episode-format, and M7 checkpoints remain pending.
 **Operator review URL (Tailscale):** http://100.96.184.48:9121
 **Public URL (vf.glenbeu.com):** Basicauth middleware live. DNS A record pending operator creation. Credentials: user `daimon`, password set by operator in `/docker/traefik/dynamic/vf-users.txt`.

@@ -6,6 +6,16 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-20
+
+### VF-VS-510 — Contain false-ready and dual-contract soundtrack paths [FIX/STRUCTURE/LOGIC]
+
+**What:** Removed the parallel discovery → ranking → mix branch that ran before the registered Soundtrack Planner, deleted `soundtrack_auto_processed` as readiness evidence, restored the autonomous exact-plan pause, and made the shared render boundary ignore legacy ranking/auto flags. The persisted planner contract is again the only soundtrack authority.
+
+**Rationale:** The rejected branch could mix one inferred track before persisting a second, disagreeing contract, swallow provider/download/mix failures, and then bypass human approval with a Boolean. Until VF-VS-511/512 add evidence-backed rights and post-planner acquisition stages, no production discovery is safer than retaining a false-green path. Existing valid soundtrack plans remain immutable and continue through exact-artifact approval.
+
+**Verification:** Behavioral tests failed first on premature discovery, legacy flag bypass, and autonomous gate skipping. After containment, 109 focused soundtrack/shared-path tests and the full suite (`1,933 passed, 2 skipped`) pass.
+
 ## 2026-07-19
 
 ### Architect inbox batch consumed — AMENDMENT-011/012 work order [OPS/STRATEGIC]
