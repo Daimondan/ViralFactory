@@ -1,0 +1,17 @@
+# ViralFactory — Inspiration collection worker (one-shot)
+# Runs via viralfactory-inspiration-collect.timer every 2 hours.
+# Install: sudo cp deploy/viralfactory-inspiration-collect.service /etc/systemd/system/
+# Then: sudo systemctl daemon-reload && sudo systemctl enable viralfactory-inspiration-collect.timer && sudo systemctl start viralfactory-inspiration-collect.timer
+
+[Unit]
+Description=ViralFactory Inspiration collection worker
+After=network.target viralfactory.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/home/daimon/ViralFactory
+Environment=PYTHONPATH=/home/daimon/ViralFactory/src
+EnvironmentFile=/etc/viralfactory/env
+ExecStart=/home/daimon/ViralFactory/.venv/bin/python /home/daimon/ViralFactory/src/inspiration_collect_worker.py
+TimeoutStartSec=300

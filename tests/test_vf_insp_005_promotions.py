@@ -40,8 +40,11 @@ def _seed(store, business_slug, config):
 def promotion_store(tmp_path):
     from inspiration_store import InspirationStore
     from inspiration_promotions import PromotionStore
+    from pipeline import PipelineStore
     import yaml
     db = str(tmp_path / "test.db")
+    # Initialize pipeline schema (creates sources table)
+    PipelineStore(db)
     insp_store = InspirationStore(db)
     config = yaml.safe_load(open(Path(__file__).parent.parent / "config" / "inspiration.yaml"))
     _seed(insp_store, "test-tenant", config)
@@ -106,10 +109,35 @@ def test_add_to_source_bank_creates_record(promotion_store):
     history = insp_store.get_observation_history(item_id)
     obs_id = history[0]["id"]
     result = pstore.add_to_source_bank(
-        business_slug="test-tenant", trend_item_id=item_id, observation_id=obs_id)
+        business_slug="test-tenant", trend_item_id=item_id, observation_id=obs_id,
+        db_path=db)
     assert result["action"] == "add_to_source_bank"
     assert result["destination"] == "source_bank"
     assert result["status"] == "active"
+
+
+def test_source_bank_creates_reviewable_entry(promotion_store):
+    """Source Bank promotion inserts a row into the sources table with status='new'
+    so it appears in the Source Bank UI for review."""
+    pstore, insp_store, db = promotion_store
+    items = insp_store.get_items_for_section("test-tenant", "audio", ["tikhub_tiktok_audio_charts"])
+    item_id = items[0]["id"]
+    history = insp_store.get_observation_history(item_id)
+    obs_id = history[0]["id"]
+    pstore.add_to_source_bank(
+        business_slug="test-tenant", trend_item_id=item_id, observation_id=obs_id,
+        db_path=db)
+    # Verify a source row was created
+    import sqlite3
+    conn = sqlite3.connect(db)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        "SELECT * FROM sources WHERE business_slug='test-tenant' AND source_type='inspiration'"
+    ).fetchall()
+    assert len(rows) == 1
+    assert rows[0]["status"] == "new"
+    assert "Inspiration Center" in rows[0]["summary"]
+    conn.close()
 
 
 def test_source_bank_does_not_feed_ideation(promotion_store):
@@ -121,7 +149,8 @@ def test_source_bank_does_not_feed_ideation(promotion_store):
     history = insp_store.get_observation_history(item_id)
     obs_id = history[0]["id"]
     pstore.add_to_source_bank(
-        business_slug="test-tenant", trend_item_id=item_id, observation_id=obs_id)
+        business_slug="test-tenant", trend_item_id=item_id, observation_id=obs_id,
+        db_path=db)
     # The promotion record exists but no idea card was created
     import sqlite3
     conn = sqlite3.connect(db)
@@ -258,6 +287,9 @@ def api_client(tmp_path):
     db_path = str(tmp_path / "test.db")
     app = create_app(config_dir=config_dir, db_path=db_path)
     app.config["TESTING"] = True
+    # Initialize pipeline schema (creates sources table needed by Source Bank promotion)
+    from pipeline import PipelineStore
+    PipelineStore(db_path)
     store = InspirationStore(db_path)
     config = yaml.safe_load(open(Path(config_dir) / "inspiration.yaml"))
     _seed(store, "stackpenni", config)

@@ -75,11 +75,12 @@ class PromotionStore:
         )
 
     def add_to_source_bank(self, *, business_slug: str, trend_item_id: int,
-                           observation_id: int, note: str = "") -> dict:
+                           observation_id: int, note: str = "", db_path: str = "") -> dict:
         """Create a source candidate with status='new', linked to observation
-        provenance. Does not immediately feed ideation — the existing Source
-        Bank Keep gate remains intact."""
-        return self._add_action(
+        provenance. Also inserts a row into the sources table so it appears
+        in the Source Bank UI for review. The existing Source Bank Keep gate
+        remains intact — status='new' does not feed ideation until approved."""
+        result = self._add_action(
             business_slug=business_slug,
             trend_item_id=trend_item_id,
             observation_id=observation_id,
@@ -87,6 +88,41 @@ class PromotionStore:
             note=note,
             destination="source_bank",
         )
+        # Insert into the actual sources table
+        if db_path:
+            import hashlib as _hashlib
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            # Get the trend item details
+            item = conn.execute(
+                "SELECT * FROM insp_trend_items WHERE id=?", (trend_item_id,)
+            ).fetchone()
+            if item:
+                title = dict(item).get("title", "") or dict(item).get("creator", "") or f"Inspiration item #{trend_item_id}"
+                url = dict(item).get("canonical_url", "") or dict(item).get("preview_url", "")
+                summary = f"From Inspiration Center: {dict(item).get('provider', '')} — {dict(item).get('platform', '')}"
+                if note:
+                    summary += f" | Note: {note}"
+                content_hash = _hashlib.sha256(
+                    f"{business_slug}:{trend_item_id}:{observation_id}".encode()
+                ).hexdigest()[:16]
+                # Check if already exists
+                existing = conn.execute(
+                    "SELECT id FROM sources WHERE business_slug=? AND content_hash=?",
+                    (business_slug, content_hash),
+                ).fetchone()
+                if not existing:
+                    conn.execute(
+                        """INSERT INTO sources
+                           (business_slug, source_type, title, url, summary, content,
+                            origin, first_seen, content_hash, status)
+                           VALUES (?, 'inspiration', ?, ?, ?, '', 'operator', ?, ?, 'new')""",
+                        (business_slug, title, url, summary,
+                         self._now(), content_hash),
+                    )
+                    conn.commit()
+            conn.close()
+        return result
 
     def propose_experiment(self, *, business_slug: str, trend_item_id: int,
                            observation_id: int, note: str = "") -> dict:

@@ -1,0 +1,15 @@
+# ViralFactory — Inspiration collection timer
+# Runs the collection worker every 2 hours.
+# Install: sudo cp deploy/viralfactory-inspiration-collect.timer /etc/systemd/system/
+# Then: sudo systemctl daemon-reload && sudo systemctl enable --now viralfactory-inspiration-collect.timer
+
+[Unit]
+Description=Run ViralFactory Inspiration collection every 2 hours
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=2h
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

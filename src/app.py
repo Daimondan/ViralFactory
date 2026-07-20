@@ -854,7 +854,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             if action == "add_to_source_bank":
                 result = store.add_to_source_bank(
                     business_slug=business_slug,
-                    trend_item_id=trend_item_id, observation_id=observation_id, note=note)
+                    trend_item_id=trend_item_id, observation_id=observation_id, note=note,
+                    db_path=app.config["DB_PATH"])
             elif action == "propose_experiment":
                 result = store.propose_experiment(
                     business_slug=business_slug,
