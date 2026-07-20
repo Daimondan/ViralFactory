@@ -599,6 +599,207 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             system_health=system_health,
         )
 
+    # ─── VF-INSP-003: Inspiration Center (read-only, AMENDMENT-012) ──────────
+    @app.route("/inspiration")
+    def inspiration():
+        """Read-only Inspiration workbench. Reads from DB only — zero provider
+        calls during render. Shows current external creative examples with
+        truthful evidence labels, all C7 states, platform/region filters."""
+        import yaml as _yaml
+        from inspiration_store import InspirationStore
+        from inspiration_contracts import is_stale
+
+        try:
+            config = load_all(config_dir)
+            business_name = config["business"]["business"]["name"]
+            business_slug = config["business"]["business"]["slug"]
+        except ConfigError:
+            business_name = "Not configured"
+            business_slug = None
+
+        # Load inspiration config (provider list, section labels, redaction)
+        insp_config_path = os.path.join(config_dir, "inspiration.yaml")
+        insp_config = {}
+        if os.path.exists(insp_config_path):
+            with open(insp_config_path) as f:
+                insp_config = _yaml.safe_load(f) or {}
+
+        store = InspirationStore(app.config["DB_PATH"])
+        stale_after = int((insp_config.get("collection") or {}).get("stale_after_seconds", 3600))
+
+        # Platform / region filters
+        platform_filter = request.args.get("platform", "").strip()
+        region_filter = request.args.get("region", "").strip()
+
+        # Build sections from config (audio + video), reading DB only
+        sections_config = insp_config.get("sections") or {}
+        providers_config = {p["name"]: p for p in (insp_config.get("providers") or [])}
+        all_platforms = sorted({p.get("platform", "") for p in (insp_config.get("providers") or []) if p.get("platform")})
+        all_regions = sorted({p.get("region", "") for p in (insp_config.get("providers") or []) if p.get("region")})
+
+        sections = []
+        global_states = []
+        for section_key, section_def in sections_config.items():
+            section_providers = section_def.get("providers") or []
+            content_type = "audio" if section_key == "audio" else "video"
+            # Filter providers by platform/region filter
+            active_providers = []
+            for pname in section_providers:
+                pconf = providers_config.get(pname, {})
+                if platform_filter and pconf.get("platform") != platform_filter:
+                    continue
+                if region_filter and pconf.get("region") != region_filter:
+                    continue
+                active_providers.append(pname)
+
+            items = []
+            if business_slug and active_providers:
+                items = store.get_items_for_section(business_slug, content_type, active_providers)
+
+            # Determine section state from latest collection runs
+            latest_runs = store.get_latest_runs_by_provider(business_slug) if business_slug else []
+            section_run_status = None
+            section_age = ""
+            for run in latest_runs:
+                if run.get("provider") in active_providers:
+                    ended_at = run.get("ended_at", "")
+                    if ended_at:
+                        from datetime import datetime as _dt, timezone as _tz
+                        try:
+                            ts = _dt.fromisoformat(ended_at.replace("Z", "+00:00"))
+                            if ts.tzinfo is None:
+                                ts = ts.replace(tzinfo=_tz.utc)
+                            age_s = int((_dt.now(_tz.utc) - ts).total_seconds())
+                            if age_s < 60:
+                                section_age = f"{age_s}s ago"
+                            elif age_s < 3600:
+                                section_age = f"{age_s // 60}m ago"
+                            else:
+                                section_age = f"{age_s // 3600}h ago"
+                        except (ValueError, TypeError):
+                            section_age = ""
+                    section_run_status = run.get("status")
+                    break
+
+            # Classify section state
+            if not items and section_run_status is None:
+                section_state = "first_run"
+            elif not items and section_run_status in ("error", "auth_failed", "rate_limited", "malformed"):
+                section_state = "error"
+            elif not items and section_run_status == "empty":
+                section_state = "empty"
+            elif section_run_status in ("error", "auth_failed", "rate_limited"):
+                section_state = "stale" if items else "error"
+            elif section_run_status == "ok" and items:
+                oldest = min((i.get("obs_collected_at", "") for i in items if i.get("obs_collected_at")), default="")
+                section_state = "stale" if (oldest and is_stale(oldest, stale_after)) else "ok"
+            elif items:
+                section_state = "ok"
+            else:
+                section_state = "first_run"
+
+            if section_state in ("stale", "error", "first_run"):
+                global_states.append(section_state)
+
+            # Build display items
+            display_items = []
+            for item in items:
+                evidence_label = item.get("obs_label", "recommendation")
+                evidence_class = evidence_label if evidence_label in ("chart", "recommendation", "seed", "regional_discovery") else "recommendation"
+                if section_state == "stale":
+                    evidence_class = "stale"
+                # Display metrics from obs_metrics
+                display_metrics = []
+                obs_metrics = item.get("obs_metrics") or {}
+                for mname, mdata in obs_metrics.items():
+                    if isinstance(mdata, dict):
+                        display_metrics.append({
+                            "name": mdata.get("name", mname),
+                            "value": mdata.get("value"),
+                        })
+                display_items.append({
+                    "id": item["id"],
+                    "platform": item.get("platform", ""),
+                    "provider": item.get("provider", ""),
+                    "run_region": item.get("run_region", ""),
+                    "title": item.get("title", ""),
+                    "creator": item.get("creator", ""),
+                    "description": item.get("description", ""),
+                    "preview_url": item.get("preview_url", ""),
+                    "canonical_url": item.get("canonical_url", ""),
+                    "availability": item.get("availability", "unknown"),
+                    "obs_collected_at": item.get("obs_collected_at", ""),
+                    "obs_posted_at": item.get("obs_posted_at", ""),
+                    "obs_rank": item.get("obs_rank"),
+                    "run_label": item.get("run_provider", ""),
+                    "observation_count": item.get("observation_count", 0),
+                    "evidence_label_display": evidence_label.replace("_", " "),
+                    "evidence_class": evidence_class,
+                    "is_stale": section_state == "stale",
+                    "display_metrics": display_metrics,
+                })
+
+            display_cards = display_items
+
+            sections.append({
+                "key": section_key,
+                "label": section_def.get("label", section_key),
+                "providers": active_providers,
+                "cards": display_cards,
+                "state": section_state,
+                "age": section_age,
+            })
+
+        # Global state
+        if all(s["state"] == "first_run" for s in sections):
+            global_state = "first_run"
+        elif all(s["state"] in ("stale", "error") for s in sections if s["state"] != "first_run"):
+            global_state = "all_stale" if any(s["state"] == "stale" for s in sections) else "all_error"
+        else:
+            global_state = "ok"
+
+        # Oldest collection age for the global stale banner
+        oldest_collection_age = ""
+        for s in sections:
+            if s.get("age"):
+                oldest_collection_age = s["age"]
+                break
+
+        return render_template("inspiration.html",
+            business_name=business_name,
+            sections=sections,
+            global_state=global_state,
+            oldest_collection_age=oldest_collection_age,
+            all_platforms=all_platforms,
+            all_regions=all_regions,
+            manual_refresh_enabled=bool((insp_config.get("collection") or {}).get("manual_refresh", False)),
+        )
+
+    @app.route("/api/inspiration/refresh", methods=["POST"])
+    def api_inspiration_refresh():
+        """Queue a manual collection refresh. Never blocks on provider calls."""
+        import yaml as _yaml
+        insp_config_path = os.path.join(config_dir, "inspiration.yaml")
+        if not os.path.exists(insp_config_path):
+            return jsonify({"status": "disabled", "message": "Inspiration is not configured"})
+        with open(insp_config_path) as f:
+            insp_config = _yaml.safe_load(f) or {}
+        if not (insp_config.get("collection") or {}).get("manual_refresh", False):
+            return jsonify({"status": "disabled", "message": "Manual refresh is not enabled"})
+        # Queue the refresh as a background job (non-blocking)
+        try:
+            from jobs import JobsStore
+            jobs = JobsStore(app.config["JOBS_DB_PATH"])
+            result = jobs.start_job("inspiration_collect")
+            if result.get("status") == "started":
+                return jsonify({"status": "queued", "job_id": result["job_id"]})
+            elif result.get("status") == "running":
+                return jsonify({"status": "already_running", "job_id": result["job_id"]})
+            else:
+                return jsonify({"status": result.get("status", "unknown"), "job_id": result.get("job_id")})
+        except Exception as exc:
+            return jsonify({"status": "error", "message": str(exc)}), 500
+
     @app.route("/onboard")
     def onboard():
         """Single-thread onboarding — one conversation for all 8 playbooks.

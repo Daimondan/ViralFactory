@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/vf.css">
+    <title>Inspiration — {{ business_name }}</title>
+    <script src="/static/busy.js"></script>
+    <script src="/static/vf-ui.js"></script>
+    <style>
+        .insp-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5);
+            margin-bottom: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2);
+        }
+        .insp-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); }
+        .insp-platform { font-size: 0.85rem; font-weight: 600; color: var(--accent); }
+        .insp-provider { font-size: 0.72rem; color: var(--muted); }
+        .insp-evidence-badge {
+            font-size: 0.68rem; padding: 2px 8px; border-radius: 10px;
+            background: var(--accent-tint); color: var(--accent); font-weight: 600;
+        }
+        .insp-evidence-badge.chart { background: rgba(74, 124, 58, 0.12); color: var(--green); }
+        .insp-evidence-badge.recommendation { background: var(--accent-tint); color: var(--accent); }
+        .insp-evidence-badge.stale { background: rgba(180, 120, 40, 0.12); color: #b47828; }
+        .insp-evidence-badge.error { background: rgba(180, 40, 40, 0.12); color: #b42828; }
+        .insp-title { font-size: 0.95rem; font-weight: 600; color: var(--text); margin: 0; }
+        .insp-creator { font-size: 0.82rem; color: var(--text-secondary); }
+        .insp-caption {
+            font-size: 0.85rem; line-height: 1.5; color: var(--text-secondary);
+            max-height: 72px; overflow: hidden; position: relative;
+            white-space: pre-wrap; word-wrap: break-word;
+            transition: max-height 0.3s ease;
+        }
+        .insp-caption.expanded { max-height: 600px; overflow-y: auto; }
+        .insp-caption::after {
+            content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 32px;
+            background: linear-gradient(transparent, var(--surface)); pointer-events: none;
+        }
+        .insp-caption.expanded::after { display: none; }
+        .insp-metrics { display: flex; flex-wrap: wrap; gap: var(--space-3); font-size: 0.78rem; color: var(--muted); }
+        .insp-metric { display: flex; flex-direction: column; }
+        .insp-metric-name { font-size: 0.68rem; color: var(--muted-dim); text-transform: lowercase; }
+        .insp-metric-value { font-weight: 600; color: var(--text-secondary); }
+        .insp-metric-value.unavailable { color: var(--muted-dim); font-style: italic; }
+        .insp-meta { font-size: 0.72rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: var(--space-3); }
+        .insp-actions { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
+        .insp-filter-bar {
+            display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-4);
+            align-items: center;
+        }
+        .insp-filter-chip {
+            font-size: 0.78rem; padding: 4px 12px; border-radius: 16px;
+            border: 1px solid var(--border); background: var(--surface); color: var(--text-secondary);
+            cursor: pointer; transition: all 0.15s;
+        }
+        .insp-filter-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .insp-state-banner {
+            padding: var(--space-3) var(--space-4); border-radius: var(--radius);
+            margin-bottom: var(--space-4); font-size: 0.85rem;
+        }
+        .insp-state-banner.stale { background: rgba(180, 120, 40, 0.08); color: #8a6020; border: 1px solid rgba(180, 120, 40, 0.2); }
+        .insp-state-banner.error { background: rgba(180, 40, 40, 0.06); color: #8a2828; border: 1px solid rgba(180, 40, 40, 0.15); }
+        .insp-state-banner.empty { background: var(--surface-2); color: var(--muted); }
+        .insp-state-banner.first-run { background: var(--accent-dim); color: var(--text-secondary); }
+        .insp-section { margin-bottom: var(--space-6); }
+        .insp-section-label { font-family: var(--font-serif); font-size: 1.1rem; color: var(--text); margin-bottom: var(--space-1); }
+        .insp-section-sub { font-size: 0.78rem; color: var(--muted); margin-bottom: var(--space-3); }
+        .insp-preview-link { font-size: 0.78rem; color: var(--accent); }
+        .insp-no-preview { font-size: 0.78rem; color: var(--muted-dim); font-style: italic; }
+        @media (max-width: 768px) {
+            .insp-card { padding: var(--space-3); }
+            .insp-card-head { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    {% set active_page = "inspiration" %}
+    {% include "_nav.html" %}
+
+    <div class="page-title-block">
+        <div>
+            <h1>Inspiration</h1>
+            <p class="subtitle">Current creative examples from external sources · read-only · no ideation, no publishing, no media download</p>
+        </div>
+        {% if manual_refresh_enabled %}
+        <button class="btn btn-secondary" onclick="refreshInspiration()">↻ Refresh</button>
+        {% endif %}
+    </div>
+
+    {# Platform / region filter bar — current scope visible #}
+    <div class="insp-filter-bar">
+        <span class="subtle" style="font-size:0.78rem; margin-right: var(--space-2);">Filter:</span>
+        {% for plat in all_platforms %}
+        <a href="?platform={{ plat }}{% if request.args.get('region') %}&region={{ request.args.get('region') }}{% endif %}"
+           class="insp-filter-chip {% if request.args.get('platform') == plat or (not request.args.get('platform') and loop.first) %}active{% endif %}">{{ plat }}</a>
+        {% endfor %}
+        {% if all_regions %}
+        <span style="margin-left: var(--space-3);">·</span>
+        {% for reg in all_regions %}
+        <a href="?region={{ reg }}{% if request.args.get('platform') %}&platform={{ request.args.get('platform') }}{% endif %}"
+           class="insp-filter-chip {% if request.args.get('region') == reg %}active{% endif %}">{{ reg }}</a>
+        {% endfor %}
+        {% endif %}
+        {% if request.args.get('platform') or request.args.get('region') %}
+        <a href="/inspiration" class="insp-filter-chip">✕ Clear</a>
+        {% endif %}
+    </div>
+
+    {# Global state banners #}
+    {% if global_state == 'first_run' %}
+    <div class="insp-state-banner first-run">
+        No collection has run yet. This page will show current creative examples after a scheduled or triggered collection run. Your data stays read-only.
+    </div>
+    {% elif global_state == 'all_stale' %}
+    <div class="insp-state-banner stale">
+        All providers are stale (last collected {{ oldest_collection_age }}). The examples below are from the last successful snapshot. A refresh has been queued.
+    </div>
+    {% elif global_state == 'all_error' %}
+    <div class="insp-state-banner error">
+        All providers failed in the last collection attempt. No fresh data is available. The last good snapshot is shown where it exists.
+    </div>
+    {% endif %}
+
+    {% for section in sections %}
+    <div class="insp-section" id="section-{{ section.key }}">
+        <p class="insp-section-label">{{ section.label }}</p>
+        <p class="insp-section-sub">
+            {{ section.providers | join(' · ') }}
+            {% if section.state == 'stale' %} · <span style="color:#8a6020;">stale — last collected {{ section.age }}</span>{% endif %}
+            {% if section.state == 'error' %} · <span style="color:#8a2828;">last collection failed</span>{% endif %}
+            {% if section.state == 'empty' %} · <span style="color:var(--muted-dim);">no items in last collection</span>{% endif %}
+            {% if section.state == 'first_run' %} · <span style="color:var(--muted-dim);">awaiting first collection</span>{% endif %}
+        </p>
+
+        {% if section.state == 'first_run' %}
+        <div class="insp-state-banner first-run">No data yet for this section.</div>
+        {% elif section.state == 'error' and section.cards|length == 0 %}
+        <div class="insp-state-banner error">Provider failed and no prior snapshot exists for this section.</div>
+        {% elif section.cards|length == 0 %}
+        <div class="insp-state-banner empty">No items found.</div>
+        {% else %}
+        {% for item in section.cards %}
+        <div class="insp-card">
+            <div class="insp-card-head">
+                <div>
+                    <span class="insp-platform">{{ item.platform }}</span>
+                    <span class="insp-provider">via {{ item.provider }}</span>
+                    {% if item.run_region %}<span class="insp-provider">· {{ item.run_region }}</span>{% endif %}
+                </div>
+                <span class="insp-evidence-badge {{ item.evidence_class }}">
+                    {{ item.evidence_label_display }}
+                    {% if item.is_stale %} · stale{% endif %}
+                </span>
+            </div>
+
+            {% if item.title %}<p class="insp-title">{{ item.title }}</p>{% endif %}
+            {% if item.creator %}<p class="insp-creator">by {{ item.creator }}</p>{% endif %}
+
+            {% if item.description %}
+            <div class="insp-caption" id="caption-{{ item.id }}">{{ item.description }}</div>
+            {% if item.description | length > 300 %}
+            <button class="btn btn-small" onclick="toggleCaption('{{ item.id }}')">Show more ▾</button>
+            {% endif %}
+            {% endif %}
+
+            {# Metrics — exact provider names, missing = unavailable not zero #}
+            {% if item.display_metrics %}
+            <div class="insp-metrics">
+                {% for m in item.display_metrics %}
+                <div class="insp-metric">
+                    <span class="insp-metric-name">{{ m.name }}</span>
+                    <span class="insp-metric-value {% if m.value is none %}unavailable{% endif %}">
+                        {% if m.value is none %}unavailable{% else %}{{ m.value }}{% endif %}
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {# Rank when present #}
+            {% if item.obs_rank %}
+            <p class="insp-meta">rank #{{ item.obs_rank }} in {{ item.run_label | default('collection') }}</p>
+            {% endif %}
+
+            {# Preview — only when a safe URL exists #}
+            <div class="insp-actions">
+                {% if item.preview_url %}
+                <a href="{{ item.preview_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-small">▶ Play preview</a>
+                {% else %}
+                <span class="insp-no-preview">No preview available</span>
+                {% endif %}
+                {% if item.canonical_url %}
+                <a href="{{ item.canonical_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-small btn-secondary">Open on {{ item.platform }}</a>
+                {% endif %}
+            </div>
+
+            {# Meta: collection time, posted time, observation count, availability #}
+            <p class="insp-meta">
+                collected {{ item.obs_collected_at | relative_time }}
+                <span title="{{ item.obs_collected_at }}">· {{ item.obs_collected_at }}</span>
+                {% if item.obs_posted_at %} · posted {{ item.obs_posted_at | relative_time }}{% endif %}
+                {% if item.observation_count and item.observation_count > 1 %} · {{ item.observation_count }} observations{% endif %}
+                · availability: {{ item.availability }}
+            </p>
+        </div>
+        {% endfor %}
+        {% endif %}
+    </div>
+    {% endfor %}
+
+    {# First-observation disclaimer #}
+    <p class="subtle" style="margin-top: var(--space-6);">
+        A single observation means "seen now," not proof of momentum. Availability of a preview does not establish reuse rights. No idea creation, paid generation, publishing, or media download occurs on this page.
+    </p>
+</div>
+
+<script>
+function toggleCaption(id) {
+    const el = document.getElementById('caption-' + id);
+    if (!el) return;
+    el.classList.toggle('expanded');
+    const btn = event.target;
+    btn.textContent = el.classList.contains('expanded') ? 'Show less ▴' : 'Show more ▾';
+}
+function refreshInspiration() {
+    fetch('/api/inspiration/refresh', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'queued') {
+                alert('Refresh queued. The page will update when the collection run completes.');
+                setTimeout(() => location.reload(), 3000);
+            } else if (data.status === 'disabled') {
+                alert('Manual refresh is not enabled.');
+            } else {
+                alert('Refresh: ' + (data.message || 'unknown response'));
+            }
+        })
+        .catch(() => alert('Refresh request failed.'));
+}
+</script>
+</body>
+</html>
