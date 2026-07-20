@@ -44,48 +44,10 @@ def test_ranking_schema_structure():
     assert "recommended" in SOUNDTRACK_RANKING_SCHEMA["required"]
     assert "alternatives" in SOUNDTRACK_RANKING_SCHEMA["required"]
     assert "vo_only_fallback" in SOUNDTRACK_RANKING_SCHEMA["required"]
-
-
-def test_ranking_validation_rejects_invented_tracks():
-    """The ranking validator rejects recommended tracks not in the candidate list."""
-    from soundtrack_ranking import _validate_ranking
-    candidates = [{"audio_id": "A1"}, {"audio_id": "A2"}]
-    result = {
-        "recommended": {"audio_id": "FAKE", "title": "Fake", "artist": "", "source": "x",
-                        "rationale": "x", "fit_score": 90, "popularity_tier": "high"},
-        "alternatives": [],
-        "vo_only_fallback": False,
-    }
-    errors = _validate_ranking(result, candidates)
-    assert any("FAKE" in e for e in errors)
-
-
-def test_ranking_validation_accepts_real_tracks():
-    """The ranking validator passes when tracks are in the candidate list."""
-    from soundtrack_ranking import _validate_ranking
-    candidates = [{"audio_id": "A1"}, {"audio_id": "A2"}, {"audio_id": "A3"}]
-    result = {
-        "recommended": {"audio_id": "A1", "title": "Track 1", "artist": "Artist",
-                        "source": "bundle", "rationale": "Best fit",
-                        "fit_score": 92, "popularity_tier": "high"},
-        "alternatives": [
-            {"audio_id": "A2", "title": "Track 2", "artist": "Artist2",
-             "source": "bundle", "rationale": "Second", "trade_off": "Less fit",
-             "fit_score": 85, "popularity_tier": "medium"},
-        ],
-        "vo_only_fallback": False,
-    }
-    errors = _validate_ranking(result, candidates)
-    assert len(errors) == 0
-
-
-def test_ranking_validation_vo_only_requires_rationale():
-    """vo_only_fallback=True requires a vo_only_rationale."""
-    from soundtrack_ranking import _validate_ranking
-    candidates = [{"audio_id": "A1"}]
-    result = {"recommended": None, "alternatives": [], "vo_only_fallback": True}
-    errors = _validate_ranking(result, candidates)
-    assert any("vo_only_rationale" in e for e in errors)
+    assert SOUNDTRACK_RANKING_SCHEMA["additionalProperties"] is False
+    selection = SOUNDTRACK_RANKING_SCHEMA["properties"]["recommended"]
+    assert "fit_evidence" in selection["required"]
+    assert "popularity_tie_breaker" in selection["required"]
 
 
 # ── Mix engineering ──────────────────────────────────────────────────────────
@@ -135,5 +97,8 @@ def test_config_has_soundtrack_block():
     assert "discovery" in config["soundtrack"]
     assert "ranking" in config["soundtrack"]
     assert "mixing" in config["soundtrack"]
-    assert config["soundtrack"]["ranking"]["mood_fit_weight"] == 0.80
-    assert config["soundtrack"]["ranking"]["popularity_weight"] == 0.20
+    ranking = config["soundtrack"]["ranking"]
+    assert ranking["prompt_file"] == "soundtrack/ranking_v1.md"
+    assert ranking["profile"] == "processing"
+    assert "mood_fit_weight" not in ranking
+    assert "popularity_weight" not in ranking

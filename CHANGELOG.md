@@ -8,6 +8,14 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-20
 
+### VF-VS-513 — Bind ranking to rights-valid evidence [LOGIC/STRUCTURE/TECH]
+
+**What:** Replaced the universal 80/20 soundtrack score, inferred popularity tiers, and loose audio IDs with strict evidence contracts. Ranking candidates must carry verified rights records, immutable local and preview artifact identities, observed fit fields, and exact popularity metric provenance. Prompt v2.0 requires field-cited rationale evidence and permits popularity only as a bounded tie-breaker. Validation rejects malformed candidate children, absent rationale fields, invented or duplicate selection IDs, and comparisons across different metric/provider/region signatures.
+
+**Rationale:** LLM judgment may interpret supplied fit evidence, but it must not manufacture rights, metrics, popularity bands, or unexplained scores. Provider observations are comparable only inside an explicitly shared measurement context. Binding each claim and selection to persisted evidence keeps ranking auditable and prevents discovery metadata from becoming unsupported production truth.
+
+**Verification:** Rights/artifact/metric failure injection, metric-scope mismatch, invented/duplicate IDs, absent rationale evidence, incomparable and comparable metric fixtures, and VO-only behavior pass. A real-adapter fake proves processing profile, prompt v2.0, model/provider, raw and validated provenance, tenant scope, deterministic cache reuse, and one network call across identical retries. 134 focused tests and the full suite (`1,966 passed, 2 skipped`) pass.
+
 ### VF-VS-512 — Move search judgment into the planner [STRUCTURE/LOGIC/TECH]
 
 **What:** Versioned Soundtrack Planner v1.2 now emits bounded `search_queries[]`. Removed Python mood/genre query derivation and the hardcoded `instrumental` fallback. Discovery mechanics normalize, deduplicate, cap, cache, and execute only those planner-authored queries. Provider enablement, adapter identity, endpoint, region, capability declaration, env credential references, audio types, candidate/request limits, timeout, cache TTL, and budget are config-driven.
