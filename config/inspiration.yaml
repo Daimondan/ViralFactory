@@ -46,11 +46,13 @@ providers:
     region: "global"
     charts:
       - key: "top_50"
-        path: "/api/v1/tiktok/music/top_50"
+        path: "/api/v1/tiktok/app/v3/fetch_music_chart_list"
         label: "TikTok Top 50"
+        scene: 0
       - key: "viral_50"
-        path: "/api/v1/tiktok/music/viral_50"
+        path: "/api/v1/tiktok/app/v3/fetch_music_chart_list"
         label: "TikTok Viral 50"
+        scene: 1
     limits:
       max_items: 50
       timeout_seconds: 30
@@ -63,12 +65,13 @@ providers:
     adapter: "tikhub_tiktok_video_feed"
     enabled: true
     platform: "tiktok"
-    endpoint_meaning: "recommendation"   # recommendation => "Video inspiration", NOT "Top Trending"
+    endpoint_meaning: "recommendation"
     content_types: ["video"]
     base_url: "https://api.tikhub.io"
     api_key_env: "TIKHUB_API_KEY"
     region: "BB"                          # Barbados (config-driven)
-    path: "/api/v1/tiktok/video/region_feed"
+    path: "/api/v1/tiktok/app/v3/fetch_video_search_result"
+    search_keyword: "Barbados"
     limits:
       max_items: 20
       timeout_seconds: 30
@@ -86,9 +89,10 @@ providers:
     base_url: "https://api.tikhub.io"
     api_key_env: "TIKHUB_API_KEY"
     region: "global"
-    path: "/api/v1/instagram/video/recommended_reels"
+    path: "/api/v1/instagram/v2/search_reels"
+    search_keyword: "Caribbean"
     limits:
-      max_items: 20
+      max_items: 12
       timeout_seconds: 30
     cache_ttl_seconds: 900
     request_budget:

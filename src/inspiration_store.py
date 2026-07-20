@@ -108,151 +108,294 @@ def _bundle_social_instagram_audio_adapter(response: dict, provider: dict) -> di
 
 
 def _tikhub_tiktok_audio_charts_adapter(response: dict, provider: dict) -> dict:
-    """TikHub TikTok Top 50 / Viral 50 audio charts."""
+    """TikHub TikTok Top 50 / Viral 50 audio charts.
+    Handles two response shapes:
+    - Fixture: {data: [{music_id, title, author, ...}]}
+    - Live: {data: {music_list: [{id, music_info: {id, title, author, duration, ...}, trend}]}}
+    """
     chart_label = provider.get("chart_label", "TikTok chart")
     if not isinstance(response, dict):
         return {"status": COLLECTION_RUN_STATUS_ERROR, "items": [],
                 "error_class": "MalformedResponse", "error_message": "response is not a dict"}
-    # A chart response must have a 'data' key. Missing it is malformed, not empty.
     if "data" not in response:
         return {"status": COLLECTION_RUN_STATUS_ERROR, "items": [],
                 "error_class": "MalformedResponse", "error_message": "missing 'data' key"}
-    items_raw = response.get("data")
-    if not isinstance(items_raw, list):
+    data = response.get("data")
+    # Live shape: data is a dict with 'music_list'
+    if isinstance(data, dict) and "music_list" in data:
+        items_raw = data.get("music_list") or []
+        # Each item: {id, music_info: {...}, trend}
+        normalized = []
+        for entry in items_raw if isinstance(items_raw, list) else []:
+            if not isinstance(entry, dict):
+                continue
+            mi = entry.get("music_info") or {}
+            native_id = str(mi.get("id") or entry.get("id") or "").strip()
+            if not native_id:
+                continue
+            play_url = mi.get("play_url")
+            url_list = play_url.get("url_list") if isinstance(play_url, dict) else []
+            preview = url_list[0] if url_list else ""
+            normalized.append({"native_id": native_id, "title": mi.get("title", ""),
+                              "author": mi.get("author", ""), "duration": mi.get("duration"),
+                              "play_count": mi.get("play_count"), "use_count": mi.get("use_count"),
+                              "is_commercial_music": mi.get("is_commercial_music"),
+                              "trend": entry.get("trend"), "preview_url": preview, "_raw": entry})
+    elif isinstance(data, list):
+        # Fixture shape: data is a list of {music_id, title, author, ...}
+        normalized = []
+        for raw in data:
+            if not isinstance(raw, dict):
+                continue
+            native_id = str(raw.get("music_id", "")).strip()
+            if not native_id:
+                continue
+            normalized.append({"native_id": native_id, "title": raw.get("title", ""),
+                              "author": raw.get("author", ""), "duration": raw.get("duration"),
+                              "play_count": raw.get("play_count"), "use_count": raw.get("use_count"),
+                              "is_commercial_music": raw.get("is_commercial_music"),
+                              "trend": None, "preview_url": raw.get("preview_url", ""), "_raw": raw})
+    else:
         return {"status": COLLECTION_RUN_STATUS_ERROR, "items": [],
-                "error_class": "MalformedResponse", "error_message": "'data' is not a list"}
+                "error_class": "MalformedResponse", "error_message": "'data' is neither list nor dict with music_list"}
+
     items = []
-    for idx, raw in enumerate(items_raw):
-        if not isinstance(raw, dict):
-            continue
-        native_id = str(raw.get("music_id", "")).strip()
-        if not native_id:
-            continue
+    for idx, norm in enumerate(normalized):
         item = make_trend_item(
             business_slug="",
             provider=provider["name"],
             platform=provider["platform"],
             content_type="audio",
-            native_id=native_id,
+            native_id=norm["native_id"],
             canonical_url="",
-            title=raw.get("title", "") or "",
-            creator=raw.get("author", "") or "",
+            title=norm.get("title", "") or "",
+            creator=norm.get("author", "") or "",
             description="",
-            preview_url=raw.get("preview_url", "") or "",
+            preview_url=norm.get("preview_url", "") or "",
             thumbnail_url="",
-            availability="available" if raw.get("preview_url") else "link_only",
+            availability="available" if norm.get("preview_url") else "link_only",
         )
         item["_metrics"] = {
-            "play_count": normalize_metric("play_count", raw.get("play_count")),
-            "use_count": normalize_metric("use_count", raw.get("use_count")),
-            "duration": normalize_metric("duration", raw.get("duration"), unit="s"),
-            "is_commercial_music": normalize_metric("is_commercial_music", raw.get("is_commercial_music")),
+            "play_count": normalize_metric("play_count", norm.get("play_count")),
+            "use_count": normalize_metric("use_count", norm.get("use_count")),
+            "duration": normalize_metric("duration", norm.get("duration"), unit="s"),
+            "is_commercial_music": normalize_metric("is_commercial_music", norm.get("is_commercial_music")),
             "chart": normalize_metric("chart", chart_label),
         }
+        if norm.get("trend") is not None:
+            item["_metrics"]["trend"] = normalize_metric("trend", norm.get("trend"))
         item["_rank"] = idx + 1
-        item["_raw"] = raw
+        item["_raw"] = norm.get("_raw", {})
         items.append(item)
     status = COLLECTION_RUN_STATUS_OK if items else COLLECTION_RUN_STATUS_EMPTY
     return {"status": status, "items": items, "error_class": "", "error_message": ""}
 
 
 def _tikhub_tiktok_video_feed_adapter(response: dict, provider: dict) -> dict:
-    """TikHub TikTok regional/recommendation video feed."""
+    """TikHub TikTok video search (recommendation evidence).
+    Handles two shapes:
+    - Fixture: {data: [{video_id, desc, nickname, ...}]}
+    - Live: {data: {search_item_list: [{aweme_info: {aweme_id, desc, author, statistics, video, music}}]}}
+    """
     if not isinstance(response, dict):
         return {"status": COLLECTION_RUN_STATUS_ERROR, "items": [],
                 "error_class": "MalformedResponse", "error_message": "response is not a dict"}
     if "data" not in response:
         return {"status": COLLECTION_RUN_STATUS_ERROR, "items": [],
                 "error_class": "MalformedResponse", "error_message": "missing 'data' key"}
-    items_raw = response.get("data")
-    if not isinstance(items_raw, list):
+    data = response.get("data")
+
+    # Live shape: data is a dict with 'search_item_list' or 'aweme_list'
+    if isinstance(data, dict):
+        raw_list = data.get("search_item_list") or data.get("aweme_list") or []
+        normalized = []
+        for entry in raw_list if isinstance(raw_list, list) else []:
+            if not isinstance(entry, dict):
+                continue
+            ai = entry.get("aweme_info") or entry.get("search_aweme_info") or entry
+            native_id = str(ai.get("aweme_id") or ai.get("id") or "").strip()
+            if not native_id:
+                continue
+            stats = ai.get("statistics") or {}
+            author = ai.get("author") or {}
+            music = ai.get("music") or {}
+            video = ai.get("video") or {}
+            cover = video.get("cover") or video.get("origin_cover") or {}
+            cover_urls = cover.get("url_list") if isinstance(cover, dict) else []
+            play_addr = video.get("play_addr") or {}
+            play_urls = play_addr.get("url_list") if isinstance(play_addr, dict) else []
+            create_time = ai.get("create_time")
+            posted_at = ""
+            if isinstance(create_time, (int, float)) and create_time > 0:
+                from datetime import datetime, timezone
+                posted_at = datetime.fromtimestamp(int(create_time), tz=timezone.utc).isoformat()
+            normalized.append({
+                "native_id": native_id, "desc": ai.get("desc", "") or "",
+                "nickname": author.get("nickname", "") or "",
+                "play_count": stats.get("play_count"), "digg_count": stats.get("digg_count"),
+                "comment_count": stats.get("comment_count"), "share_count": stats.get("share_count"),
+                "music_id": str(music.get("id", "") or ""), "music_title": music.get("title", "") or "",
+                "cover": cover_urls[0] if cover_urls else "", "play_url": play_urls[0] if play_urls else "",
+                "posted_at": posted_at, "_raw": entry,
+            })
+    elif isinstance(data, list):
+        # Fixture shape
+        normalized = []
+        for raw in data:
+            if not isinstance(raw, dict):
+                continue
+            native_id = str(raw.get("video_id", "")).strip()
+            if not native_id:
+                continue
+            create_time = raw.get("create_time")
+            posted_at = ""
+            if isinstance(create_time, (int, float)) and create_time > 0:
+                from datetime import datetime, timezone
+                posted_at = datetime.fromtimestamp(int(create_time), tz=timezone.utc).isoformat()
+            normalized.append({
+                "native_id": native_id, "desc": raw.get("desc", "") or "",
+                "nickname": raw.get("nickname", "") or "",
+                "play_count": raw.get("play_count"), "digg_count": raw.get("digg_count"),
+                "comment_count": raw.get("comment_count"), "share_count": raw.get("share_count"),
+                "music_id": str(raw.get("music_id", "") or ""), "music_title": raw.get("music_title", "") or "",
+                "cover": raw.get("cover", "") or "", "play_url": raw.get("play_url", "") or "",
+                "posted_at": posted_at, "_raw": raw,
+            })
+    else:
         return {"status": COLLECTION_RUN_STATUS_ERROR, "items": [],
-                "error_class": "MalformedResponse", "error_message": "'data' is not a list"}
+                "error_class": "MalformedResponse", "error_message": "'data' is neither list nor dict"}
+
     items = []
-    for idx, raw in enumerate(items_raw):
-        if not isinstance(raw, dict):
-            continue
-        native_id = str(raw.get("video_id", "")).strip()
-        if not native_id:
-            continue
-        create_time = raw.get("create_time")
-        posted_at = ""
-        if isinstance(create_time, (int, float)) and create_time > 0:
-            posted_at = datetime.fromtimestamp(int(create_time), tz=timezone.utc).isoformat()
+    for idx, norm in enumerate(normalized):
         item = make_trend_item(
             business_slug="",
             provider=provider["name"],
             platform=provider["platform"],
             content_type="video",
-            native_id=native_id,
+            native_id=norm["native_id"],
             canonical_url="",
             title="",
-            creator=raw.get("nickname", "") or "",
-            description=raw.get("desc", "") or "",
-            preview_url=raw.get("play_url", "") or "",
-            thumbnail_url=raw.get("cover", "") or "",
-            availability="available" if raw.get("play_url") else "link_only",
+            creator=norm.get("nickname", "") or "",
+            description=norm.get("desc", "") or "",
+            preview_url=norm.get("play_url", "") or "",
+            thumbnail_url=norm.get("cover", "") or "",
+            availability="available" if norm.get("play_url") else "link_only",
         )
-        item["_posted_at"] = posted_at
-        item["_linked_audio_id"] = str(raw.get("music_id", "") or "")
-        item["_linked_audio_title"] = raw.get("music_title", "") or ""
+        item["_posted_at"] = norm.get("posted_at", "")
+        item["_linked_audio_id"] = norm.get("music_id", "")
+        item["_linked_audio_title"] = norm.get("music_title", "")
         item["_metrics"] = {
-            "play_count": normalize_metric("play_count", raw.get("play_count")),
-            "digg_count": normalize_metric("digg_count", raw.get("digg_count")),
-            "comment_count": normalize_metric("comment_count", raw.get("comment_count")),
-            "share_count": normalize_metric("share_count", raw.get("share_count")),
+            "play_count": normalize_metric("play_count", norm.get("play_count")),
+            "digg_count": normalize_metric("digg_count", norm.get("digg_count")),
+            "comment_count": normalize_metric("comment_count", norm.get("comment_count")),
+            "share_count": normalize_metric("share_count", norm.get("share_count")),
         }
         item["_rank"] = idx + 1
-        item["_raw"] = raw
+        item["_raw"] = norm.get("_raw", {})
         items.append(item)
     status = COLLECTION_RUN_STATUS_OK if items else COLLECTION_RUN_STATUS_EMPTY
     return {"status": status, "items": items, "error_class": "", "error_message": ""}
 
 
 def _tikhub_instagram_reels_adapter(response: dict, provider: dict) -> dict:
-    """TikHub Instagram recommended Reels."""
+    """TikHub Instagram Reels search.
+    Handles two shapes:
+    - Fixture: {data: [{code, caption, username, ...}]}
+    - Live: {data: {data: {items: [{code, caption: {text}, user: {username}, video_versions: [{url}], ...}]}}}
+    """
     if not isinstance(response, dict):
         return {"status": COLLECTION_RUN_STATUS_ERROR, "items": [],
                 "error_class": "MalformedResponse", "error_message": "response is not a dict"}
     if "data" not in response:
         return {"status": COLLECTION_RUN_STATUS_ERROR, "items": [],
                 "error_class": "MalformedResponse", "error_message": "missing 'data' key"}
-    items_raw = response.get("data")
-    if not isinstance(items_raw, list):
+    data = response.get("data")
+
+    # Live shape: data is a dict with nested data.items
+    if isinstance(data, dict):
+        inner = data.get("data") if isinstance(data.get("data"), (dict, list)) else data
+        if isinstance(inner, dict):
+            raw_list = inner.get("items") or []
+        elif isinstance(inner, list):
+            raw_list = inner
+        else:
+            raw_list = []
+        normalized = []
+        for raw in raw_list if isinstance(raw_list, list) else []:
+            if not isinstance(raw, dict):
+                continue
+            native_id = str(raw.get("code", "") or raw.get("id", "") or "").strip()
+            if not native_id:
+                continue
+            caption = raw.get("caption") or {}
+            caption_text = caption.get("text", "") if isinstance(caption, dict) else str(caption or "")
+            user = raw.get("user") or {}
+            video_versions = raw.get("video_versions") or []
+            video_url = video_versions[0].get("url", "") if video_versions and isinstance(video_versions[0], dict) else ""
+            thumb = raw.get("image_versions") or {}
+            thumb_urls = thumb.get("candidates") if isinstance(thumb, dict) else []
+            thumb_url = thumb_urls[0].get("url", "") if thumb_urls and isinstance(thumb_urls[0], dict) else ""
+            taken_at = raw.get("taken_at") or raw.get("taken_at_utc")
+            posted_at = ""
+            if isinstance(taken_at, (int, float)) and taken_at > 0:
+                from datetime import datetime, timezone
+                posted_at = datetime.fromtimestamp(int(taken_at), tz=timezone.utc).isoformat()
+            normalized.append({
+                "native_id": native_id, "caption": caption_text,
+                "username": user.get("username", "") or "",
+                "like_count": raw.get("like_count"), "comment_count": raw.get("comment_count"),
+                "video_url": video_url, "thumbnail_url": thumb_url,
+                "posted_at": posted_at, "_raw": raw,
+            })
+    elif isinstance(data, list):
+        # Fixture shape
+        normalized = []
+        for raw in data:
+            if not isinstance(raw, dict):
+                continue
+            native_id = str(raw.get("code", "")).strip()
+            if not native_id:
+                continue
+            taken_at = raw.get("taken_at")
+            posted_at = ""
+            if isinstance(taken_at, (int, float)) and taken_at > 0:
+                from datetime import datetime, timezone
+                posted_at = datetime.fromtimestamp(int(taken_at), tz=timezone.utc).isoformat()
+            normalized.append({
+                "native_id": native_id, "caption": raw.get("caption", "") or "",
+                "username": raw.get("username", "") or "",
+                "like_count": raw.get("like_count"), "comment_count": raw.get("comment_count"),
+                "video_url": raw.get("video_url", "") or "",
+                "thumbnail_url": raw.get("thumbnail_url", "") or "",
+                "posted_at": posted_at, "_raw": raw,
+            })
+    else:
         return {"status": COLLECTION_RUN_STATUS_ERROR, "items": [],
-                "error_class": "MalformedResponse", "error_message": "'data' is not a list"}
+                "error_class": "MalformedResponse", "error_message": "'data' is neither list nor dict"}
+
     items = []
-    for idx, raw in enumerate(items_raw):
-        if not isinstance(raw, dict):
-            continue
-        native_id = str(raw.get("code", "")).strip()
-        if not native_id:
-            continue
-        taken_at = raw.get("taken_at")
-        posted_at = ""
-        if isinstance(taken_at, (int, float)) and taken_at > 0:
-            posted_at = datetime.fromtimestamp(int(taken_at), tz=timezone.utc).isoformat()
+    for idx, norm in enumerate(normalized):
         item = make_trend_item(
             business_slug="",
             provider=provider["name"],
             platform=provider["platform"],
             content_type="video",
-            native_id=native_id,
+            native_id=norm["native_id"],
             canonical_url="",
             title="",
-            creator=raw.get("username", "") or "",
-            description=raw.get("caption", "") or "",
-            preview_url=raw.get("video_url", "") or "",
-            thumbnail_url=raw.get("thumbnail_url", "") or "",
-            availability="available" if raw.get("video_url") else "link_only",
+            creator=norm.get("username", "") or "",
+            description=norm.get("caption", "") or "",
+            preview_url=norm.get("video_url", "") or "",
+            thumbnail_url=norm.get("thumbnail_url", "") or "",
+            availability="available" if norm.get("video_url") else "link_only",
         )
-        item["_posted_at"] = posted_at
+        item["_posted_at"] = norm.get("posted_at", "")
         item["_metrics"] = {
-            "like_count": normalize_metric("like_count", raw.get("like_count")),
-            "comment_count": normalize_metric("comment_count", raw.get("comment_count")),
+            "like_count": normalize_metric("like_count", norm.get("like_count")),
+            "comment_count": normalize_metric("comment_count", norm.get("comment_count")),
         }
         item["_rank"] = idx + 1
-        item["_raw"] = raw
+        item["_raw"] = norm.get("_raw", {})
         items.append(item)
     status = COLLECTION_RUN_STATUS_OK if items else COLLECTION_RUN_STATUS_EMPTY
     return {"status": status, "items": items, "error_class": "", "error_message": ""}
@@ -647,6 +790,28 @@ def run_collection(
             headers["x-api-key"] = creds.get("api_key", "")
         if creds.get("team_id"):
             params["teamId"] = creds["team_id"]
+        # Provider-specific params from config (config-driven, not hardcoded)
+        # Bundle.social: audioType, searchQuery, region
+        if "audio_types" in provider_config:
+            # The runner iterates audio types; for live, we pass the first type
+            params.setdefault("audioType", provider_config["audio_types"][0])
+        if "region" in provider_config and "tikhub" not in provider_config.get("name", "").lower():
+            # Only pass region to non-TikHub providers (TikHub search rejects it)
+            params.setdefault("region", provider_config["region"])
+        # TikHub music chart: scene param (0=Top 50, 1=Viral 50)
+        if "chart_key" in provider_config:
+            scene_map = {"top_50": 0, "viral_50": 1}
+            params.setdefault("scene", provider_config.get("scene", scene_map.get(provider_config["chart_key"], 0)))
+            params.setdefault("count", provider_config.get("limits", {}).get("max_items", 50))
+        # TikHub video search: keyword param
+        if "search_keyword" in provider_config:
+            params.setdefault("keyword", provider_config["search_keyword"])
+            params.setdefault("count", provider_config.get("limits", {}).get("max_items", 20))
+        # TikHub IG reels: first param + keyword
+        if provider_config.get("adapter") == "tikhub_instagram_reels":
+            params.setdefault("first", provider_config.get("limits", {}).get("max_items", 12))
+            if "search_keyword" in provider_config:
+                params.setdefault("keyword", provider_config["search_keyword"])
         timeout = int(provider_config.get("limits", {}).get("timeout_seconds", 30))
         try:
             resp = (fetcher or _http_get)(url, headers=headers, params=params, timeout=timeout)
