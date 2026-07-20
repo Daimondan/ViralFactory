@@ -196,6 +196,16 @@
                 {% endif %}
             </div>
 
+            {# VF-INSP-005: Bookmark and promotion actions (AMENDMENT-012 C5) #}
+            {# Distinct actions: Bookmark, Add to Source Bank, Propose experiment, Propose pattern #}
+            {# No action silently changes a module, process, source status, idea, or soundtrack #}
+            <div class="insp-actions" style="margin-top: var(--space-1);">
+                <button class="btn btn-small" onclick="inspirationAction({{ item.id }}, {{ item.obs_id|default(0) }}, 'bookmark')">☆ Bookmark</button>
+                <button class="btn btn-small" onclick="inspirationAction({{ item.id }}, {{ item.obs_id|default(0) }}, 'promote', 'add_to_source_bank')">→ Source Bank</button>
+                <button class="btn btn-small" onclick="inspirationAction({{ item.id }}, {{ item.obs_id|default(0) }}, 'promote', 'propose_experiment')">↗ Experiment</button>
+                <button class="btn btn-small" onclick="inspirationAction({{ item.id }}, {{ item.obs_id|default(0) }}, 'promote', 'propose_pattern')">⚙ Pattern</button>
+            </div>
+
             {# Meta: collection time, posted time, observation count, availability #}
             <p class="insp-meta">
                 collected {{ item.obs_collected_at | relative_time }}
@@ -238,6 +248,22 @@ function refreshInspiration() {
             }
         })
         .catch(() => alert('Refresh request failed.'));
+}
+function inspirationAction(itemId, obsId, type, subAction) {
+    let url = `/api/inspiration/${itemId}/${obsId}/${type}`;
+    let body = {};
+    if (subAction) body.action = subAction;
+    fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                let label = type === 'bookmark' ? 'Bookmarked' : (subAction || 'Promoted');
+                alert(label + ' — this item is now in your ' + (data.bookmark ? 'bookmarks' : (data.promotion ? data.promotion.destination : 'queue')) + '.\n\nNo module, source, idea, or soundtrack was changed. The existing gate remains intact.');
+            } else {
+                alert('Error: ' + (data.message || 'unknown error'));
+            }
+        })
+        .catch(() => alert('Action request failed.'));
 }
 </script>
 </body>

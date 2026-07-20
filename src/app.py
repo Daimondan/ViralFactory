@@ -719,6 +719,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                         })
                 display_items.append({
                     "id": item["id"],
+                    "obs_id": item.get("id"),  # same as item id for now; the JS uses the observation
                     "platform": item.get("platform", ""),
                     "provider": item.get("provider", ""),
                     "run_region": item.get("run_region", ""),
@@ -799,6 +800,111 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 return jsonify({"status": result.get("status", "unknown"), "job_id": result.get("job_id")})
         except Exception as exc:
             return jsonify({"status": "error", "message": str(exc)}), 500
+
+    # ─── VF-INSP-005: Bookmark and promotion actions (AMENDMENT-012 C5) ────────
+    @app.route("/api/inspiration/<int:trend_item_id>/<int:observation_id>/bookmark", methods=["POST"])
+    def api_inspiration_bookmark(trend_item_id, observation_id):
+        """Bookmark an inspiration reference without making it grounding material."""
+        try:
+            config = load_all(config_dir)
+            business_slug = config["business"]["business"]["slug"]
+        except ConfigError:
+            return jsonify({"status": "error", "message": "Business not configured"}), 400
+        from inspiration_promotions import PromotionStore, PromotionError
+        store = PromotionStore(app.config["DB_PATH"])
+        note = (request.get_json(silent=True) or {}).get("note", "")
+        try:
+            result = store.bookmark(
+                business_slug=business_slug,
+                trend_item_id=trend_item_id,
+                observation_id=observation_id,
+                note=note,
+            )
+            return jsonify({"status": "ok", "bookmark": result})
+        except PromotionError as exc:
+            return jsonify({"status": "error", "message": str(exc)}), 400
+
+    @app.route("/api/inspiration/<int:trend_item_id>/<int:observation_id>/promote", methods=["POST"])
+    def api_inspiration_promote(trend_item_id, observation_id):
+        """Promote an observation to Source Bank, experiment queue, or module proposal.
+        Each destination is distinct and requires its own gate — no silent promotion."""
+        try:
+            config = load_all(config_dir)
+            business_slug = config["business"]["business"]["slug"]
+        except ConfigError:
+            return jsonify({"status": "error", "message": "Business not configured"}), 400
+        data = request.get_json(silent=True) or {}
+        action = data.get("action", "")
+        note = data.get("note", "")
+        if action not in ("add_to_source_bank", "propose_experiment", "propose_pattern"):
+            return jsonify({"status": "error", "message": f"invalid action: {action}"}), 400
+        from inspiration_promotions import PromotionStore, PromotionError
+        store = PromotionStore(app.config["DB_PATH"])
+        try:
+            if action == "add_to_source_bank":
+                result = store.add_to_source_bank(
+                    business_slug=business_slug,
+                    trend_item_id=trend_item_id, observation_id=observation_id, note=note)
+            elif action == "propose_experiment":
+                result = store.propose_experiment(
+                    business_slug=business_slug,
+                    trend_item_id=trend_item_id, observation_id=observation_id, note=note)
+            else:
+                result = store.propose_pattern(
+                    business_slug=business_slug,
+                    trend_item_id=trend_item_id, observation_id=observation_id, note=note)
+            return jsonify({"status": "ok", "promotion": result})
+        except PromotionError as exc:
+            return jsonify({"status": "error", "message": str(exc)}), 400
+
+    @app.route("/api/inspiration/bookmarks")
+    def api_inspiration_bookmarks():
+        """List all bookmarks/promotions for the current tenant."""
+        try:
+            config = load_all(config_dir)
+            business_slug = config["business"]["business"]["slug"]
+        except ConfigError:
+            return jsonify({"status": "error", "message": "Business not configured"}), 400
+        from inspiration_promotions import PromotionStore
+        store = PromotionStore(app.config["DB_PATH"])
+        action_filter = request.args.get("action", "").strip() or None
+        bookmarks = store.list_bookmarks(business_slug=business_slug, action=action_filter)
+        return jsonify({"status": "ok", "bookmarks": bookmarks})
+
+    @app.route("/api/inspiration/bookmarks/<int:bookmark_id>/revert", methods=["POST"])
+    def api_inspiration_revert(bookmark_id):
+        """Revert (undo) a bookmark or promotion. History is preserved."""
+        try:
+            config = load_all(config_dir)
+            business_slug = config["business"]["business"]["slug"]
+        except ConfigError:
+            return jsonify({"status": "error", "message": "Business not configured"}), 400
+        from inspiration_promotions import PromotionStore, PromotionError
+        store = PromotionStore(app.config["DB_PATH"])
+        try:
+            result = store.revert(bookmark_id=bookmark_id)
+            if result.get("business_slug") != business_slug:
+                return jsonify({"status": "error", "message": "tenant mismatch"}), 403
+            return jsonify({"status": "ok", "reverted": result})
+        except PromotionError as exc:
+            return jsonify({"status": "error", "message": str(exc)}), 400
+
+    @app.route("/api/inspiration/bookmarks/bulk-revert", methods=["POST"])
+    def api_inspiration_bulk_revert():
+        """Revert multiple bookmarks at once. Used for queues >50 items."""
+        try:
+            config = load_all(config_dir)
+            business_slug = config["business"]["business"]["slug"]
+        except ConfigError:
+            return jsonify({"status": "error", "message": "Business not configured"}), 400
+        data = request.get_json(silent=True) or {}
+        ids = data.get("bookmark_ids", [])
+        if not isinstance(ids, list) or not ids:
+            return jsonify({"status": "error", "message": "bookmark_ids must be a non-empty list"}), 400
+        from inspiration_promotions import PromotionStore
+        store = PromotionStore(app.config["DB_PATH"])
+        result = store.bulk_revert(business_slug=business_slug, bookmark_ids=ids)
+        return jsonify({"status": "ok", "reverted": result["reverted"], "errors": result["errors"]})
 
     @app.route("/onboard")
     def onboard():
