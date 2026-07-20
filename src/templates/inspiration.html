@@ -89,6 +89,14 @@
         {% endif %}
     </div>
 
+    {# Section quick-jump — jump to a section without scrolling past 100+ cards #}
+    <div class="insp-filter-bar">
+        <span class="subtle" style="font-size:0.78rem; margin-right: var(--space-2);">Jump to:</span>
+        {% for section in sections %}
+        <a href="#section-{{ section.key }}" class="insp-filter-chip">{{ section.label }} ({{ section.cards|length }})</a>
+        {% endfor %}
+    </div>
+
     {# Platform / region filter bar — current scope visible #}
     <div class="insp-filter-bar">
         <span class="subtle" style="font-size:0.78rem; margin-right: var(--space-2);">Filter:</span>
