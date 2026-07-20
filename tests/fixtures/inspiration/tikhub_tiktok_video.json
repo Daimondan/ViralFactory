@@ -1,0 +1,44 @@
+{
+  "name": "tikhub_tiktok_video_feed",
+  "adapter": "tikhub_tiktok_video_feed",
+  "platform": "tiktok",
+  "endpoint_meaning": "recommendation",
+  "content_types": ["video"],
+  "region": "BB",
+  "status": "ok",
+  "response": {
+    "data": [
+      {
+        "video_id": "tt_video_001",
+        "desc": "Example TikTok video caption that is long enough to exceed the 300 character preview limit so the UI must show an expandable full content toggle rather than silently truncating the caption. This text is deliberately verbose and repeats the same point a few times to ensure it crosses the threshold for the expandable content UI contract in AMENDMENT-012 C7. The operator must be able to read the full caption, not just a truncated snippet, because truncation hides context that matters for quality judgment about why a video works.",
+        "nickname": "example_creator_d",
+        "create_time": 1721300000,
+        "play_count": 1200000,
+        "digg_count": 45000,
+        "comment_count": 1200,
+        "share_count": 800,
+        "music_id": "tt_music_001",
+        "music_title": "Example TikTok Track One",
+        "cover": "https://example.com/tt/cover/tt_video_001?x-amz-signature=SECRET",
+        "play_url": "https://example.com/tt/play/tt_video_001"
+      },
+      {
+        "video_id": "tt_video_002",
+        "desc": "Short caption.",
+        "nickname": "example_creator_e",
+        "create_time": 1721400000,
+        "play_count": null,
+        "digg_count": 200,
+        "comment_count": 15,
+        "share_count": 5,
+        "music_id": "",
+        "music_title": "",
+        "cover": "https://example.com/tt/cover/tt_video_002",
+        "play_url": "https://example.com/tt/play/tt_video_002"
+      }
+    ]
+  },
+  "expected_count": 2,
+  "expected_secret_params_stripped": ["x-amz-signature"],
+  "notes": "Redacted fixture — recommendation feed (NOT a chart). play_count null must render as unavailable, not zero. AMENDMENT-012 forbids 'Top Trending Videos' label here."
+}

@@ -1,0 +1,38 @@
+{
+  "name": "tikhub_tiktok_audio_chart",
+  "adapter": "tikhub_tiktok_audio_charts",
+  "platform": "tiktok",
+  "endpoint_meaning": "chart",
+  "content_types": ["audio"],
+  "chart_key": "top_50",
+  "chart_label": "TikTok Top 50",
+  "region": "global",
+  "status": "ok",
+  "response": {
+    "data": [
+      {
+        "music_id": "tt_music_001",
+        "title": "Example TikTok Track One",
+        "author": "Example Author X",
+        "duration": 30,
+        "play_count": 5000000,
+        "use_count": 1200000,
+        "is_commercial_music": true,
+        "preview_url": "https://example.com/tt/tt_music_001?signature=SECRET&expiry=123"
+      },
+      {
+        "music_id": "tt_music_002",
+        "title": "Example TikTok Track Two",
+        "author": "Example Author Y",
+        "duration": 15,
+        "play_count": 3000000,
+        "use_count": 800000,
+        "is_commercial_music": false,
+        "preview_url": "https://example.com/tt/tt_music_002"
+      }
+    ]
+  },
+  "expected_count": 2,
+  "expected_secret_params_stripped": ["signature", "expiry"],
+  "notes": "Redacted fixture — TikHub Top 50 chart. is_commercial_music preserved as a metric, not a rights claim."
+}

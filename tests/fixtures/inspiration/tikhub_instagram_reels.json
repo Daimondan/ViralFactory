@@ -1,0 +1,36 @@
+{
+  "name": "tikhub_instagram_reels",
+  "adapter": "tikhub_instagram_reels",
+  "platform": "instagram",
+  "endpoint_meaning": "recommendation",
+  "content_types": ["video"],
+  "region": "global",
+  "status": "ok",
+  "response": {
+    "data": [
+      {
+        "code": "ig_reel_001",
+        "caption": "Example Instagram Reel caption text describing the content.",
+        "username": "example_creator_f",
+        "taken_at": 1721500000,
+        "like_count": 25000,
+        "comment_count": 800,
+        "video_url": "https://example.com/ig/reel/ig_reel_001?token=SECRET",
+        "thumbnail_url": "https://example.com/ig/thumb/ig_reel_001"
+      },
+      {
+        "code": "ig_reel_002",
+        "caption": "",
+        "username": "example_creator_g",
+        "taken_at": 1721600000,
+        "like_count": 12000,
+        "comment_count": 0,
+        "video_url": "https://example.com/ig/reel/ig_reel_002",
+        "thumbnail_url": "https://example.com/ig/thumb/ig_reel_002"
+      }
+    ]
+  },
+  "expected_count": 2,
+  "expected_secret_params_stripped": ["token"],
+  "notes": "Redacted fixture — recommendation feed. comment_count 0 is a real zero, not missing. video_url for item 0 carries token that must be stripped."
+}

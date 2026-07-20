@@ -1,0 +1,17 @@
+{
+  "name": "tikhub_tiktok_audio_rate_limited",
+  "adapter": "tikhub_tiktok_audio_charts",
+  "platform": "tiktok",
+  "endpoint_meaning": "chart",
+  "content_types": ["audio"],
+  "chart_key": "viral_50",
+  "region": "global",
+  "status": "rate_limited",
+  "response": {
+    "error": "Rate limit exceeded",
+    "status_code": 429
+  },
+  "expected_count": 0,
+  "expected_error_class": "RateLimitError",
+  "notes": "Redacted fixture — rate limited. status=rate_limited, not error. Provider failure cannot erase prior data."
+}

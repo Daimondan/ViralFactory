@@ -1,0 +1,17 @@
+{
+  "name": "tikhub_tiktok_audio_malformed",
+  "adapter": "tikhub_tiktok_audio_charts",
+  "platform": "tiktok",
+  "endpoint_meaning": "chart",
+  "content_types": ["audio"],
+  "chart_key": "top_50",
+  "region": "global",
+  "status": "error",
+  "response": {
+    "unexpected_field": true,
+    "no_data_key": "this is not the expected shape"
+  },
+  "expected_count": 0,
+  "expected_error_class": "MalformedResponse",
+  "notes": "Redacted fixture — malformed response. Adapter must fail visibly with a sanitized diagnostic, not emit empty success."
+}

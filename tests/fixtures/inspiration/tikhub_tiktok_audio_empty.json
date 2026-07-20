@@ -1,0 +1,16 @@
+{
+  "name": "tikhub_tiktok_audio_empty",
+  "adapter": "tikhub_tiktok_audio_charts",
+  "platform": "tiktok",
+  "endpoint_meaning": "chart",
+  "content_types": ["audio"],
+  "chart_key": "viral_50",
+  "chart_label": "TikTok Viral 50",
+  "region": "global",
+  "status": "empty",
+  "response": {
+    "data": []
+  },
+  "expected_count": 0,
+  "notes": "Redacted fixture — empty response. status=empty, not success."
+}

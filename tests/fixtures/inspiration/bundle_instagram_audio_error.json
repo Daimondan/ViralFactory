@@ -1,0 +1,16 @@
+{
+  "name": "bundle_social_instagram_audio_error",
+  "adapter": "bundle_social_instagram_audio",
+  "platform": "instagram",
+  "endpoint_meaning": "chart",
+  "content_types": ["audio"],
+  "region": "global",
+  "status": "auth_failed",
+  "response": {
+    "error": "Invalid API key",
+    "status_code": 401
+  },
+  "expected_count": 0,
+  "expected_error_class": "AuthError",
+  "notes": "Redacted fixture — auth failure. The collection run must record status=auth_failed with a redacted error message, not emit empty success."
+}

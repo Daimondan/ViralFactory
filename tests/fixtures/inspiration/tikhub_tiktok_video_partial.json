@@ -1,0 +1,29 @@
+{
+  "name": "tikhub_tiktok_video_partial",
+  "adapter": "tikhub_tiktok_video_feed",
+  "platform": "tiktok",
+  "endpoint_meaning": "recommendation",
+  "content_types": ["video"],
+  "region": "BB",
+  "status": "partial",
+  "response": {
+    "data": [
+      {
+        "video_id": "tt_video_003",
+        "desc": "A valid item in a partial response.",
+        "nickname": "example_creator_h",
+        "create_time": 1721700000,
+        "play_count": 500,
+        "digg_count": 10,
+        "comment_count": 2,
+        "share_count": 1,
+        "music_id": "",
+        "music_title": "",
+        "cover": "https://example.com/tt/cover/tt_video_003",
+        "play_url": "https://example.com/tt/play/tt_video_003"
+      }
+    ]
+  },
+  "expected_count": 1,
+  "notes": "Redacted fixture — partial response. Some providers return fewer items than requested; status=partial."
+}

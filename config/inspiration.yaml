@@ -1,0 +1,125 @@
+# ViralFactory Inspiration Center config (AMENDMENT-012 / VF-INSP-001)
+#
+# All business + deployment values for the Inspiration evidence workbench.
+# Provider parsing mechanics remain generic Python; no StackPenni values here.
+#
+# Credentials live ONLY in environment variables (never in this file).
+# Page render reads the DB; scheduled/triggered jobs do collection.
+
+# Tenant scope is derived from config/business.yaml at runtime.
+
+# ─── Provider enablement + endpoints ──────────────────────────────────────────
+# Each provider declares: adapter (Python registry key), platform, endpoint
+# meaning (chart | recommendation | seed | regional_discovery), base URL,
+# region, content types (audio | video), env var names for secrets, limits,
+# TTLs, timeouts, and request budget.
+
+providers:
+  # Bundle.social — Instagram ranked music + original sounds (chart evidence)
+  - name: "bundle_social_instagram_audio"
+    adapter: "bundle_social_instagram_audio"
+    enabled: true
+    platform: "instagram"
+    endpoint_meaning: "chart"            # chart => may say "Trending audio"
+    content_types: ["audio"]
+    endpoint: "https://api.bundle.social/api/v1/misc/instagram/audio"
+    api_key_env: "BUNDLE_SOCIAL_API_KEY"
+    team_id_env: "BUNDLE_TEAM_ID"
+    region: "global"
+    audio_types: ["music", "original_sound"]
+    limits:
+      max_items: 50
+      timeout_seconds: 30
+    cache_ttl_seconds: 900               # 15 min
+    request_budget:
+      max_requests_per_run: 2
+
+  # TikHub — TikTok Top 50 + Viral 50 audio charts (chart evidence)
+  - name: "tikhub_tiktok_audio_charts"
+    adapter: "tikhub_tiktok_audio_charts"
+    enabled: true
+    platform: "tiktok"
+    endpoint_meaning: "chart"
+    content_types: ["audio"]
+    base_url: "https://api.tikhub.io"
+    api_key_env: "TIKHUB_API_KEY"
+    region: "global"
+    charts:
+      - key: "top_50"
+        path: "/api/v1/tiktok/music/top_50"
+        label: "TikTok Top 50"
+      - key: "viral_50"
+        path: "/api/v1/tiktok/music/viral_50"
+        label: "TikTok Viral 50"
+    limits:
+      max_items: 50
+      timeout_seconds: 30
+    cache_ttl_seconds: 900
+    request_budget:
+      max_requests_per_run: 2
+
+  # TikHub — TikTok regional/recommendation video feed (recommendation evidence)
+  - name: "tikhub_tiktok_video_feed"
+    adapter: "tikhub_tiktok_video_feed"
+    enabled: true
+    platform: "tiktok"
+    endpoint_meaning: "recommendation"   # recommendation => "Video inspiration", NOT "Top Trending"
+    content_types: ["video"]
+    base_url: "https://api.tikhub.io"
+    api_key_env: "TIKHUB_API_KEY"
+    region: "BB"                          # Barbados (config-driven)
+    path: "/api/v1/tiktok/video/region_feed"
+    limits:
+      max_items: 20
+      timeout_seconds: 30
+    cache_ttl_seconds: 900
+    request_budget:
+      max_requests_per_run: 1
+
+  # TikHub — Instagram recommended Reels (recommendation evidence)
+  - name: "tikhub_instagram_reels"
+    adapter: "tikhub_instagram_reels"
+    enabled: true
+    platform: "instagram"
+    endpoint_meaning: "recommendation"
+    content_types: ["video"]
+    base_url: "https://api.tikhub.io"
+    api_key_env: "TIKHUB_API_KEY"
+    region: "global"
+    path: "/api/v1/instagram/video/recommended_reels"
+    limits:
+      max_items: 20
+      timeout_seconds: 30
+    cache_ttl_seconds: 900
+    request_budget:
+      max_requests_per_run: 1
+
+# ─── Section headings (truthful naming per AMENDMENT-012 C7) ─────────────────
+# chart => "Trending audio"; recommendation/seed => "Video inspiration" / "Provider recommendations"
+sections:
+  audio:
+    label: "Trending audio"
+    providers:
+      - "bundle_social_instagram_audio"
+      - "tikhub_tiktok_audio_charts"
+  video:
+    label: "Video inspiration"
+    providers:
+      - "tikhub_tiktok_video_feed"
+      - "tikhub_instagram_reels"
+
+# ─── Collection run settings ─────────────────────────────────────────────────
+collection:
+  # Stale threshold: a snapshot older than this shows a stale state.
+  stale_after_seconds: 3600              # 1 hour
+  # A manual refresh queues a run; it never blocks page render.
+  manual_refresh: true
+
+# ─── Redaction ────────────────────────────────────────────────────────────────
+# These URL query parameter names and payload fields are stripped before
+# persistence. Secrets never reach the DB or logs.
+redaction:
+  url_param_names: ["sig", "signature", "token", "access_token", "api_key", "key", "sign", "expiry", "expires", "x-amz-signature", "x-amz-credential", "x-amz-date"]
+  payload_field_names: ["access_token", "api_key", "token", "signature", "sig", "session_id", "cookie", "authorization"]
+  # Fields whose value is a URL that may carry signed params — sanitized before store.
+  url_fields: ["preview_url", "download_url", "thumbnail_url", "video_url", "play_url", "cover_url", "cover", "share_url", "url", "link"]

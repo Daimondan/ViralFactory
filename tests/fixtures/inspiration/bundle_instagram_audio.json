@@ -1,0 +1,44 @@
+{
+  "name": "bundle_social_instagram_audio_music_chart",
+  "adapter": "bundle_social_instagram_audio",
+  "platform": "instagram",
+  "endpoint_meaning": "chart",
+  "content_types": ["audio"],
+  "audio_type": "music",
+  "region": "global",
+  "status": "ok",
+  "response": {
+    "audio": [
+      {
+        "audio_id": "ig_music_001",
+        "title": "Example Trending Track One",
+        "display_artist": "Example Artist A",
+        "ig_username": "example_artist_a",
+        "duration_in_ms": 45000,
+        "usage_count": 125000,
+        "download_url": "https://example.com/audio/ig_music_001?token=SECRET&sig=abc123"
+      },
+      {
+        "audio_id": "ig_music_002",
+        "title": "Example Trending Track Two",
+        "display_artist": "Example Artist B",
+        "ig_username": "example_artist_b",
+        "duration_in_ms": 30000,
+        "usage_count": 98000,
+        "download_url": "https://example.com/audio/ig_music_002"
+      },
+      {
+        "audio_id": "ig_music_003",
+        "title": "Example Original Sound Three",
+        "display_artist": "",
+        "ig_username": "example_creator_c",
+        "duration_in_ms": 22000,
+        "usage_count": 45000,
+        "download_url": ""
+      }
+    ]
+  },
+  "expected_count": 3,
+  "expected_secret_params_stripped": ["token", "sig"],
+  "notes": "Redacted fixture — no real credentials. download_url for item 0 carries token+sig that must be stripped before persistence."
+}
