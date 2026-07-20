@@ -8,6 +8,12 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-19
 
+### Architect inbox batch consumed — AMENDMENT-011/012 work order [OPS/STRATEGIC]
+
+**What:** Consumed `MANIFEST-2026-07-19-divergences-015-016.md` and filed the manifest, architect ruling, and the two resolved builder notes under `docs/inbox/processed/`. The governing documents were already filed canonically by the architect: Charter v3.8, AMENDMENT-011/012, the inbox review, and the updated Build Plan and Context.
+
+**Rationale:** The inbox protocol requires the builder to mark a handoff as consumed only after reading the ruling and moving the complete batch. The binding work order is now VF-VS-510..516, then fresh VF-VS-702/703 proof; M14 Inspiration work cannot begin before M13 is accepted.
+
 ### DIVERGENCE-016 — Inspiration Center and trend discovery filed [STRATEGIC/STRUCTURE]
 
 **What:** Filed the operator-approved proposal for a top-level Inspiration workbench with separate Top Trending Audio and Top Trending Videos sections. The divergence records live Bundle.social and TikHub capability evidence, provider-specific limitations, proposed audio/video/snapshot boundaries, rights and stale-data rules, and the acceptance criteria for a read-only `VF-INSP-001` vertical slice. A concise architect request is in `docs/inbox/BUILDER-NOTE-016-inspiration-center.md`.
