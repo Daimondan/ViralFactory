@@ -127,3 +127,12 @@ redaction:
   payload_field_names: ["access_token", "api_key", "token", "signature", "sig", "session_id", "cookie", "authorization"]
   # Fields whose value is a URL that may carry signed params — sanitized before store.
   url_fields: ["preview_url", "download_url", "thumbnail_url", "video_url", "play_url", "cover_url", "cover", "share_url", "url", "link"]
+
+# ─── Platform URL templates ─────────────────────────────────────────────────
+# Construct canonical platform links from native IDs when the provider payload
+# does not include a direct URL. {native_id} is replaced with the item's ID.
+platform_urls:
+  instagram_audio: "https://www.instagram.com/reels/audio/{native_id}/"
+  instagram_reel: "https://www.instagram.com/reel/{native_id}/"
+  tiktok_video: "https://www.tiktok.com/@/video/{native_id}"
+  tiktok_music: "https://www.tiktok.com/music/{native_id}"

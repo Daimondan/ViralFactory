@@ -409,6 +409,23 @@ ADAPTERS: dict[str, AdapterFn] = {
 }
 
 
+def _platform_url(platform: str, content_type: str, native_id: str,
+                   platform_urls: dict | None = None) -> str:
+    """Construct a canonical platform URL from the native ID using config templates.
+    Returns empty string if no template matches."""
+    if not platform_urls or not native_id:
+        return ""
+    # Build the lookup key: platform + content_type
+    key = f"{platform}_{content_type}"
+    template = platform_urls.get(key, "")
+    if not template:
+        # Fallback: try platform alone
+        template = platform_urls.get(platform, "")
+    if not template:
+        return ""
+    return template.replace("{native_id}", native_id)
+
+
 # ─── HTTP fetch (shared mechanics) ───────────────────────────────────────────
 
 def _http_get(url: str, *, headers: dict, params: dict, timeout: int) -> requests.Response:
@@ -729,11 +746,14 @@ def run_collection(
     store: InspirationStore,
     fetcher: Callable[[str, dict, dict, int], object] | None = None,
     response_override: dict | None = None,
+    platform_urls: dict | None = None,
 ) -> dict:
     """Execute one collection run for one provider.
 
     `response_override` (fixture) takes precedence over `fetcher` (network).
     Tests pass response_override; the live smoke passes fetcher + real credentials.
+    `platform_urls` is the config-driven URL template dict for constructing
+    canonical platform links from native IDs.
     Returns the persisted collection run dict (with run_id).
     """
     adapter_name = provider_config.get("adapter")
@@ -875,8 +895,15 @@ def run_collection(
     run["id"] = run_id
 
     secret_params = redaction_config.get("url_param_names") or []
+    # Platform URL templates for constructing canonical links from native IDs
+    p_urls = platform_urls or {}
     for item in normalized_items:
         item["business_slug"] = business_slug
+        # Construct canonical URL from native ID if not already set
+        if not item.get("canonical_url"):
+            item["canonical_url"] = _platform_url(
+                item.get("platform", ""), item.get("content_type", ""),
+                item.get("native_id", ""), p_urls)
         # Redact URL fields on the item itself before persistence
         for url_field in ("preview_url", "thumbnail_url", "canonical_url"):
             if item.get(url_field):

@@ -32,6 +32,7 @@ def _seed(store, business_slug, config):
     fixture = json.loads((FIXTURES / "tikhub_tiktok_audio.json").read_text())
     run_collection(business_slug=business_slug, provider_config=pconf,
                    redaction_config=config["redaction"], store=store,
+                   platform_urls=config.get("platform_urls"),
                    response_override=fixture["response"])
 
 

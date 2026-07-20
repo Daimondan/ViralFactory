@@ -43,6 +43,7 @@ def seeded_client(tmp_path):
 
     # Seed all four providers
     provider_map = {p["name"]: p for p in insp_config["providers"]}
+    platform_urls = insp_config.get("platform_urls") or {}
     for name, stem, extras in [
         ("bundle_social_instagram_audio", "bundle_instagram_audio", {"audio_type": "music"}),
         ("tikhub_tiktok_audio_charts", "tikhub_tiktok_audio", {"chart_key": "top_50", "chart_label": "TikTok Top 50"}),
@@ -53,6 +54,7 @@ def seeded_client(tmp_path):
         fixture = json.loads((FIXTURES / f"{stem}.json").read_text())
         run_collection(business_slug="stackpenni", provider_config=pconf,
                        redaction_config=insp_config["redaction"], store=store,
+                       platform_urls=platform_urls,
                        response_override=fixture["response"])
 
     return app.test_client(), db_path, config_dir

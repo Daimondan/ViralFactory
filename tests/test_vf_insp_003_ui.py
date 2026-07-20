@@ -38,6 +38,7 @@ def _seed_data(store, business_slug, config):
     """Seed the store with fixture data so the page has something to render."""
     from inspiration_store import run_collection
     provider_map = {p["name"]: p for p in config["providers"]}
+    platform_urls = config.get("platform_urls") or {}
     # Audio: Bundle.social IG + TikHub TikTok
     for name, fixture_stem, extras in [
         ("bundle_social_instagram_audio", "bundle_instagram_audio", {"audio_type": "music"}),
@@ -47,6 +48,7 @@ def _seed_data(store, business_slug, config):
         fixture = json.loads((FIXTURES / f"{fixture_stem}.json").read_text())
         run_collection(business_slug=business_slug, provider_config=pconf,
                        redaction_config=config["redaction"], store=store,
+                       platform_urls=platform_urls,
                        response_override=fixture["response"])
     # Video: TikHub TikTok feed + TikHub IG reels
     for name, fixture_stem in [
@@ -57,6 +59,7 @@ def _seed_data(store, business_slug, config):
         fixture = json.loads((FIXTURES / f"{fixture_stem}.json").read_text())
         run_collection(business_slug=business_slug, provider_config=pconf,
                        redaction_config=config["redaction"], store=store,
+                       platform_urls=platform_urls,
                        response_override=fixture["response"])
 
 

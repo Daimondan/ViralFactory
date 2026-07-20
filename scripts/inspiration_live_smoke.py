@@ -96,6 +96,7 @@ def run_live_collection(db_path: str, config_dir: str, business_slug: str) -> di
             provider_config=pconf,
             redaction_config=insp_config["redaction"],
             store=store,
+            platform_urls=insp_config.get("platform_urls"),
             # No response_override — uses live HTTP
         )
         status = run["status"]
