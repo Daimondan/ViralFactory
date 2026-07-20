@@ -202,6 +202,10 @@
                 {% if item.canonical_url %}
                 <a href="{{ item.canonical_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-small btn-secondary">Open on {{ item.platform }}</a>
                 {% endif %}
+                {# TikTok audio: link to TikTok search so operator can see the track being used #}
+                {% if item.platform == 'tiktok' and item.content_type == 'audio' and item.title %}
+                <a href="https://www.tiktok.com/search?q={{ item.title | urlencode }}" target="_blank" rel="noopener noreferrer" class="btn btn-small btn-secondary">See on TikTok</a>
+                {% endif %}
             </div>
 
             {# VF-INSP-005: Bookmark and promotion actions (AMENDMENT-012 C5) #}

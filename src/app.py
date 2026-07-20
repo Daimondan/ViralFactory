@@ -609,6 +609,10 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         from inspiration_store import InspirationStore
         from inspiration_contracts import is_stale
 
+        # Cache-bust: the page changes when collection runs, so don't let
+        # the browser serve stale HTML.
+        from flask import make_response
+
         try:
             config = load_all(config_dir)
             business_name = config["business"]["business"]["name"]
@@ -719,8 +723,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                         })
                 display_items.append({
                     "id": item["id"],
-                    "obs_id": item.get("id"),  # same as item id for now; the JS uses the observation
+                    "obs_id": item.get("id"),
                     "platform": item.get("platform", ""),
+                    "content_type": item.get("content_type", ""),
                     "provider": item.get("provider", ""),
                     "run_region": item.get("run_region", ""),
                     "title": item.get("title", ""),
@@ -766,7 +771,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 oldest_collection_age = s["age"]
                 break
 
-        return render_template("inspiration.html",
+        rendered = render_template("inspiration.html",
             business_name=business_name,
             sections=sections,
             global_state=global_state,
@@ -775,6 +780,11 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             all_regions=all_regions,
             manual_refresh_enabled=bool((insp_config.get("collection") or {}).get("manual_refresh", False)),
         )
+        resp = make_response(rendered)
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
+        return resp
 
     @app.route("/api/inspiration/refresh", methods=["POST"])
     def api_inspiration_refresh():
