@@ -978,7 +978,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             business_slug=business_slug,
             idea=idea_text,
             hook_options=[],  # hooks generated at Gate 1
-            treatment={"scope": "social", "format": "reel", "capture_required": False,
+            treatment={"scope": {"type": "social", "audience": "general"}, "format": "reel", "capture_required": False,
                         "reuse": "none", "rationale": "inspiration-driven", "experimental": True},
             origin="inspiration",
             evidence_links=evidence_links,
@@ -4825,8 +4825,15 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
             # Compact treatment line: scope · format · capture flag
             scope = treatment.get("scope", {})
+            if isinstance(scope, str):
+                scope = {"type": scope}
             fmt = treatment.get("format", {})
+            if isinstance(fmt, str):
+                fmt = {"format_name": fmt}
             capture = treatment.get("capture_required", [])
+            reuse = treatment.get("reuse", {})
+            if isinstance(reuse, str):
+                reuse = {"reuse": reuse}
             compact = []
             compact.append(f"Scope: {SCOPE_LABELS.get(scope.get('type', '?'), scope.get('type', '?'))}")
             if scope.get("type") == "series_of_n":
@@ -4865,7 +4872,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 for task in capture:
                     full += f"<li>{task}</li>"
                 full += "</ul></dd>"
-            if treatment.get("reuse", {}).get("reuse_notes"):
+            if reuse.get("reuse_notes"):
                 full += f"<dt>Reuse</dt><dd>{treatment['reuse']['reuse_notes']}</dd>"
             full += f"<dt>Rationale</dt><dd>{treatment.get('rationale', '')}</dd>"
             full += "</dl>"
