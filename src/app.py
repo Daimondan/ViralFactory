@@ -723,7 +723,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                         })
                 display_items.append({
                     "id": item["id"],
-                    "obs_id": item.get("id"),
+                    "obs_id": item.get("obs_id") or item.get("id"),  # actual observation ID from the query
                     "platform": item.get("platform", ""),
                     "content_type": item.get("content_type", ""),
                     "provider": item.get("provider", ""),

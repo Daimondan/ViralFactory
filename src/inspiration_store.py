@@ -676,7 +676,7 @@ class InspirationStore:
             if provider_names:
                 placeholders = ",".join("?" for _ in provider_names)
                 rows = conn.execute(
-                    f"""SELECT i.*, o.collected_at AS obs_collected_at, o.rank AS obs_rank,
+                    f"""SELECT i.*, o.id AS obs_id, o.collected_at AS obs_collected_at, o.rank AS obs_rank,
                                o.metrics_json AS obs_metrics, o.evidence_label AS obs_label,
                                o.safe_payload_hash AS obs_hash, o.availability AS obs_availability,
                                o.posted_at AS obs_posted_at, o.linked_audio_id AS obs_linked_audio_id,
@@ -698,7 +698,7 @@ class InspirationStore:
                 ).fetchall()
             else:
                 rows = conn.execute(
-                    """SELECT i.*, o.collected_at AS obs_collected_at, o.rank AS obs_rank,
+                    """SELECT i.*, o.id AS obs_id, o.collected_at AS obs_collected_at, o.rank AS obs_rank,
                               o.metrics_json AS obs_metrics, o.evidence_label AS obs_label,
                               o.safe_payload_hash AS obs_hash, o.availability AS obs_availability,
                               o.posted_at AS obs_posted_at, o.linked_audio_id AS obs_linked_audio_id,
