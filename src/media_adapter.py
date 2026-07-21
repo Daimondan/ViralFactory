@@ -217,7 +217,8 @@ class MediaAdapter:
     def _record_cached_image_owner(self, asset_id: int, path: str, model: str,
                                    prompt: str, owner_type: str) -> int:
         """Attach a shared cached file to this owner without duplicate rows."""
-        conn = self._connect()
+        import sqlite3
+        conn = sqlite3.connect(self.db_path)
         row = conn.execute(
             "SELECT id FROM asset_media WHERE asset_id = ? AND owner_type = ? "
             "AND path = ? ORDER BY id DESC LIMIT 1",
