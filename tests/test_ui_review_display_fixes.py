@@ -564,3 +564,107 @@ def test_newsletter_format_on_x_with_no_image_prompts_is_thread(template_app):
     assert 'class="newsletter-mock"' not in html
     # Must NOT show "Text-only format" — X thread with 8 posts is not text-only
     assert "Text-only format" not in html
+
+
+def test_reel_without_visuals_shows_generate_step_and_disables_plan(template_app):
+    """A reel with active image prompts but no generated visuals must offer
+    a 'Generate visuals' step and disable 'Plan final cut' until visuals exist.
+
+    Reproduces the /create/assets/21 blocker: the operator's only button was
+    'Plan final cut', which 409'd with 'No usable visual media is available'
+    because the reel branch had no generate-visuals step (unlike the
+    non-reel branch).
+    """
+    asset = AttrDict(
+        id=17,
+        platform="Instagram",
+        variant_type="reel",
+        asset_state="pending",
+        content="Reel about Caribbean money scripts",
+        posts_parsed=[{"label": "HOOK", "vo_text": "spoke line"}],
+        image_prompts_parsed=[
+            "Caribbean entrepreneur, warm-lit office, 9:16 vertical",
+            "Stylized bank statement, motion graphic, 9:16 vertical",
+        ],
+        post_images=[],
+        images=[],
+        generated_images_parsed=[],
+        videos=[],
+        final_cuts=[],
+        edit_plans=[],
+    )
+    draft = AttrDict(
+        id=21,
+        draft_state="shipped",
+        format="Instagram Reel Script",
+        draft_text="summary",
+        platform_content_parsed=[],
+    )
+
+    with template_app.test_request_context("/create/assets/21"):
+        html = render_template(
+            "assets.html",
+            business_name="TestBiz",
+            idea_card=AttrDict(idea="Original idea"),
+            draft=draft,
+            assets=[asset],
+            platforms=[],
+            trail=[],
+        )
+
+    # Generate-visuals step is present with the correct count
+    assert "Generate visuals" in html
+    assert "generateVisuals(17, this)" in html
+    assert "Generate 2 images" in html
+    # Plan-final-cut button is disabled with a helpful title
+    assert "Plan final cut (needs visuals)" in html
+    assert "disabled" in html
+    # The active edit-plan call must NOT be wired when visuals are missing
+    assert "generateEditPlan(17, this)" not in html
+
+
+def test_reel_with_visuals_enables_plan_final_cut(template_app):
+    """Once a reel has generated images, the generate step disappears and
+    'Plan final cut' is active (wired to generateEditPlan)."""
+    asset = AttrDict(
+        id=17,
+        platform="Instagram",
+        variant_type="reel",
+        asset_state="pending",
+        content="Reel about Caribbean money scripts",
+        posts_parsed=[{"label": "HOOK", "vo_text": "spoke line"}],
+        image_prompts_parsed=[
+            "Caribbean entrepreneur, warm-lit office, 9:16 vertical",
+            "Stylized bank statement, motion graphic, 9:16 vertical",
+        ],
+        post_images=[],
+        images=[],
+        generated_images_parsed=["img1.png", "img2.png"],
+        videos=[],
+        final_cuts=[],
+        edit_plans=[],
+    )
+    draft = AttrDict(
+        id=21,
+        draft_state="shipped",
+        format="Instagram Reel Script",
+        draft_text="summary",
+        platform_content_parsed=[],
+    )
+
+    with template_app.test_request_context("/create/assets/21"):
+        html = render_template(
+            "assets.html",
+            business_name="TestBiz",
+            idea_card=AttrDict(idea="Original idea"),
+            draft=draft,
+            assets=[asset],
+            platforms=[],
+            trail=[],
+        )
+
+    # No generate-visuals step when visuals already exist
+    assert "Generate visuals" not in html
+    # Plan final cut is wired (not disabled)
+    assert "generateEditPlan(17, this)" in html
+    assert "Plan final cut (needs visuals)" not in html

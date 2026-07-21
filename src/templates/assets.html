@@ -686,15 +686,31 @@
                 {# Video generation (only for reel/video formats) #}
                 {% if is_reel %}
                 {% set soundtrack = asset.soundtrack_review %}
+                {% set has_visuals = has_images or (asset.generated_images_parsed and asset.generated_images_parsed|length > 0) or (asset.videos and asset.videos|length > 0) %}
+                {# Step 1: Generate visuals — Reels need B-roll images before an edit plan can be built.
+                   The autonomous chain generates these automatically, but the operator UI must offer
+                   the same path for cards that enter assembling without media (e.g. retried cards). #}
+                {% if not has_visuals and needs_visuals %}
                 <div class="step">
                     <div class="step-label">
-                        <span class="step-num {{ 'done' if has_final else 'active' }}">{{ '✓' if has_final else '1' }}</span>
+                        <span class="step-num active">1</span>
+                        Generate visuals
+                    </div>
+                    <button class="btn btn-primary" onclick="generateVisuals({{ asset.id }}, this)">Generate {{ active_prompt_count }} image{{ 's' if active_prompt_count > 1 else '' }}</button>
+                    <div class="status-line" id="status-{{ asset.id }}" style="display: none;"></div>
+                </div>
+                {% endif %}
+                <div class="step">
+                    <div class="step-label">
+                        <span class="step-num {{ 'done' if has_final else 'active' }}">{{ '✓' if has_final else '2' if (not has_visuals and needs_visuals) else '1' }}</span>
                         {% if has_final %}
                         Final cut rendered
                         {% elif soundtrack and soundtrack.approval.approved %}
                         Approved plan ready to render
                         {% elif soundtrack %}
                         Soundtrack decision required
+                        {% elif not has_visuals and needs_visuals %}
+                        Plan final cut <span style="font-size:0.78rem;color:#9A5A24;">(generate visuals first)</span>
                         {% else %}
                         Plan final cut
                         {% endif %}
@@ -749,6 +765,8 @@
                     <p style="font-size:.78rem;color:#9A5A24;">Final render is paused until you decide on this soundtrack.</p>
                     {% elif soundtrack and soundtrack.approval.approved and asset.edit_plans %}
                     <button class="btn btn-render" onclick="renderFinalCut({{ asset.id }}, {{ asset.edit_plans[0].id }}, this)">{{ 'Re-render final cut' if has_final else 'Render final cut' }}</button>
+                    {% elif not has_visuals and needs_visuals %}
+                    <button class="btn btn-render" disabled title="Generate visuals first — the edit plan needs B-roll images to map beats to segments">Plan final cut (needs visuals)</button>
                     {% else %}
                     <button class="btn btn-render" onclick="generateEditPlan({{ asset.id }}, this)">{{ 'Plan replacement cut' if has_final else 'Plan final cut' }}</button>
                     {% endif %}
