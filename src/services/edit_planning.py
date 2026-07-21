@@ -201,7 +201,11 @@ class EditPlanningService:
             }, 409)
 
         ingredients = []
+        seen_paths = set()  # deduplicate by path — retries create duplicate asset_media rows
         for item in visual_items:
+            if item.path in seen_paths:
+                continue
+            seen_paths.add(item.path)
             duration = item.duration_sec
             if duration is None:
                 duration = probe_duration(item.path) if item.kind == "video" else 3.0
