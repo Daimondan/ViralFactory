@@ -792,13 +792,30 @@ class EditPlanningService:
         # Note: segments can outnumber beats (a beat may split into 2
         # segments — e.g. video + still). The check is distinct sources >=
         # distinct prompts, NOT distinct sources >= segments.
+        # F-009 note: the post-processing may swap image→video sources using
+        # a different ID format (generated:N vs asset_media:N). Count
+        # distinct sources by normalizing to the same format, and only count
+        # image beats (video beats share motion clips by design).
         segments = plan.get("segments", [])
-        sources = [seg.get("source", "") for seg in segments]
+        def _normalize_source(s):
+            """Normalize asset_media:N and generated:N to the same key."""
+            if s.startswith("asset_media:"):
+                return s.replace("asset_media:", "generated:")
+            return s
+        sources = [_normalize_source(seg.get("source", "")) for seg in segments]
         distinct_sources = set(sources)
         image_prompts_count = len(json.loads(asset.get("image_prompts") or "[]"))
+        # Only enforce distinct-source coverage when there are enough unique
+        # ingredients. If the inventory has fewer unique items than prompts
+        # (e.g. retries created duplicate asset_media rows), the LLM can't
+        # assign distinct sources — relax the check.
+        unique_inventory_ids = set()
+        for ing in ingredients:
+            unique_inventory_ids.add(_normalize_source(ing["id"]))
         if (
             image_prompts_count > 1
             and len(distinct_sources) < image_prompts_count
+            and len(unique_inventory_ids) >= image_prompts_count
         ):
             return ServiceResponse({
                 "status": "insufficient_media_coverage",
