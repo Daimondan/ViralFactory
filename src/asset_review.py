@@ -628,6 +628,14 @@ class AssetReviewer:
 
         data = response.json()
         content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        # Some models (e.g. gemma4) wrap JSON in markdown code fences.
+        # Strip them before parsing.
+        content = content.strip()
+        if content.startswith("```"):
+            lines = content.split("\n")
+            # Remove first line (```json or ```) and last line (```)
+            lines = [l for l in lines if not l.strip().startswith("```")]
+            content = "\n".join(lines).strip()
         return json.loads(content)
 
     def run_visual_inspection(self, video_path: str, plan: dict,

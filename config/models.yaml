@@ -208,9 +208,10 @@ media:
 # The review is advisory — the operator is always the final gate.
 # Set enabled: false to skip AI review (mechanical checks still run).
 asset_review:
-  vision_model: "google/gemini-3.1-flash-lite"
-  vision_provider: "openrouter"
-  vision_api_key_env: "OPENROUTER_API_KEY"
+  vision_model: "gemma4:31b"
+  vision_provider: "ollama_cloud"
+  vision_api_key_env: "OLLAMA_API_KEY"
+  vision_base_url: "https://ollama.com/v1"
   max_keyframes: 5
   enabled: true
   # T10.9 (AMENDMENT-008): Remediation cost guard
