@@ -1241,7 +1241,8 @@ class EditPlanningService:
                     f"invented sources are not allowed"
                 )
 
-            # 2. Bounds valid
+            # 2. Bounds valid — clamp source_out to video duration if overshoot
+            # is small (LLM can't know exact video duration to the millisecond)
             source_in = seg.get("source_in", 0)
             source_out = seg.get("source_out", 0)
             if source_in < 0:
@@ -1255,12 +1256,21 @@ class EditPlanningService:
             if (
                 source_item.get("kind") == "video"
                 and source_duration > 0
-                and source_out > source_duration + 0.001
+                and source_out > source_duration
             ):
-                errors.append(
-                    f"Segment '{sid}' source_out {source_out} exceeds video source "
-                    f"duration {source_duration}"
-                )
+                # Clamp source_out to the video's actual duration instead of
+                # rejecting the plan. The LLM approximates clip durations; a
+                # small overshoot is corrected mechanically, not by re-running
+                # the LLM. Large overshoots (>2s) still fail — that indicates
+                # the LLM picked the wrong clip.
+                overshoot = source_out - source_duration
+                if overshoot > 2.0:
+                    errors.append(
+                        f"Segment '{sid}' source_out {source_out} exceeds video source "
+                        f"duration {source_duration} by {overshoot:.1f}s — wrong clip?"
+                    )
+                else:
+                    seg["source_out"] = round(source_duration, 3)
 
             # 3. Beat IDs reference known beats
             for bid in seg_beat_ids:

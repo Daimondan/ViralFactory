@@ -370,7 +370,9 @@ class TestSegmentValidation:
         assert any("invalid bounds" in error.lower() for error in errors)
 
     def test_video_source_out_cannot_exceed_inventory_duration(self):
+        """Small overshoots are clamped to the video duration; large overshoots (>2s) are rejected."""
         svc = EditPlanningService()
+        # Small overshoot: 5.0s source_out on a 4.0s video → clamped, no error
         segments = [{
             "segment_id": "s01",
             "beat_ids": ["b01"],
@@ -379,7 +381,6 @@ class TestSegmentValidation:
             "source_out": 5.0,
         }]
         beats = [{"beat_id": "b01", "required": True}]
-
         errors = svc.validate_segments(
             segments,
             beats,
@@ -389,8 +390,28 @@ class TestSegmentValidation:
                 "asset_media:1": {"kind": "video", "duration": 4.0},
             },
         )
+        # Small overshoot should be clamped, not rejected
+        assert not any("exceeds" in error.lower() for error in errors), f"Small overshoot should be clamped, not rejected: {errors}"
+        assert segments[0]["source_out"] == 4.0, f"source_out should be clamped to 4.0, got {segments[0]['source_out']}"
 
-        assert any("exceeds" in error.lower() for error in errors)
+        # Large overshoot: 10.0s source_out on a 4.0s video → rejected
+        segments_large = [{
+            "segment_id": "s02",
+            "beat_ids": ["b01"],
+            "source": "asset_media:1",
+            "source_in": 0,
+            "source_out": 10.0,
+        }]
+        errors_large = svc.validate_segments(
+            segments_large,
+            beats,
+            {"asset_media:1"},
+            set(),
+            inventory_items={
+                "asset_media:1": {"kind": "video", "duration": 4.0},
+            },
+        )
+        assert any("exceeds" in error.lower() for error in errors_large), "Large overshoot (>2s) should be rejected"
 
     def test_invented_source_rejected(self):
         svc = EditPlanningService()
