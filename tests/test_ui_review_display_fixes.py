@@ -592,6 +592,8 @@ def test_reel_without_visuals_shows_generate_step_and_disables_plan(template_app
         videos=[],
         final_cuts=[],
         edit_plans=[],
+        has_vo=True,
+        vo_segments_parsed=[{"frame": 1, "beat_id": "b01", "duration": 5.0}],
     )
     draft = AttrDict(
         id=21,
@@ -621,6 +623,8 @@ def test_reel_without_visuals_shows_generate_step_and_disables_plan(template_app
     assert "disabled" in html
     # The active edit-plan call must NOT be wired when visuals are missing
     assert "generateEditPlan(17, this)" not in html
+    # VO step should NOT appear — VO already exists
+    assert "Generate voice-over" not in html
 
 
 def test_reel_with_visuals_enables_plan_final_cut(template_app):
@@ -643,6 +647,8 @@ def test_reel_with_visuals_enables_plan_final_cut(template_app):
         videos=[],
         final_cuts=[],
         edit_plans=[],
+        has_vo=True,
+        vo_segments_parsed=[{"frame": 1, "beat_id": "b01", "duration": 5.0}],
     )
     draft = AttrDict(
         id=21,
@@ -668,3 +674,108 @@ def test_reel_with_visuals_enables_plan_final_cut(template_app):
     # Plan final cut is wired (not disabled)
     assert "generateEditPlan(17, this)" in html
     assert "Plan final cut (needs visuals)" not in html
+
+
+def test_reel_without_vo_shows_generate_vo_step_and_disables_plan(template_app):
+    """A reel with spoken beats but no VO segments must offer a 'Generate
+    voice-over' step and disable 'Plan final cut' until VO exists.
+
+    Reproduces the second /create/assets/21 blocker: after generating visuals,
+    'Plan final cut' 409'd with 'Reel has 6 spoken beats but only 0 VO
+    segment(s)' because the operator UI had no VO generation path.
+    """
+    asset = AttrDict(
+        id=17,
+        platform="Instagram",
+        variant_type="reel",
+        asset_state="pending",
+        content="Reel about Caribbean money scripts",
+        posts_parsed=[
+            {"label": "HOOK", "vo_text": "Caribbean culture teaches us…"},
+            {"label": "SETUP", "vo_text": "Look at your bank statement…"},
+        ],
+        image_prompts_parsed=["prompt1", "prompt2"],
+        post_images=[],
+        images=[],
+        generated_images_parsed=["img1.png", "img2.png"],
+        videos=[],
+        final_cuts=[],
+        edit_plans=[],
+        has_vo=False,
+        vo_segments_parsed=[],
+    )
+    draft = AttrDict(
+        id=21,
+        draft_state="shipped",
+        format="Instagram Reel Script",
+        draft_text="summary",
+        platform_content_parsed=[],
+    )
+
+    with template_app.test_request_context("/create/assets/21"):
+        html = render_template(
+            "assets.html",
+            business_name="TestBiz",
+            idea_card=AttrDict(idea="Original idea"),
+            draft=draft,
+            assets=[asset],
+            platforms=[],
+            trail=[],
+        )
+
+    # Generate-VO step is present with beat count
+    assert "Generate voice-over" in html
+    assert "generateVO(17, this)" in html
+    assert "2 spoken beats" in html
+    # Plan-final-cut is disabled with VO message
+    assert "Plan final cut (needs VO)" in html
+    # The active edit-plan call must NOT be wired when VO is missing
+    assert "generateEditPlan(17, this)" not in html
+    # Visuals step should NOT appear — visuals already exist
+    assert "Generate visuals" not in html
+
+
+def test_reel_with_vo_and_visuals_enables_plan_final_cut(template_app):
+    """A reel with both VO and visuals has no generate steps and Plan final
+    cut is fully active."""
+    asset = AttrDict(
+        id=17,
+        platform="Instagram",
+        variant_type="reel",
+        asset_state="pending",
+        content="Reel about Caribbean money scripts",
+        posts_parsed=[{"label": "HOOK", "vo_text": "spoke line"}],
+        image_prompts_parsed=["prompt1"],
+        post_images=[],
+        images=[],
+        generated_images_parsed=["img1.png"],
+        videos=[],
+        final_cuts=[],
+        edit_plans=[],
+        has_vo=True,
+        vo_segments_parsed=[{"frame": 1, "beat_id": "b01", "duration": 5.0}],
+    )
+    draft = AttrDict(
+        id=21,
+        draft_state="shipped",
+        format="Instagram Reel Script",
+        draft_text="summary",
+        platform_content_parsed=[],
+    )
+
+    with template_app.test_request_context("/create/assets/21"):
+        html = render_template(
+            "assets.html",
+            business_name="TestBiz",
+            idea_card=AttrDict(idea="Original idea"),
+            draft=draft,
+            assets=[asset],
+            platforms=[],
+            trail=[],
+        )
+
+    assert "Generate voice-over" not in html
+    assert "Generate visuals" not in html
+    assert "generateEditPlan(17, this)" in html
+    assert "needs VO" not in html
+    assert "needs visuals" not in html

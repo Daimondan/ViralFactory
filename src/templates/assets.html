@@ -687,13 +687,34 @@
                 {% if is_reel %}
                 {% set soundtrack = asset.soundtrack_review %}
                 {% set has_visuals = has_images or (asset.generated_images_parsed and asset.generated_images_parsed|length > 0) or (asset.videos and asset.videos|length > 0) %}
-                {# Step 1: Generate visuals — Reels need B-roll images before an edit plan can be built.
-                   The autonomous chain generates these automatically, but the operator UI must offer
-                   the same path for cards that enter assembling without media (e.g. retried cards). #}
-                {% if not has_visuals and needs_visuals %}
+                {# Count spoken beats (posts with vo_text) — VO is the master timeline #}
+                {% set spoken_beat_count = asset.posts_parsed | selectattr('vo_text') | reject('none') | list | length %}
+                {# Compute step numbers dynamically: VO step (if needed) → Visuals step (if needed) → Plan #}
+                {% set needs_vo_step = not asset.has_vo and spoken_beat_count > 0 %}
+                {% set needs_visuals_step = not has_visuals and needs_visuals %}
+                {% set plan_step_num = '3' if (needs_vo_step and needs_visuals_step) else '2' if (needs_vo_step or needs_visuals_step) else '1' %}
+                {# Step 1: Generate voice-over — VO is the master timeline. The edit planner
+                   requires a complete measured take for every spoken beat. The autonomous
+                   chain generates this automatically; the operator UI must offer the same
+                   path for cards that enter assembling without VO (e.g. retried cards). #}
+                {% if needs_vo_step %}
                 <div class="step">
                     <div class="step-label">
                         <span class="step-num active">1</span>
+                        Generate voice-over
+                    </div>
+                    <p style="font-size:0.78rem;color:#6B675D;margin:4px 0;">{{ spoken_beat_count }} spoken beat{{ 's' if spoken_beat_count > 1 else '' }} · VO is the master timeline for the edit plan.</p>
+                    <button class="btn btn-primary" onclick="generateVO({{ asset.id }}, this)">Generate voice-over</button>
+                    <div class="status-line" id="vo-status-{{ asset.id }}" style="display: none;"></div>
+                </div>
+                {% endif %}
+                {# Step 2: Generate visuals — Reels need B-roll images before an edit plan can be built.
+                   The autonomous chain generates these automatically, but the operator UI must offer
+                   the same path for cards that enter assembling without media (e.g. retried cards). #}
+                {% if needs_visuals_step %}
+                <div class="step">
+                    <div class="step-label">
+                        <span class="step-num active">{{ '2' if needs_vo_step else '1' }}</span>
                         Generate visuals
                     </div>
                     <button class="btn btn-primary" onclick="generateVisuals({{ asset.id }}, this)">Generate {{ active_prompt_count }} image{{ 's' if active_prompt_count > 1 else '' }}</button>
@@ -702,14 +723,16 @@
                 {% endif %}
                 <div class="step">
                     <div class="step-label">
-                        <span class="step-num {{ 'done' if has_final else 'active' }}">{{ '✓' if has_final else '2' if (not has_visuals and needs_visuals) else '1' }}</span>
+                        <span class="step-num {{ 'done' if has_final else 'active' }}">{{ '✓' if has_final else plan_step_num }}</span>
                         {% if has_final %}
                         Final cut rendered
                         {% elif soundtrack and soundtrack.approval.approved %}
                         Approved plan ready to render
                         {% elif soundtrack %}
                         Soundtrack decision required
-                        {% elif not has_visuals and needs_visuals %}
+                        {% elif needs_vo_step %}
+                        Plan final cut <span style="font-size:0.78rem;color:#9A5A24;">(generate VO first)</span>
+                        {% elif needs_visuals_step %}
                         Plan final cut <span style="font-size:0.78rem;color:#9A5A24;">(generate visuals first)</span>
                         {% else %}
                         Plan final cut
@@ -765,7 +788,9 @@
                     <p style="font-size:.78rem;color:#9A5A24;">Final render is paused until you decide on this soundtrack.</p>
                     {% elif soundtrack and soundtrack.approval.approved and asset.edit_plans %}
                     <button class="btn btn-render" onclick="renderFinalCut({{ asset.id }}, {{ asset.edit_plans[0].id }}, this)">{{ 'Re-render final cut' if has_final else 'Render final cut' }}</button>
-                    {% elif not has_visuals and needs_visuals %}
+                    {% elif needs_vo_step %}
+                    <button class="btn btn-render" disabled title="Generate the voice-over first — VO is the master timeline for the edit plan">Plan final cut (needs VO)</button>
+                    {% elif needs_visuals_step %}
                     <button class="btn btn-render" disabled title="Generate visuals first — the edit plan needs B-roll images to map beats to segments">Plan final cut (needs visuals)</button>
                     {% else %}
                     <button class="btn btn-render" onclick="generateEditPlan({{ asset.id }}, this)">{{ 'Plan replacement cut' if has_final else 'Plan final cut' }}</button>
@@ -876,6 +901,17 @@ function generateVisuals(assetId, btn) {
     var statusElem = document.getElementById('status-' + assetId);
     busyAction(btn, '/api/assets/' + assetId + '/generate-images', {
         busyLabel: 'Generating…',
+        statusElem: statusElem,
+        body: '{}',
+        reloadOnSuccess: true,
+        onError: function(msg) { statusElem.style.color = '#C0392B'; statusElem.textContent = msg; }
+    });
+}
+
+function generateVO(assetId, btn) {
+    var statusElem = document.getElementById('vo-status-' + assetId);
+    busyAction(btn, '/api/assets/' + assetId + '/generate-vo', {
+        busyLabel: 'Generating voice-over…',
         statusElem: statusElem,
         body: '{}',
         reloadOnSuccess: true,

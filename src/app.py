@@ -6495,6 +6495,15 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             a["final_cuts"] = [m for m in a["media_list"] if m.get("kind") == "final_cut"]
             a["videos"] = [m for m in a["media_list"] if m.get("kind") == "video"]
             a["images"] = [m for m in a["media_list"] if m.get("kind") == "image"]
+            # VO segments: the edit planner requires a complete measured take
+            # for every spoken beat. Expose availability so the template can
+            # show a Generate-VO step when the autonomous chain hasn't run.
+            try:
+                vo_segs = json.loads(asset.get("vo_segments") or "[]")
+            except (json.JSONDecodeError, TypeError):
+                vo_segs = []
+            a["vo_segments_parsed"] = vo_segs
+            a["has_vo"] = len(vo_segs) > 0
             # Get edit plans
             a["edit_plans"] = store.list_edit_plans(asset["id"])
 
@@ -6861,6 +6870,81 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             "errors": errors,
             "image_paths": generated_paths,
             "cost_usd": sum(r.get("cost_usd", 0) for r in results),
+        })
+
+    @app.route("/api/assets/<int:asset_id>/generate-vo", methods=["POST"])
+    def generate_vo(asset_id):
+        """Generate the complete per-frame voice-over for an asset.
+
+        Uses the same VOGenerator.generate_vo_per_frame that the autonomous
+        assembler chain (_step_vo) calls, so the operator UI and the
+        autonomous path share one production service (charter §19).
+        """
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        is_running, job_info = _check_job_running("vo_generate", entity_id=asset_id)
+        if is_running:
+            return jsonify({
+                "status": "running",
+                "message": "Already generating voice-over for this asset.",
+                "job_id": job_info.get("job_id"),
+            }), 409
+        vo_job_id = job_info.get("job_id")
+
+        store = _get_pipeline_store()
+        asset = store.get_asset(asset_id)
+        if not asset:
+            _get_jobs_store().fail_job(vo_job_id, "Asset not found")
+            return jsonify({"error": "Asset not found"}), 404
+
+        posts = json.loads(asset.get("posts") or "[]")
+        if not posts:
+            _get_jobs_store().fail_job(vo_job_id, "No posts found on asset")
+            return jsonify({"error": "No posts found on this asset"}), 400
+
+        # Only reels/story_series have spoken content
+        variant = asset.get("variant_type", "")
+        if variant not in ("reel", "story_series"):
+            _get_jobs_store().fail_job(
+                vo_job_id, f"Variant '{variant}' has no spoken content"
+            )
+            return jsonify({"error": f"Variant '{variant}' does not need VO"}), 400
+
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+        except ConfigError as exc:
+            _get_jobs_store().fail_job(vo_job_id, str(exc)[:200])
+            return jsonify({"error": f"Config error: {exc}"}), 500
+
+        from vo_generator import VOGenerator, VOGenerationError
+
+        vo_gen = VOGenerator(models_config, db_path=app.config["DB_PATH"])
+        try:
+            result = vo_gen.generate_vo_per_frame(
+                asset_id=asset_id,
+                posts=posts,
+                business_slug=business_slug,
+            )
+            store.save_vo_segments(asset_id, json.dumps(result["segments"]))
+        except VOGenerationError as exc:
+            _get_jobs_store().fail_job(vo_job_id, str(exc)[:200])
+            return jsonify({"error": str(exc)}), 500
+        except Exception as exc:
+            _get_jobs_store().fail_job(vo_job_id, str(exc)[:200])
+            return jsonify({"error": f"VO generation failed: {exc}"}), 500
+
+        _get_jobs_store().complete_job(
+            vo_job_id,
+            f"vo:{len(result['segments'])}seg:{result['total_duration']:.1f}s",
+        )
+        return jsonify({
+            "status": "ok",
+            "segments_generated": len(result["segments"]),
+            "total_duration": round(result["total_duration"], 2),
+            "take_id": result["take_id"],
         })
 
     def _reel_production_state(asset_id):
