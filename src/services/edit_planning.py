@@ -1028,10 +1028,17 @@ class EditPlanningService:
             for ingredient in ingredients
             if ingredient.get("kind") == "video"
         }
+        # Also keep the raw asset_media:N format — the LLM may use either
+        video_ids_raw = {
+            ingredient["id"]
+            for ingredient in ingredients
+            if ingredient.get("kind") == "video"
+        }
         durations: dict[str, float] = {}
         for segment in segments:
             beat_ids = segment.get("beat_ids") or []
-            if segment.get("source") not in video_ids or not beat_ids:
+            seg_source = segment.get("source", "")
+            if (seg_source not in video_ids and seg_source not in video_ids_raw) or not beat_ids:
                 continue
             timeline_duration = float(segment.get("timeline_duration") or 0)
             source_duration = max(
