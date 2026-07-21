@@ -1282,9 +1282,22 @@ class AssetReviewer:
                         "recommended_action": "Generate a VO take or add background music",
                     })
 
-        # Determine overall verdict
-        high_issues = [i for i in issues if i.get("severity") == "high"]
-        if high_issues:
+        # Determine overall verdict.
+        # Skipped evidence (e.g. vision model not configured) must NOT
+        # trigger "needs_rerender" — re-rendering won't fix a missing model.
+        # It falls through to "needs_operator_decision" so the operator
+        # can review the render and decide.
+        def _is_skipped_issue(i):
+            return (
+                i.get("severity") == "high"
+                and i.get("source") in ("visual", "audio")
+                and "skipped" in i.get("description", "").lower()
+            )
+        render_quality_issues = [
+            i for i in issues
+            if i.get("severity") == "high" and not _is_skipped_issue(i)
+        ]
+        if render_quality_issues:
             verdict = "needs_rerender"
         elif issues:
             verdict = "needs_operator_decision"

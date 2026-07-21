@@ -1041,11 +1041,13 @@ function renderFinalCut(assetId, planId, btn) {
                 statusElem.textContent = 'Soundtrack review required before final render. Loading…';
             }
             setTimeout(function() { window.location.reload(); }, 700);
-        } else if (data.status === 'ok') {
+        } else if (data.status === 'ok' || data.status === 'needs_operator_decision') {
             unbusyBtn(btn);
             if (statusElem) {
                 statusElem.style.color = '#4A7C3A';
-                statusElem.textContent = '✓ Rendered! Loading…';
+                statusElem.textContent = data.status === 'needs_operator_decision'
+                    ? '✓ Rendered — pending your review. Loading…'
+                    : '✓ Rendered! Loading…';
             }
             setTimeout(function() { window.location.reload(); }, 1000);
         } else {
