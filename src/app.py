@@ -5353,6 +5353,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
             # T3.11: Experimental format debut — auto-write Format Guide entry
             fmt = treatment.get("format", {})
+            if isinstance(fmt, str):
+                fmt = {"format_name": fmt}
             if fmt.get("experimental") and fmt.get("format_spec"):
                 _debut_experimental_format(business_slug, card_id, fmt, treatment)
 
@@ -5841,8 +5843,14 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         treatment = json.loads(card.get("treatment") or "{}")
         hook_options = json.loads(card.get("hook_options") or "[]")
-        format_name = treatment.get("format", {}).get("format_name", "")
-        scope = treatment.get("scope", {}).get("type", "")
+        fmt_field = treatment.get("format", {})
+        if isinstance(fmt_field, str):
+            fmt_field = {"format_name": fmt_field}
+        format_name = fmt_field.get("format_name", "")
+        scope_field = treatment.get("scope", {})
+        if isinstance(scope_field, str):
+            scope_field = {"type": scope_field}
+        scope = scope_field.get("type", "")
 
         # Load modules via context assembly (CORRECTION-module-context-assembly)
         from context_assembly import assemble_module_context

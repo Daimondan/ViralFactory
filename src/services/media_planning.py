@@ -285,6 +285,8 @@ class MediaPlanningService:
 
         treatment = json.loads(card.get("treatment") or "{}")
         capture_required = treatment.get("capture_required", [])
+        if not isinstance(capture_required, list):
+            capture_required = []
         uploads = json.loads(card.get("capture_uploads") or "[]")
         missing = capture_required[len(uploads):]
 
