@@ -7,6 +7,27 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 ---
 
 ## 2026-07-21
+### QA-loop F-008 — Reel card had no Generate VO button; operator UI had no VO path [FIX/UI]
+
+**What:** The edit planner (`EditPlanningService._generate_voice_led_plan`) requires a complete measured VO take for every spoken beat (`validate_vo_segments` in `reel_production.py`), but the operator UI on `/create/assets/<draft_id>` had no way to generate VO — only the autonomous assembler chain (`produce_chain._step_vo`) called `VOGenerator.generate_vo_per_frame`. A Reel asset with no `vo_segments` (e.g. a retried card stuck in `assembling` without media) hit a 409: "Reel has 6 spoken beats but only 0 VO segment(s). Generate the complete voice-over before rendering."
+
+Added:
+- `/api/assets/<id>/generate-vo` endpoint that calls `VOGenerator.generate_vo_per_frame` — the same shared service the autonomous chain uses (charter §19). Includes idempotency guard (`_check_job_running`), variant-type check (only reels/story_series), and persists segments via `store.save_vo_segments`.
+- "Generate voice-over" step (Step 1) in the Reel branch of `assets.html`, shown when the asset has spoken beats but no `vo_segments`. Displays the spoken beat count and a note that VO is the master timeline.
+- "Plan final cut" disabled with "needs VO" tooltip until VO exists.
+- `has_vo` + `vo_segments_parsed` exposed in the `assets_page` route enrichment.
+- `generateVO()` JS function wiring to the new endpoint.
+
+Step numbering is now dynamic: VO step (if needed) → Visuals step (if needed) → Plan. Each step only appears when its prerequisite is unmet.
+
+**Rationale:** Charter §19 requires operator-facing and autonomous paths to use the same production services. The autonomous chain generates VO automatically, but the operator UI's Reel branch never exposed that path. A retried or manually-created Reel card with no VO was a dead end: the only button ("Plan final cut") always 409'd. This mirrors the F-007 fix for visuals and gates the plan button on VO availability so the operator never hits the 409.
+
+**Verification:** Four new/updated tests in `tests/test_ui_review_display_fixes.py`:
+- `test_reel_without_vo_shows_generate_vo_step_and_disables_plan` — verifies the Generate VO step appears with beat count and Plan final cut is disabled.
+- `test_reel_with_vo_and_visuals_enables_plan_final_cut` — verifies no generate steps and Plan final cut is wired when both VO and visuals exist.
+- Updated `test_reel_without_visuals_shows_generate_step_and_disables_plan` and `test_reel_with_visuals_enables_plan_final_cut` to include `has_vo`/`vo_segments_parsed` attributes.
+All 18 tests in the file pass. 74 tests across 4 test files (`test_t3_13_s4_carry_media`, `test_t10_7_compliance_ui`, `test_vf_vs_503_production_gate`, `test_t3_5_to_12_pipeline`) pass. Live page `http://localhost:9121/create/assets/21` shows "Generate voice-over" with "6 spoken beats" and a disabled "Plan final cut (needs VO)" button.
+
 ### QA-loop F-007 — Reel card had no Generate visuals step, only Plan final cut (409) [FIX/UI]
 
 **What:** The Reel branch of `assets.html` (the `/create/assets/<draft_id>` page) jumped straight to "Plan final cut" without offering a "Generate visuals" step, unlike the non-reel branch. A Reel asset with no operator captures and no `generated_images` (e.g. a retried card stuck in `assembling` with no media) had only one operator button — "Plan final cut" — which 409'd with "No usable visual media is available" because `EditPlanningService.generate_for_asset` requires render-ready B-roll images to map beats to segments.
