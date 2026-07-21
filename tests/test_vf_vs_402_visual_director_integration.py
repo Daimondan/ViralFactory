@@ -33,6 +33,72 @@ def test_visual_director_rejects_invented_audience_copy():
     assert any("invents audience text" in error for error in errors)
 
 
+def test_visual_director_accepts_multiline_overlay_split_by_line():
+    """The Visual Director may split a multi-line overlay into separate
+    visual events (one per line). Each line must match, not the whole
+    multi-line string. Punctuation differences (quotes, periods) should
+    not cause false rejections."""
+    output = {"beats": [{
+        "beat_id": "b04",
+        "visual_events": [
+            {
+                "event_id": "ev_b04_1",
+                "time_range": {"start": 0.0, "end": 4.6},
+                "narrative_function": "explanation",
+                "source_policy": "renderer_graphic",
+                "required_text": "AI: heavy lifting",
+                "capture_policy_ref": None,
+            },
+            {
+                "event_id": "ev_b04_2",
+                "time_range": {"start": 4.6, "end": 9.32},
+                "narrative_function": "relationship",
+                "source_policy": "renderer_graphic",
+                "required_text": "YOU: heavy thinking",
+                "capture_policy_ref": None,
+            },
+        ],
+    }]}
+
+    errors = EditPlanningService.validate_visual_director_output(
+        output,
+        [{"beat_id": "b04", "vo_text": "Let AI do the heavy lifting.",
+         "overlay_text": "AI: heavy lifting\nYOU: heavy thinking"}],
+        vo_durations_by_beat={"b04": 9.32},
+    )
+
+    assert not any("invents audience text" in e for e in errors), (
+        f"Multi-line overlay split by line should match, got: {errors}"
+    )
+
+
+def test_visual_director_accepts_quoted_overlay_without_period():
+    """The Visual Director may drop surrounding quotes and trailing periods
+    from the overlay text. The match should be punctuation-insensitive."""
+    output = {"beats": [{
+        "beat_id": "b03",
+        "visual_events": [{
+            "event_id": "ev_b03_1",
+            "time_range": {"start": 0.0, "end": 4.84},
+            "narrative_function": "explanation",
+            "source_policy": "renderer_graphic",
+            "required_text": "AI, help me think through this",
+            "capture_policy_ref": None,
+        }],
+    }]}
+
+    errors = EditPlanningService.validate_visual_director_output(
+        output,
+        [{"beat_id": "b03", "vo_text": "Don't say AI give me the answer.",
+         "overlay_text": "'AI, help me think through this.'"}],
+        vo_durations_by_beat={"b03": 4.84},
+    )
+
+    assert not any("invents audience text" in e for e in errors), (
+        f"Punctuation-insensitive match should pass, got: {errors}"
+    )
+
+
 def test_visual_director_rejects_cumulative_timestamps_for_later_beats():
     output = {"beats": [
         {

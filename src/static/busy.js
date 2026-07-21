@@ -101,7 +101,7 @@ function busyAction(btn, url, options) {
                 }
             } else {
                 unbusyBtn(btn);
-                var msg = data.error || 'unknown error';
+                var msg = data.error || data.message || 'unknown error';
                 if (statusElem) setStatusLine(statusElem, msg, true);
                 onError(msg);
             }

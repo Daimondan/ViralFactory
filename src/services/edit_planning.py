@@ -944,12 +944,33 @@ class EditPlanningService:
         if set(directed_ids) != expected_ids:
             errors.append("Visual Director beat IDs do not match approved Writer beats")
 
-        approved_text = {
-            text
-            for beat in approved_beats
-            for text in (beat.get("vo_text"), beat.get("overlay_text"))
-            if text
-        }
+        # Build a set of approved text fragments for required_text matching.
+        # The Visual Director may split a multi-line overlay into separate
+        # visual events (one per line), so we include each line of multi-line
+        # overlays as a separate approved fragment. Comparison is
+        # punctuation-insensitive so the LLM's minor formatting differences
+        # (trailing periods, surrounding quotes) don't cause false rejections.
+        import re as _re
+
+        def _normalize_text(s: str) -> str:
+            """Lowercase, strip, collapse whitespace, remove quotes/periods."""
+            s = s.strip().lower()
+            s = _re.sub(r"['\".]", "", s)
+            s = _re.sub(r"\s+", " ", s)
+            return s
+
+        approved_fragments = set()
+        for beat in approved_beats:
+            for field in ("vo_text", "overlay_text"):
+                text = beat.get(field)
+                if not text:
+                    continue
+                approved_fragments.add(_normalize_text(text))
+                # Add each line of multi-line overlays as a separate fragment
+                for line in text.split("\n"):
+                    line = line.strip()
+                    if line:
+                        approved_fragments.add(_normalize_text(line))
         for beat in directed_beats:
             visual_events = beat.get("visual_events") or []
             if not visual_events:
@@ -986,7 +1007,7 @@ class EditPlanningService:
                     )
             for event in visual_events:
                 required_text = event.get("required_text")
-                if required_text and required_text not in approved_text:
+                if required_text and _normalize_text(required_text) not in approved_fragments:
                     errors.append(
                         f"Visual event '{event.get('event_id', '?')}' invents audience text"
                     )
