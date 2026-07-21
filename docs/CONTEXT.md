@@ -1,6 +1,6 @@
 # Context: ViralFactory
 
-> **This is an operational mirror of `docs/CHARTER-v3.8.md`.** It captures
+> **This is an operational mirror of `docs/CHARTER-v3.9.md`.** It captures
 > current shared language, workflows, and implementation state. It conforms
 > to the charter and BUILD_PLAN; where it conflicts, that conflict is a bug
 > or a new divergence to file — never a silent override.
@@ -12,8 +12,8 @@
 > **On change:** bump `updated_at` date, add/update a decision note in
 > `docs/decisions/` if the change is non-obvious.
 
-**Updated:** 2026-07-19 (AMENDMENT-011: rights-safe soundtrack auto-assembly and exact-artifact Gate 3 approval; AMENDMENT-012: Researcher-owned Inspiration evidence workbench with truthful trend semantics. Charter v3.7 → v3.8.)
-**Conforms to:** `docs/CHARTER-v3.8.md` (v3.8 — all prior amendments through AMENDMENT-010 remain in force; adds AMENDMENT-011 soundtrack discovery/rights/acquisition/approval boundaries and AMENDMENT-012 Inspiration observations, navigation, and explicit promotion boundaries)
+**Updated:** 2026-07-21 (AMENDMENT-013: pre-assembly Component Workbench, exact component decisions, immutable manifest, resumable per-asset orchestration, and separate exact-artifact Gate 3. Charter v3.8 → v3.9.)
+**Conforms to:** `docs/CHARTER-v3.9.md` (v3.9 — all prior amendments through AMENDMENT-012 remain in force except AMENDMENT-011's first-and-only soundtrack choice at Gate 3; rights/cost/evidence rules remain, while AMENDMENT-013 moves ingredient selection before assembly and preserves final-artifact Gate 3)
 
 ---
 
@@ -158,16 +158,24 @@ second-AI alignment check against approved idea + surviving HIGH-confidence AI t
   AI revises → ship-forward or kill · edits → Feedback Log (highest weight)
         │
         ▼
-ASSEMBLER CHAIN (survivors only — MEDIA ONLY, no audience-copy generation)
+COMPONENT PRODUCTION (survivors only — MEDIA ONLY, no audience-copy generation)
 Visual Director maps approved visual intent + measured VO to semantic visual events
-soundtrack plan declares mode + search intent; rights-valid local media is preview-mixed automatically
-real images/video generated per Visual Style Guide + visual events
-phrase-level captions (3–6 words) and media assembled with approved Writer text
-renderer styles, fonts, colors, and SFX resolve from config/modules
+requirements planner declares exact narration, visual, soundtrack, SFX, typography, graphics, and format roles
+candidate versions generated/acquired with preview, provenance, rights/cost, measurements, and hashes
+        │
+        ▼
+■ ASSETS COMPONENT SUB-GATE: review / select / reject / regenerate exact versions by category
+  category completeness must pass; freeze immutable manifest of approved inputs
+        │
+        ▼
+ASSEMBLER consumes the manifest only
+phrase-level captions (3–6 words) and approved media assembled with approved Writer text
+no latest-file lookup, unlisted fallback, or silent component substitution
         │
         ▼
 ■ GATE 3 — QUICK, PER PLATFORM: approve / fix / kill exact asset version, side by side
-  exact active soundtrack + rights evidence visible; track switch invalidates approval
+  exact final artifact hash + manifest hash + evidence visible
+  any ingredient change creates a new manifest/render and invalidates approval
         │
         ▼
 ■ GATE 4 — PUBLISH: go/hold + timing only
@@ -256,6 +264,9 @@ Scheduled research of what works in the wild: monitors top accounts/hashtags/cha
 23. **Captions are phrase-level.** Caption cues contain 3–6 words timed within the VO beat and must reconstruct the approved text exactly; full-beat captions are a defect. (Per AMENDMENT-010)
 24. **External evidence preserves meaning.** Provider, endpoint type, platform, region, metric/rank, and collection time travel with each observation. Recommendation, popularity, trend, usage rights, and creative interpretation are distinct. (Per AMENDMENT-012)
 25. **Inspiration never silently teaches or produces.** It is read-only in the first slice. Later promotion to Source Bank, experiments, modules, or production is explicit and retains the destination's gate/contract. (Per AMENDMENT-012)
+26. **Assembly is manifest-only.** Every materially used narration, clip/still/capture, soundtrack, source sound/SFX, font/style, graphic, transition, or format-declared component must be an exact current operator-approved candidate in the immutable manifest. Missing, failed, stale, rejected, superseded, unprobeable, rights-invalid, cost-unapproved, or hash-mismatched inputs block assembly. (Per AMENDMENT-013)
+27. **Component approval does not replace Gate 3.** Candidate approval permits one exact ingredient; completeness proves every required role; manifest freeze locks the set; Gate 3 approves the exact finished artifact. Any upstream or ingredient change requires a new manifest, render, and Gate 3 decision. (Per AMENDMENT-013)
+28. **Production resumes from persisted state per platform asset.** Human waits are durable states, not long-running jobs. Operator routes and autonomous production advance the same orchestrator; one draft's first child never stands in for all platform assets. (Per AMENDMENT-013)
 
 ## Edge Cases
 
@@ -291,7 +302,7 @@ AMENDMENT-010 is ratified. Component implementations for M13 exist, but the firs
 - Operator and autonomous entrypoints require a real behavioral equivalence test, not source inspection or a patched service response.
 - VF-VS-702/703 remain open until a genuinely fresh deployed Reel passes the complete path, mechanical evidence, and operator review.
 
-Charter v3.8 is now the binding target. AMENDMENT-011 replaces the duplicate soundtrack micro-gate with automatic rights-valid preview assembly and Gate 3 approval of the exact mixed artifact. The implementation filed while DIVERGENCE-015 was pending contains blocking false-ready, rights, dual-contract, ranking-evidence, and dead-control defects; VF-VS-510..516 must close them before VF-VS-702/703. Existing component tests are not fresh deployed proof.
+Charter v3.9 is now the binding target. Runtime audit on 2026-07-21 found that health/test counts do not prove completion: cards remained in `assembling`/`awaiting_soundtrack_approval`, a human decision did not coherently resume the autonomous chain, mutable inventory entered planning without component approval, multi-platform production selected the first asset, and the Gate 3 route could write approval without proving a current final artifact/manifest/evidence. AMENDMENT-013 therefore supersedes VF-VS-515's old single-Gate-3 soundtrack UX with VF-CW-001..012. The Component Workbench must close those boundaries before VF-VS-516/702/703 fresh proof.
 
 ## M14 Inspiration status
 
@@ -315,4 +326,4 @@ AMENDMENT-012 is ratified as design only. M14 begins after M13 proof. VF-INSP-00
 
 ## System Diagram
 
-See `docs/diagrams/README.md` for the system overview (vertical-flow text + Mermaid + SVG). It predates Charter v3.8 and must be refreshed when M14 lands. The binding flow is: Gather plus parallel Inspiration observations → explicit promotion where chosen → Ideas+Treatment (Gate 1) → Writer Chain → Gate 2 → Media Planner/Assembler with rights-safe soundtrack assembly → Gate 3 exact-artifact approval → Publish (Gate 4) → Learn.
+See `docs/diagrams/README.md` for the system overview (vertical-flow text + Mermaid + SVG). It predates Charter v3.9 and must be refreshed during VF-CW-009/012. The binding flow is: Gather plus parallel Inspiration observations → explicit promotion where chosen → Ideas+Treatment (Gate 1) → Writer Chain → Gate 2 → component requirements/candidates → Component Workbench exact-input approval → immutable manifest freeze → manifest-only assembly → Gate 3 exact-artifact approval → Publish (Gate 4) → Learn.

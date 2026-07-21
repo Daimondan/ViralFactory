@@ -12,8 +12,8 @@ A content co-creation system for entrepreneurs who have ideas and domain experie
 
 | You are | Read, in order |
 |---|---|
-| **Builder agent (Hermes)** | 1. `docs/CONTEXT.md` (the domain + decisions) → 2. `docs/CHARTER-v3.8.md` (the constitution) → 3. `BUILD_PLAN.md` (your tasks, guardrails) → 4. `playbooks/` (the procedures you implement). Then work `BUILD_PLAN.md` top-down, one task at a time. |
-| **Architect / reviewer (Claude)** | `docs/CONTEXT.md` → `docs/CHARTER-v3.8.md` → `docs/decisions/DIVERGENCE-001-charter-amendments.md` → `docs/PROGRESS.md` → latest `review-wN` tag diff → write `docs/reviews/review-wN.md`. Incorporate approved divergences through a versioned charter amendment. |
+| **Builder agent (Hermes)** | 1. `docs/CONTEXT.md` (the domain + decisions) → 2. `docs/CHARTER-v3.9.md` (the constitution) → 3. `BUILD_PLAN.md` (your tasks, guardrails) → 4. `playbooks/` (the procedures you implement). Then work `BUILD_PLAN.md` top-down, one task at a time. |
+| **Architect / reviewer (Claude)** | `docs/CONTEXT.md` → `docs/CHARTER-v3.9.md` → `docs/decisions/DIVERGENCE-001-charter-amendments.md` → `docs/PROGRESS.md` → latest `review-wN` tag diff → write `docs/reviews/review-wN.md`. Incorporate approved divergences through a versioned charter amendment. |
 | **Operator (human)** | `docs/CONTEXT.md` (what we're building and why) → `docs/INTAKE-USER1.md` (what materials you need to provide). You direct in plain language, react to drafts, and approve at gates. You never write code. |
 | **New contributor / other AI** | `docs/CONTEXT.md`, then this README's repo map. |
 
@@ -35,6 +35,7 @@ docs/
     AMENDMENT-004-treatment-block.md ← treatment block on idea cards (scope, format, capture, reuse, rationale)
     AMENDMENT-011-soundtrack-discovery-rights-and-asset-gate.md ← rights-safe soundtrack auto-assembly
     AMENDMENT-012-inspiration-evidence-workbench.md ← top-level Researcher evidence surface
+    AMENDMENT-013-pre-assembly-component-workbench.md ← exact component approval + manifest-only assembly
   inbox/                         ← architect→builder filing protocol (README + processed/)
   reviews/                      ← Claude's weekly review notes (review-wN.md)
   diagrams/                     ← system diagrams (Mermaid + vertical-flow text + SVG)
@@ -72,7 +73,7 @@ Builder works `BUILD_PLAN.md` top-down → commit per task (task ID in message) 
 
 ## Status
 
-Charter is at **v3.8**. AMENDMENT-011 approves automatic soundtrack discovery/preview assembly only with independent rights evidence, local hashed acquisition, one soundtrack contract, and Gate 3 approval of the exact mixed artifact; the pre-ruling implementation is not accepted and VF-VS-510..516 are blocking. AMENDMENT-012 approves **Inspiration** as a top-level Researcher-owned evidence workbench with truthful trend semantics and dedicated append-only observations; M14 follows M13's fresh end-to-end proof. Existing VF-VS-702/703 remain open. See `BUILD_PLAN.md`, `docs/PROGRESS.md`, and `docs/reviews/REVIEW-inbox-divergences-015-016-2026-07-19.md`.
+Charter is at **v3.9**. AMENDMENT-013 adds a mandatory pre-assembly **Component Workbench** for composited media: narration, clips/stills/captures, soundtrack, SFX/source sound, typography, graphics, and format-declared elements are reviewed as exact immutable candidate versions; a complete set freezes into a manifest; assembly consumes that manifest only; Gate 3 separately approves the exact finished artifact. VF-CW-001..012 now block VF-VS-516/702/703. See `BUILD_PLAN.md`, `docs/PROGRESS.md`, and `docs/reviews/REVIEW-pipeline-runtime-and-component-workbench-2026-07-21.md`.
 
 ## Original architect docs (preserved for reference)
 
