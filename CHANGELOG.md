@@ -6,6 +6,22 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-21
+### QA-loop F-007 — Reel card had no Generate visuals step, only Plan final cut (409) [FIX/UI]
+
+**What:** The Reel branch of `assets.html` (the `/create/assets/<draft_id>` page) jumped straight to "Plan final cut" without offering a "Generate visuals" step, unlike the non-reel branch. A Reel asset with no operator captures and no `generated_images` (e.g. a retried card stuck in `assembling` with no media) had only one operator button — "Plan final cut" — which 409'd with "No usable visual media is available" because `EditPlanningService.generate_for_asset` requires render-ready B-roll images to map beats to segments.
+
+Now the Reel branch shows a "Generate visuals" step (Step 1) when the asset has active `image_prompts` but no images/videos, wiring the existing `generateVisuals()` JS to the shared `/api/assets/<id>/generate-images` endpoint. "Plan final cut" is disabled with a tooltip ("Generate visuals first — the edit plan needs B-roll images to map beats to segments") until visuals exist. Once visuals exist, the generate step disappears and "Plan final cut" becomes active (wired to `generateEditPlan`).
+
+**Rationale:** The operator-facing UI and the autonomous assembler chain must use the same shared services (charter §19). The autonomous chain (`produce_chain._step_media_plan`) generates AI visuals from `image_prompts` when `capture_required` is empty (F-001 fix), but the operator UI's Reel branch never exposed that path — only the non-reel branch did. A retried or manually-created Reel card with no media was a dead end: the only button always 409'd. This mirrors the non-reel branch's generate step and gates the plan button on visual availability so the operator never hits the 409.
+
+**Verification:** Two new RED→GREEN tests in `tests/test_ui_review_display_fixes.py`:
+- `test_reel_without_visuals_shows_generate_step_and_disables_plan` — verifies the Generate visuals step appears with correct count and Plan final cut is disabled (no `generateEditPlan` call wired).
+- `test_reel_with_visuals_enables_plan_final_cut` — verifies the generate step disappears and Plan final cut is wired once visuals exist.
+All 16 tests in the file pass. Existing reel/carousel/story tests (`test_t3_13_s4_carry_media`, `test_t10_7_compliance_ui`, `test_vf_vs_503_production_gate`) still pass (37 tests). Live page `http://localhost:9121/create/assets/21` now shows "Generate 6 images" and a disabled "Plan final cut (needs visuals)" button; no `generateEditPlan(17` call in the HTML.
+
+---
+
 ## 2026-07-20
 ### VF-INSP-005 — Bookmark and promotion paths [STRUCTURE/LOGIC/TECH]
 
