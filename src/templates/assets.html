@@ -787,7 +787,10 @@
                     {% if soundtrack and not soundtrack.approval.approved %}
                     <p style="font-size:.78rem;color:#9A5A24;">Final render is paused until you decide on this soundtrack.</p>
                     {% elif soundtrack and soundtrack.approval.approved and asset.edit_plans %}
-                    <button class="btn btn-render" onclick="renderFinalCut({{ asset.id }}, {{ asset.edit_plans[0].id }}, this)">{{ 'Re-render final cut' if has_final else 'Render final cut' }}</button>
+                    <div style="display:flex;gap:7px;flex-wrap:wrap;">
+                        <button class="btn btn-render" onclick="renderFinalCut({{ asset.id }}, {{ asset.edit_plans[0].id }}, this)">{{ 'Re-render final cut' if has_final else 'Render final cut' }}</button>
+                        <button class="btn" onclick="generateEditPlan({{ asset.id }}, this)" title="Regenerate the edit plan with updated soundtrack search queries">Regenerate plan</button>
+                    </div>
                     {% elif needs_vo_step %}
                     <button class="btn btn-render" disabled title="Generate the voice-over first — VO is the master timeline for the edit plan">Plan final cut (needs VO)</button>
                     {% elif needs_visuals_step %}
