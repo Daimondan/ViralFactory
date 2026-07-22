@@ -374,3 +374,10 @@ soundtrack:
       duck: 0.18
       lift: 0.40
       settle: 0.35
+
+# ── Renderer configuration ────────────────────────────────────────────
+# Font paths for PIL-rendered text overlays. The renderer falls back to
+# DejaVuSans-Bold if these are missing.
+rendering:
+  font_path: "/home/daimon/.hermes/profiles/vf-coder/home/.fonts/Montserrat-Bold.ttf"
+  font_display: "/home/daimon/.hermes/profiles/vf-coder/home/.fonts/Anton-Regular.ttf"

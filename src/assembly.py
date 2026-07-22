@@ -681,10 +681,21 @@ class AssemblyRenderer:
     _DEFAULT_FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
     def _get_font_path(self) -> str:
-        """Resolve font path from config or fall back to system default."""
+        """Resolve body font path from config or fall back to system default."""
         try:
             render_cfg = (self.models_config or {}).get("rendering", {})
             font = render_cfg.get("font_path", "")
+            if font and os.path.exists(font):
+                return font
+        except Exception:
+            pass
+        return self._DEFAULT_FONT
+
+    def _get_display_font_path(self) -> str:
+        """Resolve display font path (Anton) for hooks/titles."""
+        try:
+            render_cfg = (self.models_config or {}).get("rendering", {})
+            font = render_cfg.get("font_display", "")
             if font and os.path.exists(font):
                 return font
         except Exception:
@@ -708,24 +719,144 @@ class AssemblyRenderer:
         styles = self._resolved_render_styles()["overlay_styles"]
         return styles.get(style_ref) or styles["default"]
 
-    def _overlay_position_y(self, position: str, height: int) -> str:
-        """Map a position name to a ffmpeg y= expression."""
-        positions = {
-            "top": "40",
-            "center": "(h-text_h)/2",
-            "bottom": f"h-text_h-80",
-        }
-        return positions.get(position, positions["center"])
+    def _overlay_position_y(self, position: str, height: int) -> int:
+        """Map a position name to a pixel y-coordinate for PIL rendering."""
+        if position == "top":
+            return 60
+        if position == "bottom":
+            return height - 200
+        if position == "bottom-third":
+            return int(height * 0.72)
+        # center
+        return (height - 100) // 2
+
+    def _render_pil_overlay(
+        self, text: str, style: dict, position: str,
+        width: int, height: int, font_path: str,
+    ) -> str | None:
+        """Render a single text overlay as a transparent PNG using PIL.
+
+        Produces a TikTok/Reels-style overlay: auto-wrapped text on a rounded
+        semi-transparent pill background with shadow, using modern fonts.
+        """
+        from PIL import Image, ImageDraw, ImageFont, ImageFilter
+
+        # Parse font color — handle hex colors
+        fontcolor = style.get("fontcolor", "white")
+        if fontcolor.startswith("#"):
+            # Hex color — convert to RGBA
+            hex_val = fontcolor[1:]
+            r = int(hex_val[0:2], 16)
+            g = int(hex_val[2:4], 16)
+            b = int(hex_val[4:6], 16)
+            text_color = (r, g, b, 255)
+        else:
+            text_color = (255, 255, 255, 255)
+
+        font_size = int(style.get("fontsize", 48))
+        try:
+            font = ImageFont.truetype(font_path, font_size)
+        except (IOError, OSError):
+            font = ImageFont.truetype(self._DEFAULT_FONT, font_size)
+
+        overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(overlay)
+
+        # Auto-wrap text to fit within margins
+        max_text_width = width - 120  # 60px margin each side
+        lines = []
+        for raw_line in text.split("\n"):
+            words = raw_line.split()
+            current = []
+            for word in words:
+                test = " ".join(current + [word])
+                bbox = draw.textbbox((0, 0), test, font=font)
+                if bbox[2] - bbox[0] <= max_text_width or not current:
+                    current.append(word)
+                else:
+                    lines.append(" ".join(current))
+                    current = [word]
+            if current:
+                lines.append(" ".join(current))
+
+        if not lines:
+            return None
+
+        line_height = font_size + 14
+        total_height = len(lines) * line_height
+
+        # Find max line width for pill background
+        max_w = 0
+        for line in lines:
+            bbox = draw.textbbox((0, 0), line, font=font)
+            max_w = max(max_w, bbox[2] - bbox[0])
+
+        # Y position
+        y_start = self._overlay_position_y(position, height)
+
+        # Pill background parameters
+        padding_x = 30
+        padding_y = 18
+        pill_x0 = (width - max_w) // 2 - padding_x
+        pill_y0 = y_start - padding_y
+        pill_x1 = (width + max_w) // 2 + padding_x
+        pill_y1 = y_start + total_height + padding_y - 14
+
+        # Draw shadow first (offset + blur)
+        shadow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        shadow_draw = ImageDraw.Draw(shadow)
+        shadow_draw.rounded_rectangle(
+            [pill_x0 + 4, pill_y0 + 4, pill_x1 + 4, pill_y1 + 4],
+            radius=16, fill=(0, 0, 0, 80),
+        )
+        shadow = shadow.filter(ImageFilter.GaussianBlur(8))
+        overlay = Image.alpha_composite(overlay, shadow)
+        draw = ImageDraw.Draw(overlay)
+
+        # Draw pill background — semi-transparent dark for light text,
+        # semi-transparent light for dark text
+        is_dark_text = sum(text_color[:3]) < 384
+        pill_fill = (255, 255, 255, 180) if is_dark_text else (0, 0, 0, 160)
+        draw.rounded_rectangle(
+            [pill_x0, pill_y0, pill_x1, pill_y1],
+            radius=16, fill=pill_fill,
+        )
+
+        # Draw text lines — centered horizontally with shadow for readability
+        borderw = int(style.get("borderw", 0))
+        for i, line in enumerate(lines):
+            bbox = draw.textbbox((0, 0), line, font=font)
+            line_w = bbox[2] - bbox[0]
+            x = (width - line_w) // 2
+            y = y_start + i * line_height
+            # Shadow stroke for contrast
+            if borderw > 0:
+                bordercolor = style.get("bordercolor", "black")
+                if bordercolor.startswith("#"):
+                    bc = bordercolor[1:]
+                    br, bg, bb = int(bc[0:2], 16), int(bc[2:4], 16), int(bc[4:6], 16)
+                else:
+                    br, bg, bb = 0, 0, 0
+                for dx, dy in [(-borderw, 0), (borderw, 0), (0, -borderw), (0, borderw),
+                               (-borderw, -borderw), (borderw, -borderw),
+                               (-borderw, borderw), (borderw, borderw)]:
+                    draw.text((x + dx, y + dy), line, font=font, fill=(br, bg, bb, 255))
+            # Main text
+            draw.text((x, y), line, font=font, fill=text_color)
+
+        return overlay
 
     def _burn_overlays(self, plan: dict, segments: list, output_file: str,
                        media_dir: str, version: int,
                        asset_id: int, draft_id: int,
                        business_slug: str) -> Optional[str]:
-        """Burn in text overlays from all segments as drawtext filters.
+        """Burn in text overlays using PIL-rendered PNGs composited via ffmpeg.
 
         Overlays have start/end times relative to their segment. We compute
         cumulative timeline positions by summing preceding segment durations,
-        then build a single drawtext filter chain applied in one ffmpeg pass.
+        render each overlay as a transparent PNG with PIL (auto-wrapped text,
+        rounded pill background, modern fonts), then composite them onto the
+        video with timed ffmpeg overlay filters in a single pass.
 
         Returns the path to the overlay-burned file, or None if no overlays
         were found (the original output_file is used as-is).
@@ -758,86 +889,81 @@ class AssemblyRenderer:
         # Also check for global captions block
         captions = plan.get("captions", {})
         if captions.get("burned_in") and captions.get("source") == "vo_script":
-            # Auto-caption generation from VO is handled separately — here
-            # we only burn the per-segment overlays the LLM explicitly wrote.
             pass
 
-        # Build drawtext filter chain
-        font_path = self._get_font_path()
         canvas = plan.get("canvas", {})
         resolution = canvas.get("resolution", "1080x1920")
-        _, height = resolution.split("x")
+        width_s, height_s = resolution.split("x")
+        width, height = int(width_s), int(height_s)
 
+        body_font = self._get_font_path()
+        display_font = self._get_display_font_path()
+
+        # Render each overlay as a PNG
+        overlay_inputs = []
         filter_parts = []
-        for ov in all_overlays:
+        for i, ov in enumerate(all_overlays):
             style = self._resolve_overlay_style(ov["style_ref"])
-            # Escape text for ffmpeg: colons, single quotes, backslashes
-            escaped_text = (
-                ov["text"]
-                .replace("\\", "\\\\")
-                .replace(":", "\\:")
-                .replace("'", "\u2019")
+            # Use display font for hooks and titles, body font for everything else
+            style_name = ov["style_ref"]
+            font_path = display_font if style_name in ("hook", "title") else body_font
+            png_path = os.path.join(media_dir, f"overlay_{version}_{i}.png")
+            pil_img = self._render_pil_overlay(
+                ov["text"], style, ov["position"],
+                width, height, font_path,
             )
-            y_expr = self._overlay_position_y(ov["position"], int(height))
-
-            params = [
-                f"drawtext=fontfile={font_path}",
-                f"text='{escaped_text}'",
-                f"fontsize={style['fontsize']}",
-                f"fontcolor={style['fontcolor']}",
-                f"x=(w-text_w)/2",
-                f"y={y_expr}",
-                f"enable='between(t,{ov['start']:.2f},{ov['end']:.2f})'",
-            ]
-            if style.get("borderw"):
-                params.append(f"borderw={style['borderw']}")
-                params.append(f"bordercolor={style['bordercolor']}")
-            if style.get("shadowx"):
-                params.append(f"shadowx={style['shadowx']}")
-                params.append(f"shadowy={style['shadowy']}")
-                params.append(f"shadowcolor={style['shadowcolor']}")
-
-            filter_parts.append(":".join(params))
+            if pil_img is None:
+                continue
+            pil_img.save(png_path)
+            overlay_inputs.append(png_path)
+            # Build ffmpeg overlay filter for this PNG
+            # [prev][N+1:v]overlay=0:0:enable='between(t,start,end)'[next]
+            input_idx = i + 1  # input 0 is the video
+            if i == 0:
+                prev_label = "0:v"
+            else:
+                prev_label = f"v{i - 1}"
+            if i == len(all_overlays) - 1:
+                next_label = "vout"
+            else:
+                next_label = f"v{i}"
+            filter_parts.append(
+                f"[{prev_label}][{input_idx}:v]overlay=0:0:"
+                f"enable='between(t,{ov['start']:.2f},{ov['end']:.2f})'[{next_label}]"
+            )
 
         if not filter_parts:
             return None
 
-        # Chain all drawtext filters: [0:v]drawtext=...[v1]; [v1]drawtext=...[v2]; ...
-        # Each filter consumes the previous filter's output. For a single
-        # overlay, it's just [0:v]drawtext=...[vout].
-        if len(filter_parts) == 1:
-            filter_chain = f"[0:v]{filter_parts[0]}[vout]"
-        else:
-            chain_links = []
-            for i, fp in enumerate(filter_parts):
-                if i == 0:
-                    chain_links.append(f"[0:v]{fp}[v{i}]")
-                elif i == len(filter_parts) - 1:
-                    chain_links.append(f"[v{i-1}]{fp}[vout]")
-                else:
-                    chain_links.append(f"[v{i-1}]{fp}[v{i}]")
-            filter_chain = ";".join(chain_links)
-
+        # Build ffmpeg command with all overlay PNGs as inputs
         overlay_file = os.path.join(media_dir, f"final_{version}_overlay.mp4")
         cmd = [
             "ffmpeg", "-y",
             "-i", output_file,
-            "-filter_complex", filter_chain,
+        ]
+        for png in overlay_inputs:
+            cmd.extend(["-i", png])
+        cmd.extend([
+            "-filter_complex", ";".join(filter_parts),
             "-map", "[vout]", "-map", "0:a:0?",
             "-c:v", "libx264", "-pix_fmt", "yuv420p",
             "-c:a", "copy",
             overlay_file,
-        ]
+        ])
 
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        # Clean up PNGs
+        for png in overlay_inputs:
+            if os.path.exists(png):
+                os.remove(png)
+
         if result.returncode == 0 and os.path.exists(overlay_file):
             os.replace(overlay_file, output_file)
             self._log_render(asset_id, draft_id,
-                             f"Burned {len(all_overlays)} text overlays",
+                             f"Burned {len(all_overlays)} PIL text overlays",
                              business_slug, "done")
             return output_file
         else:
-            # Overlay burn failed — log but keep the un-overlaid video
             stderr_lines = result.stderr.strip().split("\n")
             error_lines = [l for l in stderr_lines if l.startswith(("Error", "[error"))]
             error_msg = "\n".join(error_lines[-3:]) if error_lines else result.stderr[-300:]

@@ -41,6 +41,7 @@ For each piece, propose:
 10. **Fail closed without candidates.** If no verified music candidates are provided, choose `vo_only`, set `music_bed_ref` and `ducking` to `null`, leave `sfx_cues` empty, and explain the choice in `vo_only_rationale`.
 11. **Ducking envelope is an array.** When verified candidates support `music_bed` or `vo_plus_bed`, `ducking.envelope` must be a JSON array, never a string or object. Example: `"envelope": []`.
 12. **Search judgment belongs here.** Emit specific, bounded search phrases. Do not emit provider names, credentials, URLs, brand names, or a generic fallback such as `instrumental`. Python will only normalize, deduplicate, cap, cache, and execute these phrases.
+13. **Search queries must match catalog vocabulary.** Audio catalogs index by title, artist, and broad mood/genre terms — not abstract multi-word phrases. Use 1–2 word terms that a music catalog would recognize: `ambient`, `lofi`, `minimal`, `motivational`, `reflective`, `warm`, `steady pulse`, `underscore`. Avoid long phrases like `confident minimal pulse` or `modern entrepreneurial drive` — catalogs return zero results for these. Prefer multiple simple queries over one complex query.
 
 ## Inputs
 

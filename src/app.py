@@ -7321,6 +7321,80 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             "total_versions": len(versions),
         })
 
+    @app.route("/api/assets/<int:asset_id>/soundtrack-discover", methods=["POST"])
+    def soundtrack_discover(asset_id):
+        """Run post-planner soundtrack discovery using the planner's search queries.
+
+        Takes the planner's emitted search_queries, runs discovery against
+        configured providers (Bundle Social, Pixabay), and returns candidates.
+        The operator then reviews and the system can re-invoke the planner
+        with verified candidates to upgrade from vo_only to music_bed.
+        """
+        from soundtrack_discovery import discover_soundtrack_candidates
+        from config_loader import load_all, ConfigError
+
+        store = PipelineStore(app.config["DB_PATH"])
+        asset = store.get_asset(asset_id)
+        if not asset:
+            return jsonify({"error": "Asset not found"}), 404
+
+        # Get the current soundtrack plan to extract search queries
+        edit_plans = store.list_edit_plans(asset_id)
+        if not edit_plans:
+            return jsonify({"error": "No edit plan found for this asset"}), 404
+        edit_plan = edit_plans[0]  # list_edit_plans returns ORDER BY id DESC
+
+        try:
+            plan_data = json.loads(edit_plan.get("plan_json") or "{}")
+        except (TypeError, ValueError):
+            return jsonify({"error": "Edit plan contains invalid JSON"}), 409
+
+        soundtrack_ref = plan_data.get("soundtrack_plan") or {}
+        soundtrack_plan_id = soundtrack_ref.get("soundtrack_plan_id")
+        if not soundtrack_plan_id:
+            return jsonify({"error": "No soundtrack plan found on the edit plan"}), 409
+
+        soundtrack = store.get_soundtrack_plan(soundtrack_plan_id)
+        if not soundtrack:
+            return jsonify({"error": "Referenced soundtrack plan not found"}), 404
+
+        soundtrack_plan = soundtrack.get("plan") or {}
+        search_queries = soundtrack_plan.get("search_queries") or []
+        if not search_queries:
+            return jsonify({
+                "error": "The soundtrack planner did not emit any search queries. "
+                         "Re-generate the edit plan to produce search queries.",
+            }), 409
+
+        # Load soundtrack config from models.yaml
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+        except ConfigError as exc:
+            return jsonify({"error": f"Config error: {exc}"}), 500
+
+        soundtrack_config = (config.get("models") or {}).get("soundtrack") or {}
+        if not soundtrack_config:
+            return jsonify({"error": "Soundtrack config not found in models.yaml"}), 500
+
+        try:
+            result = discover_soundtrack_candidates(search_queries, soundtrack_config)
+        except Exception as exc:
+            return jsonify({
+                "error": f"Discovery failed: {exc}",
+                "queries": search_queries,
+            }), 500
+
+        return jsonify({
+            "status": "ok",
+            "queries": result.get("queries", []),
+            "sources_searched": result.get("sources_searched", []),
+            "total_found": result.get("total_found", 0),
+            "total_filtered": result.get("total_filtered", 0),
+            "candidates": result.get("candidates", []),
+            "errors": result.get("errors", []),
+            "request_count": result.get("request_count", 0),
+        })
+
     @app.route("/api/assets/<int:asset_id>/soundtrack-switch", methods=["POST"])
     def soundtrack_switch(asset_id):
         """Atomically switch the active soundtrack mix to a different candidate.

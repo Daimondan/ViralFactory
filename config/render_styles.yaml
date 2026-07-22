@@ -2,6 +2,9 @@ version: 1
 
 # Generic FFmpeg drawtext defaults. Tenant Visual Style modules may override
 # individual values through YAML frontmatter under render_styles.overlay_styles.
+# Style refs used by the Writer/cue compiler: default, hook, emphasis, highlight,
+# title, caption, proof, reframe, cta, bold-prosperity-gold, deep-ocean-teal,
+# split-screen-coral-divider.
 overlay_styles:
   default:
     fontsize: 48
@@ -19,6 +22,14 @@ overlay_styles:
     shadowx: 2
     shadowy: 2
     shadowcolor: "black@0.5"
+  emphasis:
+    fontsize: 56
+    fontcolor: white
+    borderw: 3
+    bordercolor: black
+    shadowx: 1
+    shadowy: 1
+    shadowcolor: "black@0.5"
   highlight:
     fontsize: 56
     fontcolor: yellow
@@ -32,6 +43,62 @@ overlay_styles:
     shadowx: 3
     shadowy: 3
     shadowcolor: "black@0.6"
+  caption:
+    fontsize: 42
+    fontcolor: white
+    borderw: 2
+    bordercolor: black
+    shadowx: 1
+    shadowy: 1
+    shadowcolor: "black@0.5"
+  proof:
+    fontsize: 40
+    fontcolor: white
+    borderw: 2
+    bordercolor: black
+    shadowx: 1
+    shadowy: 1
+    shadowcolor: "black@0.5"
+  reframe:
+    fontsize: 56
+    fontcolor: white
+    borderw: 3
+    bordercolor: black
+    shadowx: 1
+    shadowy: 1
+    shadowcolor: "black@0.5"
+  cta:
+    fontsize: 52
+    fontcolor: white
+    borderw: 3
+    bordercolor: black
+    shadowx: 2
+    shadowy: 2
+    shadowcolor: "black@0.5"
+  bold-prosperity-gold:
+    fontsize: 64
+    fontcolor: "#F2B705"
+    borderw: 4
+    bordercolor: black
+    shadowx: 2
+    shadowy: 2
+    shadowcolor: "black@0.6"
+  deep-ocean-teal:
+    fontsize: 56
+    fontcolor: "#0A4D5C"
+    borderw: 3
+    bordercolor: white
+    shadowx: 1
+    shadowy: 1
+    shadowcolor: "white@0.5"
+  split-screen-coral-divider:
+    fontsize: 56
+    fontcolor: "#E8654A"
+    borderw: 3
+    bordercolor: white
+    shadowx: 1
+    shadowy: 1
+    shadowcolor: "white@0.5"
 
 # Generic deterministic synthesis parameters. Tenant Visual Style modules may
 # override individual presets. Effects are only rendered when the edit plan
