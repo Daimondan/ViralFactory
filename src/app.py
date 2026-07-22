@@ -7332,6 +7332,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         """
         from soundtrack_discovery import discover_soundtrack_candidates
         from config_loader import load_all, ConfigError
+        from pipeline import PipelineStore
 
         store = PipelineStore(app.config["DB_PATH"])
         asset = store.get_asset(asset_id)
