@@ -1600,3 +1600,13 @@ Compiled actionable research on what makes short-form video go viral, covering: 
 
 **Rationale:** The charter is current, the operational mirror names the real blockers, and the builder has unambiguous top-down work. This entry records the architect decisions; the builder must backfill any omitted TECH/LOGIC/STRUCTURE/STRATEGIC/OPS/FIX decisions from the intervening implementation period when processing the handoff. No production code changed in this pass.
 
+
+## 2026-07-22
+
+### FIX: PIL-rendered overlays replace ffmpeg drawtext + soundtrack discovery wired
+
+**What:** Replaced `AssemblyRenderer._burn_overlays` ffmpeg drawtext chain with PIL-rendered transparent PNG overlays composited via timed ffmpeg overlay filters. PIL renders auto-wrapped text on rounded semi-transparent pill backgrounds with shadow, using Montserrat Bold (body/emphasis) and Anton (hooks/titles) fonts. Brand color styles (Prosperity Gold, Deep Ocean Teal, Caribbean Coral) resolve from `config/render_styles.yaml`. Added `rendering.font_path` + `font_display` to `config/models.yaml`. Added 8 new overlay styles: `emphasis`, `caption`, `proof`, `reframe`, `cta`, `bold-prosperity-gold`, `deep-ocean-teal`, `split-screen-coral-divider`. Added `/api/assets/<id>/soundtrack-discover` route to run post-planner discovery using the planner's emitted `search_queries` against Bundle Social. Added rule 13 to the soundtrack planner prompt requiring catalog-friendly 1-2 word search terms.
+
+**Why:** The production renderer was burning plain white text with black outline via ffmpeg drawtext using DejaVuSans-Bold — no pill background, no auto-wrapping, no brand colors, no modern fonts. The Writer's rich `text_on_screen` metadata (style, position, animation) was silently discarded. The soundtrack pipeline's discovery→ranking→mixing stages were built (VF-VS-511..514) but never wired — the planner always saw no candidates and fell to `vo_only`. The Netflix spike proved PIL overlays work but was never integrated.
+
+**Rationale:** The charter requires config-driven, not hardcoded, visual presentation. The Netflix spike (`scripts/netflix_caption_v2.py`) already proved the PIL approach: auto-wrapping, rounded pill, Montserrat Bold, shadow. This integrates that approach into the production renderer. The music pipeline fix is charter-compliant: discovery runs post-planner using the planner's own search queries, the operator gate remains intact, no bypass.
