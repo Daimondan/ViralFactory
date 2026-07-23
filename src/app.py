@@ -9443,6 +9443,45 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             except Exception:
                 pass  # best-effort — don't block the workbench
 
+        # Auto-generate requirements if none exist yet (needed for freeze)
+        from services.component_requirements import (
+            ComponentCategoryRegistry, ComponentRequirementsStore,
+        )
+        req_store_check = ComponentRequirementsStore(db_path=app.config["DB_PATH"])
+        existing_reqs = req_store_check.get_current_requirements(business_slug, session["id"])
+        if not existing_reqs:
+            try:
+                registry = ComponentCategoryRegistry(config_dir=app.config["CONFIG_DIR"])
+                format_name = asset.get("variant_type", "reel")
+                required_cats = registry.get_required_categories(format_name)
+                categories = []
+                for cat_key in required_cats:
+                    cat_def = registry.get_category(cat_key)
+                    if not cat_def:
+                        continue
+                    roles = []
+                    for role_def in cat_def.get("roles", []):
+                        roles.append({
+                            "role": role_def["key"],
+                            "required": role_def.get("cardinality", "0+") != "0+",
+                            "scope": role_def.get("scope", "full_piece"),
+                            "beat_refs": [],
+                            "none_allowed": role_def.get("none_allowed", False),
+                            "preview_required": role_def.get("preview_required", True),
+                        })
+                    categories.append({"category": cat_key, "required": True, "roles": roles})
+                reqs = {"format": format_name, "platform": asset["platform"], "categories": categories}
+                req_store_check.save_requirements(
+                    business_slug=business_slug,
+                    production_session_id=session["id"],
+                    draft_id=session["draft_id"],
+                    asset_id=asset_id,
+                    requirements=reqs,
+                    provenance={"source": "auto-generated on workbench visit", "format": format_name},
+                )
+            except Exception:
+                pass  # best-effort — don't block the workbench
+
         # Build the workbench view
         from services.workbench_ui import WorkbenchDataService
         wb_svc = WorkbenchDataService(
