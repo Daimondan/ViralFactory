@@ -8,6 +8,12 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-23
 
+### VF-CW-009 — Component Workbench UI service [STRUCTURE/LOGIC]
+
+**Rationale:** AMENDMENT-013 requires one operator surface grouping candidates by category and semantic role with previews, plain-language labels, valid actions, and a persistent readiness summary. No false greens, raw technical states, or dead actions.
+
+**Changes:** Added WorkbenchDataService (src/services/workbench_ui.py) that assembles view data: candidates grouped by category/role from CandidateStore; plain-language state labels (no raw 'available'/'generating' strings); readiness levels (ready/needs_action/blocked/incomplete) per role and category; structured blockers for incomplete required roles; freeze_enabled only when all required categories are ready; falls back to format_overrides from registry when no requirements saved; optional roles with none_allowed don't create blockers; enriched candidates with parsed JSON fields. 10 new tests covering: empty workbench, with candidates, plain language labels, readiness (approved/generating/failed), freeze enabled/disabled, blockers, enriched candidates.
+
 ### VF-CW-005 — Narration candidate sets [STRUCTURE/LOGIC]
 
 **Rationale:** AMENDMENT-013 requires multiple complete VO takes as reviewable candidates with full preview, measured beats, exact hashes, and provenance. Partial takes must fail visibly. A new take never inherits approval. The selected take is the only narration item eligible for manifest freeze.
