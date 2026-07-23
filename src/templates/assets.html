@@ -375,10 +375,10 @@
                 <div class="post-item">
                     <div class="post-number">{{ loop.index }}</div>
                     <div class="post-body">
-                        <div class="post-text">{{ post }}</div>
+                        <div class="post-text">{% if post is string %}{{ post }}{% elif post is mapping %}{{ post.vo_text or post.text or post.label or '' }}{% endif %}</div>
                         <div class="post-meta">
                             <span class="handle">{{ handle }}</span>
-                            <span>{{ post|length }} chars</span>
+                            <span>{% if post is string %}{{ post|length }}{% elif post is mapping %}{{ (post.vo_text or post.text or '')|length }}{% endif %} chars</span>
                         </div>
                     </div>
                     {% set img_idx = loop.index0 %}
@@ -398,7 +398,7 @@
                 <div class="post-item">
                     <div class="post-number">{{ loop.index }}/{{ asset.posts_parsed|length }}</div>
                     <div class="post-body">
-                        <div class="post-text">{{ post }}</div>
+                        <div class="post-text">{% if post is string %}{{ post }}{% elif post is mapping %}{{ post.vo_text or post.text or post.label or '' }}{% endif %}</div>
                     </div>
                     {% set img_idx = loop.index0 %}
                     {% if asset.post_images and img_idx < asset.post_images|length and asset.post_images[img_idx] %}
@@ -649,6 +649,14 @@
 
             {# ── Step-by-step flow: one clear action at a time ── #}
             <div class="step-flow">
+
+                {# Component Workbench link — appears for assets in pre-Gate-3 states #}
+                {% if asset.asset_state in ('pending', 'fix', 'assembling') %}
+                <div class="step" style="margin-bottom: 16px;">
+                    <a href="/workbench/{{ asset.id }}" class="btn btn-render" style="text-decoration: none; display: inline-block;">🔧 Component Workbench</a>
+                    <span style="font-size: 0.75rem; color: #8A857C; margin-left: 8px;">Review and approve individual components before assembly</span>
+                </div>
+                {% endif %}
 
                 {# Step 1: Generate images (only for image-based formats — skip polls, newsletters, text-only) #}
                 {% if not is_reel and not is_text_only %}

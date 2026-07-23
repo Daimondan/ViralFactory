@@ -8,6 +8,33 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-23 (late) — Review-w9
 
+### REVIEW-w9 BUILDER FIXES — P0/P1/P2 applied [TECH/STRUCTURE/FIX]
+
+**Rationale:** Builder applied all P0, P1, and P2 corrections from review-w9. M15-D route wiring is now functional — composition route generates real plans with text/audio/visual/graphics/transition elements and per-element previews. Component Workbench and Composition Ratification are wired into navigation. Charter violations resolved (hardcoded values → config). DIVERGENCE-021 renumbered.
+
+**P0 fixes applied:**
+1. Composition route wired to `CompositionPlanGenerator.generate()` — builds real plan from frozen manifest + writer contract + compiled cue timeline. Canvas dims from config (`models.yaml` reel_production block), not hardcoded. Previews generated via `CompositionPreviewGenerator.generate_all()`. Ratify route also uses real plan.
+2. Navigation links added: asset page → Component Workbench (pre-Gate-3 states), workbench → Composition Plan (after manifest freeze), workbench → composition back-link.
+3. Workbench back-link fixed: uses `asset.id` not `draft.id`.
+4. `MAX_CLIP_DURATION` and `max_segment_seconds` moved to `config/render_styles.yaml`. Validator reads from config via `_get_max_clip_duration()` and `_get_max_segment_seconds()`. No hardcoded Python constants or variant-type if/elif chains.
+5. DIVERGENCE-020 (operator visual engagement) renumbered to DIVERGENCE-021. File, CHANGELOG, PROGRESS, test file, and code comments updated.
+
+**P1 fixes applied:**
+6. State dissonance fixed: readiness summary gated on session state — "Ready to freeze" only shows in `component_review_required`, "Manifest frozen" in `manifest_ready`, "Planning components" in `planning_components`.
+7. False green fixed: freeze button disabled when session is in `manifest_ready` (shows "✅ Manifest frozen" instead). Generate Requirements button only shows when no categories/roles exist yet.
+8. Stale plan Ratify button disabled when `view.stale` is true.
+9. Raw file paths replaced with human-readable labels (🎵 Voice recording, 🖼️ Generated image — beat X, 🎬 Video clip).
+10. Raw JSON dict on asset page fixed — thread/carousel posts extract `vo_text`/`text`/`label` from dict posts instead of rendering raw dict repr.
+
+**P2 fixes applied:**
+11. Composition page: short hash (first 8 chars + tooltip), relative time for previous ratification, "ratified" not "ratify at".
+12. Asset page: ISO timestamp in source citation → relative time ("3d ago").
+13. Workbench/composition page titles include platform.
+14. Candidate version: visible badge (pill with background), not tiny grey text.
+15. Composition empty state: proper page with navigation and "→ Go to Component Workbench" button, not bare 400 string.
+
+**Files modified:** `src/app.py`, `src/services/edit_planning.py`, `config/render_styles.yaml`, `src/templates/composition_ratification.html`, `src/templates/component_workbench.html`, `src/templates/assets.html`, `src/templates/assemble.html`, `docs/decisions/DIVERGENCE-021-operator-visual-engagement-criteria.md` (renamed), `tests/test_divergence_021_visual_engagement.py` (renamed), `tests/test_vf_vs_403_production_integration.py`, `CHANGELOG.md`, `docs/PROGRESS.md`.
+
 ### REVIEW-w9 — M15 milestone review + DIVERGENCE-020 collision resolution [STRATEGIC/STRUCTURE/FIX]
 
 **Rationale:** Full architect review of M15 milestone (all 20 tasks checked off), DIVERGENCE-020 numbering collision, deep 10-dimension UI walkthrough, doc alignment audit, and charter compliance check.
@@ -37,7 +64,7 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-23
 
-### DIVERGENCE-020 — Operator visual engagement criteria [STRATEGIC/LOGIC]
+### DIVERGENCE-021 — Operator visual engagement criteria [STRATEGIC/LOGIC]
 
 **Rationale:** Operator observed the last several rendered videos had images held for long periods, felt static and boring. The 4-second visual change rule existed in the Writer prompt but the validator was advisory-only (`pass`). Operator directed: enforce 4-second max as a blocking rule, add criteria for caption emphasis with varied fonts/styles, supporting visual elements (graphs/icons/images), VO-only videos must have background visual life, prefer video clips over stills with Ken Burns, richer motion vocabulary, and scene-to-scene coherence.
 
@@ -50,7 +77,7 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 - `tests/test_audio_strategy.py`: Version assertion updated to 1.6.
 - `tests/test_vf_vs_402_visual_director.py`: Version assertion updated to 1.2.
 - `tests/test_vf_vs_403_production_integration.py`: 14s talking-head test updated — now correctly rejected by 4s validator before reaching feasibility checks.
-- `docs/decisions/DIVERGENCE-020-operator-visual-engagement-criteria.md`: Filed.
+- `docs/decisions/DIVERGENCE-021-operator-visual-engagement-criteria.md`: Filed.
 
 **Conflicts with:** `docs/research/viral-content-meta-analysis-v2.md` (which rejected the 4-second rule as unsupported) and `docs/playbooks/viral-content-production-playbook-v1.md` Phase 7 ("A hold is valid when expression, proof, or silence needs time"). Operator position: the system is producing boring videos in practice and the meaning-based pacing rule is being used as a license to hold static images too long.
 

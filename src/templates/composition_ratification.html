@@ -4,15 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/vf.css">
-    <title>Composition Ratification — {{ business_name }}</title>
+    <title>Composition Ratification — {{ asset.platform }} · {{ business_name }}</title>
     <style>
         .ratify-container { max-width: 1000px; margin: 0 auto; padding: 20px; }
-        .plan-hash { font-family: monospace; font-size: 0.8rem; color: #757575; background: #F5F5F5; padding: 8px 12px; border-radius: 6px; margin: 12px 0; word-break: break-all; }
+        .plan-hash { font-family: monospace; font-size: 0.8rem; color: #757575; background: #F5F5F5; padding: 8px 12px; border-radius: 6px; margin: 12px 0; word-break: break-all; cursor: help; }
         .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; margin-bottom: 16px; }
         .status-badge.ready_for_review { background: #FFF3E0; color: #E65100; }
         .status-badge.ratified { background: #E8F5E9; color: #2E7D32; }
         .status-badge.rejected { background: #FFEBEE; color: #C62828; }
         .status-badge.stale { background: #FCE4EC; color: #880E4F; }
+        .status-badge.no_manifest { background: #F5F5F5; color: #757575; }
         .preview-section { background: #FFFFFF; border-radius: 12px; margin-bottom: 16px; overflow: hidden; border: 1px solid #E0E0E0; }
         .preview-header { padding: 12px 16px; font-weight: 600; border-bottom: 1px solid #F0F0F0; cursor: pointer; }
         .preview-body { padding: 16px; }
@@ -25,17 +26,38 @@
         .asset-link { color: #E54B2C; text-decoration: none; }
         .stale-warning { padding: 12px; background: #FFF3E0; border-radius: 8px; border: 1px solid #FFCC02; margin: 12px 0; }
         .feedback-input { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #E0E0E0; margin: 8px 0; min-height: 60px; }
+        .text-element-card { margin-bottom: 12px; padding: 8px; background: #FAFAFA; border-radius: 6px; font-size: 0.88rem; }
+        .text-element-card .role-label { font-weight: 600; color: #E54B2C; }
+        .text-element-card .text-content { margin: 4px 0; line-height: 1.4; }
+        .text-element-card .meta { font-size: 0.78rem; color: #757575; }
+        .visual-element-card { margin-bottom: 8px; font-size: 0.85rem; padding: 8px; background: #FAFAFA; border-radius: 6px; }
+        .audio-lane-row { font-size: 0.85rem; margin: 4px 0; padding: 8px; background: #FAFAFA; border-radius: 6px; }
+        .empty-state { text-align: center; padding: 40px 20px; }
+        .empty-state-icon { font-size: 3rem; color: #D8D4C8; margin-bottom: 12px; }
+        .empty-state-title { font-size: 1.2rem; font-weight: 600; color: #2C2823; margin-bottom: 8px; }
+        .empty-state-desc { font-size: 0.9rem; color: #8A857C; margin-bottom: 20px; }
     </style>
 </head>
 <body>
 {% include "_nav.html" %}
 <div class="ratify-container">
-    <h2>Composition Ratification</h2>
+    <h2>Composition Ratification — {{ asset.platform }}</h2>
     <p><a href="/workbench/{{ asset.id }}" class="asset-link">← Back to Component Workbench</a></p>
+
+    {% if view.status == 'no_manifest' or not view.plan %}
+    {# P2-5: proper empty state page with navigation #}
+    <div class="empty-state">
+        <div class="empty-state-icon">📦</div>
+        <div class="empty-state-title">No frozen manifest yet</div>
+        <div class="empty-state-desc">Freeze component choices in the Component Workbench before reviewing the composition plan.</div>
+        <a href="/workbench/{{ asset.id }}" class="btn btn-ratify" style="text-decoration: none; display: inline-block;">→ Go to Component Workbench</a>
+    </div>
+
+    {% else %}
 
     <div class="status-badge {{ view.status }}">{{ view.status|replace('_', ' ')|title }}</div>
 
-    <div class="plan-hash">Plan hash: {{ view.plan_hash }}</div>
+    <div class="plan-hash" title="{{ view.plan_hash }}">Plan hash: {{ view.plan_hash[:8] }}…</div>
 
     {% if view.stale %}
     <div class="stale-warning">
@@ -46,35 +68,46 @@
 
     {% if view.previous_ratification %}
     <div style="font-size: 0.85rem; color: #757575; margin-bottom: 16px;">
-        Previous ratification: {{ view.previous_ratification.decision }} at {{ view.previous_ratification.created_at }}
+        Previous ratification: {{ view.previous_ratification.decision }}
+        {% if view.previous_ratification.created_at %}
+        — {{ view.previous_ratification.created_at|relative_time }}
+        {% endif %}
     </div>
     {% endif %}
 
-    {% if view.status == 'ready_for_review' %}
+    {% if view.status == 'ready_for_review' or view.status == 'stale' %}
     <p>Review the composition plan below. When you're satisfied, ratify it to proceed to assembly.</p>
 
-    <!-- Canvas -->
+    {# ── Canvas ── #}
+    {% set canvas = view.plan.canvas or {} %}
+    {% set res = canvas.resolution or {} %}
     <div class="preview-section">
         <div class="preview-header" onclick="this.parentElement.querySelector('.preview-body').classList.toggle('hidden')">
             Canvas
         </div>
         <div class="preview-body">
-            <p>Resolution: {{ view.plan.canvas.width }}×{{ view.plan.canvas.height }} @ {{ view.plan.canvas.fps }}fps</p>
+            <p>Resolution: {{ res.width or 1080 }}×{{ res.height or 1920 }} @ {{ canvas.fps or 30 }}fps · {{ canvas.aspect_ratio or '9:16' }}</p>
         </div>
     </div>
 
-    <!-- Text Elements -->
-    {% if view.plan.text_elements %}
+    {# ── Text Elements ── #}
+    {% if view.plan.text_elements and view.plan.text_elements|length > 0 %}
     <div class="preview-section">
         <div class="preview-header" onclick="this.parentElement.querySelector('.preview-body').classList.toggle('hidden')">
             Text Elements ({{ view.plan.text_elements|length }})
         </div>
         <div class="preview-body">
             {% for te in view.plan.text_elements %}
-            <div style="margin-bottom: 12px; padding: 8px; background: #FAFAFA; border-radius: 6px;">
-                <strong>{{ te.element_id }}</strong>: "{{ te.text[:60] }}"
-                <div style="font-size: 0.8rem; color: #757575;">
-                    Position: {{ te.position }} | Timing: {{ te.start }}s–{{ te.end }}s | Font: {{ te.font_family }}
+            <div class="text-element-card">
+                <span class="role-label">{{ te.role|upper }}</span>
+                <span style="font-size: 0.78rem; color: #757575; margin-left: 8px;">{{ te.element_id }}</span>
+                <div class="text-content">"{{ te.text[:80] }}{% if te.text|length > 80 %}…{% endif %}"</div>
+                <div class="meta">
+                    {% set timing = te.timing or {} %}
+                    Timing: {{ timing.in_sec or 0 }}s–{{ timing.out_sec or 0 }}s
+                    {% set font = te.font or {} %}
+                    | Font: {{ font.family or 'default' }} {{ font.weight or '' }} {{ font.size or '' }}px
+                    {% if te.beat_id %} | Beat: {{ te.beat_id }}{% endif %}
                 </div>
             </div>
             {% endfor %}
@@ -82,63 +115,110 @@
     </div>
     {% endif %}
 
-    <!-- Audio Elements -->
-    {% if view.plan.audio_elements %}
+    {# ── Audio Elements ── #}
+    {% set audio = view.plan.audio or {} %}
+    {% if audio and (audio.vo_track or audio.music_track or (audio.sfx_events and audio.sfx_events|length > 0)) %}
     <div class="preview-section">
         <div class="preview-header" onclick="this.parentElement.querySelector('.preview-body').classList.toggle('hidden')">
-            Audio Elements ({{ view.plan.audio_elements|length }})
+            Audio Mix
         </div>
         <div class="preview-body">
-            {% for ae in view.plan.audio_elements %}
-            <div style="margin-bottom: 8px;">
-                {% if ae.lanes %}
-                {% for lane in ae.lanes %}
-                <div style="font-size: 0.85rem;">
-                    {{ lane.lane_type }}: {{ lane.start }}s–{{ lane.end }}s, gain={{ lane.gain }}
-                </div>
-                {% endfor %}
-                {% endif %}
-                LUFS target: {{ ae.lufs_target }} | True peak: {{ ae.true_peak_limit }}
+            {% if audio.vo_track %}
+            <div class="audio-lane-row">
+                <strong>VO Track</strong> — {{ audio.vo_track.trim_end_sec or 0 }}s
+                {% if audio.vo_track.manifest_candidate_id %} · candidate #{{ audio.vo_track.manifest_candidate_id }}{% endif %}
             </div>
-            {% endfor %}
+            {% endif %}
+            {% if audio.music_track %}
+            <div class="audio-lane-row">
+                <strong>Music Track</strong> — {{ audio.music_track.start_sec or 0 }}s to {{ audio.music_track.stop_sec or 0 }}s
+            </div>
+            {% endif %}
+            {% if audio.sfx_events and audio.sfx_events|length > 0 %}
+            <div class="audio-lane-row">
+                <strong>SFX Events</strong> — {{ audio.sfx_events|length }} trigger(s)
+                {% for sfx in audio.sfx_events %}
+                <span style="margin-left: 8px; font-size: 0.78rem; color: #757575;">{{ sfx.preset }} @ {{ sfx.trigger_sec }}s</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% if audio.mix_spec %}
+            <div style="font-size: 0.82rem; color: #757575; margin-top: 8px;">
+                LUFS target: {{ audio.mix_spec.lufs_target }} | True peak: {{ audio.mix_spec.true_peak_db }}dB
+            </div>
+            {% endif %}
         </div>
     </div>
     {% endif %}
 
-    <!-- Visual Elements -->
-    {% if view.plan.visual_elements %}
+    {# ── Visual Elements ── #}
+    {% if view.plan.visual_elements and view.plan.visual_elements|length > 0 %}
     <div class="preview-section">
         <div class="preview-header" onclick="this.parentElement.querySelector('.preview-body').classList.toggle('hidden')">
             Visual Elements ({{ view.plan.visual_elements|length }})
         </div>
         <div class="preview-body">
             {% for ve in view.plan.visual_elements %}
-            <div style="margin-bottom: 8px; font-size: 0.85rem;">
-                {{ ve.element_id }}: {{ ve.kind }} {{ ve.start }}s–{{ ve.end }}s
-                {% if ve.source_path %}
-                <img src="/media/{{ ve.source_path }}" class="preview-img" onclick="window.open('/media/{{ ve.source_path }}', '_blank')">
-                {% endif %}
+            <div class="visual-element-card">
+                {{ ve.element_id }}: {{ ve.kind }} — {{ ve.trim_end_sec or 0 }}s
+                {% if ve.beat_id %} | Beat: {{ ve.beat_id }}{% endif %}
             </div>
             {% endfor %}
         </div>
     </div>
     {% endif %}
 
-    <!-- Manifest ingredients -->
+    {# ── Graphics Elements ── #}
+    {% if view.plan.graphics_elements and view.plan.graphics_elements|length > 0 %}
+    <div class="preview-section">
+        <div class="preview-header" onclick="this.parentElement.querySelector('.preview-body').classList.toggle('hidden')">
+            Graphics Elements ({{ view.plan.graphics_elements|length }})
+        </div>
+        <div class="preview-body">
+            {% for ge in view.plan.graphics_elements %}
+            <div class="visual-element-card">
+                {{ ge.element_id }}: {{ ge.type }} {% if ge.beat_id %}| Beat: {{ ge.beat_id }}{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# ── Transitions ── #}
+    {% if view.plan.transitions and view.plan.transitions|length > 0 %}
+    <div class="preview-section">
+        <div class="preview-header" onclick="this.parentElement.querySelector('.preview-body').classList.toggle('hidden')">
+            Transitions ({{ view.plan.transitions|length }})
+        </div>
+        <div class="preview-body">
+            {% for tr in view.plan.transitions %}
+            <div class="visual-element-card">
+                {{ tr.transition_id }}: {{ tr.type }} ({{ tr.duration_sec }}s) {% if tr.beat_boundary %}| Beat: {{ tr.beat_boundary }}{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# ── Manifest ingredients ── #}
     <div class="preview-section">
         <div class="preview-header" onclick="this.parentElement.querySelector('.preview-body').classList.toggle('hidden')">
             Manifest Ingredients
         </div>
         <div class="preview-body">
+            {% set mh = manifest.manifest_hash or '' %}
             <p style="font-size: 0.85rem; color: #757575;">
-                Manifest hash: {{ manifest.manifest_hash[:16] }}...
+                Manifest hash: <span title="{{ mh }}">{{ mh[:16] }}…</span>
             </p>
+            {% if manifest.manifest_json and manifest.manifest_json.candidates %}
+            <p style="font-size: 0.82rem;">{{ manifest.manifest_json.candidates|length }} candidate(s) frozen</p>
+            {% endif %}
         </div>
     </div>
 
     {% elif view.status == 'ratified' %}
     <p>✅ This composition plan has been ratified. Proceeding to assembly.</p>
-    <a href="/create/assets/{{ asset.draft_id }}" class="asset-link">→ Go to asset review</a>
+    <a href="/create/assets/{{ asset.id }}" class="asset-link">→ Go to asset review</a>
 
     {% elif view.status == 'rejected' %}
     <p>❌ This plan was rejected. It has been sent back for revision.</p>
@@ -147,7 +227,7 @@
     <p>{{ view.status|replace('_', ' ')|title }}</p>
     {% endif %}
 
-    {% if view.preview_gaps %}
+    {% if view.preview_gaps and view.preview_gaps|length > 0 %}
     <div style="padding: 12px; background: #FFF3E0; border-radius: 8px; margin: 12px 0;">
         <strong>Missing previews:</strong>
         {% for gap in view.preview_gaps %}
@@ -156,7 +236,7 @@
     </div>
     {% endif %}
 
-    {% if view.manifest_gaps %}
+    {% if view.manifest_gaps and view.manifest_gaps|length > 0 %}
     <div style="padding: 12px; background: #FFEBEE; border-radius: 8px; margin: 12px 0;">
         <strong>Manifest tracing gaps:</strong>
         {% for gap in view.manifest_gaps %}
@@ -164,13 +244,17 @@
         {% endfor %}
     </div>
     {% endif %}
+
+    {% endif %}{# end no_manifest else #}
 </div>
 
-{% if view.status == 'ready_for_review' or view.status == 'stale' %}
+{% if view.status and view.status != 'no_manifest' and view.plan and (view.status == 'ready_for_review' or view.status == 'stale') %}
 <div class="actions-bar">
     <button class="btn btn-reject" onclick="rejectPlan()">Reject with feedback</button>
-    {% if view.ratify_enabled %}
+    {% if view.ratify_enabled and not view.stale %}
     <button class="btn btn-ratify" onclick="ratifyPlan()">Ratify composition</button>
+    {% elif view.stale %}
+    <button class="btn btn-ratify" disabled title="Re-review the updated plan before ratifying">Ratify composition</button>
     {% else %}
     <button class="btn btn-ratify" disabled title="Resolve all gaps first">Ratify composition</button>
     {% endif %}

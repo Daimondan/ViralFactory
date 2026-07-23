@@ -58,7 +58,7 @@ def test_five_second_motion_cannot_cover_fourteen_second_talking_head(
     )
 
     assert result.status_code == 422
-    # DIVERGENCE-020: 14s segment with no overlay is now rejected by the
+    # DIVERGENCE-021: 14s segment with no overlay is now rejected by the
     # 4-second max validator before reaching feasibility checks.
     # This is the correct behavior — the segment must be split or have
     # a visual change at or before the 4-second mark.

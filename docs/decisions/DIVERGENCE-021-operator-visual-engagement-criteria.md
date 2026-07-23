@@ -1,8 +1,8 @@
-# DIVERGENCE-020 — Operator visual engagement criteria
+# DIVERGENCE-021 — Operator visual engagement criteria
 
 **Filed:** 2026-07-23
 **Filed by:** Daimon (operator)
-**Status:** OPERATOR DIRECTION — pending architect review
+**Status:** APPROVED WITH CONDITIONS (review-w9, 2026-07-23) — renumbered from DIVERGENCE-020, MAX_CLIP_DURATION + max_segment_seconds moved to config
 **Conflicts with:** `docs/research/viral-content-meta-analysis-v2.md` ("never exceed four seconds without a change" listed under "What v1 got wrong"), `docs/playbooks/viral-content-production-playbook-v1.md` Phase 7 ("A hold is valid when expression, proof, or silence needs time")
 
 ## What the operator directs

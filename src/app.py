@@ -963,7 +963,26 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         idea_text += f" — {platform} {content_type}"
         if description:
             idea_text += f"\n\n{description[:500]}"
-        idea_text += f"\n\n(Source: {provider}, collected {dict(obs).get('collected_at', '')})"
+        # Format collection time as relative, not raw ISO
+        collected_at = dict(obs).get('collected_at', '')
+        if collected_at:
+            try:
+                from datetime import datetime as _dt, timezone as _tz
+                col_dt = _dt.fromisoformat(collected_at.replace('Z', '+00:00'))
+                delta = _dt.now(_tz.utc) - col_dt
+                hours = int(delta.total_seconds() / 3600)
+                if hours < 1:
+                    time_str = "just now"
+                elif hours < 24:
+                    time_str = f"{hours}h ago"
+                else:
+                    days = hours // 24
+                    time_str = f"{days}d ago"
+            except Exception:
+                time_str = collected_at[:10]  # Fall back to date only
+        else:
+            time_str = ""
+        idea_text += f"\n\n(Source: {provider}, collected {time_str})"
 
         # Evidence link pointing back to the observation
         evidence_links = [{
@@ -9748,6 +9767,188 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         result = orch.advance(business_slug, session["id"])
         return jsonify(result)
 
+    def _build_composition_plan(app, business_slug, asset, session, manifest):
+        """Build a real CompositionPlan from the frozen manifest, writer
+        contract, and compiled cue timeline.
+
+        Reads canvas/font/mix config from config files (no hardcoded dims).
+        Falls back to a minimal empty plan if the writer contract or cue
+        timeline cannot be assembled (e.g. legacy assets without VO).
+        """
+        import json as _json
+        import os as _os
+        from config_loader import load_all
+        from services.composition_plan import (
+            CompositionPlanGenerator,
+            CompositionPlanError,
+            compute_plan_hash,
+        )
+
+        config_dir = app.config["CONFIG_DIR"]
+        manifest_data = manifest.get("manifest_json", {})
+        if isinstance(manifest_data, str):
+            manifest_data = _json.loads(manifest_data)
+
+        # ── Load config for the generator ──
+        try:
+            config = load_all(config_dir)
+            models_config = config["models"]
+        except Exception:
+            models_config = {}
+
+        # Render styles (overlay styles, sfx, text positions)
+        import yaml as _yaml
+        render_styles = {}
+        rs_path = _os.path.join(config_dir, "render_styles.yaml")
+        if _os.path.exists(rs_path):
+            with open(rs_path) as f:
+                render_styles = _yaml.safe_load(f) or {}
+
+        # Canvas config from models.yaml reel_production block
+        reel_cfg = (models_config.get("media", {}) or {}).get("reel_production", {}) or {}
+        canvas_config = {
+            "resolution": {
+                "width": int(reel_cfg.get("resolution", "1080x1920").split("x")[0]) if "x" in str(reel_cfg.get("resolution", "")) else 1080,
+                "height": int(reel_cfg.get("resolution", "1080x1920").split("x")[1]) if "x" in str(reel_cfg.get("resolution", "")) else 1920,
+            },
+            "aspect_ratio": reel_cfg.get("aspect_ratio", "9:16"),
+            "fps": float(reel_cfg.get("fps", 30)),
+            "background": {"color": "#000000"},
+            "safe_zones": {"title_safe": 0.9, "action_safe": 0.95},
+            "platform_framing": "9:16_vertical",
+        }
+
+        # Font config from models.yaml rendering block
+        rendering = models_config.get("rendering", {}) or {}
+        font_config = {
+            "font_path": rendering.get("font_path", ""),
+            "font_display": rendering.get("font_display", ""),
+            "font_family": rendering.get("font_family", "Montserrat"),
+            "font_weight": rendering.get("font_weight", "Bold"),
+            "font_display_family": rendering.get("font_display_family", "Anton"),
+            "font_display_weight": rendering.get("font_display_weight", "Regular"),
+        }
+
+        # Mix config
+        mix_config = {
+            "lufs_target": float(reel_cfg.get("lufs_target", -14.0)),
+            "true_peak_db": float(reel_cfg.get("true_peak_db", -1.0)),
+            "ducking": {
+                "default_depth": 0.20,
+                "attack_s": 0.3,
+                "release_s": 0.5,
+            },
+        }
+
+        # ── Build writer contract from the draft ──
+        store = _get_pipeline_store()
+        draft = store.get_draft(asset["draft_id"])
+        writer_contract = {}
+        cue_timeline = {}
+
+        if draft:
+            raw_posts = _json.loads(asset.get("posts") or "[]")
+            vo_segments = _json.loads(asset.get("vo_segments") or "[]")
+
+            if raw_posts and vo_segments:
+                try:
+                    from reel_production import extract_reel_beats
+                    from services.cue_compiler import CueCompiler
+
+                    structured_beats = extract_reel_beats(raw_posts)
+                    beats = []
+                    text_intents = []
+                    for beat in structured_beats:
+                        raw = next(
+                            (p for p in raw_posts if isinstance(p, dict) and p.get("beat_id") == beat["beat_id"]),
+                            {},
+                        )
+                        beats.append({
+                            **beat,
+                            "required": True,
+                            "transition_in": str(raw.get("transition_in") or "cut"),
+                            "audio_intent": raw.get("audio_intent") or {},
+                        })
+                        if beat.get("vo_text"):
+                            text_intents.append({
+                                "text_intent_id": f"caption_{beat['beat_id']}",
+                                "beat_id": beat["beat_id"],
+                                "function": "caption",
+                                "text": beat["vo_text"],
+                                "required": True,
+                            })
+                        if beat.get("overlay_text"):
+                            text_intents.append({
+                                "text_intent_id": f"overlay_{beat['beat_id']}",
+                                "beat_id": beat["beat_id"],
+                                "function": str(raw.get("text_function") or "emphasis"),
+                                "text": beat["overlay_text"],
+                                "required": True,
+                            })
+
+                    compiler = CueCompiler()
+                    timeline = compiler.compile(
+                        beats=beats,
+                        text_intents=text_intents,
+                        vo_segments=vo_segments,
+                    )
+
+                    # Writer contract dict
+                    import hashlib as _hl
+                    wc_blob = _json.dumps({
+                        "beats": beats,
+                        "text_intents": text_intents,
+                    }, sort_keys=True, ensure_ascii=False)
+                    writer_contract = {
+                        "beats": beats,
+                        "text_intents": text_intents,
+                        "writer_contract_hash": _hl.sha256(wc_blob.encode()).hexdigest(),
+                    }
+
+                    # Normalize cue timeline to dict
+                    cue_timeline = {
+                        "vo_timings": [_cue_to_dict_compact(c) for c in timeline.vo_timings],
+                        "captions": [_cue_to_dict_compact(c) for c in timeline.captions],
+                        "overlays": [_cue_to_dict_compact(c) for c in timeline.overlays],
+                        "sfx_events": [_cue_to_dict_compact(c) for c in timeline.sfx_events],
+                        "music_events": [_cue_to_dict_compact(c) for c in timeline.music_events],
+                        "silence_events": [_cue_to_dict_compact(c) for c in timeline.silence_events],
+                        "text_hash": timeline.text_hash,
+                        "total_duration_sec": timeline.total_duration_sec,
+                    }
+                except Exception:
+                    pass
+
+        # ── Generate the plan ──
+        try:
+            generator = CompositionPlanGenerator(
+                render_styles=render_styles,
+                font_config=font_config,
+                canvas_config=canvas_config,
+                mix_config=mix_config,
+            )
+            plan = generator.generate(
+                manifest=manifest_data,
+                writer_contract=writer_contract,
+                cue_timeline=cue_timeline,
+            )
+        except CompositionPlanError:
+            # Fall back to a minimal plan if generation fails
+            plan = {
+                "schema_version": "1.0",
+                "manifest_hash": manifest_data.get("manifest_hash", ""),
+                "canvas": canvas_config,
+                "text_elements": [],
+                "audio": {},
+                "visual_elements": [],
+                "graphics_elements": [],
+                "transitions": [],
+                "total_duration_sec": 0.0,
+            }
+            plan["plan_hash"] = compute_plan_hash(plan)
+
+        return plan
+
     @app.route("/composition/<int:asset_id>")
     def composition_ratification(asset_id):
         """VF-CP-003: Composition ratification surface."""
@@ -9773,37 +9974,71 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         manifest = mstore.get_active_manifest(business_slug, session["id"])
 
         if not manifest:
-            return "No frozen manifest — freeze components first", 400
+            # P2-5: proper empty state page, not bare 400 string
+            return render_template(
+                "composition_ratification.html",
+                business_name=_get_business_name(app),
+                active_page="pipeline",
+                asset=asset,
+                session=session,
+                view={"status": "no_manifest", "plan": None, "previews": {},
+                      "plan_hash": "", "ratify_enabled": False, "stale": False,
+                      "previous_ratification": None, "preview_gaps": [],
+                      "manifest_gaps": []},
+                manifest=None,
+                nav_counts=_get_nav_counts(app),
+            ), 200
 
         rat_svc = RatificationService(
             db_path=app.config["DB_PATH"],
             config_dir=app.config["CONFIG_DIR"],
         )
 
-        # Build a minimal composition plan from the manifest (mechanical, no LLM)
-        from services.composition_plan import compute_plan_hash
+        # Build a real composition plan from the manifest + writer contract + cues
+        plan = _build_composition_plan(app, business_slug, asset, session, manifest)
+
+        # Generate previews
+        from services.composition_preview import CompositionPreviewGenerator, PreviewError
+        import os as _os
+
+        # Source resolver: map artifact_hash → file path from manifest candidates
         manifest_data = manifest.get("manifest_json", {})
         if isinstance(manifest_data, str):
             import json as _json
             manifest_data = _json.loads(manifest_data)
+        hash_to_path = {}
+        for c in manifest_data.get("candidates", []):
+            if c.get("artifact_hash") and c.get("artifact_path"):
+                hash_to_path[c["artifact_hash"]] = c["artifact_path"]
 
-        plan = {
-            "schema_version": "1.0",
-            "manifest_hash": manifest_data.get("manifest_hash", ""),
-            "canvas": {"width": 1080, "height": 1920, "fps": 30.0, "aspect_ratio": "9:16"},
-            "text_elements": [],
-            "audio_elements": [],
-            "visual_elements": [],
-            "graphics_elements": [],
-            "transitions": [],
-        }
-        plan["plan_hash"] = compute_plan_hash(plan)
+        preview_gen = CompositionPreviewGenerator(
+            cache_dir=_os.path.join(app.config.get("UPLOAD_DIR", "data/uploads"), "previews"),
+            models_config=plan.get("_models_config", {}),
+            config_dir=app.config["CONFIG_DIR"],
+            source_resolver=lambda h: hash_to_path.get(h, ""),
+        )
+
+        # Load models_config for the preview generator
+        try:
+            from config_loader import load_all
+            _cfg = load_all(app.config["CONFIG_DIR"])
+            preview_gen.models_config = _cfg["models"]
+        except Exception:
+            pass
+
+        previews = {}
+        try:
+            previews = preview_gen.generate_all(plan)
+        except PreviewError:
+            previews = {}
+        except Exception:
+            previews = {}
 
         view = rat_svc.build_ratification_view(
             business_slug=business_slug,
             production_session_id=session["id"],
             plan=plan,
-            previews={},  # no previews generated for now
+            previews=previews,
             manifest=manifest,
         )
 
@@ -9818,6 +10053,20 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             nav_counts=_get_nav_counts(app),
         )
 
+    # Helper for compact cue serialization
+    def _cue_to_dict_compact(cue):
+        """Convert a CompiledCue to a plain dict."""
+        if isinstance(cue, dict):
+            return cue
+        return {
+            "cue_id": cue.cue_id,
+            "cue_type": cue.cue_type,
+            "beat_id": cue.beat_id,
+            "text": cue.text,
+            "start_sec": cue.start_sec,
+            "end_sec": cue.end_sec,
+            "metadata": cue.metadata,
+        }
     @app.route("/api/composition/<int:asset_id>/ratify", methods=["POST"])
     def composition_ratify(asset_id):
         """Ratify the composition plan."""
@@ -9833,26 +10082,19 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         from services.ratification_service import RatificationService
         from services.manifest_freeze import ManifestStore
-        from services.composition_plan import compute_plan_hash
 
         mstore = ManifestStore(db_path=app.config["DB_PATH"], config_dir=app.config["CONFIG_DIR"])
         manifest = mstore.get_active_manifest(business_slug, session["id"])
         if not manifest:
             return jsonify({"error": "No frozen manifest"}), 400
 
-        manifest_data = manifest.get("manifest_json", {})
-        if isinstance(manifest_data, str):
-            import json as _json
-            manifest_data = _json.loads(manifest_data)
+        store = _get_pipeline_store()
+        asset = store.get_asset(asset_id)
+        if not asset:
+            return jsonify({"error": "Asset not found"}), 404
 
-        plan = {
-            "schema_version": "1.0",
-            "manifest_hash": manifest_data.get("manifest_hash", ""),
-            "canvas": {"width": 1080, "height": 1920, "fps": 30.0},
-            "text_elements": [], "audio_elements": [], "visual_elements": [],
-            "graphics_elements": [], "transitions": [],
-        }
-        plan["plan_hash"] = compute_plan_hash(plan)
+        # Build the real plan (same as the view route)
+        plan = _build_composition_plan(app, business_slug, asset, session, manifest)
 
         rat_svc = RatificationService(
             db_path=app.config["DB_PATH"],
@@ -9864,7 +10106,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 production_session_id=session["id"],
                 plan=plan,
                 manifest=manifest,
-                previews={},  # no preview generation for now
+                previews={},
             )
             return jsonify({"status": "ok", "decision": decision})
         except Exception as e:

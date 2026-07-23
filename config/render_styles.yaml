@@ -1,5 +1,16 @@
 version: 1
 
+# Pacing rules (DIVERGENCE-021). The 4-second max clip duration is a blocking
+# validator rule: no segment may exceed max_clip_duration seconds without an
+# overlay, text pop, or visual change. Per-format overrides for max_segment_seconds
+# control the pacing hint passed to the LLM in the edit plan prompt.
+max_clip_duration: 4.0
+max_segment_seconds:
+  default: 4
+  reel: 3
+  short: 3
+  carousel: 3
+
 # Generic FFmpeg drawtext defaults. Tenant Visual Style modules may override
 # individual values through YAML frontmatter under render_styles.overlay_styles.
 # Style refs used by the Writer/cue compiler: default, hook, emphasis, highlight,

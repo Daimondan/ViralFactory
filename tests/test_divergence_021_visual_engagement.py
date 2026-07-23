@@ -1,4 +1,4 @@
-"""Tests for DIVERGENCE-020: visual engagement criteria — 4-second segment max."""
+"""Tests for DIVERGENCE-021: visual engagement criteria — 4-second segment max."""
 
 import os
 import sys
@@ -31,7 +31,7 @@ def test_segment_under_4s_passes(tmp_path):
 
 
 def test_segment_over_4s_without_overlay_fails(tmp_path):
-    """Segments >4s without an overlay should fail (DIVERGENCE-020)."""
+    """Segments >4s without an overlay should fail (DIVERGENCE-021)."""
     svc = _make_service(tmp_path)
     segments = [
         {"segment_id": "s1", "source": "generated:1", "in": 0, "out": 7.0,

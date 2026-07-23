@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/vf.css">
-    <title>Component Workbench — {{ business_name }}</title>
+    <title>Component Workbench — {{ asset.platform }} · {{ business_name }}</title>
     <style>
         .workbench-container { max-width: 1200px; margin: 0 auto; padding: 20px; }
         .session-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; margin-bottom: 16px; }
@@ -51,8 +51,8 @@
 <body>
 {% include "_nav.html" %}
 <div class="workbench-container">
-    <h2>Component Workbench</h2>
-    <p><a href="/create/assets/{{ draft.id }}" class="asset-link">← Back to asset {{ asset.id }} ({{ asset.platform }})</a></p>
+    <h2>Component Workbench — {{ asset.platform }}</h2>
+    <p><a href="/create/assets/{{ asset.id }}" class="asset-link">← Back to asset {{ asset.id }} ({{ asset.platform }})</a></p>
 
     <div class="session-badge
         {% if view.session.current_state == 'planning_components' %}planning
@@ -65,16 +65,21 @@
     </div>
 
     <div class="readiness-summary
-        {% if view.overall_readiness == 'ready' %}ready
+        {% if view.session.current_state == 'manifest_ready' and view.overall_readiness == 'ready' %}ready
+        {% elif view.session.current_state == 'component_review_required' and view.overall_readiness == 'ready' %}ready
         {% elif view.overall_readiness == 'needs_action' %}needs_action
         {% elif view.overall_readiness == 'blocked' %}blocked
         {% else %}incomplete{% endif %}">
-        {% if view.overall_readiness == 'ready' %}
+        {% if view.session.current_state == 'manifest_ready' and view.overall_readiness == 'ready' %}
+            ✅ All required components approved. Manifest frozen. Ready for composition.
+        {% elif view.session.current_state == 'component_review_required' and view.overall_readiness == 'ready' %}
             ✅ All required components approved. Ready to freeze.
         {% elif view.overall_readiness == 'needs_action' %}
             ⚠️ Some components need your review.
         {% elif view.overall_readiness == 'blocked' %}
             ❌ Some components are blocked.
+        {% elif view.session.current_state == 'planning_components' %}
+            ⏳ Planning components — generate requirements or register existing media.
         {% else %}
             ⏳ Some components are still generating.
         {% endif %}
@@ -89,9 +94,15 @@
     </div>
     {% endif %}
 
-    {% if view.session.current_state == 'planning_components' %}
+    {% if view.session.current_state == 'planning_components' and (not view.categories or view.categories|length == 0 or not view.categories[0].roles or view.categories[0].roles|length == 0) %}
     <div style="margin-bottom: 16px;">
         <button class="btn btn-freeze" onclick="generateRequirements()">Generate Component Requirements</button>
+    </div>
+    {% elif view.session.current_state == 'planning_components' %}
+    <div style="margin-bottom: 16px; display: flex; gap: 8px;">
+        <button class="btn" onclick="registerVO()" style="background: #9C27B0; color: white;">Register existing VO</button>
+        <button class="btn" onclick="registerVisuals()" style="background: #9C27B0; color: white;">Register existing images</button>
+        <button class="btn btn-freeze" onclick="generateRequirements()">Regenerate Requirements</button>
     </div>
     {% endif %}
 
@@ -115,10 +126,22 @@
                 {% for c in role.candidates %}
                 <div class="candidate-card">
                     <span class="candidate-status {{ c.status }}">{{ c.status_label }}</span>
-                    <span style="margin-left: 8px; font-size: 0.8rem; color: #757575;">v{{ c.version }}</span>
+                    <span style="margin-left: 8px; background: #E0E0E0; color: #424242; font-size: 0.75rem; font-weight: 600; padding: 2px 8px; border-radius: 10px;">v{{ c.version }}</span>
                     {% if c.artifact_path %}
                     <div style="margin-top: 4px; font-size: 0.8rem; color: #757575;">
-                        📎 {{ c.artifact_path|truncate(50) }}
+                        {% set ext = c.artifact_path.split('.')[-1].lower() %}
+                        {% if ext in ('wav', 'mp3', 'm4a', 'ogg') %}
+                            🎵 Voice recording
+                        {% elif ext in ('png', 'jpg', 'jpeg', 'webp') %}
+                            🖼️ Generated image{% if c.beat_refs and c.beat_refs|length > 0 %} — beat {{ c.beat_refs[0] }}{% endif %}
+                        {% elif ext in ('mp4', 'mov', 'avi', 'webm') %}
+                            🎬 Video clip{% if c.beat_refs and c.beat_refs|length > 0 %} — beat {{ c.beat_refs[0] }}{% endif %}
+                        {% else %}
+                            📎 Component file
+                        {% endif %}
+                        {% if c.measurement and c.measurement.duration %}
+                            ({{ c.measurement.duration|round(1) }}s)
+                        {% endif %}
                     </div>
                     {% endif %}
                     {% if c.preview_path and c.preview_path.endswith(('.png', '.jpg', '.jpeg')) %}
@@ -150,23 +173,21 @@
     </div>
     {% endfor %}
 
-    {% if view.session.current_state == 'planning_components' %}
-    <div style="margin-bottom: 16px;">
-        <button class="btn" onclick="registerVO()" style="background: #9C27B0; color: white;">Register existing VO</button>
-        <button class="btn" onclick="registerVisuals()" style="background: #9C27B0; color: white;">Register existing images</button>
-    </div>
-    {% endif %}
 </div>
 
 <div class="workbench-actions">
     <div>
         {% if view.session.current_state == 'component_review_required' %}
         <span style="color: #C62828; font-weight: 600;">Your review is needed — approve or reject each component above.</span>
+        {% elif view.session.current_state == 'manifest_ready' %}
+        <a href="/composition/{{ asset.id }}" class="btn btn-freeze" style="text-decoration: none; display: inline-block;">→ Composition Plan & Ratification</a>
         {% endif %}
     </div>
     <div>
-        {% if view.freeze_enabled %}
+        {% if view.freeze_enabled and view.session.current_state != 'manifest_ready' %}
         <button class="btn btn-freeze" onclick="freezeManifest()">Freeze choices and assemble →</button>
+        {% elif view.session.current_state == 'manifest_ready' %}
+        <span style="color: #2E7D32; font-weight: 600;">✅ Manifest frozen</span>
         {% else %}
         <button class="btn btn-freeze" disabled title="Complete all required components first">Freeze choices and assemble</button>
         {% endif %}

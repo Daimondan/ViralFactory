@@ -114,6 +114,34 @@ class EditPlanningService:
         self.modules_dir = modules_dir
         self.prompts_dir = prompts_dir
 
+    def _load_render_styles(self) -> dict:
+        """Load render_styles.yaml for pacing config (max_clip_duration, max_segment_seconds)."""
+        import os as _os
+        import yaml as _yaml
+        p = _os.path.join(self.config_dir, "render_styles.yaml")
+        if not _os.path.exists(p):
+            return {}
+        with open(p) as f:
+            return _yaml.safe_load(f) or {}
+
+    def _get_max_clip_duration(self) -> float:
+        """Max clip duration from config (DIVERGENCE-021). Falls back to 4.0."""
+        styles = self._load_render_styles()
+        return float(styles.get("max_clip_duration", 4.0))
+
+    def _get_max_segment_seconds(self, variant_type: str = "") -> int:
+        """Per-format max segment seconds from config (DIVERGENCE-021). Falls back to 4."""
+        styles = self._load_render_styles()
+        mapping = styles.get("max_segment_seconds", {})
+        default = int(mapping.get("default", 4))
+        if not variant_type:
+            return default
+        vt = variant_type.lower()
+        for key, val in mapping.items():
+            if key != "default" and key in vt:
+                return int(val)
+        return default
+
     def generate_for_asset(
         self,
         *,
@@ -246,12 +274,7 @@ class EditPlanningService:
 
         platform_name = asset.get("platform", "")
         variant_type = asset.get("variant_type", "").lower()
-        if "reel" in variant_type or "short" in variant_type:
-            max_segment_seconds = 3
-        elif "carousel" in variant_type:
-            max_segment_seconds = 3
-        else:
-            max_segment_seconds = 4
+        max_segment_seconds = self._get_max_segment_seconds(variant_type)
 
         module_vars, module_prov = assemble_module_context(
             "assembly/edit_plan_v1.md",
@@ -1338,28 +1361,28 @@ class EditPlanningService:
         for bid in sorted(missing):
             errors.append(f"Required beat '{bid}' has no segment mapping")
 
-        # 6. Max clip duration — BLOCKING pacing check (DIVERGENCE-020)
+        # 6. Max clip duration — BLOCKING pacing check (DIVERGENCE-021)
         # The operator directed: no segment may exceed 4 seconds without an
         # active overlay, text pop, or visual change. The Writer prompt
         # already states this rule; the validator now enforces it.
         # Exception: a segment WITH an overlay that appears at or before the
         # 4-second mark is valid — the overlay IS the visual change.
-        MAX_CLIP_DURATION = 4.0
+        max_clip_duration = self._get_max_clip_duration()
         for seg in segments:
             sid = seg.get("segment_id", "?")
             duration = float(seg.get("timeline_duration") or 0)
             overlays = seg.get("overlays") or []
-            # Check if any overlay starts at or before the 4-second mark
+            # Check if any overlay starts at or before the max duration mark
             has_early_overlay = any(
-                float(ov.get("start", 999)) <= MAX_CLIP_DURATION
+                float(ov.get("start", 999)) <= max_clip_duration
                 for ov in overlays
             )
-            if duration > MAX_CLIP_DURATION and not has_early_overlay:
+            if duration > max_clip_duration and not has_early_overlay:
                 errors.append(
                     f"Segment '{sid}' duration {duration:.1f}s exceeds "
-                    f"{MAX_CLIP_DURATION}s max without an early overlay or "
+                    f"{max_clip_duration}s max without an early overlay or "
                     f"text pop — split the segment or add a visual change "
-                    f"(DIVERGENCE-020)"
+                    f"(DIVERGENCE-021)"
                 )
 
         return errors
