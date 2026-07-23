@@ -8,6 +8,12 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-23
 
+### VF-CW-005 — Narration candidate sets [STRUCTURE/LOGIC]
+
+**Rationale:** AMENDMENT-013 requires multiple complete VO takes as reviewable candidates with full preview, measured beats, exact hashes, and provenance. Partial takes must fail visibly. A new take never inherits approval. The selected take is the only narration item eligible for manifest freeze.
+
+**Changes:** Added NarrationCandidateService (src/services/narration_candidates.py) wrapping VOGenerator.generate_vo_per_frame. Validates take completeness (segments, paths, durations, text); computes spoken-text hash, timing hash, artifact SHA-256; derives beat_refs from segment beat_ids; registers in CandidateStore with voice identity, provenance, and cost. Failed generation registers a failed candidate. 9 new tests with real WAV fixtures covering: valid registration, partial take failures (4 variants), approval non-inheritance, comparison listing, and freeze eligibility.
+
 ### VF-CW-004 — Immutable candidates + append-only decisions [STRUCTURE/LOGIC]
 
 **Rationale:** AMENDMENT-013 requires stable candidate identity, immutable versions, and append-only operator decisions. No single 'approved' Boolean may be authoritative — superseded/failed/stale candidates must not satisfy approval. Decisions must bind candidate_version + artifact_hash + requirement_version_hash for lineage.
