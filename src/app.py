@@ -9581,6 +9581,16 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 business_slug, session["id"],
                 "manifest_ready", "manifest frozen", actor="operator"
             )
+            # AMENDMENT-014: transition into composition sub-states
+            # manifest_ready → composition_planning → composition_review_required
+            session_svc.transition(
+                business_slug, session["id"],
+                "composition_planning", "composition plan generation started", actor="system"
+            )
+            session_svc.transition(
+                business_slug, session["id"],
+                "composition_review_required", "plan generated, previews ready", actor="system"
+            )
             return jsonify({"status": "ok", "manifest": manifest})
         except Exception as e:
             return jsonify({"error": str(e)}), 400
@@ -10016,6 +10026,18 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         session = session_svc.get_session_for_asset(business_slug, asset_id)
         if not session:
             return "No production session for this asset", 404
+
+        # AMENDMENT-014: if session is in manifest_ready (legacy freeze),
+        # transition through composition sub-states so ratification can proceed
+        if session["current_state"] == "manifest_ready":
+            try:
+                session_svc.transition(business_slug, session["id"],
+                    "composition_planning", "composition plan generation started", actor="system")
+                session_svc.transition(business_slug, session["id"],
+                    "composition_review_required", "plan generated, previews ready", actor="system")
+                session = session_svc.get_session_for_asset(business_slug, asset_id)
+            except Exception:
+                pass  # transition may fail if already in a composition state
 
         from services.ratification_service import RatificationService
         from services.manifest_freeze import ManifestStore

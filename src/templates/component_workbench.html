@@ -327,15 +327,17 @@
     <div>
         {% if view.session.current_state == 'component_review_required' %}
         <span style="color: #C62828; font-weight: 600;">Your review is needed — approve or reject each component above.</span>
-        {% elif view.session.current_state == 'manifest_ready' %}
+        {% elif view.session.current_state in ('manifest_ready', 'composition_planning', 'composition_review_required') %}
         <a href="/composition/{{ asset.id }}" class="btn btn-freeze" style="text-decoration: none; display: inline-block;">→ Composition Plan & Ratification</a>
         {% endif %}
     </div>
     <div>
-        {% if view.freeze_enabled and view.session.current_state != 'manifest_ready' %}
+        {% if view.freeze_enabled and view.session.current_state not in ('manifest_ready', 'composition_planning', 'composition_review_required', 'composition_ratified') %}
         <button class="btn btn-freeze" onclick="freezeManifest()">Freeze choices and assemble →</button>
-        {% elif view.session.current_state == 'manifest_ready' %}
+        {% elif view.session.current_state in ('manifest_ready', 'composition_planning', 'composition_review_required') %}
         <span style="color: #2E7D32; font-weight: 600;">✅ Manifest frozen</span>
+        {% elif view.session.current_state == 'composition_ratified' %}
+        <span style="color: #2E7D32; font-weight: 600;">✅ Composition ratified</span>
         {% else %}
         <button class="btn btn-freeze" disabled title="Complete all required components first">Freeze choices and assemble</button>
         {% endif %}
