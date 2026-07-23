@@ -1,8 +1,10 @@
 """VF-CP-002: Per-element preview generator.
 
-Generates low-cost local previews from a CompositionPlan using PIL and
-matplotlib only — NO provider API calls.  Previews are evidence for
-ratification, not final artifacts.
+Generates low-cost local previews from a CompositionPlan (dict-based, as
+produced by ``services.composition_plan.CompositionPlanGenerator``) using
+PIL and matplotlib only — NO provider API calls.
+
+Previews are evidence for ratification, not final artifacts.
 
 Preview types
 ~~~~~~~~~~~~~
@@ -12,7 +14,7 @@ Preview types
    ducking points, and a LUFS target marker (matplotlib).
 3. **Visual clip** — thumbnail showing crop / framing / scale on the canvas
    with a safe-zone overlay (PIL).
-4. **Graphics overlay** — static frame of the overlay on a representative
+4. **Graphics overlay** — static frame of overlay on a representative
    background (PIL).
 5. **Transition** — annotated timing diagram (matplotlib).
 6. **Full timeline** — horizontal multi-lane timeline diagram showing all
@@ -38,24 +40,50 @@ import json
 import os
 import struct
 import subprocess
-from dataclasses import asdict
 from typing import Any, Optional
-
-from services.composition_plan import (
-    AudioLane,
-    AudioMix,
-    CanvasSpec,
-    CompositionPlan,
-    GraphicsOverlay,
-    TextRole,
-    Transition,
-    VisualClip,
-    element_hash,
-)
 
 
 class PreviewError(Exception):
     """Raised when a preview cannot be generated (missing file, bad input, …)."""
+
+
+# ---------------------------------------------------------------------------
+# Plan helpers
+# ---------------------------------------------------------------------------
+
+def _plan_hash(plan: dict) -> str:
+    """Return the plan's hash, or compute one if missing."""
+    h = plan.get("plan_hash")
+    if h:
+        return h
+    # Fallback: compute a simple hash from the plan dict
+    blob = json.dumps(plan, sort_keys=True, default=str).encode()
+    return hashlib.sha256(blob).hexdigest()[:16]
+
+
+def _element_hash(element: dict) -> str:
+    """Stable hash for a single plan element dict."""
+    blob = json.dumps(element, sort_keys=True, default=str).encode()
+    return hashlib.sha256(blob).hexdigest()[:16]
+
+
+def _canvas_dims(plan: dict) -> tuple[int, int]:
+    """Extract (width, height) from the plan's canvas spec."""
+    canvas = plan.get("canvas", {})
+    res = canvas.get("resolution", {})
+    if isinstance(res, dict):
+        return int(res.get("width", 1080)), int(res.get("height", 1920))
+    # String format "1080x1920"
+    if isinstance(res, str) and "x" in res:
+        w, h = res.split("x", 1)
+        return int(w), int(h)
+    return 1080, 1920
+
+
+def _safe_zone_margins(plan: dict) -> tuple[float, float]:
+    """Return (title_safe, action_safe) normalized margins from canvas spec."""
+    sz = plan.get("canvas", {}).get("safe_zones", {})
+    return float(sz.get("title_safe", 0.9)), float(sz.get("action_safe", 0.95))
 
 
 # ---------------------------------------------------------------------------
@@ -115,9 +143,96 @@ def _ffprobe_audio_samples(path: str, max_samples: int = 2000) -> list[float]:
     samples = struct.unpack(f"<{n_floats}f", raw[: n_floats * 4])
     if len(samples) <= max_samples:
         return list(samples)
-    # Evenly-spaced sampling
     step = len(samples) / max_samples
     return [samples[int(i * step)] for i in range(max_samples)]
+
+
+def _ffmpeg_extract_frame(video_path: str, time_sec: float, out_path: str) -> bool:
+    """Extract a single frame from a local video file. Returns True on success."""
+    cmd = [
+        "ffmpeg", "-v", "quiet", "-y",
+        "-ss", str(time_sec),
+        "-i", video_path,
+        "-frames:v", "1",
+        "-f", "image2",
+        out_path,
+    ]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, timeout=30)
+    except FileNotFoundError:
+        raise PreviewError("ffmpeg not found on PATH")
+    return proc.returncode == 0 and os.path.exists(out_path)
+
+
+# ---------------------------------------------------------------------------
+# Font resolution
+# ---------------------------------------------------------------------------
+
+def _is_valid_font(path: str) -> bool:
+    """Check that a file exists and is a loadable TrueType/OpenType font."""
+    if not path or not os.path.exists(path):
+        return False
+    from PIL import ImageFont
+    try:
+        ImageFont.truetype(path, 16)
+        return True
+    except Exception:
+        return False
+
+
+def _system_fallback_font() -> str:
+    """Find a usable system font for silent fallback (DejaVuSans bundled with matplotlib)."""
+    candidates = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ]
+    try:
+        import matplotlib
+        mpl_data = os.path.join(os.path.dirname(matplotlib.__file__), "mpl-data", "fonts", "ttf")
+        candidates.append(os.path.join(mpl_data, "DejaVuSans-Bold.ttf"))
+        candidates.append(os.path.join(mpl_data, "DejaVuSans.ttf"))
+    except ImportError:
+        pass
+    for c in candidates:
+        if _is_valid_font(c):
+            return c
+    return ""
+
+
+def _resolve_font_for_text(
+    text_element: dict,
+    models_config: dict,
+    config_dir: str,
+) -> str:
+    """Resolve a font file path for a text element from the plan dict.
+
+    The plan stores font metadata (family, weight, file_hash, size, color)
+    but NOT the file path. We resolve the actual file from models_config
+    based on whether the element uses a display font (hook/title/lower_third/cta)
+    or a body font.
+
+    Fail closed only when no usable font can be found anywhere.
+    """
+    rendering = (models_config or {}).get("rendering", {})
+    role = text_element.get("role", "")
+    is_display = role in ("hook", "title", "lower_third", "cta")
+
+    if is_display:
+        config_font = rendering.get("font_display", "")
+    else:
+        config_font = rendering.get("font_path", "")
+
+    if _is_valid_font(config_font):
+        return config_font
+
+    # System fallback
+    sys_font = _system_fallback_font()
+    if sys_font:
+        return sys_font
+
+    raise PreviewError(
+        "No usable font found: config font invalid and no system fallback available"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -146,93 +261,32 @@ def _resolve_text_style(style_ref: str, config_dir: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Font resolution
-# ---------------------------------------------------------------------------
-
-def _is_valid_font(path: str) -> bool:
-    """Check that a file exists and is a loadable TrueType/OpenType font."""
-    if not path or not os.path.exists(path):
-        return False
-    from PIL import ImageFont
-    try:
-        ImageFont.truetype(path, 16)
-        return True
-    except Exception:
-        return False
-
-
-def _system_fallback_font() -> str:
-    """Find a usable system font for silent fallback (DejaVuSans bundled with matplotlib)."""
-    candidates = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-    ]
-    # matplotlib bundles DejaVu — a reliable last resort
-    try:
-        import matplotlib
-        mpl_data = os.path.join(os.path.dirname(matplotlib.__file__), "mpl-data", "fonts", "ttf")
-        candidates.append(os.path.join(mpl_data, "DejaVuSans-Bold.ttf"))
-        candidates.append(os.path.join(mpl_data, "DejaVuSans.ttf"))
-    except ImportError:
-        pass
-    for c in candidates:
-        if _is_valid_font(c):
-            return c
-    return ""
-
-
-def _resolve_font(text_role: TextRole, models_config: dict, config_dir: str) -> str:
-    """Resolve a font file path for a text role.
-
-    Order of precedence:
-    1. ``text_role.font_path`` (explicit per-element override)
-    2. display font from ``models_config['rendering']['font_display']`` for
-       hook/title style refs
-    3. body font from ``models_config['rendering']['font_path']``
-    4. System fallback (DejaVuSans bundled with matplotlib)
-
-    Fail closed only when the *explicit* ``text_role.font_path`` is set but
-    the file is missing — that's a hard error. Config-level fonts silently
-    fall back to a system font so previews can still render as evidence.
-    """
-    # 1. Explicit per-element font — fail closed if missing
-    if text_role.font_path:
-        if not _is_valid_font(text_role.font_path):
-            if not os.path.exists(text_role.font_path):
-                raise PreviewError(f"Font file not found: {text_role.font_path}")
-            raise PreviewError(f"Font file not a valid TrueType font: {text_role.font_path}")
-        return text_role.font_path
-
-    # 2/3. Config fonts — validate, fall back to system if invalid
-    rendering = (models_config or {}).get("rendering", {})
-    if text_role.style_ref in ("hook", "title"):
-        font = rendering.get("font_display", "")
-    else:
-        font = rendering.get("font_path", "")
-
-    if _is_valid_font(font):
-        return font
-
-    # 4. System fallback
-    sys_font = _system_fallback_font()
-    if sys_font:
-        return sys_font
-
-    raise PreviewError("No usable font found: config font invalid and no system fallback available")
-
-
-# ---------------------------------------------------------------------------
 # Position helpers
 # ---------------------------------------------------------------------------
 
-def _text_position_y(position: str, height: int) -> int:
-    if position == "top":
-        return 60
-    if position == "bottom":
-        return height - 200
-    if position == "bottom-third":
-        return int(height * 0.72)
-    return (height - 100) // 2
+def _text_position_from_plan(text_element: dict, canvas_w: int, canvas_h: int) -> tuple[int, int]:
+    """Compute (x, y) pixel position from the text element's position dict."""
+    pos = text_element.get("position", {})
+    if isinstance(pos, dict):
+        nx = float(pos.get("x", 0.5))
+        ny = float(pos.get("y", 0.5))
+        anchor = pos.get("anchor", "center")
+    elif isinstance(pos, str):
+        # Named position
+        named = {
+            "top": (0.5, 0.08),
+            "center": (0.5, 0.5),
+            "bottom": (0.5, 0.88),
+            "bottom-third": (0.5, 0.72),
+        }
+        nx, ny = named.get(pos, (0.5, 0.5))
+        anchor = "center"
+    else:
+        nx, ny = 0.5, 0.5
+        anchor = "center"
+    px = int(nx * canvas_w)
+    py = int(ny * canvas_h)
+    return px, py
 
 
 # ---------------------------------------------------------------------------
@@ -240,26 +294,28 @@ def _text_position_y(position: str, height: int) -> int:
 # ---------------------------------------------------------------------------
 
 def _generate_text_preview(
-    text_role: TextRole,
-    canvas: CanvasSpec,
+    text_element: dict,
+    canvas_w: int,
+    canvas_h: int,
     models_config: dict,
     config_dir: str,
     out_path: str,
 ) -> str:
-    """Render a text role as a font specimen on a blank canvas (PIL)."""
+    """Render a text element as a font specimen on a blank canvas (PIL)."""
     from PIL import Image, ImageDraw, ImageFont
 
-    font_path = _resolve_font(text_role, models_config, config_dir)
-    style = _resolve_text_style(text_role.style_ref, config_dir)
+    font_path = _resolve_font_for_text(text_element, models_config, config_dir)
+    font_info = text_element.get("font", {})
+    style_ref = text_element.get("style_ref", "default")
+    style = _resolve_text_style(style_ref, config_dir)
 
-    font_size = text_role.font_size or int(style.get("fontsize", 48))
-    color_str = text_role.color or style.get("fontcolor", "white")
+    font_size = int(font_info.get("size", style.get("fontsize", 48)))
+    color_str = font_info.get("color", style.get("fontcolor", "white"))
     text_color = _parse_color(color_str)
 
     try:
         font = ImageFont.truetype(font_path, font_size)
     except (IOError, OSError) as exc:
-        # Try system fallback before failing
         sys_font = _system_fallback_font()
         if sys_font and sys_font != font_path:
             try:
@@ -269,13 +325,17 @@ def _generate_text_preview(
         else:
             raise PreviewError(f"Cannot load font {font_path}: {exc}") from exc
 
-    img = Image.new("RGBA", (canvas.width, canvas.height), (20, 20, 20, 255))
+    text = text_element.get("text", "")
+    if not text:
+        raise PreviewError("Text element has no text content")
+
+    img = Image.new("RGBA", (canvas_w, canvas_h), (20, 20, 20, 255))
     draw = ImageDraw.Draw(img)
 
     # Auto-wrap
-    max_text_width = canvas.width - 120
+    max_text_width = canvas_w - 120
     lines: list[str] = []
-    for raw_line in text_role.text.split("\n"):
+    for raw_line in text.split("\n"):
         words = raw_line.split()
         current: list[str] = []
         for word in words:
@@ -289,12 +349,18 @@ def _generate_text_preview(
         if current:
             lines.append(" ".join(current))
     if not lines:
-        raise PreviewError("Text role produced no visible lines")
+        raise PreviewError("Text element produced no visible lines")
 
     line_height = font_size + 14
-    y = _text_position_y(text_role.position, canvas.height)
-    # Draw a faint label indicating style_ref + position in the corner
-    label = f"style={text_role.style_ref}  pos={text_role.position}  size={font_size}px"
+    total_text_h = len(lines) * line_height
+
+    # Compute position
+    px, py = _text_position_from_plan(text_element, canvas_w, canvas_h)
+    # Adjust for anchor — center vertically on the position point
+    y_start = py - total_text_h // 2
+
+    # Label in corner
+    label = f"role={text_element.get('role','')}  style={style_ref}  size={font_size}px"
     try:
         label_font = ImageFont.truetype(font_path, 20)
     except (IOError, OSError):
@@ -304,17 +370,20 @@ def _generate_text_preview(
             label_font = ImageFont.load_default()
     draw.text((20, 20), label, fill=(128, 128, 128, 200), font=label_font)
 
-    # Draw a position reference line
-    draw.line([(0, y), (canvas.width, y)], fill=(60, 60, 60, 120), width=1)
+    # Position reference line
+    draw.line([(0, py), (canvas_w, py)], fill=(60, 60, 60, 120), width=1)
 
+    y = y_start
+    borderw = int(font_info.get("border_width", style.get("borderw", 2)))
+    border_color = _parse_color(
+        font_info.get("border_color", style.get("bordercolor", "black")),
+        (0, 0, 0, 255),
+    )
     for line in lines:
         bbox = draw.textbbox((0, 0), line, font=font)
         w = bbox[2] - bbox[0]
-        x = (canvas.width - w) // 2
-        # Shadow / border
-        borderw = int(style.get("borderw", 2))
+        x = (canvas_w - w) // 2
         if borderw > 0:
-            border_color = _parse_color(style.get("bordercolor", "black"), (0, 0, 0, 255))
             for dx in range(-borderw, borderw + 1):
                 for dy in range(-borderw, borderw + 1):
                     if dx == 0 and dy == 0:
@@ -328,62 +397,122 @@ def _generate_text_preview(
 
 
 def _generate_audio_preview(
-    audio_mix: AudioMix,
-    canvas: CanvasSpec,
+    audio: dict,
+    canvas_w: int,
+    canvas_h: int,
+    source_resolver: Optional[callable],
     out_path: str,
 ) -> str:
     """Render an audio mix waveform preview with lanes, gain curves, ducking, LUFS (matplotlib)."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    import matplotlib.patches as mpatches
     import numpy as np
 
-    lanes = audio_mix.lanes
-    if not lanes:
-        raise PreviewError("Audio mix has no lanes")
+    # Build lane list from the plan's audio dict
+    lanes: list[dict] = []
+    total_dur = float(audio.get("_total_duration", 10.0))
 
-    lane_colors = {"vo": "#4FC3F7", "music": "#81C784", "sfx": "#FFD54F"}
-    fig, axes = plt.subplots(len(lanes), 1, figsize=(10, 2.2 * len(lanes)), squeeze=False)
-    fig.suptitle(f"Audio Mix Preview  —  LUFS target: {audio_mix.lufs_target}", fontsize=11)
+    vo_track = audio.get("vo_track")
+    if vo_track:
+        lanes.append({
+            "label": "VO",
+            "color": "#4FC3F7",
+            "source_path": source_resolver(vo_track.get("source_hash")) if source_resolver else "",
+            "start": float(vo_track.get("trim_start_sec", 0.0)),
+            "end": float(vo_track.get("trim_end_sec", total_dur)),
+            "gain_curve": vo_track.get("gain_curve", []),
+            "ducking": vo_track.get("ducking", {}),
+        })
+
+    music_track = audio.get("music_track")
+    if music_track:
+        lanes.append({
+            "label": "MUSIC",
+            "color": "#81C784",
+            "source_path": source_resolver(music_track.get("source_hash")) if source_resolver else "",
+            "start": float(music_track.get("start_sec", 0.0)),
+            "end": float(music_track.get("stop_sec", total_dur)),
+            "gain_curve": [{"time_sec": 0.0, "gain_db": float(music_track.get("gain_db", 0.0))}],
+            "ducking": music_track.get("ducking", {}),
+        })
+
+    sfx_events = audio.get("sfx_events", [])
+    if sfx_events:
+        lanes.append({
+            "label": "SFX",
+            "color": "#FFD54F",
+            "source_path": "",
+            "start": 0.0,
+            "end": total_dur,
+            "gain_curve": [],
+            "ducking": {},
+            "sfx_points": [(float(s.get("trigger_sec", 0)), s.get("preset", "")) for s in sfx_events],
+        })
+
+    if not lanes:
+        raise PreviewError("Audio plan has no tracks (no vo_track, music_track, or sfx_events)")
+
+    mix_spec = audio.get("mix_spec", {})
+    lufs_target = mix_spec.get("lufs_target", -14.0)
+
+    n = len(lanes)
+    fig, axes = plt.subplots(n, 1, figsize=(10, 2.2 * n), squeeze=False)
+    fig.suptitle(f"Audio Mix Preview  —  LUFS target: {lufs_target}", fontsize=11)
 
     for idx, lane in enumerate(lanes):
         ax = axes[idx, 0]
-        color = lane_colors.get(lane.lane_type, "#BA68C8")
+        color = lane["color"]
         ax.set_facecolor("#1a1a2e")
-        # Title
-        ax.set_title(f"{lane.lane_type.upper()}  ({lane.element_id})", fontsize=9, color=color)
+        ax.set_title(f"{lane['label']}", fontsize=9, color=color)
 
-        if lane.source_path and os.path.exists(lane.source_path):
-            samples = _ffprobe_audio_samples(lane.source_path, max_samples=1000)
+        lane_start = lane["start"]
+        lane_end = lane["end"]
+        lane_dur = max(lane_end - lane_start, 0.5)
+
+        # Get waveform
+        if lane["source_path"] and os.path.exists(lane["source_path"]):
+            samples = _ffprobe_audio_samples(lane["source_path"], max_samples=1000)
         else:
-            # Synthetic placeholder waveform — no file to read
-            t = np.linspace(0, max(lane.end - lane.start, 1.0), 200)
+            # Synthetic placeholder
+            t = np.linspace(0, lane_dur, 200)
             samples = list(0.3 * np.sin(2 * np.pi * 3 * t) * np.exp(-t * 0.2))
 
         if samples:
-            t_axis = np.linspace(lane.start, lane.start + len(samples) * 0.05, len(samples))
+            t_axis = np.linspace(lane_start, lane_start + len(samples) * 0.05, len(samples))
             ax.fill_between(t_axis, 0, samples, color=color, alpha=0.6, linewidth=0.5)
             ax.fill_between(t_axis, 0, [-s for s in samples], color=color, alpha=0.6, linewidth=0.5)
 
-        # Gain line
-        if lane.gain != 1.0:
-            ax.axhline(y=lane.gain, color="white", linestyle="--", linewidth=0.8, alpha=0.5)
-            ax.text(lane.start, lane.gain, f"gain={lane.gain}", color="white", fontsize=7, va="bottom")
+        # Gain curve
+        for gc in lane.get("gain_curve", []):
+            gt = float(gc.get("time_sec", 0))
+            gdb = float(gc.get("gain_db", 0))
+            # Map dB to a 0-1 visual range (0dB → 0.7, -20dB → 0.1)
+            vis_gain = max(0.05, min(1.0, 0.7 + gdb / 40.0))
+            ax.axhline(y=vis_gain, color="white", linestyle="--", linewidth=0.8, alpha=0.5)
+            ax.text(lane_start, vis_gain, f"gain={gdb}dB", color="white", fontsize=7, va="bottom")
 
         # Ducking points
-        for duck_t, depth in lane.duck_points:
-            ax.axvline(x=duck_t, color="#FF6E40", linestyle=":", linewidth=1.2)
-            ax.text(duck_t, 0.9, f"duck {depth:.0%}", color="#FF6E40", fontsize=6, rotation=90, va="top")
+        ducking = lane.get("ducking", {})
+        if ducking and ducking.get("depth"):
+            duck_y = 1.0 - float(ducking["depth"])
+            ax.axhline(y=duck_y, color="#FF6E40", linestyle=":", linewidth=1.0)
+            ax.text(lane_end - 0.3, duck_y, f"duck {float(ducking['depth']):.0%}",
+                    color="#FF6E40", fontsize=7, va="bottom", ha="right")
 
-        ax.set_xlim(lane.start, lane.start + max(lane.end - lane.start, 1.0))
+        # SFX trigger points
+        for trigger_t, preset in lane.get("sfx_points", []):
+            ax.axvline(x=trigger_t, color="#FFD54F", linestyle="-", linewidth=1.5)
+            ax.text(trigger_t, 0.9, f"sfx:{preset}", color="#FFD54F", fontsize=6,
+                    rotation=90, va="top")
+
+        ax.set_xlim(lane_start, lane_start + lane_dur)
         ax.set_ylim(-1.2, 1.2)
         ax.tick_params(colors="grey", labelsize=7)
 
-    # LUFS target marker on the last axis
-    last_ax = axes[-1, 0]
-    last_ax.axhline(y=0, color="#E0E0E0", linewidth=0.4)
-    fig.text(0.99, 0.01, f"LUFS {audio_mix.lufs_target}", ha="right", va="bottom",
+    # LUFS marker
+    axes[-1, 0].axhline(y=0, color="#E0E0E0", linewidth=0.4)
+    fig.text(0.99, 0.01, f"LUFS {lufs_target}", ha="right", va="bottom",
              fontsize=8, color="#E0E0E0")
 
     fig.tight_layout(rect=[0, 0.02, 1, 0.95])
@@ -393,177 +522,217 @@ def _generate_audio_preview(
 
 
 def _generate_visual_preview(
-    clip: VisualClip,
-    canvas: CanvasSpec,
+    visual_element: dict,
+    canvas_w: int,
+    canvas_h: int,
+    source_resolver: Optional[callable],
     out_path: str,
 ) -> str:
     """Render a visual clip thumbnail with crop/framing/scale + safe-zone overlay (PIL)."""
     from PIL import Image, ImageDraw
 
-    if not clip.source_path:
-        raise PreviewError("Visual clip has no source_path")
-    if not os.path.exists(clip.source_path):
-        raise PreviewError(f"Visual clip source not found: {clip.source_path}")
+    source_hash = visual_element.get("source_hash", "")
+    if not source_hash:
+        raise PreviewError("Visual element has no source_hash")
+    if not source_resolver:
+        raise PreviewError("No source resolver provided for visual element")
 
-    # Open the source image (first frame for video — PIL can't read video,
-    # so we use ffprobe/ffmpeg to extract a frame if it's a video file)
-    ext = clip.source_path.lower()
-    is_video = not ext.endswith((".png", ".jpg", ".jpeg", ".webp", ".bmp"))
+    source_path = source_resolver(source_hash)
+    if not source_path:
+        raise PreviewError(f"Cannot resolve source_hash: {source_hash}")
+    if not os.path.exists(source_path):
+        raise PreviewError(f"Visual source file not found: {source_path}")
 
-    if is_video:
-        # Extract a representative frame at in_point
+    kind = visual_element.get("kind", "still")
+    trim_start = float(visual_element.get("trim_start_sec", 0.0))
+
+    if kind == "clip" and not source_path.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".bmp")):
         tmp_frame = out_path + ".frame.png"
-        cmd = [
-            "ffmpeg", "-v", "quiet", "-y",
-            "-ss", str(clip.in_point),
-            "-i", clip.source_path,
-            "-frames:v", "1",
-            "-f", "image2",
-            tmp_frame,
-        ]
-        try:
-            proc = subprocess.run(cmd, capture_output=True, timeout=30)
-        except FileNotFoundError as exc:
-            raise PreviewError("ffmpeg not found") from exc
-        if proc.returncode != 0 or not os.path.exists(tmp_frame):
-            raise PreviewError(f"Could not extract frame from {clip.source_path}")
+        if not _ffmpeg_extract_frame(source_path, trim_start, tmp_frame):
+            raise PreviewError(f"Could not extract frame from {source_path}")
         src_img = Image.open(tmp_frame).convert("RGBA")
         os.remove(tmp_frame)
     else:
-        src_img = Image.open(clip.source_path).convert("RGBA")
+        src_img = Image.open(source_path).convert("RGBA")
 
-    # Create canvas
-    canvas_img = Image.new("RGBA", (canvas.width, canvas.height), (15, 15, 15, 255))
+    canvas_img = Image.new("RGBA", (canvas_w, canvas_h), (15, 15, 15, 255))
     draw = ImageDraw.Draw(canvas_img)
 
-    # Apply crop
+    # Crop
+    crop = visual_element.get("crop")
     sw, sh = src_img.size
-    crop_px = (
-        int(clip.crop_x * sw),
-        int(clip.crop_y * sh),
-        int((clip.crop_x + clip.crop_w) * sw),
-        int((clip.crop_y + clip.crop_h) * sh),
-    )
-    cropped = src_img.crop(crop_px)
+    if crop and isinstance(crop, dict):
+        cx = float(crop.get("x", 0))
+        cy = float(crop.get("y", 0))
+        cw = float(crop.get("w", 1.0))
+        ch = float(crop.get("h", 1.0))
+        cropped = src_img.crop((
+            int(cx * sw), int(cy * sh),
+            int((cx + cw) * sw), int((cy + ch) * sh),
+        ))
+    else:
+        cropped = src_img
 
-    # Apply scale
-    if clip.scale != 1.0:
-        new_w = max(1, int(cropped.width * clip.scale))
-        new_h = max(1, int(cropped.height * clip.scale))
+    # Scale
+    scale = float(visual_element.get("scale", 1.0))
+    if scale != 1.0:
+        new_w = max(1, int(cropped.width * scale))
+        new_h = max(1, int(cropped.height * scale))
         cropped = cropped.resize((new_w, new_h))
 
-    # Fit into canvas (contain)
-    ratio = min(canvas.width / cropped.width, canvas.height / cropped.height)
+    # Fit into canvas
+    ratio = min(canvas_w / cropped.width, canvas_h / cropped.height)
     fit_w = int(cropped.width * ratio)
     fit_h = int(cropped.height * ratio)
     if fit_w != cropped.width or fit_h != cropped.height:
         cropped = cropped.resize((fit_w, fit_h))
 
-    paste_x = (canvas.width - fit_w) // 2
-    paste_y = (canvas.height - fit_h) // 2
+    # Canvas position offset
+    canvas_pos = visual_element.get("canvas_position", {})
+    pos_x = int(float(canvas_pos.get("x", 0)) * canvas_w)
+    pos_y = int(float(canvas_pos.get("y", 0)) * canvas_h)
+
+    paste_x = pos_x + (canvas_w - fit_w) // 2
+    paste_y = pos_y + (canvas_h - fit_h) // 2
     canvas_img.paste(cropped, (paste_x, paste_y), cropped)
 
     # Safe-zone overlay (90% centre)
-    safe_margin_x = int(canvas.width * 0.05)
-    safe_margin_y = int(canvas.height * 0.05)
+    safe_margin_x = int(canvas_w * 0.05)
+    safe_margin_y = int(canvas_h * 0.05)
     draw.rectangle(
-        [safe_margin_x, safe_margin_y, canvas.width - safe_margin_x, canvas.height - safe_margin_y],
-        outline=(0, 255, 0, 160),
-        width=3,
+        [safe_margin_x, safe_margin_y, canvas_w - safe_margin_x, canvas_h - safe_margin_y],
+        outline=(0, 255, 0, 160), width=3,
     )
-    # Label
     draw.text((safe_margin_x + 6, safe_margin_y + 6), "SAFE ZONE", fill=(0, 255, 0, 200))
-    info = f"crop=({clip.crop_x:.2f},{clip.crop_y:.2f},{clip.crop_w:.2f},{clip.crop_h:.2f})  scale={clip.scale:.2f}"
-    draw.text((20, canvas.height - 30), info, fill=(200, 200, 200, 220))
+    info = f"kind={kind}  scale={scale:.2f}  crop={'yes' if crop else 'no'}"
+    draw.text((20, canvas_h - 30), info, fill=(200, 200, 200, 220))
 
     canvas_img.save(out_path)
     return out_path
 
 
 def _generate_graphics_preview(
-    overlay: GraphicsOverlay,
-    canvas: CanvasSpec,
+    graphics_element: dict,
+    canvas_w: int,
+    canvas_h: int,
+    background_path: str,
     out_path: str,
 ) -> str:
-    """Render a graphics overlay on a representative background (PIL)."""
-    from PIL import Image
+    """Render a graphics overlay on a representative background (PIL).
 
-    if not overlay.overlay_path:
-        raise PreviewError("Graphics overlay has no overlay_path")
-    if not os.path.exists(overlay.overlay_path):
-        raise PreviewError(f"Graphics overlay file not found: {overlay.overlay_path}")
+    Graphics elements in the plan are text-based overlays (lower-thirds, etc.)
+    — they don't have an explicit image file. We render a placeholder
+    representing the overlay's position and type on the given background.
+    """
+    from PIL import Image, ImageDraw, ImageFont
 
-    ov_img = Image.open(overlay.overlay_path).convert("RGBA")
-
-    # Background: use provided background_path, else a grey canvas
-    if overlay.background_path:
-        if not os.path.exists(overlay.background_path):
-            raise PreviewError(f"Graphics overlay background not found: {overlay.background_path}")
-        bg_img = Image.open(overlay.background_path).convert("RGBA")
+    # Background
+    if background_path:
+        if not os.path.exists(background_path):
+            raise PreviewError(f"Graphics background not found: {background_path}")
+        bg_img = Image.open(background_path).convert("RGBA")
     else:
-        bg_img = Image.new("RGBA", (canvas.width, canvas.height), (60, 60, 60, 255))
+        bg_img = Image.new("RGBA", (canvas_w, canvas_h), (60, 60, 60, 255))
 
-    # Scale background to canvas
-    bg_img = bg_img.resize((canvas.width, canvas.height))
-
-    # Scale overlay
-    if overlay.scale != 1.0:
-        new_w = max(1, int(ov_img.width * overlay.scale))
-        new_h = max(1, int(ov_img.height * overlay.scale))
-        ov_img = ov_img.resize((new_w, new_h))
-
-    # Apply opacity
-    if overlay.opacity < 1.0:
-        alpha = ov_img.split()[3]
-        alpha = alpha.point(lambda p: int(p * overlay.opacity))
-        ov_img.putalpha(alpha)
+    bg_img = bg_img.resize((canvas_w, canvas_h))
+    draw = ImageDraw.Draw(bg_img)
 
     # Position
-    pos_x = int(overlay.position_x * canvas.width) - ov_img.width // 2
-    pos_y = int(overlay.position_y * canvas.height) - ov_img.height // 2
+    pos = graphics_element.get("position", {})
+    if isinstance(pos, dict):
+        nx = float(pos.get("x", 0.5))
+        ny = float(pos.get("y", 0.5))
+    else:
+        nx, ny = 0.5, 0.5
+    px = int(nx * canvas_w)
+    py = int(ny * canvas_h)
 
-    bg_img.paste(ov_img, (pos_x, pos_y), ov_img)
+    gfx_type = graphics_element.get("type", "overlay")
+    scale = float(graphics_element.get("scale", 1.0))
+
+    # Draw a semi-transparent rectangle representing the overlay area
+    box_w = int(400 * scale)
+    box_h = int(120 * scale)
+    box_x = px - box_w // 2
+    box_y = py - box_h // 2
+    overlay = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
+    overlay_draw = ImageDraw.Draw(overlay)
+    overlay_draw.rounded_rectangle(
+        [box_x, box_y, box_x + box_w, box_y + box_h],
+        radius=15, fill=(0, 0, 0, 160),
+    )
+    bg_img = Image.alpha_composite(bg_img, overlay)
+    draw = ImageDraw.Draw(bg_img)
+
+    # Label
+    eid = graphics_element.get("element_id", "")
+    label = f"{gfx_type}  ({eid})"
+    sys_font = _system_fallback_font()
+    if sys_font:
+        try:
+            font = ImageFont.truetype(sys_font, 24)
+        except (IOError, OSError):
+            font = ImageFont.load_default()
+    else:
+        font = ImageFont.load_default()
+    draw.text((box_x + 10, box_y + 10), label, fill=(255, 255, 255, 230), font=font)
+    draw.text((box_x + 10, box_y + 40), f"pos=({nx:.2f},{ny:.2f})  scale={scale:.2f}",
+              fill=(200, 200, 200, 200), font=font)
+
     bg_img.save(out_path)
     return out_path
 
 
 def _generate_transition_preview(
-    transition: Transition,
-    canvas: CanvasSpec,
+    transition: dict,
+    canvas_w: int,
+    canvas_h: int,
     out_path: str,
 ) -> str:
     """Render an annotated timing diagram for a transition (matplotlib)."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    import matplotlib.patches as mpatches
 
+    trans_type = transition.get("type", "cut")
+    duration = float(transition.get("duration_sec", 0.0))
+    trans_id = transition.get("transition_id", "")
+
+    # We don't have an absolute start time in the plan; transitions are
+    # beat-boundary events. We'll diagram the transition itself.
     fig, ax = plt.subplots(figsize=(8, 3))
     ax.set_facecolor("#1a1a2e")
 
-    # Two segment bars with the transition overlap region
-    seg1_end = transition.start
-    trans_end = transition.start + transition.duration
+    if duration > 0:
+        seg_a_end = 1.0
+        trans_end = seg_a_end + duration
+        ax.barh(0, seg_a_end, left=0, height=0.4, color="#4FC3F7", label="Segment A")
+        ax.barh(0, duration, left=seg_a_end, height=0.4, color="#FFD54F", alpha=0.7,
+                label=f"Transition: {trans_type}")
+        ax.barh(0, 1.0, left=trans_end, height=0.4, color="#81C784", label="Segment B")
 
-    ax.barh(0, seg1_end, left=0, height=0.4, color="#4FC3F7", label="Segment A")
-    ax.barh(0, transition.duration, left=seg1_end, height=0.4, color="#FFD54F", alpha=0.7, label=f"Transition: {transition.transition_type}")
-    ax.barh(0, 2.0, left=trans_end, height=0.4, color="#81C784", label="Segment B")
+        ax.axvline(x=seg_a_end, color="white", linestyle="--", linewidth=1)
+        ax.axvline(x=trans_end, color="white", linestyle="--", linewidth=1)
+        ax.annotate(f"start\n{seg_a_end:.2f}s", xy=(seg_a_end, 0.3), ha="center", color="white", fontsize=8)
+        ax.annotate(f"end\n{trans_end:.2f}s", xy=(trans_end, 0.3), ha="center", color="white", fontsize=8)
+        ax.annotate(f"{trans_type}\n{duration:.2f}s",
+                    xy=(seg_a_end + duration / 2, 0), ha="center", va="center",
+                    color="black", fontsize=9, fontweight="bold")
+        ax.set_xlim(-0.3, trans_end + 1.3)
+    else:
+        # Cut — no overlap
+        ax.barh(0, 1.0, left=0, height=0.4, color="#4FC3F7", label="Segment A")
+        ax.barh(0, 1.0, left=1.0, height=0.4, color="#81C784", label="Segment B")
+        ax.axvline(x=1.0, color="#FF6E40", linestyle="-", linewidth=2)
+        ax.annotate("CUT", xy=(1.0, 0), ha="center", va="center",
+                    color="#FF6E40", fontsize=10, fontweight="bold")
+        ax.set_xlim(-0.3, 2.3)
 
-    # Annotations
-    ax.axvline(x=seg1_end, color="white", linestyle="--", linewidth=1)
-    ax.axvline(x=trans_end, color="white", linestyle="--", linewidth=1)
-    ax.annotate(f"start\n{transition.start:.2f}s", xy=(seg1_end, 0.3), ha="center", color="white", fontsize=8)
-    ax.annotate(f"end\n{trans_end:.2f}s", xy=(trans_end, 0.3), ha="center", color="white", fontsize=8)
-    ax.annotate(f"{transition.transition_type}\n{transition.duration:.2f}s",
-                xy=(seg1_end + transition.duration / 2, 0), ha="center", va="center",
-                color="black", fontsize=9, fontweight="bold")
-
-    ax.set_xlim(-0.5, trans_end + 2.5)
     ax.set_ylim(-0.5, 0.8)
     ax.set_yticks([])
     ax.set_xlabel("Timeline (s)", color="grey")
     ax.tick_params(colors="grey")
-    ax.set_title(f"Transition: {transition.transition_type}  ({transition.element_id})", color="white", fontsize=10)
+    ax.set_title(f"Transition: {trans_type}  ({trans_id})", color="white", fontsize=10)
     ax.legend(loc="upper right", fontsize=7, facecolor="#2a2a3e", labelcolor="white")
 
     fig.tight_layout()
@@ -573,61 +742,99 @@ def _generate_transition_preview(
 
 
 def _generate_timeline_preview(
-    plan: CompositionPlan,
+    plan: dict,
     out_path: str,
 ) -> str:
     """Render a full horizontal multi-lane timeline diagram (matplotlib)."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    import matplotlib.patches as mpatches
 
-    # Collect lanes: visual, text, audio, graphics, transition
+    canvas_w, canvas_h = _canvas_dims(plan)
+    total_dur = float(plan.get("total_duration_sec", 0.0))
+
+    text_elements = plan.get("text_elements", [])
+    visual_elements = plan.get("visual_elements", [])
+    graphics_elements = plan.get("graphics_elements", [])
+    transitions = plan.get("transitions", [])
+    audio = plan.get("audio", {})
+
+    # Determine total duration from element timings if not set
+    if not total_dur:
+        all_ends = []
+        for te in text_elements:
+            t = te.get("timing", {})
+            all_ends.append(float(t.get("out_sec", 0)))
+        for ve in visual_elements:
+            all_ends.append(float(ve.get("trim_end_sec", 0)))
+        for ge in graphics_elements:
+            t = ge.get("timing", {})
+            all_ends.append(float(t.get("out_sec", 0)))
+        total_dur = max(all_ends + [1.0])
+
     lane_defs = [
-        ("Visual", plan.visual_clips, "#4FC3F7"),
-        ("Text", plan.text_roles, "#FFD54F"),
-        ("Graphics", plan.graphics_overlays, "#BA68C8"),
-        ("Transition", plan.transitions, "#FF6E40"),
+        ("Visual", visual_elements, "#4FC3F7"),
+        ("Text", text_elements, "#FFD54F"),
+        ("Graphics", graphics_elements, "#BA68C8"),
+        ("Transition", transitions, "#FF6E40"),
     ]
 
-    total_dur = plan.total_duration or max(
-        ([e.end for e in plan.visual_clips] + [e.end for e in plan.text_roles]
-         + [e.end for e in plan.graphics_overlays]
-         + [(t.start + t.duration) for t in plan.transitions] + [0.0]),
-        default=1.0,
-    )
+    n_lanes = len(lane_defs)
+    has_audio = bool(audio.get("vo_track") or audio.get("music_track") or audio.get("sfx_events"))
+    if has_audio:
+        n_lanes += 1
 
-    n_lanes = len(lane_defs) + (1 if plan.audio_mix else 0)
     fig, ax = plt.subplots(figsize=(12, max(3, 1.2 * n_lanes + 1)))
     ax.set_facecolor("#1a1a2e")
 
     lane_idx = 0
     for label, elements, color in lane_defs:
         for el in elements:
-            start = getattr(el, "start", 0.0)
-            end = getattr(el, "end", getattr(el, "start", 0.0) + getattr(el, "duration", 0.0))
-            ax.barh(lane_idx, max(end - start, 0.1), left=start, height=0.5,
+            eid = el.get("element_id", el.get("transition_id", ""))
+            if label == "Transition":
+                start = 0.0
+                dur = float(el.get("duration_sec", 0.3))
+                end = start + dur
+            elif label == "Visual":
+                start = float(el.get("trim_start_sec", 0))
+                end = float(el.get("trim_end_sec", start + 2))
+            else:
+                t = el.get("timing", {})
+                start = float(t.get("in_sec", 0))
+                end = float(t.get("out_sec", start + 2))
+            ax.barh(lane_idx, max(end - start, 0.05), left=start, height=0.5,
                     color=color, alpha=0.75, edgecolor="white", linewidth=0.5)
-            eid = getattr(el, "element_id", "")
             if eid:
-                ax.text(start + 0.05, lane_idx, eid, va="center", fontsize=6, color="white")
-        ax.text(-0.3, lane_idx, label, ha="right", va="center", color=color, fontsize=8, fontweight="bold")
+                ax.text(start + 0.05, lane_idx, eid[:20], va="center", fontsize=6, color="white")
+        ax.text(-0.3, lane_idx, label, ha="right", va="center", color=color,
+                fontsize=8, fontweight="bold")
         lane_idx += 1
 
-    if plan.audio_mix:
-        for lane in plan.audio_mix.lanes:
-            ax.barh(lane_idx, max(lane.end - lane.start, 0.1), left=lane.start,
-                    height=0.4, color="#81C784", alpha=0.7, edgecolor="white", linewidth=0.5)
-            ax.text(lane.start + 0.05, lane_idx, lane.lane_type, va="center", fontsize=6, color="white")
-        ax.text(-0.3, lane_idx, "Audio", ha="right", va="center", color="#81C784", fontsize=8, fontweight="bold")
+    if has_audio:
+        audio_lane_items = []
+        if audio.get("vo_track"):
+            vt = audio["vo_track"]
+            audio_lane_items.append(("VO", float(vt.get("trim_start_sec", 0)),
+                                     float(vt.get("trim_end_sec", total_dur)), "#4FC3F7"))
+        if audio.get("music_track"):
+            mt = audio["music_track"]
+            audio_lane_items.append(("MUSIC", float(mt.get("start_sec", 0)),
+                                     float(mt.get("stop_sec", total_dur)), "#81C784"))
+        for i, (lbl, st, en, clr) in enumerate(audio_lane_items):
+            ax.barh(lane_idx + i * 0.3, max(en - st, 0.05), left=st, height=0.3,
+                    color=clr, alpha=0.7, edgecolor="white", linewidth=0.5)
+            ax.text(st + 0.05, lane_idx + i * 0.3, lbl, va="center", fontsize=6, color="white")
+        ax.text(-0.3, lane_idx, "Audio", ha="right", va="center", color="#81C784",
+                fontsize=8, fontweight="bold")
         lane_idx += 1
 
     ax.set_xlim(-0.5, total_dur + 0.5)
-    ax.set_ylim(-0.8, lane_idx - 0.2)
+    ax.set_ylim(-0.8, max(lane_idx - 0.2, 0.5))
     ax.set_xlabel("Timeline (s)", color="grey")
     ax.tick_params(colors="grey", labelsize=8)
     ax.set_yticks([])
-    ax.set_title(f"Full Timeline  —  {plan.plan_id or '(no id)'}  —  {total_dur:.1f}s",
+    plan_id = plan.get("plan_hash", "")[:8]
+    ax.set_title(f"Full Timeline  —  {plan_id}  —  {total_dur:.1f}s",
                  color="white", fontsize=10)
     ax.grid(axis="x", color="#333", linewidth=0.3)
 
@@ -642,7 +849,7 @@ def _generate_timeline_preview(
 # ---------------------------------------------------------------------------
 
 class CompositionPreviewGenerator:
-    """Generate and cache per-element previews from a CompositionPlan.
+    """Generate and cache per-element previews from a CompositionPlan dict.
 
     Parameters
     ----------
@@ -652,6 +859,10 @@ class CompositionPreviewGenerator:
         The parsed ``config/models.yaml`` dict (used for font paths).
     config_dir
         Directory containing ``render_styles.yaml``.
+    source_resolver
+        Optional callable mapping ``source_hash`` → local file path.
+        Used to resolve visual/audio source files. If None, visual/audio
+        previews that need file access will fail closed.
     """
 
     def __init__(
@@ -659,24 +870,26 @@ class CompositionPreviewGenerator:
         cache_dir: str = "data/previews",
         models_config: Optional[dict] = None,
         config_dir: str = "config",
+        source_resolver: Optional[callable] = None,
     ) -> None:
         self.cache_dir = cache_dir
         self.models_config = models_config or {}
         self.config_dir = config_dir
+        self.source_resolver = source_resolver
 
     # ------------------------------------------------------------------
     # Cache helpers
     # ------------------------------------------------------------------
 
-    def _plan_cache_dir(self, plan: CompositionPlan) -> str:
-        """Return the cache subdirectory for this plan's hash."""
-        d = os.path.join(self.cache_dir, plan.plan_hash())
+    def _plan_cache_dir(self, plan: dict) -> str:
+        d = os.path.join(self.cache_dir, _plan_hash(plan))
         os.makedirs(d, exist_ok=True)
         return d
 
-    def _cache_path(self, plan: CompositionPlan, category: str, eid: str, ext: str) -> str:
+    def _cache_path(self, plan: dict, category: str, eid: str, ext: str) -> str:
         d = self._plan_cache_dir(plan)
-        return os.path.join(d, f"{category}_{eid}.{ext}")
+        safe_eid = eid.replace("/", "_").replace(":", "_")
+        return os.path.join(d, f"{category}_{safe_eid}.{ext}")
 
     def _is_cached(self, path: str) -> bool:
         return os.path.exists(path) and os.path.getsize(path) > 0
@@ -685,39 +898,52 @@ class CompositionPreviewGenerator:
     # Element-level dispatch
     # ------------------------------------------------------------------
 
-    def preview_text(self, plan: CompositionPlan, text_role: TextRole) -> str:
-        out = self._cache_path(plan, "text", text_role.element_id, "png")
+    def preview_text(self, plan: dict, text_element: dict) -> str:
+        eid = text_element.get("element_id", _element_hash(text_element))
+        out = self._cache_path(plan, "text", eid, "png")
         if self._is_cached(out):
             return out
-        return _generate_text_preview(
-            text_role, plan.canvas, self.models_config, self.config_dir, out,
-        )
+        w, h = _canvas_dims(plan)
+        return _generate_text_preview(text_element, w, h, self.models_config, self.config_dir, out)
 
-    def preview_audio(self, plan: CompositionPlan, audio_mix: AudioMix) -> str:
-        out = self._cache_path(plan, "audio", audio_mix.element_id, "png")
+    def preview_audio(self, plan: dict) -> str:
+        audio = plan.get("audio", {})
+        if not audio or not isinstance(audio, dict):
+            raise PreviewError("Plan has no audio section")
+        audio_with_dur = dict(audio)
+        audio_with_dur["_total_duration"] = plan.get("total_duration_sec", 10.0)
+        out = self._cache_path(plan, "audio", "mix", "png")
         if self._is_cached(out):
             return out
-        return _generate_audio_preview(audio_mix, plan.canvas, out)
+        w, h = _canvas_dims(plan)
+        return _generate_audio_preview(audio_with_dur, w, h, self.source_resolver, out)
 
-    def preview_visual(self, plan: CompositionPlan, clip: VisualClip) -> str:
-        out = self._cache_path(plan, "visual", clip.element_id, "png")
+    def preview_visual(self, plan: dict, visual_element: dict) -> str:
+        eid = visual_element.get("element_id", _element_hash(visual_element))
+        out = self._cache_path(plan, "visual", eid, "png")
         if self._is_cached(out):
             return out
-        return _generate_visual_preview(clip, plan.canvas, out)
+        w, h = _canvas_dims(plan)
+        return _generate_visual_preview(visual_element, w, h, self.source_resolver, out)
 
-    def preview_graphics(self, plan: CompositionPlan, overlay: GraphicsOverlay) -> str:
-        out = self._cache_path(plan, "graphics", overlay.element_id, "png")
+    def preview_graphics(self, plan: dict, graphics_element: dict,
+                         background_path: str = "") -> str:
+        eid = graphics_element.get("element_id", _element_hash(graphics_element))
+        out = self._cache_path(plan, "graphics", eid, "png")
         if self._is_cached(out):
             return out
-        return _generate_graphics_preview(overlay, plan.canvas, out)
+        w, h = _canvas_dims(plan)
+        return _generate_graphics_preview(graphics_element, w, h, background_path, out)
 
-    def preview_transition(self, plan: CompositionPlan, transition: Transition) -> str:
-        out = self._cache_path(plan, "transition", transition.element_id, "png")
+    def preview_transition(self, plan: dict, transition: dict) -> str:
+        eid = transition.get("transition_id", _element_hash(transition))
+        out = self._cache_path(plan, "transition", eid, "png")
         if self._is_cached(out):
             return out
-        return _generate_transition_preview(transition, plan.canvas, out)
+        w, h = _canvas_dims(plan)
+        return _generate_transition_preview(transition, w, h, out)
 
-    def preview_timeline(self, plan: CompositionPlan) -> str:
+    def preview_timeline(self, plan: dict) -> str:
         out = self._cache_path(plan, "timeline", "full", "png")
         if self._is_cached(out):
             return out
@@ -727,52 +953,50 @@ class CompositionPreviewGenerator:
     # Batch generation
     # ------------------------------------------------------------------
 
-    def generate_all(self, plan: CompositionPlan) -> dict[str, list[str]]:
+    def generate_all(self, plan: dict, graphics_background: str = "") -> dict[str, list[str]]:
         """Generate previews for every element in the plan.
 
         Returns a dict mapping category → list of output paths.
-        Missing-file errors are collected and re-raised as a single
-        ``PreviewError`` at the end so the caller sees all failures.
+        Errors are collected and re-raised as a single ``PreviewError``.
         """
         results: dict[str, list[str]] = {
-            "text": [],
-            "audio": [],
-            "visual": [],
-            "graphics": [],
-            "transition": [],
-            "timeline": [],
+            "text": [], "audio": [], "visual": [],
+            "graphics": [], "transition": [], "timeline": [],
         }
         errors: list[str] = []
 
-        for tr in plan.text_roles:
+        for te in plan.get("text_elements", []):
             try:
-                results["text"].append(self.preview_text(plan, tr))
+                results["text"].append(self.preview_text(plan, te))
             except PreviewError as exc:
-                errors.append(f"text:{tr.element_id}: {exc}")
+                eid = te.get("element_id", "?")
+                errors.append(f"text:{eid}: {exc}")
 
-        if plan.audio_mix:
+        try:
+            results["audio"].append(self.preview_audio(plan))
+        except PreviewError as exc:
+            errors.append(f"audio: {exc}")
+
+        for ve in plan.get("visual_elements", []):
             try:
-                results["audio"].append(self.preview_audio(plan, plan.audio_mix))
+                results["visual"].append(self.preview_visual(plan, ve))
             except PreviewError as exc:
-                errors.append(f"audio:{plan.audio_mix.element_id}: {exc}")
+                eid = ve.get("element_id", "?")
+                errors.append(f"visual:{eid}: {exc}")
 
-        for vc in plan.visual_clips:
+        for ge in plan.get("graphics_elements", []):
             try:
-                results["visual"].append(self.preview_visual(plan, vc))
+                results["graphics"].append(self.preview_graphics(plan, ge, graphics_background))
             except PreviewError as exc:
-                errors.append(f"visual:{vc.element_id}: {exc}")
+                eid = ge.get("element_id", "?")
+                errors.append(f"graphics:{eid}: {exc}")
 
-        for go in plan.graphics_overlays:
-            try:
-                results["graphics"].append(self.preview_graphics(plan, go))
-            except PreviewError as exc:
-                errors.append(f"graphics:{go.element_id}: {exc}")
-
-        for tr in plan.transitions:
+        for tr in plan.get("transitions", []):
             try:
                 results["transition"].append(self.preview_transition(plan, tr))
             except PreviewError as exc:
-                errors.append(f"transition:{tr.element_id}: {exc}")
+                eid = tr.get("transition_id", "?")
+                errors.append(f"transition:{eid}: {exc}")
 
         try:
             results["timeline"].append(self.preview_timeline(plan))

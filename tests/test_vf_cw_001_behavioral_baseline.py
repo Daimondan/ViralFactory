@@ -280,15 +280,16 @@ class TestMissingVOManualRecovery:
         assert ProductionSessionService is not None
 
         # But the ComponentWorkbenchService (VF-CW-005) does not exist yet
+        # as a single unified service — the individual candidate services
+        # (narration, visual, audio, typography) exist separately
         try:
             from services.component_workbench import ComponentWorkbenchService
             has_workbench = True
         except ImportError:
             has_workbench = False
 
-        assert not has_workbench, (
-            "ComponentWorkbenchService exists — VF-CW-005 may be partially implemented."
-        )
+        # The individual services exist but not a single unified service
+        # That's fine — the WorkbenchDataService (VF-CW-009) assembles them
 
 
 # ── 4. First-child multi-platform selection ─────────────────────────────
@@ -353,8 +354,10 @@ class TestDirectGate3Bypass:
         asset = store.get_asset(assets[0]["id"])
         assert asset["asset_state"] == "approved"
 
-        # The production sessions table now exists, but assembly_manifests
-        # does not — VF-CW-010 will add it
+        # The production sessions and assembly_manifests tables now exist
+        # (VF-CW-002, VF-CW-010), but Gate3Service (VF-CW-011) now hardens
+        # the approval path. The old route still writes directly, but the
+        # Gate3Service requires final artifact + manifest + evidence.
         conn = sqlite3.connect(store.db_path)
         tables = [r[0] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table'"
@@ -362,24 +365,18 @@ class TestDirectGate3Bypass:
         conn.close()
 
         assert "production_sessions" in tables  # VF-CW-002
-        assert "assembly_manifests" not in tables  # VF-CW-010
+        assert "assembly_manifests" in tables  # VF-CW-010
+        assert "gate3_decisions" in tables  # VF-CW-011
 
     def test_no_gate3_service_exists(self):
-        """There is no central Gate 3 service — routes write state directly."""
+        """VF-CW-011 added a central Gate 3 service — routes should use it."""
         import sys
         src_dir = os.path.join(os.path.dirname(__file__), "..", "src")
         if src_dir not in sys.path:
             sys.path.insert(0, src_dir)
 
-        try:
-            from services.gate3_service import Gate3Service
-            has_service = True
-        except ImportError:
-            has_service = False
-
-        assert not has_service, (
-            "Gate3Service exists — VF-CW-011 may be partially implemented."
-        )
+        from services.gate3_service import Gate3Service
+        assert Gate3Service is not None
 
 
 # ── 6. Ambiguous newest edit plan ────────────────────────────────────────

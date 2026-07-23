@@ -827,3 +827,148 @@ def diff_plans(plan_a: dict, plan_b: dict) -> str:
     return "".join(
         difflib.unified_diff(a_lines, b_lines, fromfile="plan_a", tofile="plan_b")
     )
+
+
+# ── Dataclass-style wrappers for convenient construction ───────────────
+# These provide a typed way to build plan elements that the preview
+# generator and tests can use. They serialize to the same dict format.
+
+from dataclasses import dataclass, field as _field
+from typing import Optional as _Optional
+
+
+@dataclass
+class CanvasSpec:
+    width: int = 1080
+    height: int = 1920
+    fps: float = 30.0
+    aspect_ratio: str = "9:16"
+    background: str = "#000000"
+    safe_zones: dict = _field(default_factory=lambda: {"top": 0.1, "bottom": 0.1})
+
+
+@dataclass
+class TextRole:
+    element_id: str
+    text: str
+    style_ref: str = "default"
+    font_family: str = ""
+    font_path: str = ""
+    font_hash: str = ""
+    font_size: float = 0
+    font_color: str = ""
+    position: dict = _field(default_factory=lambda: {"x": 0.5, "y": 0.5})
+    start: float = 0
+    end: float = 0
+    word_timings: list = _field(default_factory=list)
+    emphasis_marks: list = _field(default_factory=list)
+    writer_contract_ref: str = ""
+
+    def to_dict(self) -> dict:
+        return {k: v for k, v in self.__dict__.items()}
+
+
+@dataclass
+class AudioLane:
+    element_id: str
+    lane_type: str  # "vo", "music", "sfx"
+    source_path: str = ""
+    source_hash: str = ""
+    start: float = 0
+    end: float = 0
+    gain: float = 1.0
+    gain_curve: list = _field(default_factory=list)
+    ducking_points: list = _field(default_factory=list)
+    fade_in: float = 0
+    fade_out: float = 0
+
+    def to_dict(self) -> dict:
+        return {k: v for k, v in self.__dict__.items()}
+
+
+@dataclass
+class AudioMix:
+    element_id: str
+    lanes: tuple = ()
+    lufs_target: float = -16.0
+    true_peak_limit: float = -1.0
+
+    def to_dict(self) -> dict:
+        return {
+            "element_id": self.element_id,
+            "lanes": [l.to_dict() if hasattr(l, "to_dict") else l for l in self.lanes],
+            "lufs_target": self.lufs_target,
+            "true_peak_limit": self.true_peak_limit,
+        }
+
+
+@dataclass
+class VisualClip:
+    element_id: str
+    source_path: str = ""
+    source_hash: str = ""
+    trim_in: float = 0
+    trim_out: float = 0
+    crop: dict = _field(default_factory=dict)
+    canvas_position: dict = _field(default_factory=lambda: {"x": 0, "y": 0})
+    scale: float = 1.0
+    motion_keyframes: list = _field(default_factory=list)
+    start: float = 0
+    end: float = 0
+
+    def to_dict(self) -> dict:
+        return {k: v for k, v in self.__dict__.items()}
+
+
+@dataclass
+class GraphicsOverlay:
+    element_id: str
+    overlay_type: str = "overlay"
+    overlay_path: str = ""
+    config_hash: str = ""
+    position: dict = _field(default_factory=lambda: {"x": 0.5, "y": 0.5})
+    scale: float = 1.0
+    start: float = 0
+    end: float = 0
+    animation: dict = _field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return {k: v for k, v in self.__dict__.items()}
+
+
+@dataclass
+class Transition:
+    element_id: str
+    transition_type: str = "cut"
+    duration: float = 0.5
+    easing: str = "linear"
+    start: float = 0
+    beat_boundary: str = ""
+
+    def to_dict(self) -> dict:
+        return {k: v for k, v in self.__dict__.items()}
+
+
+@dataclass
+class CompositionPlan:
+    canvas: CanvasSpec = _field(default_factory=CanvasSpec)
+    text_roles: tuple = ()
+    audio_mix: _Optional[AudioMix] = None
+    visual_clips: tuple = ()
+    graphics_overlays: tuple = ()
+    transitions: tuple = ()
+    manifest_hash: str = ""
+    writer_contract_hash: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "schema_version": COMPOSITION_PLAN_SCHEMA_VERSION,
+            "canvas": self.canvas.to_dict() if hasattr(self.canvas, "to_dict") else self.canvas,
+            "text_elements": [t.to_dict() if hasattr(t, "to_dict") else t for t in self.text_roles],
+            "audio_elements": [self.audio_mix.to_dict()] if self.audio_mix else [],
+            "visual_elements": [v.to_dict() if hasattr(v, "to_dict") else v for v in self.visual_clips],
+            "graphics_elements": [g.to_dict() if hasattr(g, "to_dict") else g for g in self.graphics_overlays],
+            "transitions": [t.to_dict() if hasattr(t, "to_dict") else t for t in self.transitions],
+            "manifest_hash": self.manifest_hash,
+            "writer_contract_hash": self.writer_contract_hash,
+        }
