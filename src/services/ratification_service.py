@@ -187,10 +187,17 @@ class RatificationService:
         )
 
         # ── Determine stale
-        stale = self.check_stale(business_slug, production_session_id, plan_hash)
-
-        # ── Previous ratification
+        # Stale means: there was a previous ratification (plan_hash X)
+        # and the current plan has a different hash (plan_hash Y).
+        # This is detected regardless of session state — the view shows
+        # stale whenever the operator is looking at a different plan
+        # than what was ratified.
         previous = self.get_latest_ratification(business_slug, production_session_id)
+        stale = False
+        if previous and previous["decision"] == "ratify":
+            stale = previous["plan_hash"] != plan_hash
+
+        # ── Previous ratification (already fetched above)
 
         # ── Determine status
         status = self._compute_status(
@@ -198,11 +205,14 @@ class RatificationService:
         )
 
         # ── Ratify enabled only when all checks pass
+        # Stale does NOT block ratification — it just means the plan
+        # changed since the last ratification. The operator can ratify
+        # the new plan. But we only enable ratify when previews and
+        # manifest tracing both pass.
         ratify_enabled = (
             previews_complete
             and manifest_ok
-            and not stale
-            and status in (STATUS_READY_FOR_REVIEW,)
+            and status in (STATUS_READY_FOR_REVIEW, STATUS_STALE)
         )
 
         return {
@@ -431,8 +441,27 @@ class RatificationService:
         """Detect if the plan changed after ratification.
 
         Compares the given ``plan_hash`` against the most recent
-        ratified plan hash.  If they differ, the ratification is stale.
+        ratified plan hash.  If they differ **and** the session is
+        still in the ``composition_ratified`` state, the ratification
+        is stale.
+
+        Once the session has transitioned back to
+        ``composition_planning`` (the post-ratification-change path),
+        the previous ratification is considered superseded — not
+        stale — and this method returns ``False``.
         """
+        from services.production_orchestrator import (
+            ProductionSessionService,
+            STATE_COMPOSITION_RATIFIED,
+        )
+
+        session_svc = ProductionSessionService(db_path=self.db_path)
+        session = session_svc.get_session(business_slug, production_session_id)
+
+        # Stale only applies when the session is still ratified
+        if session["current_state"] != STATE_COMPOSITION_RATIFIED:
+            return False
+
         previous = self.get_latest_ratification(
             business_slug, production_session_id
         )
@@ -679,8 +708,11 @@ class RatificationService:
 
         state = session["current_state"]
 
-        # Stale takes priority — plan changed post-ratification
-        if stale:
+        # Stale is reported when the plan changed since the last
+        # ratification AND previews/manifest are ready for review.
+        # If previews are still missing, the status reflects that
+        # instead — no false greens.
+        if stale and previews_complete and manifest_ok:
             return STATUS_STALE
 
         # Ratified
