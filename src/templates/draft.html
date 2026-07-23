@@ -595,28 +595,34 @@ function saveEditPlatform(idx, btn) {
 }
 
 function draftGate(action) {
+    var btn = event ? event.target : null;
     if (action === 'kill') {
         const reason = prompt('Why kill this draft?');
         if (reason === null) return;
-        fetch('/api/draft/{{ draft.id }}/gate', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
+        busyAction(btn, '/api/draft/{{ draft.id }}/gate', {
+            busyLabel: 'Killing…',
             body: JSON.stringify({action: action, kill_reason: reason}),
-        }).then(r => r.json()).then(data => { if (data.status === 'ok') window.location.reload(); });
+            reloadOnSuccess: true,
+            onError: function(msg) { alert('Failed to kill draft: ' + msg); }
+        });
     } else if (action === 'ship') {
-        fetch('/api/draft/{{ draft.id }}/gate', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
+        busyAction(btn, '/api/draft/{{ draft.id }}/gate', {
+            busyLabel: 'Sending to Assembler…',
             body: JSON.stringify({action: action}),
-        }).then(r => r.json()).then(data => {
-            if (data.status === 'ok') {
+            reloadOnSuccess: false,
+            onSuccess: function(data) {
                 // Auto-redirect to the Assembler — no extra "proceed" step needed
                 window.location.href = '/create/assets/{{ draft.id }}';
-            }
+            },
+            onError: function(msg) { alert('Failed to send to Assembler: ' + msg); }
         });
     } else {
-        fetch('/api/draft/{{ draft.id }}/gate', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
+        busyAction(btn, '/api/draft/{{ draft.id }}/gate', {
+            busyLabel: 'Processing…',
             body: JSON.stringify({action: action}),
-        }).then(r => r.json()).then(data => { if (data.status === 'ok') window.location.reload(); });
+            reloadOnSuccess: true,
+            onError: function(msg) { alert('Failed: ' + msg); }
+        });
     }
 }
 
