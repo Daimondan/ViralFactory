@@ -985,6 +985,9 @@ class PipelineStore:
         # VF-CW-010: Assembly manifest schema
         from services.manifest_freeze import SCHEMA_SQL as MANIFEST_SCHEMA
         conn.executescript(MANIFEST_SCHEMA)
+        # VF-CW-011: Gate 3 decisions schema
+        from services.gate3_service import SCHEMA_SQL as GATE3_SCHEMA
+        conn.executescript(GATE3_SCHEMA)
         # Migrations for existing databases (idempotent)
         # T8.3: add source_refs column to idea_cards if not present
         cols = [r[1] for r in conn.execute("PRAGMA table_info(idea_cards)").fetchall()]
