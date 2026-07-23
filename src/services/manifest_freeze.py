@@ -67,8 +67,9 @@ class CompletenessError(ManifestError):
 class ManifestStore:
     """Immutable assembly manifest store with freeze semantics."""
 
-    def __init__(self, db_path: str = "data/viralfactory.db"):
+    def __init__(self, db_path: str = "data/viralfactory.db", config_dir: str = "config"):
         self.db_path = db_path
+        self.config_dir = config_dir
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self._init_db()
 
@@ -131,6 +132,15 @@ class ManifestStore:
                 key = f"{cat_key}:{role_key}"
                 candidates = approved_by_key.get(key, [])
 
+                # Check cardinality from the role definition
+                from services.component_requirements import ComponentCategoryRegistry
+                registry = ComponentCategoryRegistry(config_dir=self.config_dir) if hasattr(self, 'config_dir') else None
+                cardinality = "1"  # default: exactly one
+                if registry:
+                    role_def = registry.get_role(cat_key, role_key)
+                    if role_def:
+                        cardinality = role_def.get("cardinality", "1")
+
                 if len(candidates) == 0:
                     if none_allowed:
                         # Explicit none is allowed — no blocker
@@ -140,7 +150,7 @@ class ManifestStore:
                         "role": role_key,
                         "reason": "No approved candidate for required role",
                     })
-                elif len(candidates) > 1:
+                elif len(candidates) > 1 and cardinality == "1":
                     blockers.append({
                         "category": cat_key,
                         "role": role_key,
@@ -148,18 +158,18 @@ class ManifestStore:
                         "candidate_ids": [c["id"] for c in candidates],
                     })
                 else:
-                    # Exactly one approved — validate it
-                    c = candidates[0]
-                    validation_error = self._validate_candidate(c, role_entry)
-                    if validation_error:
-                        blockers.append({
-                            "category": cat_key,
-                            "role": role_key,
-                            "reason": validation_error,
-                            "candidate_id": c["id"],
-                        })
-                    else:
-                        approved_list.append(c)
+                    # One or more approved (cardinality "1+" or exactly 1) — validate all
+                    for c in candidates:
+                        validation_error = self._validate_candidate(c, role_entry)
+                        if validation_error:
+                            blockers.append({
+                                "category": cat_key,
+                                "role": role_key,
+                                "reason": validation_error,
+                                "candidate_id": c["id"],
+                            })
+                        else:
+                            approved_list.append(c)
 
         return {
             "complete": len(blockers) == 0,

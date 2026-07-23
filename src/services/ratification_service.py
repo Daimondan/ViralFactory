@@ -525,8 +525,24 @@ class RatificationService:
         """Check that all plan elements have previews.
 
         Returns (complete, gaps).
+
+        If the plan has no elements (empty text/audio/visual/graphics/
+        transitions), returns (True, []) — no previews needed.
         """
         gaps: list[str] = []
+
+        # If the plan has no elements, no previews are needed
+        has_elements = (
+            plan.get("text_elements") or plan.get("audio_elements")
+            or plan.get("visual_elements") or plan.get("graphics_elements")
+            or plan.get("transitions")
+        )
+        if not has_elements:
+            return True, []
+
+        # Ensure previews is a dict
+        if not previews:
+            previews = {}
 
         # Text previews
         for te in plan.get("text_elements", []):

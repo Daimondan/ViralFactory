@@ -9390,6 +9390,699 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             import logging
             logging.getLogger("viralfactory").warning(f"Transcription worker not started: {e}")
 
+    # ── M15: Component Workbench routes ──
+
+    @app.route("/workbench/<int:asset_id>")
+    def component_workbench(asset_id):
+        """VF-CW-009: Component Workbench UI — candidates grouped by category."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return "Business not configured", 500
+
+        store = _get_pipeline_store()
+        asset = store.get_asset(asset_id)
+        if not asset:
+            return "Asset not found", 404
+
+        # Get or create a production session for this asset
+        from services.production_orchestrator import ProductionSessionService
+        session_svc = ProductionSessionService(db_path=app.config["DB_PATH"])
+        session = session_svc.get_session_for_asset(business_slug, asset_id)
+
+        if not session:
+            # Create a new session — legacy assets get one on first visit
+            session = session_svc.create_session(
+                business_slug=business_slug,
+                draft_id=asset["draft_id"],
+                asset_id=asset_id,
+                platform=asset["platform"],
+                format=asset.get("variant_type"),
+            )
+            # If the asset already has VO/media, try to register them as candidates
+            try:
+                _register_legacy_candidates(app, business_slug, session, asset)
+            except Exception:
+                pass  # best-effort — don't block the workbench
+
+        # Build the workbench view
+        from services.workbench_ui import WorkbenchDataService
+        wb_svc = WorkbenchDataService(
+            db_path=app.config["DB_PATH"],
+            config_dir=app.config["CONFIG_DIR"],
+        )
+        view = wb_svc.build_workbench_view(business_slug, session["id"])
+
+        # Get draft for context
+        draft = store.get_draft(asset["draft_id"])
+
+        return render_template(
+            "component_workbench.html",
+            business_name=_get_business_name(app),
+            active_page="pipeline",
+            asset=asset,
+            draft=draft,
+            session=session,
+            view=view,
+            nav_counts=_get_nav_counts(app),
+        )
+
+    @app.route("/api/workbench/<int:asset_id>/candidate/<int:candidate_id>/decision", methods=["POST"])
+    def workbench_candidate_decision(asset_id, candidate_id):
+        """Approve/reject/regenerate a candidate in the workbench."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        action = request.json.get("action", "")
+        if action not in ("approve", "reject", "regenerate", "select"):
+            return jsonify({"error": "Invalid action"}), 400
+
+        feedback = request.json.get("feedback", "")
+
+        from services.candidate_store import CandidateStore
+        store = CandidateStore(db_path=app.config["DB_PATH"])
+
+        # Get the production session for this asset
+        from services.production_orchestrator import ProductionSessionService
+        session_svc = ProductionSessionService(db_path=app.config["DB_PATH"])
+        session = session_svc.get_session_for_asset(business_slug, asset_id)
+        if not session:
+            return jsonify({"error": "No production session for this asset"}), 404
+
+        try:
+            decision = store.record_decision(
+                business_slug=business_slug,
+                production_session_id=session["id"],
+                candidate_id=candidate_id,
+                decision_type=action,
+                feedback=feedback or None,
+            )
+            return jsonify({"status": "ok", "decision": decision})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/workbench/<int:asset_id>/freeze", methods=["POST"])
+    def workbench_freeze_manifest(asset_id):
+        """VF-CW-010: Freeze the manifest for this asset."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        from services.production_orchestrator import ProductionSessionService
+        from services.manifest_freeze import ManifestStore
+        session_svc = ProductionSessionService(db_path=app.config["DB_PATH"])
+        session = session_svc.get_session_for_asset(business_slug, asset_id)
+        if not session:
+            return jsonify({"error": "No production session for this asset"}), 404
+
+        mstore = ManifestStore(db_path=app.config["DB_PATH"], config_dir=app.config["CONFIG_DIR"])
+        try:
+            manifest = mstore.freeze_manifest(business_slug, session["id"])
+            # Transition through the correct path
+            state = session["current_state"]
+            if state == "planning_components":
+                session_svc.transition(business_slug, session["id"], "generating_components", "requirements planned")
+                session_svc.transition(business_slug, session["id"], "component_review_required", "candidates generated")
+            elif state == "generating_components":
+                session_svc.transition(business_slug, session["id"], "component_review_required", "candidates generated")
+            elif state == "component_review_required":
+                pass  # already at the right state
+            # Now transition to manifest_ready
+            session_svc.transition(
+                business_slug, session["id"],
+                "manifest_ready", "manifest frozen", actor="operator"
+            )
+            return jsonify({"status": "ok", "manifest": manifest})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/workbench/<int:asset_id>/generate-requirements", methods=["POST"])
+    def workbench_generate_requirements(asset_id):
+        """VF-CW-003: Generate component requirements for this asset."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        store = _get_pipeline_store()
+        asset = store.get_asset(asset_id)
+        if not asset:
+            return jsonify({"error": "Asset not found"}), 404
+
+        from services.production_orchestrator import ProductionSessionService
+        session_svc = ProductionSessionService(db_path=app.config["DB_PATH"])
+        session = session_svc.get_session_for_asset(business_slug, asset_id)
+        if not session:
+            return jsonify({"error": "No production session"}), 404
+
+        # Build requirements from format config (mechanical, no LLM for now)
+        from services.component_requirements import (
+            ComponentCategoryRegistry, ComponentRequirementsStore, compute_requirements_hash
+        )
+        import yaml
+        registry = ComponentCategoryRegistry(config_dir=app.config["CONFIG_DIR"])
+        format_name = asset.get("variant_type", "reel")
+        required_cats = registry.get_required_categories(format_name)
+        optional_cats = registry.get_optional_categories(format_name)
+
+        categories = []
+        for cat_key in required_cats:
+            cat_def = registry.get_category(cat_key)
+            if not cat_def:
+                continue
+            roles = []
+            for role_def in cat_def.get("roles", []):
+                roles.append({
+                    "role": role_def["key"],
+                    "required": role_def.get("cardinality", "0+") != "0+",
+                    "scope": role_def.get("scope", "full_piece"),
+                    "beat_refs": [],
+                    "none_allowed": role_def.get("none_allowed", False),
+                    "preview_required": role_def.get("preview_required", True),
+                })
+            categories.append({"category": cat_key, "required": True, "roles": roles})
+
+        reqs = {
+            "format": format_name,
+            "platform": asset["platform"],
+            "categories": categories,
+        }
+
+        req_store = ComponentRequirementsStore(db_path=app.config["DB_PATH"])
+        saved = req_store.save_requirements(
+            business_slug=business_slug,
+            production_session_id=session["id"],
+            draft_id=session["draft_id"],
+            asset_id=asset_id,
+            requirements=reqs,
+            provenance={"source": "mechanical", "format": format_name},
+        )
+
+        # Transition to generating_components
+        session_svc.transition(
+            business_slug, session["id"],
+            "generating_components", "requirements planned", actor="system"
+        )
+
+        return jsonify({"status": "ok", "requirements_id": saved["id"], "version": saved["version"]})
+
+    @app.route("/api/workbench/<int:asset_id>/register-vo-candidate", methods=["POST"])
+    def workbench_register_vo(asset_id):
+        """Register existing VO segments as a narration candidate."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        store = _get_pipeline_store()
+        asset = store.get_asset(asset_id)
+        if not asset:
+            return jsonify({"error": "Asset not found"}), 404
+
+        vo_segments = store.get_vo_segments(asset_id)
+        if not vo_segments:
+            return jsonify({"error": "No VO segments found for this asset"}), 400
+
+        from services.production_orchestrator import ProductionSessionService
+        session_svc = ProductionSessionService(db_path=app.config["DB_PATH"])
+        session = session_svc.get_session_for_asset(business_slug, asset_id)
+        if not session:
+            return jsonify({"error": "No production session"}), 404
+
+        import json as _json
+        segments = _json.loads(vo_segments) if isinstance(vo_segments, str) else vo_segments
+        if not segments:
+            return jsonify({"error": "No VO segments"}), 400
+
+        # Find the combined VO file
+        combined_path = None
+        for seg in segments:
+            seg_path = seg.get("path", "")
+            if seg_path and os.path.exists(seg_path):
+                # Use the first segment's directory to look for combined file
+                media_dir = os.path.dirname(seg_path)
+                take_id = segments[0].get("take_id", "")
+                if take_id:
+                    combined_path = os.path.join(media_dir, f"vo_{take_id}.wav")
+                    if not os.path.exists(combined_path):
+                        combined_path = None
+                break
+
+        # If no combined file, use the first segment as the artifact
+        if not combined_path and segments:
+            combined_path = segments[0].get("path", "")
+
+        take_result = {
+            "take_id": segments[0].get("take_id", f"take_legacy_{asset_id}"),
+            "segments": segments,
+            "total_duration": sum(s.get("duration", 0) for s in segments),
+            "combined_path": combined_path,
+        }
+
+        from services.narration_candidates import NarrationCandidateService
+        ncs = NarrationCandidateService(db_path=app.config["DB_PATH"])
+        try:
+            candidate = ncs.register_existing_take(
+                business_slug=business_slug,
+                production_session_id=session["id"],
+                draft_id=session["draft_id"],
+                asset_id=asset_id,
+                take_result=take_result,
+                voice_identity={"engine": "chatterbox", "source": "legacy"},
+            )
+            return jsonify({"status": "ok", "candidate_id": candidate["id"]})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/workbench/<int:asset_id>/register-visual-candidates", methods=["POST"])
+    def workbench_register_visuals(asset_id):
+        """Register existing generated images as visual candidates."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        store = _get_pipeline_store()
+        asset = store.get_asset(asset_id)
+        if not asset:
+            return jsonify({"error": "Asset not found"}), 404
+
+        from services.production_orchestrator import ProductionSessionService
+        session_svc = ProductionSessionService(db_path=app.config["DB_PATH"])
+        session = session_svc.get_session_for_asset(business_slug, asset_id)
+        if not session:
+            return jsonify({"error": "No production session"}), 404
+
+        from services.candidate_store import CandidateStore
+        cstore = CandidateStore(db_path=app.config["DB_PATH"])
+
+        # Get images from asset_media
+        from media_adapter import MediaAdapter
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+        except ConfigError:
+            models_config = {}
+        media_adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
+        media_list = media_adapter.list_asset_media(asset_id)
+        images = [m for m in media_list if m.get("kind") == "image"]
+
+        if not images:
+            return jsonify({"error": "No images found for this asset"}), 400
+
+        # Get posts for beat refs
+        import json as _json
+        posts = _json.loads(asset.get("posts") or "[]")
+        beat_refs = [str(p.get("beat_id", f"b{i+1:02d}")) for i, p in enumerate(posts)]
+
+        candidates_created = []
+        for i, img in enumerate(images):
+            img_path = img.get("path", "")
+            if not img_path or not os.path.exists(img_path):
+                continue
+
+            # Compute hash
+            import hashlib
+            h = hashlib.sha256()
+            with open(img_path, "rb") as f:
+                for chunk in iter(lambda: f.read(8192), b""):
+                    h.update(chunk)
+            img_hash = h.hexdigest()
+
+            beat_ref = beat_refs[i] if i < len(beat_refs) else f"b{i+1:02d}"
+
+            candidate = cstore.create_candidate(
+                business_slug=business_slug,
+                production_session_id=session["id"],
+                draft_id=session["draft_id"],
+                asset_id=asset_id,
+                category="visual_media",
+                role="beat_visual",
+                beat_refs=[beat_ref],
+                artifact_ref=f"image_{i+1}",
+                artifact_hash=img_hash,
+                artifact_path=img_path,
+                preview_ref=f"image_{i+1}",
+                preview_hash=img_hash,
+                preview_path=img_path,
+                source_type="generated",
+                measurement={"kind": "image", "index": i + 1},
+                status="available",
+            )
+            candidates_created.append(candidate["id"])
+
+        return jsonify({"status": "ok", "candidates_created": candidates_created})
+
+    @app.route("/api/workbench/<int:asset_id>/advance", methods=["POST"])
+    def workbench_advance(asset_id):
+        """Advance the production session one step."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        from services.production_orchestrator_service import ProductionOrchestrator
+        from services.production_orchestrator import ProductionSessionService
+        session_svc = ProductionSessionService(db_path=app.config["DB_PATH"])
+        session = session_svc.get_session_for_asset(business_slug, asset_id)
+        if not session:
+            return jsonify({"error": "No production session"}), 404
+
+        orch = ProductionOrchestrator(db_path=app.config["DB_PATH"])
+        result = orch.advance(business_slug, session["id"])
+        return jsonify(result)
+
+    @app.route("/composition/<int:asset_id>")
+    def composition_ratification(asset_id):
+        """VF-CP-003: Composition ratification surface."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return "Business not configured", 500
+
+        store = _get_pipeline_store()
+        asset = store.get_asset(asset_id)
+        if not asset:
+            return "Asset not found", 404
+
+        from services.production_orchestrator import ProductionSessionService
+        session_svc = ProductionSessionService(db_path=app.config["DB_PATH"])
+        session = session_svc.get_session_for_asset(business_slug, asset_id)
+        if not session:
+            return "No production session for this asset", 404
+
+        from services.ratification_service import RatificationService
+        from services.manifest_freeze import ManifestStore
+
+        mstore = ManifestStore(db_path=app.config["DB_PATH"], config_dir=app.config["CONFIG_DIR"])
+        manifest = mstore.get_active_manifest(business_slug, session["id"])
+
+        if not manifest:
+            return "No frozen manifest — freeze components first", 400
+
+        rat_svc = RatificationService(
+            db_path=app.config["DB_PATH"],
+            config_dir=app.config["CONFIG_DIR"],
+        )
+
+        # Build a minimal composition plan from the manifest (mechanical, no LLM)
+        from services.composition_plan import compute_plan_hash
+        manifest_data = manifest.get("manifest_json", {})
+        if isinstance(manifest_data, str):
+            import json as _json
+            manifest_data = _json.loads(manifest_data)
+
+        plan = {
+            "schema_version": "1.0",
+            "manifest_hash": manifest_data.get("manifest_hash", ""),
+            "canvas": {"width": 1080, "height": 1920, "fps": 30.0, "aspect_ratio": "9:16"},
+            "text_elements": [],
+            "audio_elements": [],
+            "visual_elements": [],
+            "graphics_elements": [],
+            "transitions": [],
+        }
+        plan["plan_hash"] = compute_plan_hash(plan)
+
+        view = rat_svc.build_ratification_view(
+            business_slug=business_slug,
+            production_session_id=session["id"],
+            plan=plan,
+            previews={},  # no previews generated for now
+            manifest=manifest,
+        )
+
+        return render_template(
+            "composition_ratification.html",
+            business_name=_get_business_name(app),
+            active_page="pipeline",
+            asset=asset,
+            session=session,
+            view=view,
+            manifest=manifest,
+            nav_counts=_get_nav_counts(app),
+        )
+
+    @app.route("/api/composition/<int:asset_id>/ratify", methods=["POST"])
+    def composition_ratify(asset_id):
+        """Ratify the composition plan."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        from services.production_orchestrator import ProductionSessionService
+        session_svc = ProductionSessionService(db_path=app.config["DB_PATH"])
+        session = session_svc.get_session_for_asset(business_slug, asset_id)
+        if not session:
+            return jsonify({"error": "No production session"}), 404
+
+        from services.ratification_service import RatificationService
+        from services.manifest_freeze import ManifestStore
+        from services.composition_plan import compute_plan_hash
+
+        mstore = ManifestStore(db_path=app.config["DB_PATH"], config_dir=app.config["CONFIG_DIR"])
+        manifest = mstore.get_active_manifest(business_slug, session["id"])
+        if not manifest:
+            return jsonify({"error": "No frozen manifest"}), 400
+
+        manifest_data = manifest.get("manifest_json", {})
+        if isinstance(manifest_data, str):
+            import json as _json
+            manifest_data = _json.loads(manifest_data)
+
+        plan = {
+            "schema_version": "1.0",
+            "manifest_hash": manifest_data.get("manifest_hash", ""),
+            "canvas": {"width": 1080, "height": 1920, "fps": 30.0},
+            "text_elements": [], "audio_elements": [], "visual_elements": [],
+            "graphics_elements": [], "transitions": [],
+        }
+        plan["plan_hash"] = compute_plan_hash(plan)
+
+        rat_svc = RatificationService(
+            db_path=app.config["DB_PATH"],
+            config_dir=app.config["CONFIG_DIR"],
+        )
+        try:
+            decision = rat_svc.ratify(
+                business_slug=business_slug,
+                production_session_id=session["id"],
+                plan=plan,
+                manifest=manifest,
+                previews={},  # no preview generation for now
+            )
+            return jsonify({"status": "ok", "decision": decision})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/composition/<int:asset_id>/reject", methods=["POST"])
+    def composition_reject(asset_id):
+        """Reject the composition plan with feedback."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        feedback = request.json.get("feedback", "")
+
+        from services.production_orchestrator import ProductionSessionService
+        session_svc = ProductionSessionService(db_path=app.config["DB_PATH"])
+        session = session_svc.get_session_for_asset(business_slug, asset_id)
+        if not session:
+            return jsonify({"error": "No production session"}), 404
+
+        from services.ratification_service import RatificationService
+        rat_svc = RatificationService(
+            db_path=app.config["DB_PATH"],
+            config_dir=app.config["CONFIG_DIR"],
+        )
+        try:
+            decision = rat_svc.reject(
+                business_slug=business_slug,
+                production_session_id=session["id"],
+                feedback=feedback,
+            )
+            return jsonify({"status": "ok", "decision": decision})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    # ── VF-CW-011: Harden Gate 3 to use Gate3Service ──
+    # The old route at /api/assets/<id>/gate still exists for backward compat.
+    # This new route uses the hardened Gate3Service.
+
+    @app.route("/api/assets/<int:asset_id>/gate3", methods=["POST"])
+    def assets_gate3_hardened(asset_id):
+        """VF-CW-011: Hardened Gate 3 — requires manifest + evidence + final artifact."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        action = request.json.get("action", "")
+        if action not in ("approve", "reject", "kill"):
+            return jsonify({"error": "Invalid action. Use approve, reject, or kill."}), 400
+
+        from services.production_orchestrator import ProductionSessionService
+        from services.gate3_service import Gate3Service
+
+        session_svc = ProductionSessionService(db_path=app.config["DB_PATH"])
+        session = session_svc.get_session_for_asset(business_slug, asset_id)
+        if not session:
+            # Fall back to legacy gate for assets without a production session
+            store = _get_pipeline_store()
+            asset = store.get_asset(asset_id)
+            if not asset:
+                return jsonify({"error": "Asset not found"}), 404
+            state_map = {"approve": "approved", "reject": "fix", "kill": "killed"}
+            store.update_asset_state(asset_id, state_map[action])
+            return jsonify({"status": "ok", "new_state": state_map[action], "mode": "legacy"})
+
+        gate3 = Gate3Service(db_path=app.config["DB_PATH"])
+
+        try:
+            if action == "approve":
+                final_path = request.json.get("final_artifact_path", "")
+                evidence = request.json.get("evidence", {})
+                decision = gate3.approve(
+                    business_slug=business_slug,
+                    production_session_id=session["id"],
+                    final_artifact_path=final_path,
+                    evidence=evidence,
+                    feedback=request.json.get("feedback"),
+                )
+                return jsonify({"status": "ok", "decision": decision, "mode": "hardened"})
+            elif action == "reject":
+                decision = gate3.reject(
+                    business_slug=business_slug,
+                    production_session_id=session["id"],
+                    feedback=request.json.get("feedback", ""),
+                )
+                return jsonify({"status": "ok", "decision": decision, "mode": "hardened"})
+            elif action == "kill":
+                decision = gate3.kill(
+                    business_slug=business_slug,
+                    production_session_id=session["id"],
+                    feedback=request.json.get("feedback", ""),
+                )
+                return jsonify({"status": "ok", "decision": decision, "mode": "hardened"})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    # ── Helper: register legacy candidates ──
+
+    def _register_legacy_candidates(app, business_slug, session, asset):
+        """Best-effort: register existing VO/media as candidates when a legacy
+        asset first visits the workbench."""
+        store = _get_pipeline_store()
+        vo_segments = store.get_vo_segments(asset["id"])
+
+        # Register VO if it exists
+        if vo_segments:
+            try:
+                import json as _json
+                segments = _json.loads(vo_segments) if isinstance(vo_segments, str) else vo_segments
+                if segments:
+                    combined_path = None
+                    for seg in segments:
+                        seg_path = seg.get("path", "")
+                        if seg_path and os.path.exists(seg_path):
+                            media_dir = os.path.dirname(seg_path)
+                            take_id = segments[0].get("take_id", "")
+                            if take_id:
+                                combined_path = os.path.join(media_dir, f"vo_{take_id}.wav")
+                            break
+                    if not combined_path and segments:
+                        combined_path = segments[0].get("path", "")
+
+                    take_result = {
+                        "take_id": segments[0].get("take_id", f"take_legacy_{asset['id']}"),
+                        "segments": segments,
+                        "total_duration": sum(s.get("duration", 0) for s in segments),
+                        "combined_path": combined_path,
+                    }
+                    from services.narration_candidates import NarrationCandidateService
+                    ncs = NarrationCandidateService(db_path=app.config["DB_PATH"])
+                    ncs.register_existing_take(
+                        business_slug=business_slug,
+                        production_session_id=session["id"],
+                        draft_id=session["draft_id"],
+                        asset_id=asset["id"],
+                        take_result=take_result,
+                        voice_identity={"engine": "chatterbox", "source": "legacy"},
+                    )
+            except Exception:
+                pass
+
+        # Register images if they exist
+        try:
+            from media_adapter import MediaAdapter
+            try:
+                config = load_all(app.config["CONFIG_DIR"])
+                models_config = config["models"]
+            except ConfigError:
+                models_config = {}
+            media_adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
+            media_list = media_adapter.list_asset_media(asset["id"])
+            images = [m for m in media_list if m.get("kind") == "image"]
+
+            if images:
+                from services.candidate_store import CandidateStore
+                cstore = CandidateStore(db_path=app.config["DB_PATH"])
+                posts = _json.loads(asset.get("posts") or "[]")
+                beat_refs = [str(p.get("beat_id", f"b{i+1:02d}")) for i, p in enumerate(posts)]
+
+                for i, img in enumerate(images):
+                    img_path = img.get("path", "")
+                    if not img_path or not os.path.exists(img_path):
+                        continue
+                    import hashlib
+                    h = hashlib.sha256()
+                    with open(img_path, "rb") as f:
+                        for chunk in iter(lambda: f.read(8192), b""):
+                            h.update(chunk)
+                    img_hash = h.hexdigest()
+                    beat_ref = beat_refs[i] if i < len(beat_refs) else f"b{i+1:02d}"
+                    cstore.create_candidate(
+                        business_slug=business_slug,
+                        production_session_id=session["id"],
+                        draft_id=session["draft_id"],
+                        asset_id=asset["id"],
+                        category="visual_media",
+                        role="beat_visual",
+                        beat_refs=[beat_ref],
+                        artifact_ref=f"image_{i+1}",
+                        artifact_hash=img_hash,
+                        artifact_path=img_path,
+                        preview_ref=f"image_{i+1}",
+                        preview_hash=img_hash,
+                        preview_path=img_path,
+                        source_type="generated",
+                        status="available",
+                    )
+        except Exception:
+            pass
+
+    # ── Helper: get business name ──
+
+    def _get_business_name(app):
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            return config["business"]["business"]["name"]
+        except (ConfigError, KeyError):
+            return "Not configured"
+
+    # ── Helper: get nav counts ──
+
+    def _get_nav_counts(app):
+        try:
+            store = _get_pipeline_store()
+            business_slug = _get_business_slug()
+            if not business_slug:
+                return {}
+            cards = store.list_cards(business_slug)
+            return {
+                "new": len([c for c in cards if c.get("card_state") == "new"]),
+                "ready_review": len([c for c in cards if c.get("card_state") in ("draft_ready", "drafted")]),
+                "asset_ready": len([c for c in cards if c.get("card_state") in ("asset_ready", "assembling")]),
+            }
+        except Exception:
+            return {}
+
+    # ── End of M15 routes ──
+
     return app
 
 

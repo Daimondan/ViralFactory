@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/vf.css">
+    <title>Component Workbench — {{ business_name }}</title>
+    <style>
+        .workbench-container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .session-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; margin-bottom: 16px; }
+        .session-badge.planning { background: #E8F4FD; color: #2A6DB0; }
+        .session-badge.generating { background: #FFF3E0; color: #E65100; }
+        .session-badge.review { background: #FCE4EC; color: #C62828; }
+        .session-badge.ready { background: #E8F5E9; color: #2E7D32; }
+        .session-badge.blocked { background: #FFEBEE; color: #B71C1C; }
+        .readiness-summary { padding: 16px; border-radius: 12px; margin-bottom: 24px; font-size: 1rem; }
+        .readiness-summary.ready { background: #E8F5E9; border: 1px solid #A5D6A7; }
+        .readiness-summary.needs_action { background: #FFF3E0; border: 1px solid #FFCC02; }
+        .readiness-summary.blocked { background: #FFEBEE; border: 1px solid #EF9A9A; }
+        .readiness-summary.incomplete { background: #F5F5F5; border: 1px solid #E0E0E0; }
+        .category-section { background: #FFFFFF; border-radius: 12px; margin-bottom: 16px; overflow: hidden; border: 1px solid #E0E0E0; }
+        .category-header { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #F0F0F0; cursor: pointer; }
+        .category-label { font-weight: 600; font-size: 1rem; }
+        .category-required { font-size: 0.75rem; color: #C62828; margin-left: 8px; }
+        .category-optional { font-size: 0.75rem; color: #757575; margin-left: 8px; }
+        .role-row { padding: 12px 16px; border-bottom: 1px solid #F5F5F5; }
+        .role-label { font-weight: 500; font-size: 0.9rem; margin-bottom: 8px; }
+        .role-status { font-size: 0.8rem; color: #757575; }
+        .candidate-card { padding: 12px; margin: 8px 0; border-radius: 8px; background: #FAFAFA; border: 1px solid #E0E0E0; }
+        .candidate-status { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+        .candidate-status.available { background: #E3F2FD; color: #1565C0; }
+        .candidate-status.approved { background: #E8F5E9; color: #2E7D32; }
+        .candidate-status.rejected { background: #FFEBEE; color: #C62828; }
+        .candidate-status.failed { background: #FFEBEE; color: #B71C1C; }
+        .candidate-status.superseded { background: #F5F5F5; color: #9E9E9E; }
+        .candidate-actions { margin-top: 8px; display: flex; gap: 8px; }
+        .btn { padding: 6px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 500; }
+        .btn-approve { background: #4CAF50; color: white; }
+        .btn-reject { background: #F44336; color: white; }
+        .btn-regenerate { background: #FF9800; color: white; }
+        .btn-freeze { background: #2196F3; color: white; padding: 10px 24px; font-size: 1rem; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .blocker-list { padding: 12px 16px; background: #FFEBEE; border-radius: 8px; margin-bottom: 16px; }
+        .blocker-item { font-size: 0.85rem; color: #B71C1C; margin: 4px 0; }
+        .preview-img { max-width: 200px; border-radius: 8px; margin: 4px 0; }
+        .workbench-actions { position: sticky; bottom: 0; background: #F5F2E9; padding: 16px; border-top: 1px solid #D8D4C8; display: flex; justify-content: space-between; align-items: center; }
+        .asset-link { color: #E54B2C; text-decoration: none; }
+        .asset-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+{% include "_nav.html" %}
+<div class="workbench-container">
+    <h2>Component Workbench</h2>
+    <p><a href="/create/assets/{{ draft.id }}" class="asset-link">← Back to asset {{ asset.id }} ({{ asset.platform }})</a></p>
+
+    <div class="session-badge
+        {% if view.session.current_state == 'planning_components' %}planning
+        {% elif view.session.current_state == 'generating_components' %}generating
+        {% elif view.session.current_state == 'component_review_required' %}review
+        {% elif view.session.current_state == 'manifest_ready' %}ready
+        {% elif view.session.current_state == 'blocked' %}blocked
+        {% endif %}">
+        {{ view.state_label }}
+    </div>
+
+    <div class="readiness-summary
+        {% if view.overall_readiness == 'ready' %}ready
+        {% elif view.overall_readiness == 'needs_action' %}needs_action
+        {% elif view.overall_readiness == 'blocked' %}blocked
+        {% else %}incomplete{% endif %}">
+        {% if view.overall_readiness == 'ready' %}
+            ✅ All required components approved. Ready to freeze.
+        {% elif view.overall_readiness == 'needs_action' %}
+            ⚠️ Some components need your review.
+        {% elif view.overall_readiness == 'blocked' %}
+            ❌ Some components are blocked.
+        {% else %}
+            ⏳ Some components are still generating.
+        {% endif %}
+    </div>
+
+    {% if view.blockers %}
+    <div class="blocker-list">
+        <strong>Blockers:</strong>
+        {% for blocker in view.blockers %}
+        <div class="blocker-item">• {{ blocker.category }} / {{ blocker.role }}: {{ blocker.message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if view.session.current_state == 'planning_components' %}
+    <div style="margin-bottom: 16px;">
+        <button class="btn btn-freeze" onclick="generateRequirements()">Generate Component Requirements</button>
+    </div>
+    {% endif %}
+
+    {% for cat in view.categories %}
+    <div class="category-section">
+        <div class="category-header" onclick="this.parentElement.querySelector('.category-body').classList.toggle('hidden')">
+            <span class="category-label">{{ cat.label }}
+                {% if cat.required %}<span class="category-required">Required</span>{% else %}<span class="category-optional">Optional</span>{% endif %}
+            </span>
+            <span class="role-status">
+                {% if cat.readiness == 'ready' %}✅{% elif cat.readiness == 'blocked' %}❌{% elif cat.readiness == 'incomplete' %}⏳{% else %}⚠️{% endif %}
+            </span>
+        </div>
+        <div class="category-body" style="padding: 0 16px 16px;">
+            {% for role in cat.roles %}
+            <div class="role-row">
+                <div class="role-label">{{ role.label }}
+                    {% if role.required %}<span class="category-required">Required</span>{% endif %}
+                </div>
+                <div class="role-status">{{ role.status_summary }}</div>
+                {% for c in role.candidates %}
+                <div class="candidate-card">
+                    <span class="candidate-status {{ c.status }}">{{ c.status_label }}</span>
+                    <span style="margin-left: 8px; font-size: 0.8rem; color: #757575;">v{{ c.version }}</span>
+                    {% if c.artifact_path %}
+                    <div style="margin-top: 4px; font-size: 0.8rem; color: #757575;">
+                        📎 {{ c.artifact_path|truncate(50) }}
+                    </div>
+                    {% endif %}
+                    {% if c.preview_path and c.preview_path.endswith(('.png', '.jpg', '.jpeg')) %}
+                    <img src="/media/{{ c.preview_path }}" class="preview-img" onclick="window.open('/media/{{ c.preview_path }}', '_blank')">
+                    {% elif c.preview_path and c.preview_path.endswith(('.wav', '.mp3', '.mp4')) %}
+                    <div style="margin-top: 4px;">
+                        <audio controls src="/media/{{ c.preview_path }}" style="max-width: 300px;"></audio>
+                    </div>
+                    {% endif %}
+                    <div class="candidate-actions">
+                        {% if c.status == 'available' %}
+                        <button class="btn btn-approve" onclick="decide({{ c.id }}, 'approve')">Approve</button>
+                        <button class="btn btn-reject" onclick="decide({{ c.id }}, 'reject')">Reject</button>
+                        <button class="btn btn-regenerate" onclick="decide({{ c.id }}, 'regenerate')">Regenerate</button>
+                        {% elif c.status == 'approved' %}
+                        <button class="btn btn-reject" onclick="decide({{ c.id }}, 'reject')">Unapprove</button>
+                        {% elif c.status == 'failed' %}
+                        <button class="btn btn-regenerate" onclick="decide({{ c.id }}, 'regenerate')">Retry</button>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+                {% if not role.candidates and role.required %}
+                <div style="padding: 8px; color: #999; font-size: 0.85rem;">No candidates yet</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+
+    {% if view.session.current_state == 'planning_components' %}
+    <div style="margin-bottom: 16px;">
+        <button class="btn" onclick="registerVO()" style="background: #9C27B0; color: white;">Register existing VO</button>
+        <button class="btn" onclick="registerVisuals()" style="background: #9C27B0; color: white;">Register existing images</button>
+    </div>
+    {% endif %}
+</div>
+
+<div class="workbench-actions">
+    <div>
+        {% if view.session.current_state == 'component_review_required' %}
+        <span style="color: #C62828; font-weight: 600;">Your review is needed — approve or reject each component above.</span>
+        {% endif %}
+    </div>
+    <div>
+        {% if view.freeze_enabled %}
+        <button class="btn btn-freeze" onclick="freezeManifest()">Freeze choices and assemble →</button>
+        {% else %}
+        <button class="btn btn-freeze" disabled title="Complete all required components first">Freeze choices and assemble</button>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function decide(candidateId, action) {
+    fetch(`/api/workbench/{{ asset.id }}/candidate/${candidateId}/decision`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: action})
+    }).then(r => r.json()).then(data => {
+        if (data.error) { alert(data.error); }
+        else { location.reload(); }
+    });
+}
+
+function freezeManifest() {
+    if (!confirm('Freeze the manifest and proceed to composition planning?')) return;
+    fetch(`/api/workbench/{{ asset.id }}/freeze`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+    }).then(r => r.json()).then(data => {
+        if (data.error) { alert(data.error); }
+        else { window.location.href = `/composition/{{ asset.id }}`; }
+    });
+}
+
+function generateRequirements() {
+    fetch(`/api/workbench/{{ asset.id }}/generate-requirements`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+    }).then(r => r.json()).then(data => {
+        if (data.error) { alert(data.error); }
+        else { location.reload(); }
+    });
+}
+
+function registerVO() {
+    fetch(`/api/workbench/{{ asset.id }}/register-vo-candidate`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+    }).then(r => r.json()).then(data => {
+        if (data.error) { alert(data.error); }
+        else { location.reload(); }
+    });
+}
+
+function registerVisuals() {
+    fetch(`/api/workbench/{{ asset.id }}/register-visual-candidates`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+    }).then(r => r.json()).then(data => {
+        if (data.error) { alert(data.error); }
+        else { location.reload(); }
+    });
+}
+</script>
+</body>
+</html>
