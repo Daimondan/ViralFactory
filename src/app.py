@@ -10061,26 +10061,29 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             if c.get("artifact_hash") and c.get("artifact_path"):
                 hash_to_path[c["artifact_hash"]] = c["artifact_path"]
 
+        # Load models_config for the preview generator
+        _models_for_previews = {}
+        try:
+            from config_loader import load_all
+            _cfg = load_all(app.config["CONFIG_DIR"])
+            _models_for_previews = _cfg["models"]
+        except Exception:
+            pass
+
+        _preview_cache = _os.path.join("data", "previews")
+        _os.makedirs(_preview_cache, exist_ok=True)
+
         preview_gen = CompositionPreviewGenerator(
-            cache_dir=_os.path.join(app.config.get("UPLOAD_DIR", "data/uploads"), "previews"),
-            models_config=plan.get("_models_config", {}),
+            cache_dir=_preview_cache,
+            models_config=_models_for_previews,
             config_dir=app.config["CONFIG_DIR"],
             source_resolver=lambda h: hash_to_path.get(h, ""),
         )
 
-        # Load models_config for the preview generator
-        try:
-            from config_loader import load_all
-            _cfg = load_all(app.config["CONFIG_DIR"])
-            preview_gen.models_config = _cfg["models"]
-        except Exception:
-            pass
-
         previews = {}
         try:
             previews = preview_gen.generate_all(plan)
-        except PreviewError:
-            previews = {}
+            previews.pop("_errors", None)  # remove error list, keep partial results
         except Exception:
             previews = {}
 

@@ -559,7 +559,7 @@ class TestGenerateAll(PreviewTestBase):
                 self.assertGreater(os.path.getsize(p), 0)
 
     def test_generate_all_collects_errors(self):
-        """generate_all raises PreviewError listing all failures."""
+        """generate_all returns partial results with _errors list on failures."""
         te = _make_text_element(text="Hi")
         ve = _make_visual_element(source_hash="nonexistent_hash")
         plan = _make_plan(
@@ -567,10 +567,13 @@ class TestGenerateAll(PreviewTestBase):
             visual_elements=[ve],
             total_duration=2.0,
         )
-        with self.assertRaises(PreviewError) as ctx:
-            self.gen.generate_all(plan)
-        msg = str(ctx.exception)
-        self.assertIn("visual", msg)
+        results = self.gen.generate_all(plan)
+        # Text preview should still succeed
+        self.assertGreater(len(results["text"]), 0)
+        # Visual preview should fail — error collected in _errors
+        self.assertIn("_errors", results)
+        errors_msg = " ".join(results["_errors"])
+        self.assertIn("visual", errors_msg)
 
     def test_generate_all_missing_font_in_config(self):
         """If config fonts are invalid but system fallback exists, text still renders."""

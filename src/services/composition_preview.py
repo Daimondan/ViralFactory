@@ -1004,6 +1004,10 @@ class CompositionPreviewGenerator:
             errors.append(f"timeline: {exc}")
 
         if errors:
-            raise PreviewError("Preview generation failures:\n" + "\n".join(errors))
+            # Return partial results with errors — don't throw away
+            # successful previews when some fail. The caller can check
+            # which categories have previews and which are missing.
+            results["_errors"] = errors
+            return results
 
         return results
