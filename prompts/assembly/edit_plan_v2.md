@@ -43,7 +43,8 @@ Rules:
 5. Reference only cue IDs that exist in `compiled_cues_json`. The renderer attaches their exact text mechanically; do not output or rewrite caption/overlay text.
 6. Preserve each beat's declared transition intent. State the narrative reason in `transition_reason`.
 7. `audio_contribution` describes the selected visual source contribution only. The approved VO take remains the master audio.
-8. Return JSON only.
+8. **No segment may exceed {max_segment_seconds} seconds without an overlay, text pop, B-roll cut, or angle shift.** If a beat's VO is longer than {max_segment_seconds} seconds, split it into multiple segments — each with a different visual source or an overlay cue — to maintain visual engagement. The validator enforces this as a blocking rule.
+9. Return JSON only.
 
 Required shape:
 ```json

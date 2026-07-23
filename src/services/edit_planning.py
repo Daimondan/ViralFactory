@@ -566,6 +566,7 @@ class EditPlanningService:
             }, sort_keys=True),
             "compiled_cues_json": json.dumps(compiled, ensure_ascii=False, sort_keys=True),
             "inventory_json": json.dumps(ingredients, ensure_ascii=False, sort_keys=True),
+            "max_segment_seconds": str(self._get_max_segment_seconds(asset.get("variant_type", ""))),
             **module_vars,
         }
         adapter = LLMAdapter(
@@ -1030,10 +1031,23 @@ class EditPlanningService:
                     )
             for event in visual_events:
                 required_text = event.get("required_text")
-                if required_text and _normalize_text(required_text) not in approved_fragments:
-                    errors.append(
-                        f"Visual event '{event.get('event_id', '?')}' invents audience text"
-                    )
+                if required_text:
+                    normalized = _normalize_text(required_text)
+                    if normalized not in approved_fragments:
+                        # Distinguish internal graphic labels (snake_case,
+                        # no spaces) from invented audience copy.
+                        # The Visual Director may use required_text as an
+                        # internal label for renderer_graphic events (e.g.
+                        # "cost_comparison_card"), which is not audience text.
+                        is_internal_label = (
+                            event.get("source_policy") == "renderer_graphic"
+                            and " " not in required_text.strip()
+                            and required_text.replace("_", "").isalnum()
+                        )
+                        if not is_internal_label:
+                            errors.append(
+                                f"Visual event '{event.get('event_id', '?')}' invents audience text"
+                            )
                 time_range = event.get("time_range") or {}
                 start = time_range.get("start")
                 end = time_range.get("end")
