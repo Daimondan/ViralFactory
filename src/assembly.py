@@ -451,7 +451,11 @@ class AssemblyRenderer:
                     tpad_vf = ""
                     if needs_tpad:
                         tpad_vf = f",tpad=stop_mode=clone:stop_duration={duration - src_dur:.3f}"
-                    vf_str = f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1{tpad_vf}"
+                    # Use crop (increase) instead of pad (decrease) so landscape
+                    # video clips fill the portrait frame instead of showing as
+                    # a tiny strip with 58% black bars. Crop centers the frame
+                    # on the action and fills edge-to-edge.
+                    vf_str = f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},setsar=1{tpad_vf}"
                     if has_audio:
                         cmd = [
                             "ffmpeg", "-y",
@@ -508,12 +512,17 @@ class AssemblyRenderer:
                 transition_types.append(seg.get("transition_in", "cut"))
 
             # Check if any non-cut transitions exist
+            # With many segments (20+), the xfade chain is fragile and causes
+            # timeline drift that breaks overlay timing. Use simple concat for
+            # cut-heavy plans (which is the common case). Only use xfade for
+            # short plans (< 8 segments) with real transitions.
             has_transitions = any(t in ("crossfade", "slide", "whip") for t in transition_types)
+            use_xfade = has_transitions and len(temp_files) >= 2 and len(temp_files) < 8
 
             if len(temp_files) == 1:
                 # Single segment — just copy
                 cmd = ["ffmpeg", "-y", "-i", temp_files[0], "-c", "copy", output_file]
-            elif has_transitions and len(temp_files) >= 2:
+            elif use_xfade:
                 # Use xfade transitions between segments
                 # xfade offset = cumulative duration minus transition duration
                 xfade_dur = 0.5  # 500ms transitions
