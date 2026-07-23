@@ -10149,6 +10149,41 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         # Build the real plan (same as the view route)
         plan = _build_composition_plan(app, business_slug, asset, session, manifest)
 
+        # Generate previews (same as the view route)
+        import json as _json4
+        import os as _os4
+        from services.composition_preview import CompositionPreviewGenerator
+
+        manifest_data_r = manifest.get("manifest_json", {})
+        if isinstance(manifest_data_r, str):
+            manifest_data_r = _json4.loads(manifest_data_r)
+        hash_to_path_r = {}
+        for c in manifest_data_r.get("candidates", []):
+            if c.get("artifact_hash") and c.get("artifact_path"):
+                hash_to_path_r[c["artifact_hash"]] = c["artifact_path"]
+
+        _models_r = {}
+        try:
+            from config_loader import load_all as _la
+            _models_r = _la(app.config["CONFIG_DIR"])["models"]
+        except Exception:
+            pass
+
+        _cache_r = _os4.path.join("data", "previews")
+        _os4.makedirs(_cache_r, exist_ok=True)
+        _pg = CompositionPreviewGenerator(
+            cache_dir=_cache_r,
+            models_config=_models_r,
+            config_dir=app.config["CONFIG_DIR"],
+            source_resolver=lambda h: hash_to_path_r.get(h, ""),
+        )
+        _previews_r = {}
+        try:
+            _previews_r = _pg.generate_all(plan)
+            _previews_r.pop("_errors", None)
+        except Exception:
+            _previews_r = {}
+
         rat_svc = RatificationService(
             db_path=app.config["DB_PATH"],
             config_dir=app.config["CONFIG_DIR"],
@@ -10159,7 +10194,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 production_session_id=session["id"],
                 plan=plan,
                 manifest=manifest,
-                previews={},
+                previews=_previews_r,
             )
             return jsonify({"status": "ok", "decision": decision})
         except Exception as e:
