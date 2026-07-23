@@ -9454,6 +9454,16 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         # Get draft for context
         draft = store.get_draft(asset["draft_id"])
 
+        # Parse Writer contract posts for beat context (creative direction)
+        import json as _json
+        writer_posts = _json.loads(asset.get("posts") or "[]")
+        # Build a beat_id → post map for quick lookup
+        beat_posts = {}
+        for i, post in enumerate(writer_posts):
+            if isinstance(post, dict):
+                bid = post.get("beat_id") or f"b{i+1:02d}"
+                beat_posts[bid] = post
+
         return render_template(
             "component_workbench.html",
             business_name=_get_business_name(app),
@@ -9462,6 +9472,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             draft=draft,
             session=session,
             view=view,
+            beat_posts=beat_posts,
             nav_counts=_get_nav_counts(app),
         )
 

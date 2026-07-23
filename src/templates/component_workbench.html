@@ -127,6 +127,72 @@
                 <div class="candidate-card">
                     <span class="candidate-status {{ c.status }}">{{ c.status_label }}</span>
                     <span style="margin-left: 8px; background: #E0E0E0; color: #424242; font-size: 0.75rem; font-weight: 600; padding: 2px 8px; border-radius: 10px;">v{{ c.version }}</span>
+
+                    {# ── Beat context from Writer contract ── #}
+                    {% if c.beat_refs and c.beat_refs|length > 0 and beat_posts %}
+                    {% set bid = c.beat_refs[0] %}
+                    {% set post = beat_posts.get(bid, {}) %}
+                    {% if post %}
+                    <div style="margin-top: 8px; padding: 10px; background: #F5F2E9; border-radius: 8px; border-left: 3px solid #E54B2C; font-size: 0.82rem; line-height: 1.5;">
+                        <div style="font-weight: 600; color: #2C2823; margin-bottom: 4px;">
+                            {{ post.label or bid|upper }} — Beat {{ bid }}
+                        </div>
+                        {# Media type indicator #}
+                        {% set mt = (post.visual or {}).get('media_type', '') %}
+                        {% if mt == 'video' %}
+                        <div style="color: #E65100; font-weight: 600; margin-bottom: 4px;">🎬 Writer directed: VIDEO clip (5s motion)</div>
+                        {% elif mt == 'motion_graphic' %}
+                        <div style="color: #1565C0; font-weight: 600; margin-bottom: 4px;">🖼️ Writer directed: MOTION GRAPHIC (still + Ken Burns)</div>
+                        {% endif %}
+                        {# VO excerpt #}
+                        {% if post.vo_text %}
+                        <div style="color: #555; margin-bottom: 4px;">
+                            <strong>VO:</strong> "{{ post.vo_text[:100] }}{% if post.vo_text|length > 100 %}…{% endif %}"
+                        </div>
+                        {% endif %}
+                        {# Text on screen (typography) #}
+                        {% if post.text_on_screen and post.text_on_screen.text %}
+                        <div style="color: #4A6FA5; margin-bottom: 4px;">
+                            <strong>Text on screen:</strong> "{{ post.text_on_screen.text[:80] }}"
+                            <span style="color: #8A857C; font-size: 0.78rem;">({{ post.text_on_screen.style or 'default' }}, {{ post.text_on_screen.animation or 'none' }})</span>
+                        </div>
+                        {% endif %}
+                        {# Visual direction #}
+                        {% if post.visual and post.visual.image_prompt %}
+                        <div style="color: #6B675D; margin-bottom: 4px;">
+                            <strong>Visual:</strong> {{ post.visual.shot_type or '' }}, {{ post.visual.movement or '' }}
+                            {% if post.visual.b_roll and post.visual.b_roll != 'none' %}
+                            | B-roll: {{ post.visual.b_roll[:80] }}
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        {# Transition #}
+                        {% if post.transition_in and post.transition_in != 'cut' %}
+                        <div style="color: #8A6D20; margin-bottom: 4px;">
+                            <strong>Transition in:</strong> {{ post.transition_in }}
+                        </div>
+                        {% endif %}
+                        {# SFX #}
+                        {% if post.sfx and post.sfx|length > 0 %}
+                        <div style="color: #7B5BA6; margin-bottom: 4px;">
+                            <strong>SFX:</strong> {{ post.sfx|length }} cue(s)
+                            {% for s in post.sfx %}
+                            <span style="font-size: 0.78rem; color: #8A857C;">({{ s.get('type','') }} at {{ s.get('time','') }}s)</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        {# Music #}
+                        {% if post.music %}
+                        <div style="color: #2E7D32; margin-bottom: 4px;">
+                            <strong>Music:</strong> {{ post.music.get('action','') }}
+                            {% if post.music.get('duck') %} (ducked){% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% endif %}
+
+                    {# ── Artifact label (human-readable, no raw paths) ── #}
                     {% if c.artifact_path %}
                     <div style="margin-top: 4px; font-size: 0.8rem; color: #757575;">
                         {% set ext = c.artifact_path.split('.')[-1].lower() %}
@@ -134,6 +200,9 @@
                             🎵 Voice recording
                         {% elif ext in ('png', 'jpg', 'jpeg', 'webp') %}
                             🖼️ Generated image{% if c.beat_refs and c.beat_refs|length > 0 %} — beat {{ c.beat_refs[0] }}{% endif %}
+                            {% if c.beat_refs and beat_posts and beat_posts.get(c.beat_refs[0], {}).get('visual', {}).get('media_type') == 'video' %}
+                            <span style="color: #E65100; font-weight: 600;">⚠ Should be VIDEO — still generated</span>
+                            {% endif %}
                         {% elif ext in ('mp4', 'mov', 'avi', 'webm') %}
                             🎬 Video clip{% if c.beat_refs and c.beat_refs|length > 0 %} — beat {{ c.beat_refs[0] }}{% endif %}
                         {% else %}
