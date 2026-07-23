@@ -471,7 +471,7 @@ class TestFlaskDraftEndpoints:
         assert resp.get_json()["new_state"] == "shipped"
 
     def test_draft_gate_kill_with_reason(self, app, sample_treatment):
-        """Killing a draft logs reason to feedback."""
+        """Killing a draft terminates its card and logs reason to feedback."""
         from pipeline import PipelineStore
         store = PipelineStore(db_path=app.config["DB_PATH"])
         card_id = store.create_idea_card(
@@ -484,11 +484,41 @@ class TestFlaskDraftEndpoints:
         resp = client.post(f"/api/draft/{draft_id}/gate",
                            json={"action": "kill", "kill_reason": "voice is off"})
         assert resp.status_code == 200
+        assert store.get_draft(draft_id)["draft_state"] == "killed"
+        assert store.get_idea_card(card_id)["card_state"] == "killed"
 
         entries = store.list_feedback("testbiz")
         kill_entries = [e for e in entries if e["feedback_type"] == "kill_reason"]
         assert len(kill_entries) == 1
         assert kill_entries[0]["feedback_text"] == "voice is off"
+
+    def test_writer_queue_hides_killed_draft_when_legacy_card_state_is_stale(
+        self, app, sample_treatment
+    ):
+        """Historical rows cannot resurrect a killed Gate 2 card in the UI."""
+        from pipeline import PipelineStore
+
+        store = PipelineStore(db_path=app.config["DB_PATH"])
+        card_id = store.create_idea_card(
+            business_slug="testbiz",
+            idea="Killed draft must leave the active queue",
+            hook_options=["h"],
+            treatment=sample_treatment,
+            origin="ai_originated",
+        )
+        old_draft_id = store.create_draft("testbiz", card_id, "ai_originated")
+        store.update_draft_state(old_draft_id, "draft_ready")
+        draft_id = store.create_draft("testbiz", card_id, "ai_originated")
+        store.update_draft_state(draft_id, "killed")
+        store.update_card_state(card_id, "approved")
+
+        queue = app.test_client().get("/create")
+
+        assert queue.status_code == 200
+        assert b"Killed draft must leave the active queue" not in queue.data
+        assert b"Pipeline 1" not in queue.data
+        home = app.test_client().get("/")
+        assert b"Needs your decision" not in home.data
 
     def test_draft_gate_revise(self, app, sample_treatment):
         """Revising increments version."""
@@ -555,6 +585,66 @@ class TestFlaskDraftEndpoints:
         resp = client.post(f"/api/assets/{asset_id}/gate", json={"action": "fix"})
         assert resp.status_code == 200
         assert resp.get_json()["new_state"] == "fix"
+
+    def test_killing_last_asset_ends_card_and_removes_it_from_asset_queue(
+        self, app, sample_treatment
+    ):
+        """Gate 3 kill leaves no dead card in the operator's active queue."""
+        from pipeline import PipelineStore
+
+        store = PipelineStore(db_path=app.config["DB_PATH"])
+        card_id = store.create_idea_card(
+            business_slug="testbiz",
+            idea="Dead asset must leave the active queue",
+            hook_options=["h"],
+            treatment=sample_treatment,
+            origin="ai_originated",
+        )
+        draft_id = store.create_draft("testbiz", card_id, "ai_originated")
+        store.update_draft_state(draft_id, "shipped")
+        store.update_card_state(card_id, "asset_ready")
+        asset_id = store.create_asset("testbiz", draft_id, "X", "thread", "content")
+
+        client = app.test_client()
+        resp = client.post(f"/api/assets/{asset_id}/gate", json={"action": "kill"})
+
+        assert resp.status_code == 200
+        assert store.get_asset(asset_id)["asset_state"] == "killed"
+        assert store.get_idea_card(card_id)["card_state"] == "killed"
+        queue = client.get("/assemble")
+        assert queue.status_code == 200
+        assert b"Dead asset must leave the active queue" not in queue.data
+
+    def test_asset_queue_hides_all_killed_assets_when_legacy_card_state_is_stale(
+        self, app, sample_treatment
+    ):
+        """Historical rows with no active variants stay out of Gate 3."""
+        from pipeline import PipelineStore
+
+        store = PipelineStore(db_path=app.config["DB_PATH"])
+        card_id = store.create_idea_card(
+            business_slug="testbiz",
+            idea="All killed assets must leave the active queue",
+            hook_options=["h"],
+            treatment=sample_treatment,
+            origin="ai_originated",
+        )
+        old_draft_id = store.create_draft("testbiz", card_id, "ai_originated")
+        store.update_draft_state(old_draft_id, "shipped")
+        store.create_asset("testbiz", old_draft_id, "X", "thread", "old content")
+        draft_id = store.create_draft("testbiz", card_id, "ai_originated")
+        store.update_draft_state(draft_id, "shipped")
+        store.update_card_state(card_id, "asset_ready")
+        asset_id = store.create_asset("testbiz", draft_id, "X", "thread", "content")
+        store.update_asset_state(asset_id, "killed")
+
+        queue = app.test_client().get("/assemble")
+
+        assert queue.status_code == 200
+        assert b"All killed assets must leave the active queue" not in queue.data
+        assert b"Pipeline 1" not in queue.data
+        home = app.test_client().get("/")
+        assert b"Needs your decision" not in home.data
 
     def test_publish_page_loads(self, app, sample_treatment):
         """Publish page loads with approved assets."""

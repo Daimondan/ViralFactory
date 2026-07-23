@@ -8,6 +8,12 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-23
 
+### VF-CW-001 — Behavioral baseline + correlated runtime evidence [STRUCTURE/OPS]
+
+**Rationale:** The 2026-07-21 runtime audit found 6 production defects: stuck soundtrack wait with no durable continuation, done-job/missing-artifact mismatch, missing VO with manual-only recovery, first-child multi-platform selection via get_asset_by_draft, direct Gate 3 API bypass without final artifact, and ambiguous newest edit plan with no active pointer. Before building the Component Workbench, these defects must be captured as RED fixtures so VF-CW-002..010 can turn them GREEN. Production jobs and step data also lacked correlation fields for observability.
+
+**Changes:** Added 12 behavioral baseline tests (6 RED proving current defects, 6 GREEN proving new correlation infrastructure). Added 7 correlation fields to the jobs table (business_slug, production_session_id, draft_id, asset_id, state, attempt, upstream_hash) with idempotent ALTER TABLE migration for existing databases. Added 5 correlation fields to production_step_data. Updated JobsStore.start_job() to accept and persist all correlation fields.
+
 ### AMENDMENT-014 — Two-phase assembly: composition plan, per-element previews, and ratification [STRATEGIC/STRUCTURE/LOGIC]
 
 **Rationale:** The operator reviewed the Creatomate vs Shotstack bake-off and directed a new architecture: split assembly into two phases so the operator can see and ratify every element of the video before the renderer runs. AMENDMENT-013's Component Workbench approves individual ingredients but does not let the operator preview how those ingredients combine — which words get emphasis, which font, where graphics appear, when SFX fire, which transitions occur where — until the final render appears at Gate 3. That's too late to catch composition problems without wasting a render.

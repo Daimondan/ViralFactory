@@ -992,6 +992,18 @@ class PipelineStore:
         asset_cols = [r[1] for r in conn.execute("PRAGMA table_info(assets)").fetchall()]
         if "vo_segments" not in asset_cols:
             conn.execute("ALTER TABLE assets ADD COLUMN vo_segments TEXT")
+        # VF-CW-001: Add correlation columns to production_step_data
+        step_cols = [r[1] for r in conn.execute("PRAGMA table_info(production_step_data)").fetchall()]
+        step_migrations = {
+            "asset_id": "INTEGER",
+            "production_session_id": "INTEGER",
+            "state": "TEXT",
+            "attempt": "INTEGER DEFAULT 1",
+            "upstream_hash": "TEXT",
+        }
+        for col, coltype in step_migrations.items():
+            if col not in step_cols:
+                conn.execute(f"ALTER TABLE production_step_data ADD COLUMN {col} {coltype}")
         conn.commit()
         conn.close()
 

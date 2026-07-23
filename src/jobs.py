@@ -36,13 +36,23 @@ CREATE TABLE IF NOT EXISTS jobs (
     error TEXT,                          -- error message if failed
     started_at TEXT NOT NULL,
     completed_at TEXT,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    -- VF-CW-001: Correlation fields for production observability
+    business_slug TEXT,                 -- tenant scope for multi-tenant isolation
+    production_session_id INTEGER,      -- links to production_sessions table (VF-CW-002)
+    draft_id INTEGER,                   -- explicit draft correlation
+    asset_id INTEGER,                   -- explicit asset correlation
+    state TEXT,                         -- production state at job start
+    attempt INTEGER DEFAULT 1,          -- retry attempt number
+    upstream_hash TEXT                  -- hash of upstream inputs for lineage
 );
 
 CREATE INDEX IF NOT EXISTS idx_jobs_key ON jobs(job_key);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_type ON jobs(job_type);
 CREATE INDEX IF NOT EXISTS idx_jobs_entity ON jobs(entity_id);
+CREATE INDEX IF NOT EXISTS idx_jobs_session ON jobs(production_session_id);
+CREATE INDEX IF NOT EXISTS idx_jobs_business ON jobs(business_slug);
 """
 
 
@@ -62,7 +72,46 @@ class JobsStore:
 
     def _init_db(self):
         conn = sqlite3.connect(self.db_path)
-        conn.executescript(SCHEMA_SQL)
+        # Create table if not exists (original columns only for new DBs)
+        # Then run migrations to add correlation columns to existing tables
+        # before creating indexes that reference them
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS jobs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_key TEXT NOT NULL,
+                job_type TEXT NOT NULL,
+                entity_id INTEGER,
+                status TEXT NOT NULL DEFAULT 'running',
+                result_ref TEXT,
+                error TEXT,
+                started_at TEXT NOT NULL,
+                completed_at TEXT,
+                created_at TEXT NOT NULL
+            );
+        """)
+        # VF-CW-001: Idempotent migration — add correlation columns
+        existing_cols = [r[1] for r in conn.execute("PRAGMA table_info(jobs)").fetchall()]
+        migration_cols = {
+            "business_slug": "TEXT",
+            "production_session_id": "INTEGER",
+            "draft_id": "INTEGER",
+            "asset_id": "INTEGER",
+            "state": "TEXT",
+            "attempt": "INTEGER DEFAULT 1",
+            "upstream_hash": "TEXT",
+        }
+        for col, coltype in migration_cols.items():
+            if col not in existing_cols:
+                conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} {coltype}")
+        # Create all indexes (safe now — all columns exist)
+        conn.executescript("""
+            CREATE INDEX IF NOT EXISTS idx_jobs_key ON jobs(job_key);
+            CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+            CREATE INDEX IF NOT EXISTS idx_jobs_type ON jobs(job_type);
+            CREATE INDEX IF NOT EXISTS idx_jobs_entity ON jobs(entity_id);
+            CREATE INDEX IF NOT EXISTS idx_jobs_session ON jobs(production_session_id);
+            CREATE INDEX IF NOT EXISTS idx_jobs_business ON jobs(business_slug);
+        """)
         conn.commit()
         conn.close()
 
@@ -85,6 +134,13 @@ class JobsStore:
         entity_id: int = None,
         input_hash: str = None,
         stale_timeout_s: int = DEFAULT_STALE_TIMEOUT_S,
+        business_slug: str = None,
+        production_session_id: int = None,
+        draft_id: int = None,
+        asset_id: int = None,
+        state: str = None,
+        attempt: int = 1,
+        upstream_hash: str = None,
     ) -> dict:
         """
         Attempt to start a job. Returns one of:
@@ -96,6 +152,10 @@ class JobsStore:
 
         Stale 'running' jobs older than stale_timeout_s are marked 'dead' and the
         new job is started.
+
+        VF-CW-001: Correlation fields (business_slug, production_session_id,
+        draft_id, asset_id, state, attempt, upstream_hash) are persisted for
+        production observability and lineage tracking.
         """
         job_key = self.make_job_key(job_type, entity_id, input_hash)
         ts = self._now()
@@ -131,9 +191,13 @@ class JobsStore:
 
         # Start a new job
         cursor = conn.execute(
-            """INSERT INTO jobs (job_key, job_type, entity_id, status, started_at, created_at)
-               VALUES (?, ?, ?, 'running', ?, ?)""",
-            (job_key, job_type, entity_id, ts, ts),
+            """INSERT INTO jobs (job_key, job_type, entity_id, status, started_at, created_at,
+                                  business_slug, production_session_id, draft_id, asset_id,
+                                  state, attempt, upstream_hash)
+               VALUES (?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (job_key, job_type, entity_id, ts, ts,
+             business_slug, production_session_id, draft_id, asset_id,
+             state, attempt, upstream_hash),
         )
         job_id = cursor.lastrowid
         conn.commit()
