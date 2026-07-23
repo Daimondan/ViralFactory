@@ -991,6 +991,9 @@ class PipelineStore:
         # VF-RA-002: Render provider jobs schema
         from services.render_adapters import SCHEMA_SQL as PROVIDER_JOBS_SCHEMA
         conn.executescript(PROVIDER_JOBS_SCHEMA)
+        # VF-RA-003: Provider selection decisions schema
+        from services.selection_gate import SCHEMA_SQL as SELECTION_SCHEMA
+        conn.executescript(SELECTION_SCHEMA)
         # Migrations for existing databases (idempotent)
         # T8.3: add source_refs column to idea_cards if not present
         cols = [r[1] for r in conn.execute("PRAGMA table_info(idea_cards)").fetchall()]
