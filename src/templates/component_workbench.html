@@ -64,6 +64,85 @@
         {{ view.state_label }}
     </div>
 
+    {# ── Writer Direction Summary — shows the full creative blueprint ── #}
+    {% if beat_posts and beat_posts|length > 0 %}
+    <div class="category-section" style="margin-bottom: 16px;">
+        <div class="category-header" onclick="this.parentElement.querySelector('.beat-direction-body').classList.toggle('hidden')">
+            <span class="category-label">📋 Writer Direction Summary
+                <span class="category-optional">{{ beat_posts|length }} beats</span>
+            </span>
+            <span class="role-status">📖</span>
+        </div>
+        <div class="beat-direction-body" style="padding: 0 16px 16px;">
+            {# Summary stats #}
+            <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; padding: 10px; background: #F5F2E9; border-radius: 8px; font-size: 0.82rem;">
+                {% set ns = namespace(videos=0, stills=0, transitions=0, sfx_count=0, has_music=false, text_overlays=0) %}
+                {% for bid, post in beat_posts.items() %}
+                    {% if (post.visual or {}).get('media_type') == 'video' %}{% set ns.videos = ns.videos + 1 %}{% endif %}
+                    {% if (post.visual or {}).get('media_type') == 'motion_graphic' %}{% set ns.stills = ns.stills + 1 %}{% endif %}
+                    {% if post.transition_in and post.transition_in != 'cut' %}{% set ns.transitions = ns.transitions + 1 %}{% endif %}
+                    {% if post.sfx %}{% set ns.sfx_count = ns.sfx_count + (post.sfx|length) %}{% endif %}
+                    {% if post.music %}{% set ns.has_music = true %}{% endif %}
+                    {% if post.text_on_screen and post.text_on_screen.text %}{% set ns.text_overlays = ns.text_overlays + 1 %}{% endif %}
+                {% endfor %}
+                <span>🎬 {{ ns.videos }} video clips</span>
+                <span>🖼️ {{ ns.stills }} stills</span>
+                <span>📝 {{ ns.text_overlays }} text overlays</span>
+                <span>🔀 {{ ns.transitions }} transitions</span>
+                <span>🔊 {{ ns.sfx_count }} SFX cues</span>
+                {% if ns.has_music %}<span>🎵 Music bed directed</span>{% endif %}
+            </div>
+
+            {# Per-beat breakdown #}
+            {% for bid, post in beat_posts.items() %}
+            <div style="margin-bottom: 8px; padding: 10px; background: #FAFAFA; border-radius: 6px; border-left: 3px solid #E54B2C; font-size: 0.82rem; line-height: 1.5;">
+                <div style="font-weight: 600; color: #2C2823; margin-bottom: 4px;">
+                    {{ post.label or bid|upper }} — Beat {{ bid }}
+                    {% set mt = (post.visual or {}).get('media_type', '') %}
+                    {% if mt == 'video' %}
+                    <span style="color: #E65100; font-weight: 600; margin-left: 8px;">🎬 VIDEO</span>
+                    {% elif mt == 'motion_graphic' %}
+                    <span style="color: #1565C0; font-weight: 600; margin-left: 8px;">🖼️ STILL</span>
+                    {% endif %}
+                </div>
+                {% if post.vo_text %}
+                <div style="color: #555; margin-bottom: 3px;">
+                    <strong>VO:</strong> "{{ post.vo_text[:120] }}{% if post.vo_text|length > 120 %}…{% endif %}"
+                </div>
+                {% endif %}
+                {% if post.text_on_screen and post.text_on_screen.text %}
+                <div style="color: #4A6FA5; margin-bottom: 3px;">
+                    <strong>Caption:</strong> "{{ post.text_on_screen.text[:80] }}"
+                    <span style="color: #8A857C; font-size: 0.78rem;">— {{ post.text_on_screen.style or 'default' }}, {{ post.text_on_screen.animation or 'none' }}</span>
+                </div>
+                {% endif %}
+                {% if post.visual and post.visual.image_prompt %}
+                <div style="color: #6B675D; margin-bottom: 3px;">
+                    <strong>Visual:</strong> {{ post.visual.shot_type or '' }}, {{ post.visual.movement or '' }}
+                    {% if post.visual.b_roll and post.visual.b_roll != 'none' %}
+                    | B-roll: {{ post.visual.b_roll[:60] }}
+                    {% endif %}
+                </div>
+                {% endif %}
+                <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 4px; font-size: 0.78rem; color: #8A857C;">
+                    {% if post.transition_in %}
+                    <span>🔀 Transition: {{ post.transition_in }}</span>
+                    {% endif %}
+                    {% if post.sfx and post.sfx|length > 0 %}
+                    <span>🔊 SFX: {{ post.sfx|length }} cue(s)
+                        {% for s in post.sfx %}({{ s.get('type','') }} @{{ s.get('time','') }}s){% endfor %}
+                    </span>
+                    {% endif %}
+                    {% if post.music %}
+                    <span>🎵 Music: {{ post.music.get('action','') }}{% if post.music.get('duck') %} (ducked){% endif %}</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     <div class="readiness-summary
         {% if view.session.current_state == 'manifest_ready' and view.overall_readiness == 'ready' %}ready
         {% elif view.session.current_state == 'component_review_required' and view.overall_readiness == 'ready' %}ready
