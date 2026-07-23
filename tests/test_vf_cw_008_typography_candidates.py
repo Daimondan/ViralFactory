@@ -36,11 +36,14 @@ def tmp_db():
     shutil.rmtree(tmpdir, ignore_errors=True)
 
 
-def _make_font_file(tmpdir, name="test_font.ttf"):
-    """Create a fake font file (just bytes — we only hash it)."""
+def _make_font_file(tmpdir, name="test_font.ttf", seed=b"A"):
+    """Create a fake font file (just bytes — we only hash it).
+
+    The seed parameter makes each font unique so hashes differ.
+    """
     path = os.path.join(tmpdir, name)
     with open(path, "wb") as f:
-        f.write(b"\x00\x01\x00\x00FakeTrueTypeFontData" + b"\x00" * 128)
+        f.write(b"\x00\x01\x00\x00FakeTrueTypeFontData" + seed * 128)
     return path
 
 
@@ -171,8 +174,8 @@ def typo_service(tmp_db):
     db_path, tmpdir = tmp_db
     config_dir = os.path.join(tmpdir, "config")
     modules_dir = os.path.join(tmpdir, "modules")
-    font_path = _make_font_file(tmpdir)
-    font_display_path = _make_font_file(tmpdir, "display_font.ttf")
+    font_path = _make_font_file(tmpdir, seed=b"X")
+    font_display_path = _make_font_file(tmpdir, "display_font.ttf", seed=b"Y")
 
     _make_models_yaml(config_dir, font_path, font_display_path)
     _make_render_styles_yaml(config_dir)
@@ -344,7 +347,7 @@ class TestTwoTenantsDifferentFonts:
         # Tenant A: uses font_a.ttf
         config_a = os.path.join(tmpdir, "config_a")
         modules_a = os.path.join(tmpdir, "modules_a")
-        font_a = _make_font_file(tmpdir, "font_a.ttf")
+        font_a = _make_font_file(tmpdir, "font_a.ttf", seed=b"A")
         _make_models_yaml(config_a, font_a)
         _make_render_styles_yaml(config_a, extra_styles={
             "hook": {"fontsize": 100, "fontcolor": "red", "borderw": 5, "bordercolor": "black"},
@@ -353,7 +356,7 @@ class TestTwoTenantsDifferentFonts:
         # Tenant B: uses font_b.ttf + different hook style
         config_b = os.path.join(tmpdir, "config_b")
         modules_b = os.path.join(tmpdir, "modules_b")
-        font_b = _make_font_file(tmpdir, "font_b.ttf")
+        font_b = _make_font_file(tmpdir, "font_b.ttf", seed=b"B")
         _make_models_yaml(config_b, font_b)
         _make_render_styles_yaml(config_b, extra_styles={
             "hook": {"fontsize": 50, "fontcolor": "blue", "borderw": 1, "bordercolor": "white"},

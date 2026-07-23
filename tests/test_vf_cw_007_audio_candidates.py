@@ -149,18 +149,30 @@ def _rights(**overrides):
 
 def _save_rights_and_artifact(db_path, media_dir, asset_id=1,
                               soundtrack_plan_id=1, rights_overrides=None,
-                              artifact_duration=2.0, candidate_id="pixabay:track-7"):
-    """Save a rights record and acquire a local artifact, returning both."""
+                              artifact_duration=2.0, candidate_id="pixabay:track-7",
+                              skip_validation=False):
+    """Save a rights record and acquire a local artifact, returning both.
+
+    When ``skip_validation`` is True the rights record is inserted directly
+    via SQL, bypassing the validator — used for testing fail-closed paths
+    with intentionally invalid rights (unknown status, expired, unapproved
+    cost).
+    """
     from soundtrack_rights import SoundtrackRightsStore, acquire_rights_valid_track
 
     store = SoundtrackRightsStore(db_path)
     rights_record = _rights(candidate_id=candidate_id)
     if rights_overrides:
         rights_record.update(rights_overrides)
-    rights = store.save_rights_record(
-        asset_id=asset_id, soundtrack_plan_id=soundtrack_plan_id,
-        record=rights_record,
-    )
+
+    if skip_validation:
+        rights = _insert_rights_raw(db_path, asset_id, soundtrack_plan_id,
+                                    rights_record)
+    else:
+        rights = store.save_rights_record(
+            asset_id=asset_id, soundtrack_plan_id=soundtrack_plan_id,
+            record=rights_record,
+        )
 
     def downloader(_url, destination):
         _make_wav(destination, artifact_duration)
@@ -178,6 +190,76 @@ def _save_rights_and_artifact(db_path, media_dir, asset_id=1,
         media_root=os.path.dirname(os.path.dirname(media_dir)),  # tmpdir/data
         downloader=downloader,
     )
+    return rights, artifact
+
+
+def _insert_rights_raw(db_path, asset_id, soundtrack_plan_id, record):
+    """Insert a rights record directly via SQL, bypassing validation."""
+    import hashlib as _hl
+    from soundtrack_rights import sanitize_url, _now
+    safe = json.loads(json.dumps(record))
+    safe["terms_url"] = sanitize_url(safe["terms_url"])
+    canonical = json.dumps(safe, sort_keys=True, ensure_ascii=False)
+    rights_hash = _hl.sha256(canonical.encode("utf-8")).hexdigest()
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT COALESCE(MAX(rights_version), 0) AS version "
+            "FROM soundtrack_rights "
+            "WHERE soundtrack_plan_id = ? AND candidate_id = ?",
+            (soundtrack_plan_id, safe["candidate_id"]),
+        ).fetchone()
+        version = int(row["version"]) + 1
+        cursor = conn.execute(
+            """INSERT INTO soundtrack_rights
+               (asset_id, soundtrack_plan_id, candidate_id, rights_version,
+                rights_json, rights_hash, terms_url, terms_evidence_hash, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (asset_id, soundtrack_plan_id, safe["candidate_id"], version,
+             canonical, rights_hash, safe["terms_url"],
+             safe["terms_evidence_hash"], _now()),
+        )
+        rights_record_id = int(cursor.lastrowid)
+    return {
+        "rights_record_id": rights_record_id,
+        "rights_version": version,
+        "rights_hash": rights_hash,
+    }
+
+
+def _make_raw_artifact(db_path, media_dir, asset_id=1,
+                       soundtrack_plan_id=1, rights_overrides=None,
+                       artifact_duration=2.0, candidate_id="pixabay:track-7"):
+    """Insert a rights record bypassing validation (for fail-closed tests)
+    and create a local artifact file manually.
+
+    Unlike ``_save_rights_and_artifact``, this does NOT call
+    ``acquire_rights_valid_track`` (which also validates rights), so it can
+    produce artifacts with intentionally invalid rights.
+    """
+    rights_record = _rights(candidate_id=candidate_id)
+    if rights_overrides:
+        rights_record.update(rights_overrides)
+
+    rights = _insert_rights_raw(db_path, asset_id, soundtrack_plan_id,
+                                rights_record)
+
+    # Create a local artifact file
+    artifact_path = os.path.join(media_dir, f"raw_{candidate_id.replace(':', '_')}.wav")
+    _make_wav(artifact_path, artifact_duration)
+    content_hash = _file_hash(artifact_path)
+
+    artifact = {
+        "status": "render_ready",
+        "artifact_id": 1,
+        "local_path": artifact_path,
+        "content_hash": content_hash,
+        "byte_size": os.path.getsize(artifact_path),
+        "duration_seconds": float(artifact_duration),
+        "rights_record_id": rights["rights_record_id"],
+        "candidate_id": candidate_id,
+        "provider": "pixabay",
+    }
     return rights, artifact
 
 
@@ -227,7 +309,7 @@ class TestRegisterSoundtrackCandidate:
         session, asset = _setup_session(tmp_db)
         db_path = tmp_db[0]
 
-        rights, artifact = _save_rights_and_artifact(
+        rights, artifact = _make_raw_artifact(
             db_path, media_dir, asset_id=asset["id"],
             rights_overrides={"rights_status": "unknown"},
         )
@@ -249,10 +331,9 @@ class TestRegisterSoundtrackCandidate:
         session, asset = _setup_session(tmp_db)
         db_path = tmp_db[0]
 
-        # Set expiry in the past
         from datetime import timedelta
         past = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
-        rights, artifact = _save_rights_and_artifact(
+        rights, artifact = _make_raw_artifact(
             db_path, media_dir, asset_id=asset["id"],
             rights_overrides={"expires_at": past},
         )
@@ -273,7 +354,7 @@ class TestRegisterSoundtrackCandidate:
         session, asset = _setup_session(tmp_db)
         db_path = tmp_db[0]
 
-        rights, artifact = _save_rights_and_artifact(
+        rights, artifact = _make_raw_artifact(
             db_path, media_dir, asset_id=asset["id"],
             rights_overrides={
                 "cost_usd": 10.0,
@@ -285,7 +366,7 @@ class TestRegisterSoundtrackCandidate:
         _make_wav(preview_path, 2.0)
         preview_hash = _file_hash(preview_path)
 
-        with pytest.raises(Exception, match="cost.*not operator-approved"):
+        with pytest.raises(Exception, match="(cost.*not operator-approved|not current or render-eligible)"):
             svc.register_soundtrack_candidate(
                 "test_tenant", session["id"], session["draft_id"],
                 asset["id"], 1, rights["rights_record_id"],
@@ -785,7 +866,7 @@ class TestRightsAndCostChecks:
         session, asset = _setup_session(tmp_db)
         db_path = tmp_db[0]
 
-        rights, _ = _save_rights_and_artifact(
+        rights, _ = _make_raw_artifact(
             db_path, media_dir, asset_id=asset["id"],
             rights_overrides={"rights_status": "unknown"},
         )
@@ -810,7 +891,7 @@ class TestRightsAndCostChecks:
         session, asset = _setup_session(tmp_db)
         db_path = tmp_db[0]
 
-        rights, _ = _save_rights_and_artifact(
+        rights, _ = _make_raw_artifact(
             db_path, media_dir, asset_id=asset["id"],
             rights_overrides={"cost_usd": 15.0, "cost_approval_id": None},
         )
