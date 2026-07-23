@@ -1,6 +1,6 @@
 # Context: ViralFactory
 
-> **This is an operational mirror of `docs/CHARTER-v3.9.md`.** It captures
+> **This is an operational mirror of `docs/CHARTER-v3.10.md`.** It captures
 > current shared language, workflows, and implementation state. It conforms
 > to the charter and BUILD_PLAN; where it conflicts, that conflict is a bug
 > or a new divergence to file — never a silent override.
@@ -12,8 +12,8 @@
 > **On change:** bump `updated_at` date, add/update a decision note in
 > `docs/decisions/` if the change is non-obvious.
 
-**Updated:** 2026-07-21 (AMENDMENT-013: pre-assembly Component Workbench, exact component decisions, immutable manifest, resumable per-asset orchestration, and separate exact-artifact Gate 3. Charter v3.8 → v3.9.)
-**Conforms to:** `docs/CHARTER-v3.9.md` (v3.9 — all prior amendments through AMENDMENT-012 remain in force except AMENDMENT-011's first-and-only soundtrack choice at Gate 3; rights/cost/evidence rules remain, while AMENDMENT-013 moves ingredient selection before assembly and preserves final-artifact Gate 3)
+**Updated:** 2026-07-23 (AMENDMENT-014: two-phase assembly — CompositionPlan with per-element previews and a composition ratification sub-gate between manifest freeze and render. Charter bumped to v3.10. Build order updated to VF-CW-001..010 → VF-CP-001..004 → VF-RA-001..004 → VF-CW-011..012. DIVERGENCE-019 reference recreation evidence preserved: both providers rendered one frozen composition; neither selected.)
+**Conforms to:** `docs/CHARTER-v3.10.md` (v3.10 — all prior amendments through AMENDMENT-013 remain in force; AMENDMENT-014 adds a CompositionPlan with per-element previews and a composition ratification sub-gate between manifest freeze and render; rights/cost/evidence rules remain; AMENDMENT-013's ingredient selection before assembly and final-artifact Gate 3 are preserved)
 
 ---
 
@@ -267,6 +267,10 @@ Scheduled research of what works in the wild: monitors top accounts/hashtags/cha
 26. **Assembly is manifest-only.** Every materially used narration, clip/still/capture, soundtrack, source sound/SFX, font/style, graphic, transition, or format-declared component must be an exact current operator-approved candidate in the immutable manifest. Missing, failed, stale, rejected, superseded, unprobeable, rights-invalid, cost-unapproved, or hash-mismatched inputs block assembly. (Per AMENDMENT-013)
 27. **Component approval does not replace Gate 3.** Candidate approval permits one exact ingredient; completeness proves every required role; manifest freeze locks the set; Gate 3 approves the exact finished artifact. Any upstream or ingredient change requires a new manifest, render, and Gate 3 decision. (Per AMENDMENT-013)
 28. **Production resumes from persisted state per platform asset.** Human waits are durable states, not long-running jobs. Operator routes and autonomous production advance the same orchestrator; one draft's first child never stands in for all platform assets. (Per AMENDMENT-013)
+29. **The CompositionPlan declares every element of the final video.** After manifest freeze, a provider-neutral CompositionPlan structures every text, audio, visual, graphics, transition, and canvas element with exact source hashes, timing, position, style, and animation. The plan is generated mechanically from the frozen manifest and Writer contract. (Per AMENDMENT-014)
+30. **Per-element previews are generated locally before ratification.** Text specimens, audio waveforms, visual thumbnails, graphics frames, transition diagrams, and a full timeline diagram are produced from the CompositionPlan using local tools. No provider API is called for previews. (Per AMENDMENT-014)
+31. **Composition ratification is a sub-gate between manifest freeze and render.** The operator reviews per-element previews and ratifies or rejects the plan. Ratification binds the composition spec hash. Any change invalidates and forces re-ratification. Ratification does not approve the final artifact — Gate 3 still does. (Per AMENDMENT-014)
+32. **Assembly consumes only a ratified CompositionPlan.** The RendererSpec compiles from the ratified plan. Unratified, stale, rejected, or hash-mismatched plans fail closed. (Per AMENDMENT-014)
 
 ## Edge Cases
 
@@ -304,6 +308,16 @@ AMENDMENT-010 is ratified. Component implementations for M13 exist, but the firs
 
 Charter v3.9 is now the binding target. Runtime audit on 2026-07-21 found that health/test counts do not prove completion: cards remained in `assembling`/`awaiting_soundtrack_approval`, a human decision did not coherently resume the autonomous chain, mutable inventory entered planning without component approval, multi-platform production selected the first asset, and the Gate 3 route could write approval without proving a current final artifact/manifest/evidence. AMENDMENT-013 therefore supersedes VF-VS-515's old single-Gate-3 soundtrack UX with VF-CW-001..012. The Component Workbench must close those boundaries before VF-VS-516/702/703 fresh proof.
 
+Assembly-quality review on 2026-07-22 found a second, distinct boundary: VF-CW fixes prerequisite identity, approvals, and orchestration, but the current FFmpeg/PIL implementation is still too narrow to be the sole production-quality finish layer. Phrase captions can remain proportionally timed without word clocks; compiler transition vocabulary and renderer capabilities diverge; the render plan can lose planned SFX/source sound; caption/graphics motion, focal crops, keyframes, and audio automation are under-specified. DIVERGENCE-019 therefore inserts a provider-neutral `RendererSpec v1` after manifest freeze. Creatomate and Shotstack will render the same frozen fixtures in a blind operator bake-off; Vizard is rejected for canonical assembly because its documented API is a long-video clipping/repurposing workflow rather than exact multi-layer composition. Existing FFmpeg/PIL remains the conformance and emergency fallback. No vendor may choose/regenerate ingredients, rewrite text, publish, or report Gate 3 readiness; all outputs are downloaded, hashed, probed, reviewed locally, and bound to the current manifest/spec. BUILD_PLAN v2.3 orders VF-CW-001..010 → VF-RA-001..004 → VF-CW-011..012.
+
+The first operator-authorized Creatomate smoke on 2026-07-23 proved template-free direct RenderScript execution and local artifact verification. Two successful five-second portrait jobs were downloaded; both reported `render_scale: 0.5` and 270×480 output from a 540×960 composition even when scale 1 was explicitly requested. Visual inspection found no watermark but suggested font fallback from requested Georgia to sans-serif. Further credit-bearing calls are paused until scale and font behavior are understood; this is transport evidence, not a renderer-selection pass.
+
+The same day's Shotstack sandbox smoke used only the stage endpoint and no AI assets. It returned the exact requested 540×960, 24 fps H.264 portrait video with the expected sandbox watermark and correct cream/orange centered Montserrat card. The output included an unrequested AAC stream that measured as digital silence, so stream presence cannot count as approved-audio evidence. This strengthens Shotstack's exact-size transport evidence only; the mandatory frozen-fixture quality and operational bake-off remains open.
+
+An operator-requested recreation then used the exact components behind a supplied 8.9-second 1080×1920 reference under one provider-neutral fixture hash. Both providers preserved the continuous video, caption PNG timing/alpha, framing, color, and measured soundtrack without content drift. Shotstack stage returned exact 540×960 in 12.67 seconds with its sandbox watermark; Creatomate returned a clean, unwatermarked result in 7.64 seconds but enforced 270×480 despite a 1080×1920 logical canvas and scale requests 0.5/1.0. Shotstack also produced `done` video-only artifacts when `output.mute: false` was explicitly present; omitting the property restored audio. Local stream/loudness verification therefore remains blocking, and false-valued provider options cannot be assumed harmless.
+
+This reference is useful transport/composition evidence, not the VF-RA-003 selection gate: the run was provider-labeled, not blind, and its caption is a pre-rendered PNG over one continuous clip. Native text/word captions, transitions, keyframes, graphics, gain automation, two-tenant styling, production watermark removal, webhooks/recovery, retention/privacy, and commercial cost remain unproven. See `docs/reviews/REVIEW-reference-video-renderer-bakeoff-2026-07-23.md`.
+
 ## M14 Inspiration status
 
 AMENDMENT-012 is ratified as design only. M14 begins after M13 proof. VF-INSP-001..004 define the read-only first slice: strict evidence contracts and redacted fixtures; scheduled append-only collection; DB-only top-level UI; and separate deployed live-provider smoke. VF-INSP-005 adds explicit bookmark/promotion paths only after operator sign-off. No Inspiration code or schema existed at ratification.
@@ -322,8 +336,9 @@ AMENDMENT-012 is ratified as design only. M14 begins after M13 proof. VF-INSP-00
 - **Console auth (R10):** the Flask console has no authentication in M0–M2 code. Deployment posture: bind to localhost/VPN only on the VPS, or add auth before the operator end-to-end test. Endpoints trigger paid LLM calls and overwrite config files — not safe to expose publicly.
 - **Claude = architect** | **Hermes = builder** | **Daimon = operator**
 - **LLM backend swappable in config** — Ollama local/cloud, external APIs
+- **Render execution swappable behind RendererSpec v1** — Creatomate and Shotstack are the first controlled candidates; local FFmpeg/PIL remains the verified fallback. The renderer executes exact approved composition only and cannot select media, rewrite text, regenerate, publish, or replace local evidence/Gate 3.
 - **The console renders sessions, not documentation.** Playbook markdown is the machine's script. The operator's surface is always: AI asks → operator gives anything (text, paste, files) → AI clarifies → AI drafts → plain-language readback → gate. The AI is present at every stage; the operator is never handed a form or a procedure to execute manually.
 
 ## System Diagram
 
-See `docs/diagrams/README.md` for the system overview (vertical-flow text + Mermaid + SVG). It predates Charter v3.9 and must be refreshed during VF-CW-009/012. The binding flow is: Gather plus parallel Inspiration observations → explicit promotion where chosen → Ideas+Treatment (Gate 1) → Writer Chain → Gate 2 → component requirements/candidates → Component Workbench exact-input approval → immutable manifest freeze → manifest-only assembly → Gate 3 exact-artifact approval → Publish (Gate 4) → Learn.
+See `docs/diagrams/README.md` for the system overview (vertical-flow text + Mermaid + SVG). It predates Charter v3.9 and must be refreshed during VF-CW-009/012. The binding flow is: Gather plus parallel Inspiration observations → explicit promotion where chosen → Ideas+Treatment (Gate 1) → Writer Chain → Gate 2 → component requirements/candidates → Component Workbench exact-input approval → immutable manifest freeze → provider-neutral RendererSpec → selected/local renderer execution → local download/hash/probe/evidence → Gate 3 exact-artifact approval → Publish (Gate 4) → Learn.

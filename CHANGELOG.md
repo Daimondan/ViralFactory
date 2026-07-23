@@ -6,6 +6,69 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-23
+
+### AMENDMENT-014 — Two-phase assembly: composition plan, per-element previews, and ratification [STRATEGIC/STRUCTURE/LOGIC]
+
+**Rationale:** The operator reviewed the Creatomate vs Shotstack bake-off and directed a new architecture: split assembly into two phases so the operator can see and ratify every element of the video before the renderer runs. AMENDMENT-013's Component Workbench approves individual ingredients but does not let the operator preview how those ingredients combine — which words get emphasis, which font, where graphics appear, when SFX fire, which transitions occur where — until the final render appears at Gate 3. That's too late to catch composition problems without wasting a render.
+
+**Binding flow:** manifest freeze → CompositionPlan generation (structured per-element spec) → per-element local previews (text/font/audio/visual/graphics/timing — no provider API) → composition ratification sub-gate (operator approves the plan) → RendererSpec v1 compilation (from ratified plan) → provider render → download/hash/probe/verify → Gate 3.
+
+**CompositionPlan contains:** text roles (hook, caption, emphasis, lower-third, CTA, proof, citations) with exact wording, font hash, size, color, position, timing, emphasis marks; audio elements (VO trim/gain, music start/stop/ducking, SFX triggers, mix LUFS/peak); visual elements (clip hash, trim, crop/focal, position, scale, motion); graphics elements (charts, emojis, overlays — type, config hash, position, timing, animation); transitions (type, duration, easing, beat boundary); canvas (resolution, aspect, fps, safe zones, platform framing).
+
+**Previews:** text specimens in declared font/size/color; audio waveforms with VO/music/SFX lanes and gain curves; visual thumbnails with crop/safe-zone overlay; graphics static frames; transition timing diagrams; full multi-lane timeline. All generated locally via FFmpeg/PIL/matplotlib — no provider API.
+
+**State machine:** `manifest_ready → composition_planning → composition_review_required → composition_ratified → assembling`.
+
+**What does NOT change:** AMENDMENT-013 component approval, manifest freeze, and Gate 3 are fully preserved. The Writer still produces all audience-facing text. The renderer remains provider-neutral behind RendererSpec v1. VF-RA-001..004 still govern the render layer.
+
+**New tasks:** VF-CP-001 (schema + generator) → VF-CP-002 (preview generator) → VF-CP-003 (ratification surface) → VF-CP-004 (RendererSpec compilation from ratified plan). VF-RA-001 now depends on VF-CP-004. Build order: VF-CW-001..010 → VF-CP-001..004 → VF-RA-001..004 → VF-CW-011..012.
+
+**Charter:** v3.9 → v3.10. `docs/CHARTER-v3.9.md` marked superseded. See `docs/decisions/DIVERGENCE-020-two-phase-composition-plan-and-ratification.md` and `docs/decisions/AMENDMENT-014-two-phase-composition-plan-and-ratification.md`.
+
+### Real-reference dual-provider recreation [TECH/OPS/FIX]
+
+**What:** Downloaded the operator-supplied 8.9-second 1080×1920 Google Drive reference and proved it was byte-identical to the existing local final, enabling reconstruction from the exact base video, transparent caption overlay, and soundtrack rather than visual inference. Created one frozen provider-neutral fixture hash, verified all temporary provider-readable inputs by local SHA-256 round-trip, submitted equivalent timelines to Shotstack stage and Creatomate, downloaded every output locally, and recorded ffprobe, loudness, frame-similarity, latency, and visual-review evidence. No AI asset, template, production route, publication, Gate 3 decision, or credential persistence occurred.
+
+**Finding:** Both providers preserved the subject framing/motion, caption wording/wrap/timing/alpha, color, and measured -15.3 LUFS / -1.3 dBFS soundtrack without content drift. Shotstack delivered exact 540×960 in 12.67 seconds but retained its sandbox watermark. Creatomate delivered the cleaner unwatermarked output in 7.64 seconds but enforced 270×480 from a 1080×1920 logical canvas; requested scales 0.5 and 1.0 returned new jobs with byte-identical 270×480 outputs. Shotstack produced `done` video-only artifacts when `output.mute: false` was explicitly present; removing the property restored AAC audio. An M4A input was also omitted, so the final common fixture used a mechanically transcoded MP3. Provider `done` and audio-stream expectations cannot replace local verification.
+
+**Ruling:** Shotstack currently wins exact preview resolution; Creatomate wins clean preview appearance and successful-job latency; neither is selected for production. The run was provider-labeled and uses a baked caption PNG over one continuous clip, so it does not satisfy VF-RA-003's blind normal/adversarial/native-caption/transition/keyframe/graphics/audio-automation/two-tenant/production-cost gate. Creatomate actual 270×480 renders estimate to one rounded-up credit each; its dashboard/API Log remains authoritative. Full evidence: `docs/reviews/REVIEW-reference-video-renderer-bakeoff-2026-07-23.md`.
+
+### Shotstack sandbox API smoke [TECH/OPS]
+
+**What:** Operator confirmed the supplied credential was a sandbox key. Called only Shotstack's stage Edit API with one five-second, 540×960, 24 fps static timeline; no AI asset and no production endpoint was used. The job reported plan `sandbox`, completed, and was downloaded outside the repo, SHA-256 hashed, ffprobed, and visually inspected.
+
+**Finding:** Shotstack returned the exact requested dimensions and frame rate. The cream background, orange centered Montserrat text, line wrapping, and portrait layout were correct. Its documented sandbox watermark appeared top-left. An AAC stream was generated despite no audio asset and measured as digital silence at approximately -91 dB.
+
+**Ruling:** Exact-size Shotstack sandbox transport is proven and currently stronger than the Creatomate trial smoke on that narrow dimension. This static card does not prove final-video quality or justify provider selection; captions, media, transitions, custom fonts, audio automation, callbacks, production output, cost, and tenant-style fixtures remain gated by VF-RA-001..003. No credential was persisted in the repo or application configuration.
+
+### Creatomate direct RenderScript smoke [TECH/OPS/FIX]
+
+**What:** With explicit operator authorization, called Creatomate's render API using a five-second 9:16 direct RenderScript fixture and no template. The first client was rejected at the edge with HTTP 403 / code 1010 and created no render. A standards-compliant client then produced two successful jobs while output scaling was diagnosed. Both were downloaded outside the repo, SHA-256 hashed, and probed as H.264, 24 fps, five seconds, 270×480. Provider records had no template ID. Visual inspection found the intended cream/orange portrait card and no visible watermark.
+
+**Finding:** The 540×960 source was returned at `render_scale: 0.5`; explicitly requesting scale 1 still returned 270×480 at scale 0.5. The requested Georgia serif also appeared to fall back to sans-serif. The successful outputs were byte-identical. Two credits are expected to have been consumed, subject to the dashboard API Log; the staged reserve decreases from 16 to 15.
+
+**Ruling:** Direct template-free transport is proven, but quality and exact-output compliance are not. Pause additional paid requests until project/account scale enforcement and supported/custom font behavior are explained. No provider selection, production route, credential persistence, code change, Gate 3 approval, publish action, or deployment occurred.
+
+## 2026-07-22
+### Creatomate 50-credit trial guard [OPS/FIX]
+
+**What:** Added a preflight and staged render budget to DIVERGENCE-019 and VF-RA-002. The approved spike plans 34 of the available 50 credits: one low-resolution transport smoke, three isolated feature previews, two integrated previews, one 45-second 720×1280 quality proof, and one 12-second 1080×1920 crop/type proof. Sixteen credits remain reserved for failures/retries. Requests above the current stage or remaining budget require operator approval.
+
+**Rationale:** Creatomate charges video credits from output width × height × frame rate × duration, rounded up per render. Local schema/media/capability/idempotency validation should catch mechanical defects without spending trial capacity; trial credits are for evaluating renderer quality, not debugging requests. Corrected the initial market note that inaccurately treated a 720p and 1080p minute as the same ten-credit unit; current official documentation defines one credit as 100 million output pixels and gives about 14 credits for one 1280×720, 25 fps minute.
+
+### DIVERGENCE-019 — provider-neutral render execution boundary [STRATEGIC/STRUCTURE/TECH/OPS]
+
+**What:** Approved a hybrid build-vs-buy direction without changing Charter v3.9. ViralFactory continues to own ideation, Writer/Visual Director judgment, exact component candidates, human decisions, immutable manifest, provenance, final evidence, Gate 3, and Gate 4. After manifest freeze, a new canonical `RendererSpec v1` expresses the exact layered timeline, text/word timing, fonts/styles, graphics, keyframes, transitions, and audio automation. Provider adapters may execute that spec only. Every output must be downloaded locally, hashed, probed, reviewed, and bound to the current manifest/spec before Gate 3.
+
+**Market ruling:** Reject Vizard as the canonical assembler; its official API is centered on uploading/linking an existing video and producing derivative clips, not exact composition from separately approved ingredients. Run the same frozen normal/adversarial and multi-tenant fixtures through (A) current local FFmpeg/PIL, (B) Creatomate as the primary candidate, and (C) Shotstack as the second/fallback candidate. Select only after a provider-anonymous operator review plus actual cost, latency, retry/webhook, export, retention/privacy, and commercial multi-tenant evidence. Remotion and JSON2Video remain reserve options if both hosted candidates fail.
+
+**Rationale:** The failure has three layers. VF-CW-001..012 repairs missing prerequisites, mutable inventory, broken resumption/ownership, and Gate 3 lineage; a vendor cannot solve those. RendererSpec repairs missing executable semantics: approximate caption clocks, mismatched transition vocabularies, incomplete SFX/source-sound handoff, under-specified focal crop/keyframes/graphics/audio automation. A specialized renderer can then improve static caption plates, motion graphics, transitions, layout, and iteration speed without becoming an unreviewed AI editor. Direct vendor integration or an open-ended “make it viral” handoff would violate the existing gates.
+
+**Build order:** BUILD_PLAN v2.3 adds VF-RA-001..004 inside M15. Complete VF-CW-001..010 → canonical spec/local conformance → isolated Creatomate/Shotstack bake-off → blind operator provider ruling → selected durable adapter/local import → VF-CW-011..012. Existing FFmpeg/PIL remains an executable conformance/emergency fallback selected explicitly, never a silent mid-job substitution. VF-VS-516/702/703 remain blocked. No production code, credentials, API calls, tests, commits, or deployments occurred in this architect decision pass.
+
+**Documents:** `docs/decisions/DIVERGENCE-019-provider-neutral-render-execution-boundary.md`, `docs/reviews/REVIEW-assembly-quality-and-renderer-boundary-2026-07-22.md`, `BUILD_PLAN.md` v2.3, and aligned README/CONTEXT/PROGRESS/inbox handoff.
+
 ## 2026-07-21
 ### AMENDMENT-013 — pre-assembly Component Workbench and manifest-locked assembly [STRATEGIC/STRUCTURE/LOGIC/OPS]
 

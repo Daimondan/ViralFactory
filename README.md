@@ -12,8 +12,8 @@ A content co-creation system for entrepreneurs who have ideas and domain experie
 
 | You are | Read, in order |
 |---|---|
-| **Builder agent (Hermes)** | 1. `docs/CONTEXT.md` (the domain + decisions) → 2. `docs/CHARTER-v3.9.md` (the constitution) → 3. `BUILD_PLAN.md` (your tasks, guardrails) → 4. `playbooks/` (the procedures you implement). Then work `BUILD_PLAN.md` top-down, one task at a time. |
-| **Architect / reviewer (Claude)** | `docs/CONTEXT.md` → `docs/CHARTER-v3.9.md` → `docs/decisions/DIVERGENCE-001-charter-amendments.md` → `docs/PROGRESS.md` → latest `review-wN` tag diff → write `docs/reviews/review-wN.md`. Incorporate approved divergences through a versioned charter amendment. |
+| **Builder agent (Hermes)** | 1. `docs/CONTEXT.md` (the domain + decisions) → 2. `docs/CHARTER-v3.10.md` (the constitution) → 3. `BUILD_PLAN.md` (your tasks, guardrails) → 4. `playbooks/` (the procedures you implement). Then work `BUILD_PLAN.md` top-down, one task at a time. |
+| **Architect / reviewer (Claude)** | `docs/CONTEXT.md` → `docs/CHARTER-v3.10.md` → `docs/decisions/DIVERGENCE-001-charter-amendments.md` → `docs/PROGRESS.md` → latest `review-wN` tag diff → write `docs/reviews/review-wN.md`. Incorporate approved divergences through a versioned charter amendment. |
 | **Operator (human)** | `docs/CONTEXT.md` (what we're building and why) → `docs/INTAKE-USER1.md` (what materials you need to provide). You direct in plain language, react to drafts, and approve at gates. You never write code. |
 | **New contributor / other AI** | `docs/CONTEXT.md`, then this README's repo map. |
 
@@ -36,6 +36,7 @@ docs/
     AMENDMENT-011-soundtrack-discovery-rights-and-asset-gate.md ← rights-safe soundtrack auto-assembly
     AMENDMENT-012-inspiration-evidence-workbench.md ← top-level Researcher evidence surface
     AMENDMENT-013-pre-assembly-component-workbench.md ← exact component approval + manifest-only assembly
+    DIVERGENCE-019-provider-neutral-render-execution-boundary.md ← portable RendererSpec + hosted/local renderer adapters
   inbox/                         ← architect→builder filing protocol (README + processed/)
   reviews/                      ← Claude's weekly review notes (review-wN.md)
   diagrams/                     ← system diagrams (Mermaid + vertical-flow text + SVG)
@@ -73,7 +74,7 @@ Builder works `BUILD_PLAN.md` top-down → commit per task (task ID in message) 
 
 ## Status
 
-Charter is at **v3.9**. AMENDMENT-013 adds a mandatory pre-assembly **Component Workbench** for composited media: narration, clips/stills/captures, soundtrack, SFX/source sound, typography, graphics, and format-declared elements are reviewed as exact immutable candidate versions; a complete set freezes into a manifest; assembly consumes that manifest only; Gate 3 separately approves the exact finished artifact. VF-CW-001..012 now block VF-VS-516/702/703. See `BUILD_PLAN.md`, `docs/PROGRESS.md`, and `docs/reviews/REVIEW-pipeline-runtime-and-component-workbench-2026-07-21.md`.
+Charter is at **v3.10**. AMENDMENT-013 adds a mandatory pre-assembly **Component Workbench** for composited media: narration, clips/stills/captures, soundtrack, SFX/source sound, typography, graphics, and format-declared elements are reviewed as exact immutable candidate versions; a complete set freezes into a manifest; Gate 3 separately approves the exact finished artifact. AMENDMENT-014 adds a **CompositionPlan** with per-element previews and a **composition ratification sub-gate** between manifest freeze and render: the operator sees and approves exactly how every text, audio, visual, graphics, transition, and canvas element combines before the provider renders. DIVERGENCE-019 defines the assembly execution boundary: the ratified composition compiles to provider-neutral `RendererSpec v1`; Creatomate and Shotstack render identical frozen fixtures in a blind operator bake-off; Vizard is not the canonical assembler; local FFmpeg/PIL remains the verified fallback. A provider-labeled recreation of one real 8.9-second reference is now complete: both preserved the frozen composition and audio, Shotstack delivered exact 540×960 with its sandbox watermark, and Creatomate delivered a cleaner/faster but trial-capped 270×480 output. Neither is selected: Shotstack exposed an `output.mute: false` audio-omission trap, while Creatomate exact-size production output remains unproven. The mandatory blind normal/adversarial/native-caption/multi-tenant bake-off remains open. All external outputs return locally for hash/probe/evidence before Gate 3. Build order is VF-CW-001..010 → VF-CP-001..004 → VF-RA-001..004 → VF-CW-011..012, then fresh VF-VS-516/702/703 proof. See `BUILD_PLAN.md`, `docs/PROGRESS.md`, `docs/reviews/REVIEW-assembly-quality-and-renderer-boundary-2026-07-22.md`, and `docs/reviews/REVIEW-reference-video-renderer-bakeoff-2026-07-23.md`.
 
 ## Original architect docs (preserved for reference)
 
