@@ -471,3 +471,450 @@ def compile_from_ratified_plan(
     spec["spec_hash"] = compute_spec_hash(spec)
 
     return spec
+
+
+# ── VF-CP-004: RendererSpecCompiler ──────────────────────────────────────
+#
+# State-machine-gated compilation from a ratified CompositionPlan (dict form
+# as produced by CompositionPlanGenerator) into RendererSpec v1.  Rejects
+# unratified, stale, rejected, and hash-mismatched plans.  The provider
+# adapter receives only the compiled RendererSpec — never the raw plan.
+
+_LAYER_TEXT = 10
+_LAYER_VISUAL = 1
+_LAYER_GRAPHICS = 5
+_LAYER_TRANSITION = 20
+_LAYER_AUDIO = 0
+
+
+class RendererSpecCompiler:
+    """Compile a ratified CompositionPlan (generator dict form) into a
+    provider-neutral RendererSpec v1.
+
+    The compiler is the sole gate between the composition plan and the
+    provider adapter.  It verifies:
+
+    1.  **Ratification** — the production session is in
+        ``composition_ratified`` state.
+    2.  **Staleness** — the plan's ``plan_hash`` matches the session's
+        ``active_composition_plan_hash`` (the ratified plan hasn't been
+        superseded).
+    3.  **Integrity** — ``compute_plan_hash(plan)`` matches the plan's
+        declared ``plan_hash`` (no post-ratification tampering).
+
+    Only after all three checks pass does it compile the plan into a
+    RendererSpec, which inherits the composition plan hash as an input
+    hash and preserves every element source hash.
+    """
+
+    def __init__(self, db_path: str = "data/viralfactory.db"):
+        self.db_path = db_path
+
+    # ── public API ───────────────────────────────────────────────────
+
+    def compile(
+        self,
+        business_slug: str,
+        session_id: int,
+        plan: dict,
+    ) -> dict:
+        """Compile a ratified CompositionPlan into a RendererSpec v1.
+
+        Raises ``RendererSpecError`` if the plan is unratified, stale,
+        or hash-mismatched.
+
+        Returns the compiled RendererSpec dict with ``spec_hash`` attached.
+        """
+        blockers = self._validate_preconditions(business_slug, session_id, plan)
+        if blockers:
+            raise RendererSpecError(
+                "Cannot compile RendererSpec: " + "; ".join(blockers)
+            )
+
+        session = self._get_session(business_slug, session_id)
+        manifest = self._get_active_manifest(business_slug, session_id)
+
+        spec = self._build_spec(plan, session, manifest)
+
+        # Capability check — structured blockers for unsupported features
+        required_caps = get_required_capabilities(spec)
+        adapter_check = check_adapter_capabilities(
+            LocalConformanceAdapter.SUPPORTED_CAPABILITIES, required_caps
+        )
+        if not adapter_check["supported"]:
+            raise RendererSpecError(
+                "Unsupported mandatory features: "
+                + ", ".join(adapter_check["missing"])
+            )
+
+        spec["spec_hash"] = compute_spec_hash(spec)
+        return spec
+
+    def validate_spec(self, spec: dict) -> tuple[bool, list[str]]:
+        """Validate a RendererSpec round-trip.
+
+        Delegates to the module-level ``validate_spec`` function and
+        additionally verifies that ``spec_hash`` is canonical.
+        """
+        ok, errors = validate_spec(spec)
+        if not ok:
+            return ok, errors
+
+        # Verify spec_hash round-trip
+        if "spec_hash" in spec:
+            expected = compute_spec_hash(spec)
+            if spec["spec_hash"] != expected:
+                errors.append(
+                    f"Spec hash mismatch: stored={spec['spec_hash'][:16]}, "
+                    f"computed={expected[:16]}"
+                )
+
+        return len(errors) == 0, errors
+
+    def compute_spec_hash(self, spec: dict) -> str:
+        """Compute canonical hash of a RendererSpec."""
+        return compute_spec_hash(spec)
+
+    def check_capabilities(self, spec: dict) -> dict:
+        """Return structured blockers for unsupported mandatory features.
+
+        Returns::
+        {
+            "supported": bool,
+            "missing": [...],
+            "required": [...],
+            "supported_caps": [...],
+        }
+        """
+        required = get_required_capabilities(spec)
+        check = check_adapter_capabilities(
+            LocalConformanceAdapter.SUPPORTED_CAPABILITIES, required
+        )
+        check["required"] = required
+        return check
+
+    # ── precondition validation ──────────────────────────────────────
+
+    def _validate_preconditions(
+        self,
+        business_slug: str,
+        session_id: int,
+        plan: dict,
+    ) -> list[str]:
+        """Return a list of blocker strings (empty = all checks pass)."""
+        blockers: list[str] = []
+
+        # 1. Session exists and is tenant-scoped
+        try:
+            session = self._get_session(business_slug, session_id)
+        except Exception as exc:
+            blockers.append(f"Session not found: {exc}")
+            return blockers
+
+        # 2. Ratification — session must be in composition_ratified state
+        if session.get("current_state") != "composition_ratified":
+            blockers.append(
+                f"Session state is '{session.get('current_state')}', "
+                f"must be 'composition_ratified'"
+            )
+
+        # 3. Staleness — plan hash must match session's ratified plan hash
+        plan_hash = plan.get("plan_hash", "")
+        active_hash = session.get("active_composition_plan_hash", "")
+        if not active_hash:
+            blockers.append(
+                "Session has no active composition plan hash — not ratified"
+            )
+        elif plan_hash != active_hash:
+            blockers.append(
+                f"Stale plan: plan_hash={plan_hash[:16]} != "
+                f"session active_composition_plan_hash={active_hash[:16]}"
+            )
+
+        # 4. Integrity — plan hash must be internally consistent
+        from services.composition_plan import compute_plan_hash
+        computed_hash = compute_plan_hash(plan)
+        if computed_hash != plan_hash:
+            blockers.append(
+                f"Plan hash mismatch (tampered/corrupt): "
+                f"declared={plan_hash[:16]}, computed={computed_hash[:16]}"
+            )
+
+        return blockers
+
+    # ── compilation ──────────────────────────────────────────────────
+
+    def _build_spec(
+        self,
+        plan: dict,
+        session: dict,
+        manifest: Optional[dict],
+    ) -> dict:
+        """Build the RendererSpec dict from the plan."""
+        plan_hash = plan.get("plan_hash", "")
+        manifest_hash = plan.get("manifest_hash", "")
+        if manifest:
+            md = manifest.get("manifest_json", {})
+            if isinstance(md, str):
+                md = json.loads(md)
+            manifest_hash = md.get("manifest_hash", manifest_hash)
+
+        timeline = []
+        timeline.extend(self._compile_text_elements(plan))
+        timeline.extend(self._compile_audio_elements(plan))
+        timeline.extend(self._compile_visual_elements(plan))
+        timeline.extend(self._compile_graphics_elements(plan))
+        timeline.extend(self._compile_transitions(plan))
+
+        canvas = self._compile_canvas(plan)
+        audio_automation = self._compile_audio_automation(plan)
+
+        spec = {
+            "spec_version": RENDERER_SPEC_VERSION,
+            "identity": {
+                "composition_plan_hash": plan_hash,
+                "manifest_hash": manifest_hash,
+                "session_id": session.get("id"),
+                "asset_id": session.get("asset_id"),
+                "business_slug": session.get("business_slug"),
+            },
+            "canvas": canvas,
+            "timeline": timeline,
+            "audio_automation": audio_automation,
+        }
+        return spec
+
+    def _compile_text_elements(self, plan: dict) -> list[dict]:
+        """Compile text_elements from the generator-produced plan dict."""
+        elements = []
+        for te in plan.get("text_elements", []):
+            timing = te.get("timing", {})
+            font = te.get("font", {})
+            elements.append({
+                "type": "text",
+                "layer": _LAYER_TEXT,
+                "in_point": timing.get("in_sec", 0.0),
+                "out_point": timing.get("out_sec", 0.0),
+                "element_id": te.get("element_id", ""),
+                "text": te.get("text", ""),
+                "role": te.get("role", ""),
+                "beat_id": te.get("beat_id", ""),
+                "font_family": font.get("family", ""),
+                "font_hash": font.get("file_hash", ""),
+                "font_weight": font.get("weight", ""),
+                "font_size": font.get("size", 0),
+                "font_color": font.get("color", ""),
+                "border_width": font.get("border_width", 0),
+                "border_color": font.get("border_color", ""),
+                "shadow": font.get("shadow"),
+                "style_ref": te.get("style_ref", ""),
+                "position": te.get("position", {}),
+                "word_timings": te.get("word_timing", []),
+                "emphasis_marks": te.get("emphasis_marks", []),
+                "source_hash": font.get("file_hash", ""),
+            })
+        return elements
+
+    def _compile_audio_elements(self, plan: dict) -> list[dict]:
+        """Compile audio tracks from the generator-produced plan dict."""
+        audio = plan.get("audio", {})
+        elements = []
+
+        vo_track = audio.get("vo_track")
+        if vo_track:
+            elements.append({
+                "type": "audio",
+                "layer": _LAYER_AUDIO,
+                "lane_type": "vo",
+                "in_point": vo_track.get("trim_start_sec", 0.0),
+                "out_point": vo_track.get("trim_end_sec", 0.0),
+                "element_id": "vo_track",
+                "source_hash": vo_track.get("source_hash", ""),
+                "manifest_candidate_id": vo_track.get("manifest_candidate_id"),
+                "gain_curve": vo_track.get("gain_curve", []),
+                "ducking": vo_track.get("ducking", {}),
+                "fade_in": 0.0,
+                "fade_out": 0.0,
+            })
+
+        music_track = audio.get("music_track")
+        if music_track:
+            elements.append({
+                "type": "audio",
+                "layer": _LAYER_AUDIO,
+                "lane_type": "music",
+                "in_point": music_track.get("start_sec", 0.0),
+                "out_point": music_track.get("stop_sec", 0.0),
+                "element_id": "music_track",
+                "source_hash": music_track.get("source_hash", ""),
+                "manifest_candidate_id": music_track.get("manifest_candidate_id"),
+                "gain_db": music_track.get("gain_db", 0.0),
+                "ducking": music_track.get("ducking", {}),
+                "fade_in": music_track.get("fade_in_sec", 0.0),
+                "fade_out": music_track.get("fade_out_sec", 0.0),
+            })
+
+        for sfx in audio.get("sfx_events", []):
+            trigger = sfx.get("trigger_sec", 0.0)
+            duration = sfx.get("duration_sec", 0.3)
+            elements.append({
+                "type": "audio",
+                "layer": _LAYER_AUDIO,
+                "lane_type": "sfx",
+                "in_point": trigger,
+                "out_point": trigger + duration,
+                "element_id": sfx.get("sfx_id", ""),
+                "source_hash": "",
+                "gain_db": sfx.get("gain_db", 0.0),
+                "duration_sec": duration,
+                "preset": sfx.get("preset", ""),
+                "beat_id": sfx.get("beat_id", ""),
+            })
+
+        return elements
+
+    def _compile_visual_elements(self, plan: dict) -> list[dict]:
+        """Compile visual_elements from the generator-produced plan dict."""
+        elements = []
+        for ve in plan.get("visual_elements", []):
+            elements.append({
+                "type": "visual",
+                "layer": _LAYER_VISUAL,
+                "in_point": ve.get("trim_start_sec", 0.0),
+                "out_point": ve.get("trim_end_sec", 0.0),
+                "element_id": ve.get("element_id", ""),
+                "kind": ve.get("kind", ""),
+                "source_hash": ve.get("source_hash", ""),
+                "manifest_candidate_id": ve.get("manifest_candidate_id"),
+                "trim_in": ve.get("trim_start_sec", 0.0),
+                "trim_out": ve.get("trim_end_sec", 0.0),
+                "crop": ve.get("crop"),
+                "focal": ve.get("focal"),
+                "canvas_position": ve.get("canvas_position", {}),
+                "scale": ve.get("scale", 1.0),
+                "motion_keyframes": ve.get("motion_keyframes", []),
+                "beat_id": ve.get("beat_id", ""),
+            })
+        return elements
+
+    def _compile_graphics_elements(self, plan: dict) -> list[dict]:
+        """Compile graphics_elements from the generator-produced plan dict."""
+        elements = []
+        for gfx in plan.get("graphics_elements", []):
+            timing = gfx.get("timing", {})
+            elements.append({
+                "type": "graphics",
+                "layer": _LAYER_GRAPHICS,
+                "in_point": timing.get("in_sec", 0.0),
+                "out_point": timing.get("out_sec", 0.0),
+                "element_id": gfx.get("element_id", ""),
+                "overlay_type": gfx.get("type", ""),
+                "config_hash": gfx.get("config_hash", ""),
+                "position": gfx.get("position", {}),
+                "scale": gfx.get("scale", 1.0),
+                "animation": gfx.get("animation", {}),
+                "beat_id": gfx.get("beat_id", ""),
+            })
+        return elements
+
+    def _compile_transitions(self, plan: dict) -> list[dict]:
+        """Compile transitions from the generator-produced plan dict."""
+        elements = []
+        for tr in plan.get("transitions", []):
+            duration = tr.get("duration_sec", 0.0)
+            elements.append({
+                "type": "transition",
+                "layer": _LAYER_TRANSITION,
+                "in_point": 0.0,
+                "out_point": duration,
+                "element_id": tr.get("transition_id", ""),
+                "transition_type": tr.get("type", "cut"),
+                "duration": duration,
+                "easing": tr.get("easing", "ease_in_out"),
+                "beat_boundary": tr.get("beat_boundary", ""),
+            })
+        return elements
+
+    def _compile_canvas(self, plan: dict) -> dict:
+        """Compile canvas from the generator-produced plan dict."""
+        canvas = plan.get("canvas", {})
+        resolution = canvas.get("resolution", {})
+        if isinstance(resolution, str) and "x" in resolution:
+            parts = resolution.split("x", 1)
+            width, height = int(parts[0]), int(parts[1])
+        else:
+            width = resolution.get("width", 1080)
+            height = resolution.get("height", 1920)
+
+        background = canvas.get("background", {})
+        if isinstance(background, dict):
+            bg_color = background.get("color", "#000000")
+        else:
+            bg_color = str(background)
+
+        return {
+            "width": width,
+            "height": height,
+            "fps": canvas.get("fps", 30),
+            "aspect_ratio": canvas.get("aspect_ratio", "9:16"),
+            "background": bg_color,
+            "safe_zones": canvas.get("safe_zones", {}),
+            "platform_framing": canvas.get("platform_framing", ""),
+        }
+
+    def _compile_audio_automation(self, plan: dict) -> dict:
+        """Compile audio automation from the generator-produced plan dict."""
+        audio = plan.get("audio", {})
+        mix_spec = audio.get("mix_spec", {})
+
+        tracks = []
+        vo_track = audio.get("vo_track")
+        if vo_track:
+            tracks.append({
+                "element_id": "vo_track",
+                "lane_type": "vo",
+                "source_hash": vo_track.get("source_hash", ""),
+                "gain_curve": vo_track.get("gain_curve", []),
+                "ducking": vo_track.get("ducking", {}),
+            })
+
+        music_track = audio.get("music_track")
+        if music_track:
+            tracks.append({
+                "element_id": "music_track",
+                "lane_type": "music",
+                "source_hash": music_track.get("source_hash", ""),
+                "gain_db": music_track.get("gain_db", 0.0),
+                "ducking": music_track.get("ducking", {}),
+                "fade_in": music_track.get("fade_in_sec", 0.0),
+                "fade_out": music_track.get("fade_out_sec", 0.0),
+            })
+
+        for sfx in audio.get("sfx_events", []):
+            tracks.append({
+                "element_id": sfx.get("sfx_id", ""),
+                "lane_type": "sfx",
+                "gain_db": sfx.get("gain_db", 0.0),
+                "trigger_sec": sfx.get("trigger_sec", 0.0),
+                "preset": sfx.get("preset", ""),
+            })
+
+        return {
+            "lufs_target": mix_spec.get("lufs_target", -14.0),
+            "true_peak_limit": mix_spec.get("true_peak_db", -1.0),
+            "tracks": tracks,
+        }
+
+    # ── DB helpers ───────────────────────────────────────────────────
+
+    def _get_session(self, business_slug: str, session_id: int) -> dict:
+        from services.production_orchestrator import ProductionSessionService
+        svc = ProductionSessionService(db_path=self.db_path)
+        return svc.get_session(business_slug, session_id)
+
+    def _get_active_manifest(
+        self, business_slug: str, session_id: int
+    ) -> Optional[dict]:
+        from services.manifest_freeze import ManifestStore
+        store = ManifestStore(db_path=self.db_path)
+        return store.get_active_manifest(business_slug, session_id)
