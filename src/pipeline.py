@@ -973,6 +973,9 @@ class PipelineStore:
         conn.executescript(SoundtrackMixStore.SCHEMA)
         conn.executescript(InspirationStore.SCHEMA)
         conn.executescript(PromotionStore.SCHEMA)
+        # VF-CW-002: Production session state machine schema
+        from services.production_orchestrator import SCHEMA_SQL as PROD_SESSION_SCHEMA
+        conn.executescript(PROD_SESSION_SCHEMA)
         # Migrations for existing databases (idempotent)
         # T8.3: add source_refs column to idea_cards if not present
         cols = [r[1] for r in conn.execute("PRAGMA table_info(idea_cards)").fetchall()]

@@ -8,6 +8,12 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-23
 
+### VF-CW-002 — ProductionSession aggregate + durable state machine [STRUCTURE/LOGIC]
+
+**Rationale:** The production pipeline had no durable state machine — human pauses left stale running jobs, restarts lost context, and routes wrote state directly. AMENDMENT-013 requires a persisted resumable state machine with one session per platform asset.
+
+**Changes:** Added ProductionSessionService (src/services/production_orchestrator.py) with: tenant-scoped one-session-per-platform-asset persistence; compare-and-set state transitions with full AMENDMENT-013+014 state machine (including composition sub-states from AMENDMENT-014); transition history (append-only); active pointers for requirements/manifest/render/composition-plan; idempotent attempt counter; cross-tenant isolation; human-wait state identification. PipelineStore._init_db now initializes the production_sessions and production_session_transitions tables. 21 new tests covering creation, transitions, cross-tenant rejection, history, pointers, restart, and listing.
+
 ### VF-CW-001 — Behavioral baseline + correlated runtime evidence [STRUCTURE/OPS]
 
 **Rationale:** The 2026-07-21 runtime audit found 6 production defects: stuck soundtrack wait with no durable continuation, done-job/missing-artifact mismatch, missing VO with manual-only recovery, first-child multi-platform selection via get_asset_by_draft, direct Gate 3 API bypass without final artifact, and ambiguous newest edit plan with no active pointer. Before building the Component Workbench, these defects must be captured as RED fixtures so VF-CW-002..010 can turn them GREEN. Production jobs and step data also lacked correlation fields for observability.
