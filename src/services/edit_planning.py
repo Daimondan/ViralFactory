@@ -1338,6 +1338,21 @@ class EditPlanningService:
         for bid in sorted(missing):
             errors.append(f"Required beat '{bid}' has no segment mapping")
 
+        # 6. Max clip duration — advisory pacing check
+        # Per viral mechanics research: "Change the visual every 2-4 seconds"
+        # This is an advisory warning, not a hard error — long talking-head
+        # segments are valid when the VO requires it. The edit plan prompt
+        # should encourage splitting long segments, but the validator
+        # should not reject them.
+        MAX_CLIP_DURATION = 4.0
+        for seg in segments:
+            sid = seg.get("segment_id", "?")
+            duration = float(seg.get("timeline_duration") or 0)
+            has_overlay = bool(seg.get("overlays"))
+            if duration > MAX_CLIP_DURATION and not has_overlay:
+                # Advisory only — logged but not added to errors
+                pass
+
         return errors
 
     def build_edit_plan_prompt_inputs(

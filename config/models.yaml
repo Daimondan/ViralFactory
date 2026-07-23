@@ -129,7 +129,7 @@ media:
       cost_per_image_usd: 0.03
       supports_reference_images: true
       best_for: "b-roll and non-character shots, highest photorealism"
-  image_default: "nano-banana-2"
+  image_default: "flux2-pro"
 
   # ── Legacy image generator (OpenRouter — kept as non-default named backend) ──
   image_base_url: "https://openrouter.ai/api/v1"

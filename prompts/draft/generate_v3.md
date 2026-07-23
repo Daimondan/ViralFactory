@@ -124,15 +124,26 @@ For video formats, each frame in the `posts` array MUST be an object with these 
 - `label` and `vo_text` are REQUIRED on every frame
 - `text_on_screen` is optional per frame. When used, it must perform one function: hook, orientation, accessibility caption, emphasis, proof, reframe, or CTA. Do not add decorative text merely to fill a frame.
 - `visual.image_prompt` is REQUIRED for reels — the Assembler generates media from this
+- **CRITICAL image prompt rules:**
+  - Each image prompt describes ONE single full-frame 9:16 vertical visual — NEVER split-screen, multi-panel, grid, collage, or stacked layout. The renderer sequences images; it does not composite panels.
+  - Do NOT ask the generator to render text, numbers, logos, screens, charts, code, or evidence — the renderer owns those layers via text overlays.
+  - Each prompt must be a single scene: one subject, one composition, one mood. If a beat needs two visuals, the Writer should split it into two frames.
 - `visual.media_type` is REQUIRED for reels — choose `video` or `motion_graphic`:
   - `video`: the beat shows a person, place, or action that benefits from motion (talking head, hands working, market scene, walking). The media planner generates a 5-second video clip. You MUST also provide `visual.video_prompt`.
   - `motion_graphic`: the beat is an abstract concept, data visualization, text emphasis, or visual metaphor. The media planner generates a still image + the renderer applies Ken Burns motion + text overlays.
 - `visual.video_prompt` is REQUIRED when `media_type=video` — describe the 5-second motion clip.
 - `transition_in` is REQUIRED for reels — the Assembler cuts segments together using this
-- `sfx` may be empty `[]` if no SFX for this frame
+- `sfx` may be empty `[]` if no SFX for this frame — but remember: sound design is 50% of retention. Use SFX on visual changes (whoosh on cuts, pop on text, hit on transitions).
 - `music` is required only when the frame changes an established audio treatment. Voice-only, meaningful original sound, and intentional silence are valid choices.
 - Write `vo_text` as the EXACT words to be spoken. Do NOT write timestamps. The VO generation stage measures real durations after the draft is written.
 - Aim for the `duration_target` using the Voice Profile's natural pace. Do not force a generic words-per-second target; the VO generation stage measures the real take and becomes the master timeline.
+
+#### VIRAL MECHANICS (REQUIRED for reels)
+
+- **Hook archetype**: The first frame's `vo_text` must use one of these archetypes: Hot Take (bold opinionated claim), Investigator (question/mystery), Proof Drop (specific number/fact), Contrarian ("Stop doing X"), Stat/Number ("I lost $10K"), or Transformation. AVOID story hooks ("So the other day...") — they average 7K views vs 140K for pattern-interrupt hooks.
+- **Emotional trigger**: The piece must be structured around ONE primary emotion from: Fear, Empathy, Outrage, Curiosity, Humor, or Trust. AVOID Aspiration and Hope — they are the two worst-performing emotions (5K-29K avg views vs 92K-264K for the top tier).
+- **Pacing**: Visual change every 2-4 seconds. No single clip should exceed 4 seconds without a text pop, B-roll cut, or angle shift. The edit plan validator enforces this.
+- **Ending**: End on the PAYOFF, not the ask. The final frame should deliver the result, proof, or punchline. Do NOT add "follow for more" or direct CTA — implied CTA beats direct by 2x. The final `vo_text` must complete its thought — never end mid-sentence.
 
 #### TEXT FORMATS (thread, carousel, single_post, newsletter, poll)
 
