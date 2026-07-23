@@ -1,9 +1,9 @@
-# MANIFEST — 2026-07-21 — Pre-assembly Component Workbench
+# MANIFEST — 2026-07-21/22 — Component Workbench + provider-neutral render execution
 
 **Status:** APPLY
 **Owner:** Builder (`viralfactory` / vf-coder)
 **Constitution:** `docs/CHARTER-v3.9.md`
-**Decision:** AMENDMENT-013
+**Decisions:** AMENDMENT-013 + DIVERGENCE-019
 
 ## Canonical files — read in this order
 
@@ -14,16 +14,20 @@
 5. `docs/decisions/AMENDMENT-013-pre-assembly-component-workbench.md`
 6. `docs/reviews/REVIEW-pipeline-runtime-and-component-workbench-2026-07-21.md`
 7. `docs/plans/2026-07-21-pre-assembly-component-workbench.md`
-8. `BUILD_PLAN.md` — M15 / VF-CW-001..012
-9. `docs/PROGRESS.md`
-10. `CHANGELOG.md`
-11. relevant production playbooks and prior AMENDMENT-009/010/011
+8. `docs/decisions/DIVERGENCE-019-provider-neutral-render-execution-boundary.md`
+9. `docs/reviews/REVIEW-assembly-quality-and-renderer-boundary-2026-07-22.md`
+10. `BUILD_PLAN.md` — M15 / VF-CW-001..010 → VF-RA-001..004 → VF-CW-011..012
+11. `docs/PROGRESS.md`
+12. `CHANGELOG.md`
+13. relevant production playbooks and prior AMENDMENT-009/010/011
 
 ## Apply order
 
 - **Foundation:** VF-CW-001 → 002 → 003 → 004
 - **Candidate producers:** VF-CW-005 → 006 → 007 → 008
 - **Operator boundary:** VF-CW-009 → 010
+- **Portable render boundary:** VF-RA-001
+- **Controlled external bake-off:** VF-RA-002 → operator gate VF-RA-003 → selected integration VF-RA-004
 - **Consumption and gate:** VF-CW-011
 - **Orchestration and proof:** VF-CW-012
 - **Then only:** VF-VS-516 → VF-VS-702 → VF-VS-703
@@ -37,7 +41,11 @@ VF-VS-515 is superseded and must not be implemented.
 - config/prompt-driven requirements, no creative keyword judgment in code;
 - category completeness distinct from candidate approval;
 - immutable manifest contains every materially used component and upstream hash;
-- assembler accepts only current `manifest_id`, never mutable/latest inventory;
+- assembler accepts only current `manifest_id`, compiles provider-neutral RendererSpec v1, and never queries mutable/latest inventory;
+- renderer adapters execute exact composition only; no provider selection/regeneration/transcription authority/publishing/open-ended editing;
+- unsupported required capabilities block rather than silently degrading; provider-specific data never enters the component manifest;
+- external success is not readiness: download locally, hash, probe, review, and prove current manifest/spec lineage before Gate 3;
+- canonical spec, request, provider job, lowering, cost, downloaded artifact, and review evidence remain auditable without credentials;
 - ingredient changes create a new manifest/render and invalidate Gate 3;
 - Gate 3 validates current final + manifest + blocking evidence server-side;
 - human waits are persisted states, not long-running jobs;
@@ -54,6 +62,8 @@ Automated tests alone are insufficient. Provide:
 - operator selection and regeneration lineage;
 - service restart while waiting for component review;
 - immutable manifest and exact consumed hashes;
+- identical frozen local/Creatomate/Shotstack fixture outputs and provider-anonymous operator ruling;
+- canonical RendererSpec hash, capability/lowering evidence, provider job/restart reconciliation, actual cost/latency, and executable local fallback;
 - final review evidence and Gate 3 lineage;
 - post-assembly component change creating a new manifest/render and invalidating approval;
 - Gate 4 hold, no publish;
