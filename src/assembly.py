@@ -332,8 +332,10 @@ class AssemblyRenderer:
                 raise
 
             # Validate in/out against the source file's actual duration
-            in_pt = seg.get("in", 0)
-            out_pt = seg.get("out", 0)
+            # The edit plan v2 schema uses source_in/source_out, but legacy
+            # plans used in/out. Support both.
+            in_pt = seg.get("source_in", seg.get("in", 0))
+            out_pt = seg.get("source_out", seg.get("out", 0))
             is_image = path.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
             if not is_image:
                 actual_dur = self._get_duration(path)
@@ -342,10 +344,13 @@ class AssemblyRenderer:
                         f"Segment source {seg['source']} is {actual_dur:.1f}s but plan "
                         f"requests out={out_pt:.1f}s — clamping"
                     )
-                    seg["out"] = min(out_pt, actual_dur)
-                    if seg.get("in", 0) >= actual_dur:
-                        seg["in"] = 0.0
-                        seg["out"] = actual_dur
+                    out_pt = min(out_pt, actual_dur)
+                    seg["source_out"] = out_pt
+                    if in_pt >= actual_dur:
+                        in_pt = 0.0
+                        out_pt = actual_dur
+                        seg["source_in"] = 0.0
+                        seg["source_out"] = actual_dur
 
         # Log validation warnings to provenance (non-fatal)
         for w in segment_warnings:
@@ -360,8 +365,8 @@ class AssemblyRenderer:
         temp_files = []
         try:
             for i, (seg, src_path) in enumerate(zip(segments, source_files)):
-                in_pt = seg.get("in", 0)
-                out_pt = seg.get("out", 0)
+                in_pt = seg.get("source_in", seg.get("in", 0))
+                out_pt = seg.get("source_out", seg.get("out", 0))
                 duration = out_pt - in_pt if out_pt > in_pt else 0
 
                 # Check if source is an image (images need different handling)
@@ -869,8 +874,8 @@ class AssemblyRenderer:
         cumulative = 0.0
         all_overlays = []
         for seg in segments:
-            seg_in = seg.get("in", 0)
-            seg_out = seg.get("out", 0)
+            seg_in = seg.get("source_in", seg.get("in", 0))
+            seg_out = seg.get("source_out", seg.get("out", 0))
             seg_duration = seg_out - seg_in if seg_out > seg_in else 0
             for ov in seg.get("overlays", []):
                 if not ov.get("text"):
