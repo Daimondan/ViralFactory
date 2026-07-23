@@ -8,6 +8,12 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-23
 
+### VF-CW-004 — Immutable candidates + append-only decisions [STRUCTURE/LOGIC]
+
+**Rationale:** AMENDMENT-013 requires stable candidate identity, immutable versions, and append-only operator decisions. No single 'approved' Boolean may be authoritative — superseded/failed/stale candidates must not satisfy approval. Decisions must bind candidate_version + artifact_hash + requirement_version_hash for lineage.
+
+**Changes:** Added CandidateStore (src/services/candidate_store.py) with: component_candidates table (lineage ID from tenant+session+category+role+scope, append-only versions, artifact/preview hashes, source/generation provenance, rights/cost, beat_refs, measurement, supersession tracking); component_decisions table (append-only select/approve/reject/regenerate bound to candidate+artifact+requirement hashes); status lifecycle enforcement (generating→available→approved|rejected→superseded|stale|failed); cannot approve superseded/failed/stale candidates; regeneration creates new version and supersedes prior; cross-session isolation; get_current_versions excludes superseded/stale. 15 new tests.
+
 ### VF-CW-003 — Config + prompt-driven component requirements [STRUCTURE/LOGIC]
 
 **Rationale:** The Component Workbench needs to know which component roles are required for each piece. AMENDMENT-013 requires a config/prompt-driven approach — Python validates IDs/cardinality/references only, no keyword creative judgment. Two tenant/format fixtures must yield different valid role sets with zero Python edits.

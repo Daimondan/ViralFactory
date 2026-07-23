@@ -979,6 +979,9 @@ class PipelineStore:
         # VF-CW-003: Component requirements schema
         from services.component_requirements import SCHEMA_SQL as COMP_REQ_SCHEMA
         conn.executescript(COMP_REQ_SCHEMA)
+        # VF-CW-004: Component candidates and decisions schema
+        from services.candidate_store import SCHEMA_SQL as CANDIDATE_SCHEMA
+        conn.executescript(CANDIDATE_SCHEMA)
         # Migrations for existing databases (idempotent)
         # T8.3: add source_refs column to idea_cards if not present
         cols = [r[1] for r in conn.execute("PRAGMA table_info(idea_cards)").fetchall()]
