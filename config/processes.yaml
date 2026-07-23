@@ -269,6 +269,26 @@ processes:
       format_name: {source: dynamic}
       cadence: {source: dynamic}
 
+  # ── VF-CW-003: Component Requirements Planner ──
+
+  component_requirements_v1:
+    prompt_file: "assembly/component_requirements_v1.md"
+    backend: "drafter"
+    schema: "COMPONENT_REQUIREMENTS_SCHEMA"
+    playbook_type: "production"
+    context_template: "Component requirements v1 for asset {asset_id} ({format}, {platform}) | module_ctx: {module_prov}"
+    inputs:
+      business_name: {source: business, field: "business.name"}
+      module_views: "assembly/component_requirements_v1.md"
+      writer_contract: {source: dynamic}
+      format: {source: dynamic}
+      platform: {source: dynamic}
+      visual_events: {source: dynamic}
+      audio_intents: {source: dynamic}
+      capture_policy: {source: dynamic}
+      category_registry: {source: dynamic}
+      tenant_modules: {source: dynamic}
+
   research_analyze:
     prompt_file: "research/analyze_v1.md"
     backend: "default"
@@ -301,3 +321,4 @@ schemas:
   COMPLIANCE_REVIEW_SCHEMA: "pipeline.COMPLIANCE_REVIEW_SCHEMA"
   REMEDIATION_INSTRUCTION_SCHEMA: "pipeline.REMEDIATION_INSTRUCTION_SCHEMA"
   PERFORMANCE_ANALYSIS_SCHEMA: "inline:performance_analysis_schema"
+  COMPONENT_REQUIREMENTS_SCHEMA: "services.component_requirements.COMPONENT_REQUIREMENTS_SCHEMA"

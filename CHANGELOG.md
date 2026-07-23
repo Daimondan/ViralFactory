@@ -8,6 +8,12 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-23
 
+### VF-CW-003 — Config + prompt-driven component requirements [STRUCTURE/LOGIC]
+
+**Rationale:** The Component Workbench needs to know which component roles are required for each piece. AMENDMENT-013 requires a config/prompt-driven approach — Python validates IDs/cardinality/references only, no keyword creative judgment. Two tenant/format fixtures must yield different valid role sets with zero Python edits.
+
+**Changes:** Added config/component_categories.yaml with 6 generic categories (narration, visual_media, soundtrack, sound_effects, typography, graphics) and format overrides (reel, thread, carousel, single_post, story_series). Added prompts/assembly/component_requirements_v1.md (LLM planner that reads Writer contract + format + visual events + audio intents + capture policy + tenant modules). Added src/services/component_requirements.py with ComponentCategoryRegistry, COMPONENT_REQUIREMENTS_SCHEMA, ComponentRequirementsValidator (mechanical validation only), and ComponentRequirementsStore (append-only versions with content-hash and provenance). Registered in processes.yaml as component_requirements_v1. 20 new tests covering registry, validator, store, and two-format differentiation.
+
 ### VF-CW-002 — ProductionSession aggregate + durable state machine [STRUCTURE/LOGIC]
 
 **Rationale:** The production pipeline had no durable state machine — human pauses left stale running jobs, restarts lost context, and routes wrote state directly. AMENDMENT-013 requires a persisted resumable state machine with one session per platform asset.

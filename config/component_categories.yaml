@@ -1,0 +1,240 @@
+# config/component_categories.yaml — Component Category Registry (VF-CW-003)
+#
+# Generic first-party category keys. Each format declares required/optional
+# categories and role cardinality. No business-specific values here —
+# tenant-specific roles come from the LLM requirement planner reading
+# the Writer contract and tenant modules.
+#
+# The LLM planner reads this registry + the approved Writer contract +
+# visual events + audio intents + capture policy + tenant modules, and
+# decides which roles are required for this specific piece. Python
+# validates IDs, cardinality, and references only — no keyword creative
+# judgment.
+#
+# version: 1.0 — 2026-07-23 — VF-CW-003
+
+# ── Generic first-party categories ──
+#
+# Each category has:
+#   key: stable identifier used in code and DB
+#   label: human-readable label for UI
+#   description: what this category covers
+#   candidate_status_values: valid status values for candidates in this category
+#   roles: list of possible role keys within this category
+#     (the LLM planner selects which roles are required per piece)
+
+categories:
+  narration:
+    key: narration
+    label: "Narration"
+    description: "Complete voice takes and beat-level auditions"
+    candidate_status_values:
+      - generating
+      - available
+      - failed
+      - rejected
+      - approved
+      - superseded
+      - stale
+    roles:
+      - key: full_take
+        label: "Full voice take"
+        description: "A complete VO take covering all spoken beats"
+        cardinality: "1"  # exactly one required
+        preview_required: true
+        none_allowed: false
+      - key: beat_audition
+        label: "Beat audition"
+        description: "Per-beat voice audition for comparison"
+        cardinality: "0+"
+        preview_required: true
+        none_allowed: true
+
+  visual_media:
+    key: visual_media
+    label: "Visual media"
+    description: "Operator captures, archive/reference media, stock, generated clips, generated stills, renderer plates"
+    candidate_status_values:
+      - generating
+      - available
+      - failed
+      - rejected
+      - approved
+      - superseded
+      - stale
+    roles:
+      - key: beat_visual
+        label: "Visual for beat/event"
+        description: "Visual media scoped to a specific beat or visual event"
+        cardinality: "1+"
+        preview_required: true
+        none_allowed: false
+        scope: beat_event  # role is scoped per beat/event
+
+  soundtrack:
+    key: soundtrack
+    label: "Soundtrack"
+    description: "Rights-valid local tracks, VO-under-bed previews, mode, and explicit VO-only option"
+    candidate_status_values:
+      - generating
+      - available
+      - failed
+      - rejected
+      - approved
+      - superseded
+      - stale
+    roles:
+      - key: music_bed
+        label: "Music bed"
+        description: "Background music track with rights evidence"
+        cardinality: "0-1"
+        preview_required: true
+        none_allowed: true
+      - key: vo_only
+        label: "VO-only mode"
+        description: "Explicit decision to use no music bed"
+        cardinality: "0-1"
+        preview_required: false
+        none_allowed: true
+        requires_rationale: true
+
+  sound_effects:
+    key: sound_effects
+    label: "Sound effects"
+    description: "Source sound and motivated SFX cues"
+    candidate_status_values:
+      - generating
+      - available
+      - failed
+      - rejected
+      - approved
+      - superseded
+      - stale
+    roles:
+      - key: sfx_cue
+        label: "SFX cue"
+        description: "Individual SFX cue at a specific timestamp"
+        cardinality: "0+"
+        preview_required: true
+        none_allowed: true
+        scope: timestamp
+      - key: source_sound
+        label: "Source sound"
+        description: "Ambient/source sound layer"
+        cardinality: "0-1"
+        preview_required: true
+        none_allowed: true
+
+  typography:
+    key: typography
+    label: "Typography"
+    description: "Exact font files and role specimens for hook, caption, emphasis, proof, lower-third, and CTA"
+    candidate_status_values:
+      - available
+      - failed
+      - rejected
+      - approved
+      - superseded
+      - stale
+    roles:
+      - key: hook_font
+        label: "Hook font specimen"
+        description: "Font for hook text role"
+        cardinality: "0-1"
+        preview_required: true
+        none_allowed: true
+      - key: caption_font
+        label: "Caption font specimen"
+        description: "Font for caption text role"
+        cardinality: "0-1"
+        preview_required: true
+        none_allowed: true
+      - key: emphasis_font
+        label: "Emphasis font specimen"
+        description: "Font for emphasis words"
+        cardinality: "0-1"
+        preview_required: true
+        none_allowed: true
+      - key: lower_third_font
+        label: "Lower-third font specimen"
+        description: "Font for lower-third text"
+        cardinality: "0-1"
+        preview_required: true
+        none_allowed: true
+      - key: cta_font
+        label: "CTA font specimen"
+        description: "Font for call-to-action text"
+        cardinality: "0-1"
+        preview_required: true
+        none_allowed: true
+
+  graphics:
+    key: graphics
+    label: "Graphics"
+    description: "Style frames for renderer graphics, overlays, information cards, caption treatments, and declared transitions"
+    candidate_status_values:
+      - generating
+      - available
+      - failed
+      - rejected
+      - approved
+      - superseded
+      - stale
+    roles:
+      - key: overlay_graphic
+        label: "Overlay graphic"
+        description: "On-screen graphic overlay (chart, emoji, lower-third graphic)"
+        cardinality: "0+"
+        preview_required: true
+        none_allowed: true
+        scope: beat_event
+      - key: transition
+        label: "Transition"
+        description: "Transition between segments"
+        cardinality: "0+"
+        preview_required: true
+        none_allowed: true
+        scope: boundary
+
+# ── Format-specific overrides ──
+#
+# Formats can override which categories are required/optional.
+# The LLM planner reads these as constraints, not as creative decisions.
+
+format_overrides:
+  reel:
+    required_categories:
+      - narration
+      - visual_media
+      - typography
+    optional_categories:
+      - soundtrack
+      - sound_effects
+      - graphics
+  thread:
+    required_categories:
+      - visual_media
+      - typography
+    optional_categories:
+      - graphics
+  carousel:
+    required_categories:
+      - visual_media
+      - typography
+    optional_categories:
+      - graphics
+  single_post:
+    required_categories:
+      - visual_media
+    optional_categories:
+      - typography
+      - graphics
+  story_series:
+    required_categories:
+      - narration
+      - visual_media
+      - typography
+    optional_categories:
+      - soundtrack
+      - sound_effects
+      - graphics
