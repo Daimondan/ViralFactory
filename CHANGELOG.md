@@ -6,6 +6,35 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-23 (late) — Review-w9
+
+### REVIEW-w9 — M15 milestone review + DIVERGENCE-020 collision resolution [STRATEGIC/STRUCTURE/FIX]
+
+**Rationale:** Full architect review of M15 milestone (all 20 tasks checked off), DIVERGENCE-020 numbering collision, deep 10-dimension UI walkthrough, doc alignment audit, and charter compliance check.
+
+**Verdict:** M15 service layer APPROVED. M15-D route wiring REJECTED. DIVERGENCE-021 (formerly DIVERGENCE-020 operator visual engagement) APPROVED WITH CONDITIONS.
+
+**Findings (P0 — blocking):**
+1. Composition route (`app.py:9784-9795`) builds an empty inline plan instead of using CompositionPlanGenerator + PreviewGenerator. VF-CP-001/002 services exist but are never imported in app.py. Operator sees no plan elements or previews.
+2. Component Workbench and Composition Ratification routes are orphaned — no page links to them. Zero navigation links found on any page.
+3. Workbench back-link points to wrong asset (uses draft_id instead of asset_id).
+4. Hardcoded `MAX_CLIP_DURATION = 4.0` in `edit_planning.py:1347` — charter violation (values → config).
+5. Hardcoded `max_segment_seconds` variant-type mapping in `edit_planning.py:249-254` — charter violation (judgment in code).
+6. Hardcoded canvas dimensions (1080×1920, 30fps) in composition route — charter violation.
+7. DIVERGENCE-020 numbering collision: two files share number 020. Operator visual engagement must be renumbered to DIVERGENCE-021.
+
+**Findings (P1):** State dissonance on workbench (planning badge + "ready to freeze" summary), false green on workbench (freeze enabled in wrong state), stale plan Ratify button enabled, raw file paths shown to operator, raw JSON dict on asset page.
+
+**Findings (P2):** Raw plan hash and ISO timestamps on composition page, generic page titles, tiny grey version text, bare 400 error for composition empty state.
+
+**Doc defects fixed:** PROGRESS.md "Current Phase" updated from v3.9 → v3.10. PROGRESS.md status table M15 updated from ⬜ → 🔧. CONTEXT.md diagram note updated. README repo map updated with missing decision files.
+
+**DIVERGENCE-021 (operator visual engagement) conditions:** (1) Move MAX_CLIP_DURATION to config. (2) Move max_segment_seconds variant-type mapping to config. (3) Confirm prompt-level directives only, no Python heuristics. (4) Renumber from DIVERGENCE-020.
+
+**Review file:** `docs/reviews/review-w9-2026-07-23.md`
+
+---
+
 ## 2026-07-23
 
 ### DIVERGENCE-020 — Operator visual engagement criteria [STRATEGIC/LOGIC]
