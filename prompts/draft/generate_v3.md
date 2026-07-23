@@ -129,8 +129,9 @@ For video formats, each frame in the `posts` array MUST be an object with these 
   - Do NOT ask the generator to render text, numbers, logos, screens, charts, code, or evidence — the renderer owns those layers via text overlays.
   - Each prompt must be a single scene: one subject, one composition, one mood. If a beat needs two visuals, the Writer should split it into two frames.
 - `visual.media_type` is REQUIRED for reels — choose `video` or `motion_graphic`:
-  - `video`: the beat shows a person, place, or action that benefits from motion (talking head, hands working, market scene, walking). The media planner generates a 5-second video clip. You MUST also provide `visual.video_prompt`.
-  - `motion_graphic`: the beat is an abstract concept, data visualization, text emphasis, or visual metaphor. The media planner generates a still image + the renderer applies Ken Burns motion + text overlays.
+  - `video`: the beat shows a person, place, or action that benefits from motion (talking head, hands working, market scene, walking). The media planner generates a 5-second video clip. You MUST also provide `visual.video_prompt`. **Prefer `video` for any beat with people, action, or place** — do not default to `motion_graphic` for everything.
+  - `motion_graphic`: the beat is an abstract concept, data visualization, text emphasis, or visual metaphor. The media planner generates a still image + the renderer applies motion + text overlays.
+  - **Media mix:** Aim for a balance of video clips and stills across the piece. 1 video + 5 stills with Ken Burns is not acceptable. If a beat shows motion in the real world, use `video`.
 - `visual.video_prompt` is REQUIRED when `media_type=video` — describe the 5-second motion clip.
 - `transition_in` is REQUIRED for reels — the Assembler cuts segments together using this
 - `sfx` may be empty `[]` if no SFX for this frame — but remember: sound design is 50% of retention. Use SFX on visual changes (whoosh on cuts, pop on text, hit on transitions).
@@ -142,7 +143,11 @@ For video formats, each frame in the `posts` array MUST be an object with these 
 
 - **Hook archetype**: The first frame's `vo_text` must use one of these archetypes: Hot Take (bold opinionated claim), Investigator (question/mystery), Proof Drop (specific number/fact), Contrarian ("Stop doing X"), Stat/Number ("I lost $10K"), or Transformation. AVOID story hooks ("So the other day...") — they average 7K views vs 140K for pattern-interrupt hooks.
 - **Emotional trigger**: The piece must be structured around ONE primary emotion from: Fear, Empathy, Outrage, Curiosity, Humor, or Trust. AVOID Aspiration and Hope — they are the two worst-performing emotions (5K-29K avg views vs 92K-264K for the top tier).
-- **Pacing**: Visual change every 2-4 seconds. No single clip should exceed 4 seconds without a text pop, B-roll cut, or angle shift. The edit plan validator enforces this.
+- **Pacing**: Visual change every 2-4 seconds. No single clip should exceed 4 seconds without a text pop, B-roll cut, or angle shift. The edit plan validator enforces this as a hard floor.
+- **Caption emphasis**: Not every caption needs to be "fun," but key words and phrases within captions should be emphasized via highlighting (color, weight, or size change). Use varied fonts and styles as appropriate to the piece — not one font for everything. Match emphasis style to the emotional register of the beat.
+- **Supporting visuals**: When the VO references a number, a stat, a concept, or data, include a supporting visual element — a number card, an icon, a small graph, or an inserted image that reinforces what's being said. These are narrative functions (proof, emphasis, explanation), not decoration.
+- **VO-only visual life**: VO-only audio mode does not mean visually static. Every VO-only video must have visual movement or texture — motion on stills (zoom, pan, parallax), animated graphics, text emphasis pops, or B-roll cutaways. A sequence of static held images is not acceptable.
+- **Scene coherence**: Adjacent frames should flow coherently — consistent visual world, complementary compositions, motivated transitions. The video should not look like stock images or clips randomly stitched together.
 - **Ending**: End on the PAYOFF, not the ask. The final frame should deliver the result, proof, or punchline. Do NOT add "follow for more" or direct CTA — implied CTA beats direct by 2x. The final `vo_text` must complete its thought — never end mid-sentence.
 
 #### TEXT FORMATS (thread, carousel, single_post, newsletter, poll)

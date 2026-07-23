@@ -8,6 +8,23 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ## 2026-07-23
 
+### DIVERGENCE-020 — Operator visual engagement criteria [STRATEGIC/LOGIC]
+
+**Rationale:** Operator observed the last several rendered videos had images held for long periods, felt static and boring. The 4-second visual change rule existed in the Writer prompt but the validator was advisory-only (`pass`). Operator directed: enforce 4-second max as a blocking rule, add criteria for caption emphasis with varied fonts/styles, supporting visual elements (graphs/icons/images), VO-only videos must have background visual life, prefer video clips over stills with Ken Burns, richer motion vocabulary, and scene-to-scene coherence.
+
+**Changes:**
+- `src/services/edit_planning.py`: 4-second max clip duration validator changed from advisory (`pass`) to blocking error. Segments >4s without an overlay at or before the 4s mark are rejected. Exception: segments with an early overlay pass — the overlay IS the visual change.
+- `prompts/assembly/edit_plan_v1.md` (v1.5→v1.6): Standing order 2 rewritten from "pace by meaning" to "4-second hard floor" with overlay exception. Added standing orders 11 (supporting visual elements), 12 (VO-only visual life), 13 (scene-to-scene coherence).
+- `prompts/assembly/visual_director_v1.md` (v1.1→v1.2): Added rules 7-10: prefer video over stills, supporting visual elements (renderer_graphic for numbers/icons/charts), scene-to-scene coherence, 4-second event splitting.
+- `prompts/draft/generate_v3.md`: Media type guidance updated to prefer video for people/action/place beats, added media mix directive. VIRAL MECHANICS section expanded with: caption emphasis (highlighting, varied fonts), supporting visuals (number cards, icons, graphs), VO-only visual life, scene coherence. Pacing rule clarified as hard floor.
+- `tests/test_divergence_020_visual_engagement.py`: 5 new tests (under 4s passes, over 4s without overlay fails, over 4s with early overlay passes, over 4s with late overlay fails, exactly 4s passes).
+- `tests/test_audio_strategy.py`: Version assertion updated to 1.6.
+- `tests/test_vf_vs_402_visual_director.py`: Version assertion updated to 1.2.
+- `tests/test_vf_vs_403_production_integration.py`: 14s talking-head test updated — now correctly rejected by 4s validator before reaching feasibility checks.
+- `docs/decisions/DIVERGENCE-020-operator-visual-engagement-criteria.md`: Filed.
+
+**Conflicts with:** `docs/research/viral-content-meta-analysis-v2.md` (which rejected the 4-second rule as unsupported) and `docs/playbooks/viral-content-production-playbook-v1.md` Phase 7 ("A hold is valid when expression, proof, or silence needs time"). Operator position: the system is producing boring videos in practice and the meaning-based pacing rule is being used as a license to hold static images too long.
+
 ### VF-CW-009 — Component Workbench UI service [STRUCTURE/LOGIC]
 
 **Rationale:** AMENDMENT-013 requires one operator surface grouping candidates by category and semantic role with previews, plain-language labels, valid actions, and a persistent readiness summary. No false greens, raw technical states, or dead actions.

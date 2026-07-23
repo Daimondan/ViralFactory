@@ -1338,20 +1338,29 @@ class EditPlanningService:
         for bid in sorted(missing):
             errors.append(f"Required beat '{bid}' has no segment mapping")
 
-        # 6. Max clip duration — advisory pacing check
-        # Per viral mechanics research: "Change the visual every 2-4 seconds"
-        # This is an advisory warning, not a hard error — long talking-head
-        # segments are valid when the VO requires it. The edit plan prompt
-        # should encourage splitting long segments, but the validator
-        # should not reject them.
+        # 6. Max clip duration — BLOCKING pacing check (DIVERGENCE-020)
+        # The operator directed: no segment may exceed 4 seconds without an
+        # active overlay, text pop, or visual change. The Writer prompt
+        # already states this rule; the validator now enforces it.
+        # Exception: a segment WITH an overlay that appears at or before the
+        # 4-second mark is valid — the overlay IS the visual change.
         MAX_CLIP_DURATION = 4.0
         for seg in segments:
             sid = seg.get("segment_id", "?")
             duration = float(seg.get("timeline_duration") or 0)
-            has_overlay = bool(seg.get("overlays"))
-            if duration > MAX_CLIP_DURATION and not has_overlay:
-                # Advisory only — logged but not added to errors
-                pass
+            overlays = seg.get("overlays") or []
+            # Check if any overlay starts at or before the 4-second mark
+            has_early_overlay = any(
+                float(ov.get("start", 999)) <= MAX_CLIP_DURATION
+                for ov in overlays
+            )
+            if duration > MAX_CLIP_DURATION and not has_early_overlay:
+                errors.append(
+                    f"Segment '{sid}' duration {duration:.1f}s exceeds "
+                    f"{MAX_CLIP_DURATION}s max without an early overlay or "
+                    f"text pop — split the segment or add a visual change "
+                    f"(DIVERGENCE-020)"
+                )
 
         return errors
 
