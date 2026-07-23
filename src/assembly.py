@@ -720,13 +720,17 @@ class AssemblyRenderer:
         return styles.get(style_ref) or styles["default"]
 
     def _overlay_position_y(self, position: str, height: int) -> int:
-        """Map a position name to a pixel y-coordinate for PIL rendering."""
+        """Map a position name to a pixel y-coordinate for PIL rendering.
+
+        Safe zones: Instagram/TikTok UI covers the bottom ~250px and top ~100px.
+        We keep text within the safe zone to avoid being hidden by platform UI.
+        """
         if position == "top":
-            return 60
+            return 120  # below top safe zone
         if position == "bottom":
-            return height - 200
+            return height - 450  # above bottom safe zone (room for multi-line captions)
         if position == "bottom-third":
-            return int(height * 0.72)
+            return int(height * 0.65)  # was 0.72, moved up for safety
         # center
         return (height - 100) // 2
 
@@ -1458,8 +1462,11 @@ class AssemblyRenderer:
                 # do NOT trim it to the (possibly shorter) video duration.
                 # Just normalize and map the full VO. The video was extended
                 # above to cover the full VO. (QA-loop F-005)
+                # Use TP=-2.0 for VO-only to ensure true peak stays below -1.0
+                # (single-pass loudnorm can overshoot by ~1.5 dB)
                 filter_parts.append(
-                    f"[1:a]loudnorm=I={loudnorm_I}:TP={loudnorm_TP}:LRA={loudnorm_LRA}[aout]")
+                    f"[1:a]loudnorm=I={loudnorm_I}:TP=-2.0:LRA={loudnorm_LRA},"
+                    f"alimiter=limit=0.79[aout]")
 
         filter_str = ";".join(filter_parts)
         cmd = [

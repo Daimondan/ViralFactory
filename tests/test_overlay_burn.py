@@ -138,10 +138,11 @@ class TestOverlayBurnIn:
     def test_overlay_position_mapping(self, tmp_path):
         """Position names map to pixel y-coordinates for PIL rendering."""
         renderer = AssemblyRenderer({}, db_path=str(tmp_path / "test.db"))
-        assert renderer._overlay_position_y("top", 1920) == 60
+        # Safe zone adjusted: top=120, bottom=h-350, bottom-third=0.65*h
+        assert renderer._overlay_position_y("top", 1920) == 120
         assert isinstance(renderer._overlay_position_y("center", 1920), int)
-        assert renderer._overlay_position_y("bottom", 1920) == 1720
-        assert renderer._overlay_position_y("bottom-third", 1920) == 1382
+        assert renderer._overlay_position_y("bottom", 1920) == 1470  # 1920-450
+        assert renderer._overlay_position_y("bottom-third", 1920) == 1248  # int(1920*0.65)
         # Unknown position falls back to center
         assert isinstance(renderer._overlay_position_y("unknown", 1920), int)
 
