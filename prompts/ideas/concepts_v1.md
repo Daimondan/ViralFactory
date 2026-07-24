@@ -67,6 +67,8 @@ Do not output a treatment, platform choice, format choice, capture plan, derivat
 
 For human-seeded work, preserve the seed's intent. For `human_seeded`, the idea is the seed. For `human_seeded_ai_developed`, sharpen without replacing it.
 
+For `inspiration` origin, the seed is a creative reference from the Inspiration Center — a trending piece of content on another platform. Use it as creative fuel: extract what makes it work (the angle, the hook, the format, the emotional trigger) and propose an original idea in this business's voice that would resonate with this audience. Do not copy or paraphrase the inspiration — use it as a springboard to craft something that best utilises the format for this brand.
+
 Return fewer concepts rather than padding weak or duplicate ideas.
 
 Respond with ONLY valid JSON:
@@ -83,7 +85,7 @@ Respond with ONLY valid JSON:
         "narrative_shape": "string",
         "available_evidence": ["string"]
       },
-      "origin": "ai_originated|human_seeded|human_seeded_ai_developed",
+      "origin": "ai_originated|human_seeded|human_seeded_ai_developed|inspiration",
       "source_refs": [14],
       "source_notes": [{"source_id": 14, "note": "string"}],
       "seed_text": "string"

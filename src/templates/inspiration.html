@@ -283,7 +283,7 @@ function inspirationCreateIdea(itemId, obsId) {
         .then(r => r.json())
         .then(data => {
             if (data.status === 'ok') {
-                alert('Idea created! Review it in Pipeline → Ideas.\n\nOrigin: Inspiration Center');
+                alert('Idea created! The Researcher developed a concept from this inspiration. Review it in Pipeline → Ideas.');
                 window.open('/ideas', '_blank');
             } else {
                 alert('Error: ' + (data.message || 'unknown error'));

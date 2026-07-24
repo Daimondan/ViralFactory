@@ -176,7 +176,7 @@
             <p class="expanded-detail-row">
                 <span class="expanded-detail-label">Sources on the card:</span>
                 {% for src in card.resolved_sources %}
-                <span class="source-chip source-chip-{{ {'rss_item': 'rss', 'operator_material': 'material', 'manual': 'material', 'scraped_article': 'scraped', 'archival': 'archival'}.get(src.source_type, 'archival') }}">{{ src.source_type }} · {{ src.title[:30] }}</span>
+                <span class="source-chip source-chip-{{ {'rss_item': 'rss', 'operator_material': 'material', 'manual': 'material', 'scraped_article': 'scraped', 'archival': 'archival', 'inspiration': 'material'}.get(src.source_type, 'archival') }}">{{ src.source_type }} · {{ src.title[:30] }}</span>
                 {% endfor %}
             </p>
             {% elif card.evidence_links %}
@@ -200,12 +200,24 @@
             <a class="btn btn-small" href="/ideas/{{ card.id }}/capture">Add real capture</a>
             <span class="expanded-cost">production continues now; required capture must arrive before final review</span>
             {% endif %}
+            <button class="btn btn-small" onclick="toggleEditForm({{ card.id }})">Edit</button>
             <button class="btn btn-small" onclick="document.getElementById('kill-reason-{{ card.id }}').classList.add('show')">Kill · give reason</button>
             <button class="btn btn-small" onclick="cardAction({{ card.id }}, 'park')">Park</button>
             <div class="spacer"></div>
             {% if card.new_children_count and card.new_children_count > 0 %}
             <button class="btn btn-small" onclick="bulkApproveChildren({{ card.id }})">Approve {{ card.new_children_count }} new parts →</button>
             {% endif %}
+        </div>
+        <div class="edit-form" id="edit-form-{{ card.id }}" style="display: none; padding: 0 var(--space-5) var(--space-3); flex-direction: column; gap: var(--space-2);">
+            <label style="font-size: 0.78rem; color: var(--muted); font-weight: 600;">Idea text</label>
+            <textarea id="edit-idea-{{ card.id }}" style="width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--text); font-size: 0.9rem; resize: vertical; min-height: 60px; font-family: var(--font-sans);">{{ card.idea }}</textarea>
+            <label style="font-size: 0.78rem; color: var(--muted); font-weight: 600;">Hook options (one per line)</label>
+            <textarea id="edit-hooks-{{ card.id }}" style="width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--text); font-size: 0.85rem; resize: vertical; min-height: 60px; font-family: var(--font-sans);">{% for hook in card.hook_options %}{{ hook }}{% if not loop.last %}
+{% endif %}{% endfor %}</textarea>
+            <div style="display: flex; gap: var(--space-2);">
+                <button class="btn btn-small" onclick="saveEdit({{ card.id }})">Save</button>
+                <button class="btn btn-small" onclick="toggleEditForm({{ card.id }})">Cancel</button>
+            </div>
         </div>
         <div class="kill-reason" id="kill-reason-{{ card.id }}" style="padding: 0 var(--space-5) var(--space-3); gap: var(--space-2);">
             <input type="text" id="kill-text-{{ card.id }}" placeholder="Why kill? (goes to Feedback Log — trains the Researcher)">
@@ -242,6 +254,7 @@
                 {% if card.capture_tasks %}
                 <a href="/ideas/{{ card.id }}/capture" class="btn btn-small">Add real capture</a>
                 {% endif %}
+                <button class="btn btn-small" onclick="toggleCompactEdit({{ card.id }})">Edit</button>
                 <button class="btn btn-small" onclick="document.getElementById('kill-reason-{{ card.id }}').classList.add('show')">Kill</button>
             </div>
             {% elif card.card_state == 'approved' or card.card_state == 'capture_fulfilled' %}
@@ -274,6 +287,17 @@
         <div class="kill-reason" id="kill-reason-{{ card.id }}" style="padding: 0 var(--space-5) var(--space-3); gap: var(--space-2);">
             <input type="text" id="kill-text-{{ card.id }}" placeholder="Why kill? (goes to Feedback Log — trains the Researcher)">
             <button class="btn btn-small" onclick="confirmKill({{ card.id }})">Confirm</button>
+        </div>
+        <div class="edit-form" id="compact-edit-{{ card.id }}" style="display: none; padding: 0 var(--space-5) var(--space-3); flex-direction: column; gap: var(--space-2);">
+            <label style="font-size: 0.78rem; color: var(--muted); font-weight: 600;">Idea text</label>
+            <textarea id="compact-edit-idea-{{ card.id }}" style="width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--text); font-size: 0.9rem; resize: vertical; min-height: 60px; font-family: var(--font-sans);">{{ card.idea }}</textarea>
+            <label style="font-size: 0.78rem; color: var(--muted); font-weight: 600;">Hook options (one per line)</label>
+            <textarea id="compact-edit-hooks-{{ card.id }}" style="width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--text); font-size: 0.85rem; resize: vertical; min-height: 60px; font-family: var(--font-sans);">{% for hook in card.hook_options %}{{ hook }}{% if not loop.last %}
+{% endif %}{% endfor %}</textarea>
+            <div style="display: flex; gap: var(--space-2);">
+                <button class="btn btn-small" onclick="saveCompactEdit({{ card.id }})">Save</button>
+                <button class="btn btn-small" onclick="toggleCompactEdit({{ card.id }})">Cancel</button>
+            </div>
         </div>
         {% endif %}
     </div>
@@ -324,6 +348,44 @@ function cardAction(id, action) {
         return;
     }
     actionCard(id, action);
+}
+
+function toggleEditForm(id) {
+    var form = document.getElementById('edit-form-' + id);
+    if (form) form.style.display = form.style.display === 'none' ? 'flex' : 'none';
+}
+
+function toggleCompactEdit(id) {
+    var form = document.getElementById('compact-edit-' + id);
+    if (form) form.style.display = form.style.display === 'none' ? 'flex' : 'none';
+}
+
+function saveEdit(id) {
+    var idea = document.getElementById('edit-idea-' + id).value.trim();
+    var hooksText = document.getElementById('edit-hooks-' + id).value.trim();
+    var hooks = hooksText ? hooksText.split('\n').map(function(h){return h.trim();}).filter(function(h){return h;}) : [];
+    fetch('/api/ideas/' + id + '/edit', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({idea: idea, hook_options: hooks}),
+    }).then(r => r.json()).then(data => {
+        if (data.status === 'ok') window.location.reload();
+        else vfToastError('Error', data.error || 'unknown');
+    });
+}
+
+function saveCompactEdit(id) {
+    var idea = document.getElementById('compact-edit-idea-' + id).value.trim();
+    var hooksText = document.getElementById('compact-edit-hooks-' + id).value.trim();
+    var hooks = hooksText ? hooksText.split('\n').map(function(h){return h.trim();}).filter(function(h){return h;}) : [];
+    fetch('/api/ideas/' + id + '/edit', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({idea: idea, hook_options: hooks}),
+    }).then(r => r.json()).then(data => {
+        if (data.status === 'ok') window.location.reload();
+        else vfToastError('Error', data.error || 'unknown');
+    });
 }
 
 function confirmKill(id) {

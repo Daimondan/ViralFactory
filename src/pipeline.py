@@ -1150,6 +1150,28 @@ class PipelineStore:
         conn.close()
         return self.get_idea_card(card_id)
 
+    def update_idea_card_fields(
+        self, card_id: int, idea: str = None, hook_options: list = None,
+    ) -> dict:
+        """Update editable fields on an idea card (operator edit at Gate 1).
+        Only idea text and hook_options are operator-editable. Treatment,
+        origin, and source_refs are not touched."""
+        conn = sqlite3.connect(self.db_path)
+        ts = self._now()
+        if idea is not None:
+            conn.execute(
+                "UPDATE idea_cards SET idea = ?, updated_at = ? WHERE id = ?",
+                (idea, ts, card_id),
+            )
+        if hook_options is not None:
+            conn.execute(
+                "UPDATE idea_cards SET hook_options = ?, updated_at = ? WHERE id = ?",
+                (json.dumps(hook_options), ts, card_id),
+            )
+        conn.commit()
+        conn.close()
+        return self.get_idea_card(card_id)
+
     def add_capture_upload(self, card_id: int, material_id: int) -> dict:
         """Record a capture upload against an awaiting-capture card."""
         card = self.get_idea_card(card_id)

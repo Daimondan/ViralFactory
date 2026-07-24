@@ -919,8 +919,13 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     @app.route("/api/inspiration/<int:trend_item_id>/<int:observation_id>/create-idea", methods=["POST"])
     def api_inspiration_create_idea(trend_item_id, observation_id):
-        """Create an idea card directly from an Inspiration observation.
-        Origin = 'inspiration'. Enters Gate 1 as 'new' — does not bypass approval."""
+        """Create an idea card from an Inspiration observation via LLM development.
+        Origin = 'inspiration'. Enters Gate 1 as 'new' — does not bypass approval.
+
+        The inspiration item is registered as a manual source, then the full
+        concept+treatment LLM pipeline runs to craft a relevant idea that
+        best utilises the format — not just a dump of raw inspiration metadata.
+        """
         try:
             config = load_all(config_dir)
             business_slug = config["business"]["business"]["slug"]
@@ -947,67 +952,152 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         if not obs:
             conn.close()
             return jsonify({"status": "error", "message": "observation not found"}), 404
+
+        # Gather item details for the seed text
+        item_d = dict(item)
+        title = item_d.get("title", "") or ""
+        creator = item_d.get("creator", "") or ""
+        platform = item_d.get("platform", "") or ""
+        provider = item_d.get("provider", "") or ""
+        description = item_d.get("description", "") or ""
+        content_type = item_d.get("content_type", "") or "item"
+        canonical_url = item_d.get("canonical_url", "") or item_d.get("preview_url", "")
+        obs_d = dict(obs)
+        observation_label = obs_d.get("label", "") or ""
+        observation_notes = obs_d.get("notes", "") or obs_d.get("summary", "") or ""
+
+        # Build a rich seed text that gives the LLM enough to work with
+        seed_text = f"Inspired by: {title}"
+        if creator:
+            seed_text += f" by {creator}"
+        seed_text += f" — {platform} {content_type}"
+        if description:
+            seed_text += f"\n\n{description[:800]}"
+        if observation_label:
+            seed_text += f"\n\nObservation: {observation_label}"
+        if observation_notes:
+            seed_text += f"\n{observation_notes[:400]}"
+        seed_text += f"\n\n(Source: {provider}, collected from {platform})"
         conn.close()
 
-        # Build the idea text from the item
-        title = dict(item).get("title", "") or ""
-        creator = dict(item).get("creator", "") or ""
-        platform = dict(item).get("platform", "") or ""
-        provider = dict(item).get("provider", "") or ""
-        description = dict(item).get("description", "") or ""
-        content_type = dict(item).get("content_type", "") or "item"
-
-        idea_text = f"Inspired by: {title}"
-        if creator:
-            idea_text += f" by {creator}"
-        idea_text += f" — {platform} {content_type}"
-        if description:
-            idea_text += f"\n\n{description[:500]}"
-        # Format collection time as relative, not raw ISO
-        collected_at = dict(obs).get('collected_at', '')
-        if collected_at:
-            try:
-                from datetime import datetime as _dt, timezone as _tz
-                col_dt = _dt.fromisoformat(collected_at.replace('Z', '+00:00'))
-                delta = _dt.now(_tz.utc) - col_dt
-                hours = int(delta.total_seconds() / 3600)
-                if hours < 1:
-                    time_str = "just now"
-                elif hours < 24:
-                    time_str = f"{hours}h ago"
-                else:
-                    days = hours // 24
-                    time_str = f"{days}d ago"
-            except Exception:
-                time_str = collected_at[:10]  # Fall back to date only
+        # Register the inspiration item as a manual source so the card is grounded
+        import hashlib as _h
+        store = _get_pipeline_store()
+        source_hash = _h.sha256(
+            f"{business_slug}:inspiration:{trend_item_id}:{observation_id}".encode()
+        ).hexdigest()[:16]
+        # Check if source already exists
+        existing_sources = store.list_sources(business_slug, limit=200)
+        existing_id = None
+        for src in existing_sources:
+            if src.get("content_hash") == source_hash:
+                existing_id = src["id"]
+                break
+        if existing_id:
+            insp_source_id = existing_id
         else:
-            time_str = ""
-        idea_text += f"\n\n(Source: {provider}, collected {time_str})"
+            insp_source_id = store.add_source(
+                business_slug=business_slug,
+                source_type="inspiration",
+                title=f"Inspiration: {title[:80]}",
+                url=canonical_url or None,
+                summary=f"From Inspiration Center ({provider} — {platform}): {description[:200]}" if description else f"From Inspiration Center ({provider} — {platform})",
+                content=seed_text,
+                origin="operator",
+                content_hash=source_hash,
+            )
 
-        # Evidence link pointing back to the observation
-        evidence_links = [{
-            "url": dict(item).get("canonical_url", "") or dict(item).get("preview_url", ""),
-            "note": f"Inspiration Center: {title} by {creator} ({platform})",
-        }]
+        # Run the full LLM concept + treatment pipeline
+        try:
+            models_config = config["models"]
+            business = config["business"]
+        except (KeyError, ConfigError) as e:
+            return jsonify({"status": "error", "message": f"Config error: {e}"}), 500
 
-        # Create the idea card with origin='inspiration'
-        from pipeline import PipelineStore
-        pipe_store = _get_pipeline_store()
-        card_id = pipe_store.create_idea_card(
-            business_slug=business_slug,
-            idea=idea_text,
-            hook_options=[],  # hooks generated at Gate 1
-            treatment={"scope": {"type": "social", "audience": "general"}, "format": "reel", "capture_required": False,
-                        "reuse": "none", "rationale": "inspiration-driven", "experimental": True},
-            origin="inspiration",
-            evidence_links=evidence_links,
-            seed_text=f"From Inspiration Center: {title} ({provider})",
-        )
+        from llm_adapter import LLMAdapter, LLMAdapterError
+        adapter = LLMAdapter(models_config, db_path=app.config["DB_PATH"], prompts_dir="prompts")
+
+        from module_store import ModuleStore
+        ms = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
+        source_criteria = ms.load(business_slug, "source-criteria") or "(not built)"
+
+        # Build source material digest (includes the inspiration source)
+        active_sources = store.list_sources(business_slug, limit=50)
+        source_lines = []
+        for src in active_sources:
+            line = f"[S{src['id']}] {src['title']}"
+            if src.get("summary"):
+                line += f" — {src['summary']}"
+            if src.get("url"):
+                line += f" ({src['url']})"
+            source_lines.append(line)
+        source_material = "\n".join(source_lines) if source_lines else f"[S{insp_source_id}] {seed_text}"
+
+        from distribution_intent import normalize_distribution_intent
+        try:
+            # Open mode — let the Researcher choose the best format for this inspiration
+            distribution_intent = normalize_distribution_intent({})
+        except ValueError:
+            distribution_intent = {"mode": "open", "platforms": [], "formats": []}
+
+        try:
+            result, module_prov = _run_idea_concept_and_treatment_stages(
+                adapter=adapter,
+                business_slug=business_slug,
+                business=business,
+                generation_vars={
+                    "origin_type": "inspiration",
+                    "distribution_intent": json.dumps(distribution_intent),
+                    "source_material": source_material,
+                    "source_criteria": source_criteria,
+                    "existing_ideas": _build_existing_ideas(business_slug),
+                    "kill_lessons": _build_kill_lessons(business_slug),
+                    "seed_text": seed_text,
+                },
+                num_cards=1,
+                format_usage=_build_format_usage(business_slug),
+            )
+        except (LLMAdapterError, Exception) as e:
+            return jsonify({"status": "error", "message": f"LLM development failed: {str(e)[:300]}"}), 500
+
+        # Create idea card(s) from the LLM result
+        cards_created = []
+        for card_data in result.get("cards", []):
+            treatment = card_data.get("treatment", {})
+            source_refs = card_data.get("source_refs", [insp_source_id])
+            # Ensure the inspiration source is always cited
+            if insp_source_id not in source_refs:
+                source_refs = [insp_source_id] + source_refs
+
+            # Derive evidence_links from source_refs
+            resolved_sources = store.resolve_source_refs(business_slug, source_refs)
+            evidence_links = [{"url": src.get("url") or "", "note": src.get("title", "")} for src in resolved_sources]
+            # Also add the inspiration canonical URL as evidence
+            if canonical_url:
+                evidence_links.append({
+                    "url": canonical_url,
+                    "note": f"Inspiration Center: {title} by {creator} ({platform})",
+                })
+
+            card_id = store.create_idea_card(
+                business_slug=business_slug,
+                idea=card_data["idea"],
+                hook_options=card_data.get("hook_options", []),
+                treatment=treatment,
+                origin="inspiration",
+                evidence_links=evidence_links,
+                source_refs=source_refs,
+                seed_text=seed_text,
+            )
+            cards_created.append(card_id)
+
+        if not cards_created:
+            return jsonify({"status": "error", "message": "LLM did not produce a valid idea card"}), 500
 
         return jsonify({
             "status": "ok",
-            "idea_card_id": card_id,
-            "message": "Idea created — review it in Pipeline → Ideas",
+            "idea_card_id": cards_created[0],
+            "message": "Idea created — the Researcher developed a concept from this inspiration. Review it in Pipeline → Ideas.",
         })
 
     @app.route("/onboard")
@@ -5415,6 +5505,41 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         elif action == "park":
             store.update_card_state(card_id, "parked")
             return jsonify({"status": "ok", "new_state": "parked"})
+
+    @app.route("/api/ideas/<int:card_id>/edit", methods=["POST"])
+    def ideas_edit_card(card_id):
+        """Edit idea text and/or hook options on a Gate 1 card.
+        Only cards in 'new' or 'parked' state are editable."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        payload = request.get_json(silent=True) or {}
+        idea = payload.get("idea", "").strip()
+        hook_options = payload.get("hook_options")
+
+        store = _get_pipeline_store()
+        card = store.get_idea_card(card_id)
+        if not card:
+            return jsonify({"error": "Card not found"}), 404
+        if card["business_slug"] != business_slug:
+            return jsonify({"error": "Card does not belong to this business"}), 403
+        if card["card_state"] not in ("new", "parked"):
+            return jsonify({"error": f"Card is in '{card['card_state']}' state — only new or parked cards can be edited"}), 400
+
+        kwargs = {}
+        if idea:
+            kwargs["idea"] = idea
+        if hook_options is not None:
+            if not isinstance(hook_options, list):
+                return jsonify({"error": "hook_options must be a list of strings"}), 400
+            kwargs["hook_options"] = [h.strip() for h in hook_options if h.strip()]
+
+        if not kwargs:
+            return jsonify({"error": "No fields to update"}), 400
+
+        updated = store.update_idea_card_fields(card_id, **kwargs)
+        return jsonify({"status": "ok", "card_id": card_id})
 
     @app.route("/api/ideas/<int:card_id>/retry-production", methods=["POST"])
     def retry_production(card_id):
