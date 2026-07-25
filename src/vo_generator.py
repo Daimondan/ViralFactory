@@ -483,7 +483,7 @@ class VOGenerator:
                     f"[{i}:a]" for i in range(len(wav_paths))
                 ) + f"concat=n={len(wav_paths)}:v=0:a=1[out]",
                 "-map", "[out]",
-                "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "1",
+                "-acodec", "pcm_s16le", "-ar", "48000", "-ac", "1",
                 output_path,
             ])
             subprocess.run(cmd, capture_output=True, timeout=60)

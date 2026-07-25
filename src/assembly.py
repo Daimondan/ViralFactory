@@ -33,6 +33,41 @@ class AssemblyError(Exception):
     pass
 
 
+# ── Encode tiers (P1-6) ────────────────────────────────────────────────
+# Intermediates are near-lossless because segments are re-encoded up to
+# three times before the master exists (segment -> concat -> overlay);
+# generation loss compounds and cannot be recovered by a better final pass.
+INTERMEDIATE_CRF = 16
+MASTER_CRF = 20
+MASTER_MAX_BITRATE = "8M"
+MASTER_BUFSIZE = "16M"
+AUDIO_SAMPLE_RATE = "48000"
+AUDIO_BITRATE = "256k"
+
+
+def _video_encode_args(tier: str) -> list[str]:
+    """ffmpeg video encode arguments for 'intermediate' or 'master'."""
+    if tier == "intermediate":
+        return [
+            "-c:v", "libx264", "-pix_fmt", "yuv420p",
+            "-preset", "veryfast", "-crf", str(INTERMEDIATE_CRF),
+        ]
+    if tier == "master":
+        return [
+            "-c:v", "libx264", "-pix_fmt", "yuv420p",
+            "-preset", "medium", "-crf", str(MASTER_CRF),
+            "-maxrate", MASTER_MAX_BITRATE, "-bufsize", MASTER_BUFSIZE,
+            "-profile:v", "high", "-level", "4.1",
+            "-movflags", "+faststart",
+        ]
+    raise AssemblyError(f"Unknown encode tier: {tier}")
+
+
+def _audio_encode_args() -> list[str]:
+    """ffmpeg audio encode arguments — 48 kHz is the platform upload spec."""
+    return ["-c:a", "aac", "-b:a", AUDIO_BITRATE, "-ar", AUDIO_SAMPLE_RATE]
+
+
 class AssemblyRenderer:
     """
     Deterministic FFmpeg-based renderer.
@@ -412,12 +447,11 @@ class AssemblyRenderer:
                     cmd = [
                         "ffmpeg", "-y",
                         "-loop", "1", "-i", src_path,
-                        "-f", "lavfi", "-i", f"anullsrc=channel_layout=stereo:sample_rate=44100",
+                        "-f", "lavfi", "-i", f"anullsrc=channel_layout=stereo:sample_rate=48000",
                         "-t", str(clip_dur),
                         "-vf", vf,
                         "-map", "0:v:0", "-map", "1:a:0",
-                        "-c:v", "libx264", "-pix_fmt", "yuv420p",
-                        "-c:a", "aac",
+                    ] + _video_encode_args("intermediate") + _audio_encode_args() + [
                         "-r", str(fps),
                         "-shortest",
                         seg_file,
@@ -433,8 +467,7 @@ class AssemblyRenderer:
                         "-t", str(duration),
                         "-vf", "setsar=1",
                         "-map", "0:v:0", "-map", "1:a:0",
-                        "-c:v", "libx264", "-pix_fmt", "yuv420p",
-                        "-c:a", "aac",
+                    ] + _video_encode_args("intermediate") + _audio_encode_args() + [
                         "-r", "30",
                         "-shortest",
                         seg_file,
@@ -463,8 +496,7 @@ class AssemblyRenderer:
                             "-i", src_path,
                             "-t", str(duration),
                             "-vf", vf_str,
-                            "-c:v", "libx264", "-pix_fmt", "yuv420p",
-                            "-c:a", "aac",
+                        ] + _video_encode_args("intermediate") + _audio_encode_args() + [
                             "-r", "30",
                             seg_file,
                         ]
@@ -474,12 +506,11 @@ class AssemblyRenderer:
                             "ffmpeg", "-y",
                             "-ss", str(in_pt),
                             "-i", src_path,
-                            "-f", "lavfi", "-i", f"anullsrc=channel_layout=stereo:sample_rate=44100",
+                            "-f", "lavfi", "-i", f"anullsrc=channel_layout=stereo:sample_rate=48000",
                             "-t", str(duration),
                             "-vf", vf_str,
                             "-map", "0:v:0", "-map", "1:a:0",
-                            "-c:v", "libx264", "-pix_fmt", "yuv420p",
-                            "-c:a", "aac",
+                        ] + _video_encode_args("intermediate") + _audio_encode_args() + [
                             "-r", "30",
                             "-shortest",
                             seg_file,
@@ -591,8 +622,7 @@ class AssemblyRenderer:
                 ] + concat_inputs + [
                     "-filter_complex", filter_str,
                     "-map", "[vout]", "-map", "[aout]",
-                    "-c:v", "libx264", "-pix_fmt", "yuv420p",
-                    "-c:a", "aac",
+                ] + _video_encode_args("master") + _audio_encode_args() + [
                     output_file,
                 ]
             else:
@@ -613,8 +643,7 @@ class AssemblyRenderer:
                 ] + concat_inputs + [
                     "-filter_complex", filter_str,
                     "-map", "[v]", "-map", "[a]",
-                    "-c:v", "libx264", "-pix_fmt", "yuv420p",
-                    "-c:a", "aac",
+                ] + _video_encode_args("master") + _audio_encode_args() + [
                     output_file,
                 ]
 
@@ -964,7 +993,7 @@ class AssemblyRenderer:
         cmd.extend([
             "-filter_complex", ";".join(filter_parts),
             "-map", "[vout]", "-map", "0:a:0?",
-            "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        ] + _video_encode_args("intermediate") + [
             "-c:a", "copy",
             overlay_file,
         ])
@@ -1094,7 +1123,8 @@ class AssemblyRenderer:
         ] + inputs + [
             "-filter_complex", filter_str,
             "-map", "0:v:0", "-map", "[aout]",
-            "-c:v", "copy", "-c:a", "aac",
+            "-c:v", "copy",
+        ] + _audio_encode_args() + [
             "-t", str(max(duration, 1)),
             sfx_file,
         ]
@@ -1309,11 +1339,11 @@ class AssemblyRenderer:
         cmd = [
             "ffmpeg", "-y",
             "-i", output_file,
-            "-f", "lavfi", "-i", f"anullsrc=channel_layout=stereo:sample_rate=44100",
+            "-f", "lavfi", "-i", f"anullsrc=channel_layout=stereo:sample_rate=48000",
             "-t", str(max(duration, 1)),
             "-map", "0:v:0", "-map", "1:a:0",
             "-c:v", "copy",
-            "-c:a", "aac",
+        ] + _audio_encode_args() + [
             "-shortest",
             normalized,
         ]
@@ -1337,7 +1367,8 @@ class AssemblyRenderer:
         cmd = [
             "ffmpeg", "-y", "-i", output_file,
             "-af", f"loudnorm=I={loudnorm_I}:TP={loudnorm_TP}:LRA={loudnorm_LRA}",
-            "-c:v", "copy", "-c:a", "aac",
+            "-c:v", "copy",
+        ] + _audio_encode_args() + [
             normalized,
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
@@ -1361,7 +1392,8 @@ class AssemblyRenderer:
             f"[1:a]aloop=loop=-1:size=2e9,atrim=0:{duration},"
             f"volume={volume},loudnorm=I={loudnorm_I}:TP={loudnorm_TP}:LRA={loudnorm_LRA}[music]",
             "-map", "0:v:0", "-map", "[music]",
-            "-c:v", "copy", "-c:a", "aac",
+            "-c:v", "copy",
+        ] + _audio_encode_args() + [
             "-t", str(max(duration, 1)),
             normalized,
         ]
@@ -1388,7 +1420,8 @@ class AssemblyRenderer:
             f"volume={volume},loudnorm=I={loudnorm_I - 4}:TP={loudnorm_TP}:LRA={loudnorm_LRA}[bed];"
             f"[main][bed]amix=inputs=2:duration=first:dropout_transition=0[aout]",
             "-map", "0:v:0", "-map", "[aout]",
-            "-c:v", "copy", "-c:a", "aac",
+            "-c:v", "copy",
+        ] + _audio_encode_args() + [
             normalized,
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
@@ -1425,7 +1458,7 @@ class AssemblyRenderer:
             cmd_ext = [
                 "ffmpeg", "-y", "-i", output_file,
                 "-vf", f"tpad=stop_mode=clone:stop_duration={target_duration - video_duration:.3f}",
-                "-c:v", "libx264", "-pix_fmt", "yuv420p",
+            ] + _video_encode_args("intermediate") + [
                 "-an", extended,
             ]
             r = subprocess.run(cmd_ext, capture_output=True, text=True, timeout=300)
@@ -1488,7 +1521,8 @@ class AssemblyRenderer:
         ] + inputs + [
             "-filter_complex", filter_str,
             "-map", "0:v:0", "-map", "[aout]",
-            "-c:v", "copy", "-c:a", "aac",
+            "-c:v", "copy",
+        ] + _audio_encode_args() + [
             "-t", str(max(target_duration, 1)),
             normalized,
         ]
