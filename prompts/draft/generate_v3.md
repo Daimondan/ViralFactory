@@ -83,8 +83,9 @@ One entry per platform. Each entry is the complete, platform-native content:
 - **platform**: the platform name (from the Format Guide entry's Platforms field)
 - **variant_type**: the structural type for THIS platform's variant — thread, carousel, reel, single_post, story_series, poll, newsletter. This must match how you structured the posts for THIS platform, not the format name.
 - **content**: a summary line or the full text for single-post formats
+- **post_caption**: (REQUIRED for reel and story_series only) the caption that accompanies the video when posted — `{text, hashtags[]}`. Written in the person's voice, platform-native, self-audited against the AI Tells Catalog. `text` is the actual post caption (hook, context, CTA), NOT a description. `hashtags` is an array of hashtags (may be empty). For text formats (thread, carousel, single_post, newsletter, poll), `post_caption` is NOT used — the `posts` array IS the post text.
 - **posts**: the actual posts/slides/frames. For text formats (thread, single_post, newsletter), each post is a string. For video formats (reel, story_series), each post is a FRAME OBJECT (see below).
-- **image_prompts**: per-post/slide image generation prompts, or ["none"] for text-only posts
+- **image_prompts**: per-post/slide image generation prompts, or `["none"]` for text-only posts
 
 #### FRAME OBJECTS (for reel and story_series variants ONLY)
 
@@ -169,7 +170,7 @@ Do NOT leave these empty. If the format calls for images, produce image prompts.
 
 ### 3. Self-audit flags (MANDATORY — scan every line against the AI Tells Catalog)
 
-After writing all platform_content, scan EVERY line against the AI Writing Tells Catalog loaded above. For each category, check:
+After writing all platform_content, scan EVERY line against the AI Writing Tells Catalog loaded above — this INCLUDES `post_caption.text` for reel/story_series variants. For each category, check:
 
 **1. Word choice** — Did you use any word from the vocabulary blocklist? (delve, tapestry, landscape, robust, streamline, leverage, harness, crucial, pivotal, vital, underscore, enhance, foster, testament, vibrant, nestled, groundbreaking, quietly, fundamentally, meticulous, serves as, stands as, boasts, features, offers). Scan every word.
 
@@ -219,6 +220,10 @@ Respond with ONLY valid JSON:
       "platform": "string — platform name from the Format Guide",
       "variant_type": "string — thread | carousel | reel | single_post | story_series | poll | newsletter",
       "content": "string — summary line or full text for single-post formats",
+      "post_caption": {
+        "text": "string — the full caption that appears under the video when posted (reel/story_series only)",
+        "hashtags": ["#string"]
+      },
       "posts": [
         {
           "label": "HOOK | SETUP | BUILD | TURN | PAYOFF | CLOSE",

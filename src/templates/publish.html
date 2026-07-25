@@ -50,7 +50,16 @@
     {% for asset in approved_assets %}
     <div class="asset-card">
         <div class="asset-platform">{{ asset.platform }} — {{ asset.variant_type }}</div>
-        <div class="asset-content">{{ asset.content[:500] }}{% if asset.content|length > 500 %}...{% endif %}</div>
+        <div class="asset-content">
+            {% if asset.post_caption_parsed and asset.post_caption_parsed.text %}
+            {{ asset.post_caption_parsed.text[:500] }}{% if asset.post_caption_parsed.text|length > 500 %}...{% endif %}
+            {% if asset.post_caption_parsed.hashtags and asset.post_caption_parsed.hashtags|length > 0 %}
+            <div style="margin-top: 6px; color: #4A6FA5; font-size: 0.82rem;">{{ asset.post_caption_parsed.hashtags|join(' ') }}</div>
+            {% endif %}
+            {% else %}
+            {{ asset.content[:500] }}{% if asset.content|length > 500 %}...{% endif %}
+            {% endif %}
+        </div>
         <div class="schedule-row">
             <button class="btn btn-go" onclick="postNow({{ asset.id }}, this)">Post now</button>
             <label>or schedule for: </label>

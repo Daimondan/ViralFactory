@@ -118,8 +118,9 @@ One entry per platform. Each entry is the complete, platform-native content:
 - **platform**: the platform name (from the Format Guide entry's Platforms field)
 - **variant_type**: thread | carousel | reel | single_post | story_series | poll | newsletter
 - **content**: a summary line or the full text for single-post formats
+- **post_caption**: (REQUIRED for reel and story_series only) the caption that accompanies the video when posted — `{text, hashtags[]}`. Written in the person's voice, platform-native, self-audited against the AI Tells Catalog. `text` is the actual post caption (hook, context, CTA), NOT a description. `hashtags` is an array of hashtags (may be empty). For text formats (thread, carousel, single_post, newsletter, poll), `post_caption` is NOT used — the `posts` array IS the post text.
 - **posts**: the actual posts/slides/frames. For text formats, each post is a string. For video formats (reel, story_series), each post is a FRAME OBJECT (see below).
-- **image_prompts**: per-post/slide semantic visual descriptions, or ["none"] for text-only posts
+- **image_prompts**: per-post/slide semantic visual descriptions, or `["none"]` for text-only posts
 
 **IMPORTANT:** `image_prompts` in platform_content are SEMANTIC descriptions (what the visual should show and why), NOT provider-specific generation prompts. The Media Planner will translate these into FAL/Grok/stock queries.
 
@@ -274,6 +275,10 @@ Respond with ONLY valid JSON:
       "platform": "string",
       "variant_type": "thread | carousel | reel | single_post | story_series | poll | newsletter",
       "content": "string",
+      "post_caption": {
+        "text": "string — the full caption that appears under the video when posted (reel/story_series only)",
+        "hashtags": ["#string"]
+      },
       "posts": [
         {
           "label": "HOOK | SETUP | BUILD | TURN | PAYOFF | CLOSE",

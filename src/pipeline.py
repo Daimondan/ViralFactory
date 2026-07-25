@@ -356,6 +356,16 @@ DRAFT_SCHEMA = {
                     "platform": {"type": "string"},
                     "variant_type": {"type": "string"},
                     "content": {"type": "string"},
+                    "post_caption": {
+                        "type": "object",
+                        "properties": {
+                            "text": {"type": "string"},
+                            "hashtags": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                        },
+                    },
                     # posts accepts strings (backward-compat) OR frame objects
                     # (enriched per-frame production instructions for the assembler)
                     "posts": {
@@ -498,6 +508,42 @@ DRAFT_SCHEMA = {
         },
     },
 }
+
+
+# ─── Post-caption validation (DIVERGENCE-022) ──────────────────────────────
+
+VIDEO_VARIANT_TYPES = {"reel", "story_series"}
+
+
+def validate_post_caption(platform_content: list[dict]) -> list[str]:
+    """DIVERGENCE-022: Conditionally validate post_caption for video formats.
+
+    Returns a list of error messages (empty = valid). Called after the LLM
+    adapter's schema validation, since post_caption is only required for
+    reel/story_series — not for text formats.
+    """
+    errors: list[str] = []
+    for i, pc in enumerate(platform_content or []):
+        vt = (pc.get("variant_type") or "").lower().strip()
+        if vt not in VIDEO_VARIANT_TYPES:
+            continue
+        caption = pc.get("post_caption")
+        if not caption or not isinstance(caption, dict):
+            errors.append(
+                f"platform_content[{i}] ({vt}): post_caption is required for video formats"
+            )
+            continue
+        text = caption.get("text", "")
+        if not text or not isinstance(text, str) or not text.strip():
+            errors.append(
+                f"platform_content[{i}] ({vt}): post_caption.text is required and must be non-empty"
+            )
+        hashtags = caption.get("hashtags", [])
+        if hashtags is not None and not isinstance(hashtags, list):
+            errors.append(
+                f"platform_content[{i}] ({vt}): post_caption.hashtags must be an array"
+            )
+    return errors
 
 
 # ─── AI Review Loop Schema (T9.5) ────────────────────────────────────────────
@@ -1478,9 +1524,14 @@ class PipelineStore:
         image_prompts: list[str] = None,
         generated_images: list[str] = None,
         posts: list[str] = None,
+        post_caption: dict = None,
         native: bool = False,
     ) -> int:
-        """Create a new per-platform asset variant. Returns asset ID."""
+        """Create a new per-platform asset variant. Returns asset ID.
+
+        DIVERGENCE-022: post_caption stores the {text, hashtags[]} caption
+        artifact for reel/story_series variants (None for text formats).
+        """
         conn = sqlite3.connect(self.db_path)
         # Ensure posts column exists (migration for existing DBs)
         cols = [row[1] for row in conn.execute("PRAGMA table_info(assets)").fetchall()]
@@ -1491,17 +1542,22 @@ class PipelineStore:
         if "native" not in cols:
             conn.execute("ALTER TABLE assets ADD COLUMN native INTEGER DEFAULT 0")
             conn.commit()
+        # DIVERGENCE-022: Ensure post_caption column exists (additive, idempotent)
+        if "post_caption" not in cols:
+            conn.execute("ALTER TABLE assets ADD COLUMN post_caption TEXT")
+            conn.commit()
         ts = self._now()
         cursor = conn.execute(
             """INSERT INTO assets
                (business_slug, draft_id, platform, variant_type, content, posts,
-                image_prompts, generated_images, asset_state, native,
+                image_prompts, generated_images, post_caption, asset_state, native,
                 created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)""",
             (business_slug, draft_id, platform, variant_type, content,
              json.dumps(posts or []),
              json.dumps(image_prompts or []),
              json.dumps(generated_images or []),
+             json.dumps(post_caption) if post_caption else None,
              1 if native else 0, ts, ts),
         )
         asset_id = cursor.lastrowid
@@ -1589,6 +1645,27 @@ class PipelineStore:
         conn.execute(
             "UPDATE assets SET publish_scheduled_at = ?, updated_at = ? WHERE id = ?",
             (scheduled_at, ts, asset_id),
+        )
+        conn.commit()
+        conn.close()
+        return self.get_asset(asset_id)
+
+    def update_asset_post_caption(self, asset_id: int, post_caption: dict) -> dict:
+        """DIVERGENCE-022: Update the post_caption on an asset (Gate 3 inline edit).
+
+        Stores the {text, hashtags[]} caption artifact for reel/story_series.
+        Called when the operator edits the caption at Gate 3 before approving.
+        """
+        conn = sqlite3.connect(self.db_path)
+        # Ensure post_caption column exists (idempotent migration for older DBs)
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(assets)").fetchall()]
+        if "post_caption" not in cols:
+            conn.execute("ALTER TABLE assets ADD COLUMN post_caption TEXT")
+            conn.commit()
+        ts = self._now()
+        conn.execute(
+            "UPDATE assets SET post_caption = ?, updated_at = ? WHERE id = ?",
+            (json.dumps(post_caption) if post_caption else None, ts, asset_id),
         )
         conn.commit()
         conn.close()

@@ -693,6 +693,13 @@ class ProductionChain:
 
         # T9.3: Save draft with platform_content
         platform_content = result.get("platform_content", [])
+
+        # DIVERGENCE-022: Validate post_caption for reel/story_series
+        from pipeline import validate_post_caption
+        caption_errors = validate_post_caption(platform_content)
+        if caption_errors:
+            raise RuntimeError("Post caption validation failed: " + "; ".join(caption_errors))
+
         draft_text_summary = platform_content[0].get("content", "") if platform_content else ""
 
         if existing:
@@ -764,6 +771,7 @@ class ProductionChain:
                 content=content,
                 image_prompts=image_prompts,
                 posts=posts,
+                post_caption=pc.get("post_caption"),
                 native=True,  # All platform_content is native (Writer wrote it)
             )
 

@@ -6,6 +6,27 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-24 — BUILDER: DIVERGENCE-022 implemented — reel post caption (P1)
+
+**What:** Implemented the post-caption artifact for reel/story_series variants per architect ruling on DIVERGENCE-022. The internal `content` summary line was shipping to Buffer as the public IG caption without operator review — violating per-piece approval (charter §5).
+
+**Changes:**
+- **Writer prompt** (`generate_v3.md`, `generate_v4.md`): Added `post_caption` {text, hashtags[]} field description — required for reel/story_series, not used for text formats. Self-audit note updated to include `post_caption.text`.
+- **Schema** (`pipeline.py`): Added `post_caption` as optional property on `platform_content` items in `DRAFT_SCHEMA`. Added `validate_post_caption()` — conditionally requires `post_caption` for reel/story_series only (text formats skip it).
+- **Asset storage** (`pipeline.py`): Additive `post_caption` column on assets table (idempotent migration). `create_asset()` accepts `post_caption` param. New `update_asset_post_caption()` for Gate 3 inline edits.
+- **Asset creation** (`app.py`, `produce_chain.py`): Both fan-out paths pass `post_caption` from `platform_content` to `create_asset()`.
+- **Draft validation** (`app.py`, `produce_chain.py`): `validate_post_caption()` called after LLM returns — blocks save if reel/story_series lacks `post_caption`.
+- **Gate 3** (`assets.html`, `app.py`): Inline caption display with expandable preview, "Show full caption" toggle, textarea + hashtags input for reel/story_series. New API: `POST /api/assets/<id>/post-caption`. Warning shown if no caption exists.
+- **Gate 4** (`app.py`, `publish.html`): Publish path uses `post_caption.text` as Buffer text (falls back to `content` for legacy assets without `post_caption`). Publish template shows `post_caption` for reel/story_series.
+- **Tests** (`tests/test_divergence_022_post_caption.py`): 22 tests — validate_post_caption (reel/story_series required, text formats not, empty text fails, hashtags must be array, mixed formats, empty list), asset storage (create with/without, update, overwrite, migration, legacy), publish fallback (uses post_caption, falls back to content, falls back when text empty), Gate 3 API logic.
+
+**Type:** FIX / STRUCTURE
+**Rationale:** Per-piece approval is a hard business rule. The caption is part of the piece. Shipping an unreviewed summary as public post text is a defect. The fix adds the missing artifact and gate; it doesn't change the rule.
+
+**Files:** `prompts/draft/generate_v3.md`, `prompts/draft/generate_v4.md`, `src/pipeline.py`, `src/app.py`, `src/produce_chain.py`, `src/templates/assets.html`, `src/templates/publish.html`, `tests/test_divergence_022_post_caption.py`
+
+---
+
 ## 2026-07-24 — ARCHITECT: DIVERGENCE-022 ruling — reel post caption (P1)
 
 **What:** Architect ruled on BUILDER-NOTE-017. IG reel assets have no post-caption artifact. The internal `content` summary line ships to Buffer as the public IG caption text (`buffer_adapter.py:233`) without operator review — violates per-piece approval (charter §5). Same gap for `story_series`.

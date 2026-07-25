@@ -570,6 +570,41 @@
                 </div>
             </div>
 
+            {# ── DIVERGENCE-022: Post caption (reel/story_series only) ── #}
+            {% if is_reel or is_story_series %}
+            <div style="padding: 12px 16px; border-top: 1px solid #F0EDE4;">
+                <div style="font-size: 0.78rem; font-weight: 600; color: #2C2823; margin-bottom: 6px;">Post caption <span style="font-size: 0.72rem; color: #8A857C; font-weight: normal;">(ships under the video — review before approving)</span></div>
+                {% set pc = asset.post_caption_parsed %}
+                {% if pc and pc.text %}
+                <div id="caption-view-{{ asset.id }}">
+                    <div class="post-text" id="caption-text-{{ asset.id }}" style="margin-bottom: 6px;">{{ pc.text[:300] }}{% if pc.text|length > 300 %}…{% endif %}</div>
+                    {% if pc.text|length > 300 %}
+                    <button class="btn" style="font-size: 0.75rem; padding: 2px 8px;" onclick="document.getElementById('caption-text-{{ asset.id }}').textContent = {{ pc.text|tojson|safe }}; this.style.display='none';">Show full caption</button>
+                    {% endif %}
+                    {% if pc.hashtags and pc.hashtags|length > 0 %}
+                    <div style="font-size: 0.82rem; color: #4A6FA5; margin-top: 4px;">{{ pc.hashtags|join(' ') }}</div>
+                    {% endif %}
+                    <button class="btn btn-primary" style="font-size: 0.78rem; margin-top: 6px;" onclick="editCaption({{ asset.id }})">Edit caption</button>
+                </div>
+                {% else %}
+                <div id="caption-view-{{ asset.id }}">
+                    <div style="font-size: 0.82rem; color: #C0392B; margin-bottom: 6px;">⚠ No post caption. This video will ship without a caption. Add one before approving.</div>
+                    <button class="btn btn-primary" style="font-size: 0.78rem;" onclick="editCaption({{ asset.id }})">Add caption</button>
+                </div>
+                {% endif %}
+                {# Inline editor — hidden until operator clicks Edit #}
+                <div id="caption-edit-{{ asset.id }}" style="display: none;">
+                    <textarea id="caption-input-{{ asset.id }}" style="width: 100%; min-height: 80px; border: 1px solid #D8D4C8; border-radius: 8px; padding: 8px; font-size: 0.88rem; line-height: 1.5; resize: vertical; background: #F5F2E9;" placeholder="The caption that appears under the video when posted…">{{ pc.text if pc and pc.text else '' }}</textarea>
+                    <input type="text" id="caption-hashtags-{{ asset.id }}" style="width: 100%; margin-top: 6px; border: 1px solid #D8D4C8; border-radius: 6px; padding: 6px 8px; font-size: 0.82rem; background: #F5F2E9;" placeholder="#hashtag1 #hashtag2 (space-separated)" value="{{ pc.hashtags|join(' ') if pc and pc.hashtags else '' }}">
+                    <div style="display: flex; gap: 8px; margin-top: 6px;">
+                        <button class="btn btn-approve" style="font-size: 0.78rem;" onclick="saveCaption({{ asset.id }}, this)">Save caption</button>
+                        <button class="btn" style="font-size: 0.78rem;" onclick="cancelEditCaption({{ asset.id }})">Cancel</button>
+                    </div>
+                    <div id="caption-status-{{ asset.id }}" style="font-size: 0.78rem; margin-top: 4px;"></div>
+                </div>
+            </div>
+            {% endif %}
+
             {% elif is_poll and has_posts %}
             {# X POLL: render as a mock poll card — text + question + options #}
             <div class="poll-mock">
@@ -905,6 +940,43 @@ function assetGate(id, action, btn) {
         busyLabel: 'Processing…',
         body: JSON.stringify({action: action}),
         reloadOnSuccess: true,
+    });
+}
+
+// ── DIVERGENCE-022: Post caption inline edit (reel/story_series) ──
+function editCaption(assetId) {
+    document.getElementById('caption-view-' + assetId).style.display = 'none';
+    document.getElementById('caption-edit-' + assetId).style.display = 'block';
+}
+function cancelEditCaption(assetId) {
+    document.getElementById('caption-edit-' + assetId).style.display = 'none';
+    document.getElementById('caption-view-' + assetId).style.display = 'block';
+}
+function saveCaption(assetId, btn) {
+    var text = document.getElementById('caption-input-' + assetId).value;
+    var hashtagsStr = document.getElementById('caption-hashtags-' + assetId).value;
+    var hashtags = hashtagsStr.trim() ? hashtagsStr.trim().split(/\s+/) : [];
+    var status = document.getElementById('caption-status-' + assetId);
+    if (!text.trim()) {
+        if (status) { status.style.color = '#C0392B'; status.textContent = 'Caption text cannot be empty.'; }
+        return;
+    }
+    busyBtn(btn, 'Saving…');
+    fetch('/api/assets/' + assetId + '/post-caption', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({text: text, hashtags: hashtags}),
+    }).then(function(r) { return r.json(); }).then(function(data) {
+        unbusyBtn(btn);
+        if (data.status === 'ok') {
+            if (status) { status.style.color = '#4A7C3A'; status.textContent = '✓ Caption saved.'; }
+            setTimeout(function() { window.location.reload(); }, 600);
+        } else {
+            if (status) { status.style.color = '#C0392B'; status.textContent = data.error || 'Save failed'; }
+        }
+    }).catch(function(err) {
+        unbusyBtn(btn);
+        if (status) { status.style.color = '#C0392B'; status.textContent = 'Error: ' + err; }
     });
 }
 

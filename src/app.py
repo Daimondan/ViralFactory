@@ -6145,6 +6145,14 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         # T9.3: Save draft with platform_content
         platform_content = result.get("platform_content", [])
+
+        # DIVERGENCE-022: Validate post_caption for reel/story_series
+        from pipeline import validate_post_caption
+        caption_errors = validate_post_caption(platform_content)
+        if caption_errors:
+            _get_jobs_store().fail_job(job_id, "; ".join(caption_errors))
+            return jsonify({"error": "Post caption validation failed: " + "; ".join(caption_errors)}), 500
+
         draft_text_summary = platform_content[0].get("content", "") if platform_content else ""
 
         # existing was found above for F2 revision context; reuse it for save
@@ -6634,6 +6642,11 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             a["image_prompts_parsed"] = json.loads(asset.get("image_prompts") or "[]")
             a["generated_images_parsed"] = json.loads(asset.get("generated_images") or "[]")
             a["posts_parsed"] = json.loads(asset.get("posts") or "[]")
+            # DIVERGENCE-022: parse post_caption for Gate 3 display/edit
+            try:
+                a["post_caption_parsed"] = json.loads(asset.get("post_caption") or "null")
+            except (json.JSONDecodeError, TypeError):
+                a["post_caption_parsed"] = None
             # Get all media for this asset (images, videos, final cuts)
             a["media_list"] = media_adapter.list_asset_media(asset["id"])
             a["final_cuts"] = [m for m in a["media_list"] if m.get("kind") == "final_cut"]
@@ -6820,6 +6833,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 content=pc.get("content", ""),
                 image_prompts=pc.get("image_prompts", []),
                 posts=pc.get("posts", []),
+                post_caption=pc.get("post_caption"),
                 native=True,  # All platform_content is native (Writer wrote it)
             )
             _carry_draft_media(app.config["DB_PATH"], draft_id, asset_id)
@@ -6870,6 +6884,35 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             ):
                 store.update_card_state(draft["idea_card_id"], "killed")
         return jsonify({"status": "ok", "new_state": state_map[action]})
+
+    @app.route("/api/assets/<int:asset_id>/post-caption", methods=["POST"])
+    def update_post_caption(asset_id):
+        """DIVERGENCE-022: Update the post_caption on an asset (Gate 3 inline edit).
+
+        Operator edits the caption text + hashtags before approving. This makes
+        the caption part of the reviewed piece — per-piece approval (charter §5).
+        """
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        store = _get_pipeline_store()
+        asset = store.get_asset(asset_id)
+        if not asset:
+            return jsonify({"error": "Asset not found"}), 404
+
+        body = request.json or {}
+        text = (body.get("text") or "").strip()
+        hashtags = body.get("hashtags") or []
+
+        if not text:
+            return jsonify({"error": "Caption text cannot be empty"}), 400
+        if not isinstance(hashtags, list):
+            return jsonify({"error": "Hashtags must be an array"}), 400
+
+        post_caption = {"text": text, "hashtags": hashtags}
+        store.update_asset_post_caption(asset_id, post_caption)
+        return jsonify({"status": "ok", "post_caption": post_caption})
 
     # ── F4: Media generation (image + video) ──
 
@@ -8089,6 +8132,13 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         approved_assets = [a for a in assets if a["asset_state"] == "approved"]
         published_assets = [a for a in assets if a["asset_state"] in ("published",) and a.get("publish_scheduled_at")]
 
+        # DIVERGENCE-022: parse post_caption for reel/story_series display at Gate 4
+        for a in approved_assets + published_assets:
+            try:
+                a["post_caption_parsed"] = json.loads(a.get("post_caption") or "null")
+            except (json.JSONDecodeError, TypeError):
+                a["post_caption_parsed"] = None
+
         try:
             config = load_all(app.config["CONFIG_DIR"])
             business_name = config["business"]["business"]["name"]
@@ -8138,6 +8188,19 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         # Parse posts for thread/carousel
         posts_list = json.loads(asset.get("posts") or "[]")
 
+        # DIVERGENCE-022: For reel/story_series, use post_caption.text as the
+        # Buffer text (not the internal content summary). Fall back to content
+        # for legacy assets without post_caption.
+        publish_text = asset["content"]
+        post_caption_raw = asset.get("post_caption")
+        if post_caption_raw:
+            try:
+                pc = json.loads(post_caption_raw)
+                if pc and pc.get("text") and pc["text"].strip():
+                    publish_text = pc["text"]
+            except (json.JSONDecodeError, TypeError):
+                pass
+
         # Get generated images for this asset
         from media_adapter import MediaAdapter
         media_adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
@@ -8149,7 +8212,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 business_slug=business_slug,
                 asset_id=asset_id,
                 platform=asset["platform"],
-                content=asset["content"],
+                content=publish_text,
                 posts=posts_list if posts_list else None,
                 images=images if images else None,
                 scheduled_at=scheduled_at,
@@ -8201,6 +8264,17 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         asset_media = media_adapter.list_asset_media(asset_id)
         images = [{"id": m.get("postiz_id", ""), "path": m.get("path", "")} for m in asset_media if m.get("kind") == "image"]
 
+        # DIVERGENCE-022: use post_caption.text for reel/story_series (legacy fallback to content)
+        publish_text = asset["content"]
+        post_caption_raw = asset.get("post_caption")
+        if post_caption_raw:
+            try:
+                pc = json.loads(post_caption_raw)
+                if pc and pc.get("text") and pc["text"].strip():
+                    publish_text = pc["text"]
+            except (json.JSONDecodeError, TypeError):
+                pass
+
         scheduled_at = asset.get("publish_scheduled_at") or datetime.now(timezone.utc).isoformat()
 
         try:
@@ -8208,7 +8282,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 business_slug=business_slug,
                 asset_id=asset_id,
                 platform=asset["platform"],
-                content=asset["content"],
+                content=publish_text,
                 posts=posts_list if posts_list else None,
                 images=images if images else None,
                 scheduled_at=scheduled_at,
@@ -8652,6 +8726,11 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 if asset["asset_state"] in ("published",):
                     a = dict(asset)
                     a["posts_parsed"] = json.loads(asset.get("posts") or "[]")
+                    # DIVERGENCE-022: parse post_caption for publish display
+                    try:
+                        a["post_caption_parsed"] = json.loads(asset.get("post_caption") or "null")
+                    except (json.JSONDecodeError, TypeError):
+                        a["post_caption_parsed"] = None
                     a["images"] = [m for m in media_adapter.list_asset_media(asset["id"]) if m.get("kind") == "image"]
                     a["draft"] = draft
                     published_items.append(a)

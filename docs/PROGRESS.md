@@ -4,7 +4,9 @@
 > blocked, or changed. Any agent should be able to read this and know
 > exactly where we are.
 
-**Last Updated:** 2026-07-24 (architect ruled on DIVERGENCE-022 — reel post caption)
+**Last Updated:** 2026-07-24 (builder implemented DIVERGENCE-022 — reel post caption)
+
+2026-07-24 · BUILDER / DIVERGENCE-022 · Implemented post-caption artifact for reel/story_series variants. Writer prompt (generate_v3.md + generate_v4.md) now includes `post_caption` {text, hashtags[]} field — required for video formats, not used for text formats. DRAFT_SCHEMA updated with optional post_caption property. `validate_post_caption()` conditionally enforces it for reel/story_series. Asset storage: additive `post_caption` column (idempotent migration), `create_asset` accepts `post_caption` param, `update_asset_post_caption()` for Gate 3 edits. Both asset creation paths (app.py fan-out + produce_chain.py) pass `post_caption` from platform_content. Gate 3: inline caption display + edit (expandable preview, textarea, hashtags input) for reel/story_series in assets.html. New API: POST /api/assets/<id>/post-caption. Gate 4: publish path uses `post_caption.text` as Buffer text (falls back to `content` for legacy assets). Publish template shows post_caption for reel/story_series. 22 new tests pass · Q: none
 
 2026-07-24 · ARCHITECT / DIVERGENCE-022 · Ruled on BUILDER-NOTE-017: IG reel assets have no post-caption artifact. The internal `content` summary line ships to Buffer as the public IG caption without operator review — violates per-piece approval (charter §5). APPROVED: add `post_caption` {text, hashtags[]} to Writer output for reel/story_series; store on asset (additive); show at Gate 3 for inline edit/approval; use `post_caption.text` at Gate 4 publish instead of `content`. Backward compatible. No charter amendment (bug fix enforcing existing rule). Renumbered from DIVERGENCE-016 (collision with ratified AMENDMENT-012). Related thread publish bug noted (separate, NOT in scope). Ruling: `docs/decisions/DIVERGENCE-022-reel-post-caption-missing.md` · Q: builder implementation
 
