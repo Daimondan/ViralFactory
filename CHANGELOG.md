@@ -6,6 +6,19 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-24 — DIVERGENCE-016: Reel post caption missing (P1)
+
+**What:** Filed DIVERGENCE-016. IG reel assets have no post-caption artifact. The `content` field (an internal summary line from the Writer) is sent to Buffer as the public IG caption text (`buffer_adapter.py:233`). The operator never sees, reviews, or approves the caption that ships under the reel — violates per-piece approval (charter §4). Same gap applies to `story_series`.
+
+**Root cause:** `prompts/draft/generate_v4.md` defines `content` as "a summary line or the full text for single-post formats." For reel, `posts` = frame objects (video script), so `content` is just a summary — not feed caption copy. No distinct `post_caption` field exists in the Writer schema, asset schema, Gate 3 review, or publish path.
+
+**Proposed fix (awaiting architect ruling):** Add `post_caption` (text + hashtags) to Writer output for reel/story_series variants; store on asset; show at Gate 3 for operator edit/approval; use at Gate 4 publish instead of `content`. Backward compatible (legacy assets fall back to `content`).
+
+**Type:** STRUCTURE / LOGIC
+**Rationale:** Per-piece approval is a hard business rule. The caption is part of the piece. Shipping an unreviewed summary as public post text is a defect even if Buffer accepts it.
+
+---
+
 ## 2026-07-23 (late) — Review-w9
 
 ### REVIEW-w9 BUILDER FIXES — P0/P1/P2 applied [TECH/STRUCTURE/FIX]
