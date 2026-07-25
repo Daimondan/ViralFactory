@@ -399,6 +399,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             counts = {"new": 0, "ready_review": 0, "asset_ready": 0}
             for card in all_cards:
                 cs = card["card_state"]
+                if cs == "killed":
+                    continue
                 draft = draft_by_card.get(card["id"])
                 if draft and draft["draft_state"] == "killed":
                     continue
@@ -406,7 +408,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     counts["new"] += 1
                 elif cs in ("writing", "draft_ready", "drafted"):
                     counts["ready_review"] += 1
-                elif cs in ("asset_ready", "assembling"):
+                elif cs in ("asset_ready", "assembling", "awaiting_soundtrack_approval",
+                            "assembly_failed", "writer_failed", "shipped"):
                     assets = store.list_assets(draft["id"]) if draft else []
                     if assets and all(a["asset_state"] == "killed" for a in assets):
                         continue
@@ -509,8 +512,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     })
                 elif pipeline_state in ("writing", "draft_ready", "drafted"):
                     pipeline_counts["drafting"] += 1
+                    gate_counts["drafts"] += 1
                     if pipeline_state in ("draft_ready", "drafted"):
-                        gate_counts["drafts"] += 1
                         decision_queue.append({
                             "num": card_num,
                             "title": title,
@@ -519,9 +522,10 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                             "link": f"/create/draft/{card_num}",
                             "gate_type": "gate2",
                         })
-                elif pipeline_state in ("asset_ready", "assembling"):
+                elif pipeline_state in ("asset_ready", "assembling", "awaiting_soundtrack_approval",
+                                         "assembly_failed", "writer_failed"):
                     pipeline_counts["assets"] += 1
-                    if pipeline_state == "asset_ready":
+                    if pipeline_state in ("asset_ready", "awaiting_soundtrack_approval"):
                         gate_counts["assets"] += 1
                         if latest_draft:
                             decision_queue.append({
@@ -4988,7 +4992,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             counts[s] = counts.get(s, 0) + 1
         counts_display = {
             "new": counts.get("new", 0),
-            "approved": counts.get("approved", 0) + counts.get("capture_fulfilled", 0) + counts.get("awaiting_capture", 0),
+            "approved": counts.get("approved", 0) + counts.get("capture_fulfilled", 0) + counts.get("awaiting_capture", 0) + counts.get("writing", 0) + counts.get("draft_ready", 0) + counts.get("drafted", 0),
             "parked": counts.get("parked", 0),
             "killed": counts.get("killed", 0),
             "all": len(all_cards),
@@ -5017,7 +5021,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 pipeline_state = "killed"
             if pipeline_state == "new":
                 gate_counts["ideas"] += 1
-            elif pipeline_state in ("draft_ready", "drafted", "approved"):
+            elif pipeline_state in ("draft_ready", "drafted", "approved", "writing"):
                 gate_counts["drafts"] += 1
             elif pipeline_state == "asset_ready":
                 gate_counts["assets"] += 1
