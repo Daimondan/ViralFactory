@@ -245,17 +245,6 @@ processes:
       max_rounds: {source: dynamic, default: "3"}
       max_cost_usd: {source: dynamic}
 
-  performance_analysis:
-    prompt_file: "analysis/performance_analysis_v1.md"
-    backend: "analyst"
-    schema: "PERFORMANCE_ANALYSIS_SCHEMA"
-    context_template: "Performance analysis for contract {contract_id} | module_ctx: {module_prov}"
-    inputs:
-      performance_record: {source: dynamic}
-      creative_fingerprint: {source: dynamic}
-      tenant_baseline: {source: dynamic}
-      matched_formats: {source: dynamic}
-
   series_breakdown:
     prompt_file: "ideas/series_breakdown_v1.md"
     backend: "default"

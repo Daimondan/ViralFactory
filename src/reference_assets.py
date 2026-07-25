@@ -260,12 +260,12 @@ class ReferenceAssetStore:
     # ── File management ────────────────────────────────────────────
 
     @staticmethod
-    def asset_dir(business_slug: str, kind: str, name: str, base: str = "data/media/reference") -> str:
+    def asset_dir(business_slug: str, kind: str, name: str, base: str = "assets/reference") -> str:
         """Get the directory path for asset files."""
         return os.path.join(base, business_slug, kind, name)
 
     def list_asset_files(
-        self, business_slug: str, kind: str, name: str, base: str = "data/media/reference"
+        self, business_slug: str, kind: str, name: str, base: str = "assets/reference"
     ) -> list[str]:
         """List files in an asset's directory."""
         d = self.asset_dir(business_slug, kind, name, base)

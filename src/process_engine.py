@@ -16,7 +16,10 @@ import os
 import json
 import yaml
 import importlib
+import logging
 from typing import Any
+
+logger = logging.getLogger("viralfactory.process_engine")
 
 
 class ProcessError(Exception):
@@ -25,7 +28,11 @@ class ProcessError(Exception):
 
 
 def load_process_registry(config_dir: str = "config") -> dict:
-    """Load config/processes.yaml. Returns the parsed dict."""
+    """Load config/processes.yaml. Returns the parsed dict.
+
+    Also validates that every declared prompt_file resolves on disk and
+    logs a warning per unresolved entry (P2-10).
+    """
     path = os.path.join(config_dir, "processes.yaml")
     if not os.path.exists(path):
         raise ProcessError(f"processes.yaml not found at {path}")
@@ -33,7 +40,41 @@ def load_process_registry(config_dir: str = "config") -> dict:
         data = yaml.safe_load(f)
     if not data or "processes" not in data:
         raise ProcessError("processes.yaml missing 'processes' key")
+
+    # Validate prompt files exist (P2-10)
+    unresolved = validate_process_registry(config_dir=config_dir)
+    for entry in unresolved:
+        logger.warning(f"Process '{entry['process']}' references missing prompt: {entry['prompt_file']}")
+
     return data
+
+
+def validate_process_registry(config_dir: str = "config", prompts_dir: str = "prompts") -> list[dict]:
+    """Return a list of processes whose prompt_file does not resolve. Empty is healthy.
+
+    Each entry is ``{process, prompt_file}``. Called from ``load_process_registry``
+    at startup so unresolved references are logged rather than silently dormant.
+    """
+    path = os.path.join(config_dir, "processes.yaml")
+    if not os.path.exists(path):
+        return []
+
+    with open(path) as f:
+        data = yaml.safe_load(f)
+
+    if not data or "processes" not in data:
+        return []
+
+    unresolved = []
+    for proc_name, proc_config in data["processes"].items():
+        prompt_file = proc_config.get("prompt_file")
+        if not prompt_file:
+            continue
+        full_path = os.path.join(prompts_dir, prompt_file)
+        if not os.path.exists(full_path):
+            unresolved.append({"process": proc_name, "prompt_file": prompt_file})
+
+    return unresolved
 
 
 def _resolve_schema(schema_ref: str, registry: dict, inline_schemas: dict = None):
