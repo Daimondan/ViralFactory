@@ -17,6 +17,7 @@ htmlcov/
 
 # Data (SQLite databases, user uploads)
 data/
+models/
 *.db
 *.sqlite
 *.sqlite3
