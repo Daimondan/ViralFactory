@@ -48,9 +48,6 @@ The following sources are available. Each is prefixed with its ID in brackets, e
 ### Audience Insights
 {audience_insights}
 
-### Story Frameworks
-{story_frameworks}
-
 ### Format Guide — descriptive selection profiles
 {format_guide}
 

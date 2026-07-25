@@ -29,9 +29,6 @@ You are breaking down a series idea into its constituent parts. The parent idea 
 ### Audience Insights
 {audience_insights}
 
-### Story Frameworks
-{story_frameworks}
-
 ### Format Guide (index of available formats)
 {format_guide}
 

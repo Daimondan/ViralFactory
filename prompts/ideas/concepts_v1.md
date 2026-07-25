@@ -37,10 +37,6 @@ Ideas must be born in this person's mental shape and stated in their voice. Sour
 
 {audience_insights}
 
-## Story Frameworks
-
-{story_frameworks}
-
 ## Existing ideas
 
 {existing_ideas}

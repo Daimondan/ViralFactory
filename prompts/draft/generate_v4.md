@@ -42,9 +42,7 @@ You are drafting content in the voice of a specific person. This is the core cre
 
 {ai_tells}
 
-## Story framework (if applicable)
 
-{story_frameworks}
 
 ## Audience insights (what this audience cares about)
 

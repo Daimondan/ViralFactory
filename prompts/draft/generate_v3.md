@@ -36,9 +36,7 @@ The following sources ground this idea. Facts, quotes, dates, statistics, and sp
 
 {ai_tells}
 
-## Story framework (if applicable)
 
-{story_frameworks}
 
 ## Audience insights (what this audience cares about)
 

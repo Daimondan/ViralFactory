@@ -16,7 +16,7 @@ profiles:
       the format that tells it, and the treatment. Owns Gate-1-facing output.
     temperature: generative        # per T3.13 S1 temperature doctrine
     prompts: [ideas/generate, ideas/series_breakdown]
-    module_views: [viral_patterns, audience_insights, story_frameworks, format_guide_digest, source_bank_digest]
+    module_views: [viral_patterns, audience_insights, format_guide_digest, source_bank_digest]
 
   drafter:
     description: >

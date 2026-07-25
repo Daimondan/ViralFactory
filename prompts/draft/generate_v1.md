@@ -26,9 +26,7 @@ You are drafting a piece of content in the voice of a specific person. This is t
 
 {tells_checklist}
 
-## Story framework (if applicable)
 
-{story_frameworks}
 
 ## Audience insights (what this audience cares about)
 

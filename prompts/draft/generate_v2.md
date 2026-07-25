@@ -32,9 +32,7 @@ The following sources ground this idea. Facts, quotes, dates, statistics, and sp
 
 {tells_checklist}
 
-## Story framework (if applicable)
 
-{story_frameworks}
 
 ## Audience insights (what this audience cares about)
 
