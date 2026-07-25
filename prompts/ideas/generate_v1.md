@@ -53,7 +53,7 @@ The following sources are available. Each is prefixed with its ID in brackets, e
 
 The guide describes what each medium enables, its limitations, evidence, and production demands. It is not a routing table. Choose by the particular idea's expressive needs, available evidence, audience experience, and production feasibility—not by assigning topic categories to formats.
 
-**Format selection bias:** When an idea could work as either a video (Reel) or a text format (Thread, Carousel), prefer the Reel — the production pipeline handles visual generation and audio automatically, so video effort is not a barrier. Text formats are the right choice when the idea is fundamentally text-native (a threaded argument, a slide-by-slide breakdown with no spoken arc). Do not default to text formats out of production caution; default to video when the idea has a spoken arc, a personal angle, or benefits from pacing and voice.
+**Format selection:** The format should serve the idea, not a default bias. Video (Reel) is the right choice when the idea has a spoken arc, a personal angle, or benefits from pacing and voice. Text formats (Thread, Single Post, Newsletter) are the right choice when the idea is fundamentally text-native — a threaded argument, a single punchy take, or a long-form analysis. Carousel is the right choice when the idea is a visual list, a side-by-side comparison, or a step-by-step breakdown that viewers want to save and reference. Do NOT default to any format out of habit — the particular idea determines the fit. If the format_usage data shows one format dominating recent output, actively choose a different format unless the idea genuinely demands it.
 
 ## Existing ideas (avoid repetition)
 
