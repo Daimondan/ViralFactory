@@ -388,12 +388,16 @@ class TestEditPlan:
             "ai_originated",
         )
         draft_id = store.create_draft("test-biz", card_id, "ai_originated", "reel", "one_off")
+        # Create a real asset so the FK constraint on edit_plans.asset_id is satisfied
+        asset_id = store.create_asset(
+            "test-biz", draft_id, "instagram", "single_post", "test content",
+        )
         plan = {"segments": [{"source": "generated:1", "in": 0, "out": 5}], "canvas": {"aspect_ratio": "9:16", "resolution": "1080x1920"}}
-        plan_id = store.save_edit_plan(draft_id, 1, plan)
+        plan_id = store.save_edit_plan(draft_id, asset_id, plan)
         assert plan_id > 0
 
         retrieved = store.get_edit_plan(plan_id)
-        assert retrieved["asset_id"] == 1
+        assert retrieved["asset_id"] == asset_id
         assert json.loads(retrieved["plan_json"])["segments"][0]["source"] == "generated:1"
 
     def test_list_edit_plans(self, tmp_path):
@@ -405,9 +409,12 @@ class TestEditPlan:
             "ai_originated",
         )
         draft_id = store.create_draft("test-biz", card_id, "ai_originated", "reel", "one_off")
-        store.save_edit_plan(draft_id, 1, {"segments": [], "canvas": {}})
-        store.save_edit_plan(draft_id, 1, {"segments": [], "canvas": {}})
-        plans = store.list_edit_plans(1)
+        asset_id = store.create_asset(
+            "test-biz", draft_id, "instagram", "single_post", "test content",
+        )
+        store.save_edit_plan(draft_id, asset_id, {"segments": [], "canvas": {}})
+        store.save_edit_plan(draft_id, asset_id, {"segments": [], "canvas": {}})
+        plans = store.list_edit_plans(asset_id)
         assert len(plans) >= 2
 
     def test_update_edit_plan_status(self, tmp_path):
@@ -419,7 +426,10 @@ class TestEditPlan:
             "ai_originated",
         )
         draft_id = store.create_draft("test-biz", card_id, "ai_originated", "reel", "one_off")
-        plan_id = store.save_edit_plan(draft_id, 1, {"segments": [], "canvas": {}})
+        asset_id = store.create_asset(
+            "test-biz", draft_id, "instagram", "single_post", "test content",
+        )
+        plan_id = store.save_edit_plan(draft_id, asset_id, {"segments": [], "canvas": {}})
         updated = store.update_edit_plan_status(plan_id, "rendering")
         assert updated["status"] == "rendering"
 

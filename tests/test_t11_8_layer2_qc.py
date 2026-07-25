@@ -415,7 +415,7 @@ class TestIdentityCheck:
 
         assert result["status"] == "skipped"
         assert result["flag"] is None
-        assert "not available" in result["reason"].lower()
+        assert "unavailable" in result["reason"].lower()
 
     def test_identity_skipped_if_no_ref_embeddings(self, tmp_path, standard_qc_config):
         """If no face embeddings could be extracted from refs, skips gracefully."""

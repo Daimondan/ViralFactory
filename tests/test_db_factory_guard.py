@@ -9,9 +9,9 @@ commit that migrates each module — the list is the migration ledger.
 def test_no_direct_sqlite_connect_in_migrated_modules():
     """Migrated modules must use db.connect so busy_timeout is never skipped."""
     migrated = [
-        # Extend this list in the same commit that migrates each module.
         # Migration order per P1-5: pipeline.py, app.py, production_orchestrator.py,
         # materials.py, jobs.py, then the remainder.
+        "src/pipeline.py",
     ]
     for path in migrated:
         import os

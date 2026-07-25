@@ -123,14 +123,13 @@ class TestNewProcessRegistrations:
                 break
         assert found, "No process registered for remediation"
 
-    def test_performance_analysis_registered(self, registry):
-        """Performance analysis should be registered."""
-        found = False
+    def test_performance_analysis_not_registered(self, registry):
+        """Performance analysis was removed (P2-10) — its prompt_file pointed at
+        a nonexistent path. It should NOT be registered."""
         for name, spec in registry["processes"].items():
-            if "performance" in name.lower() or "analyst" in name.lower():
-                found = True
-                break
-        assert found, "No process registered for performance analysis"
+            assert "performance_analysis" != name, (
+                "performance_analysis should have been removed from the registry (P2-10)"
+            )
 
 
 class TestSchemaRegistry:
