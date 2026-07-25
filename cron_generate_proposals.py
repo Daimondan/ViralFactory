@@ -89,6 +89,17 @@ def main():
             logger.error("Could not determine business slug from config")
             sys.exit(1)
 
+    # Ensure WAL mode is set before any DB access (P0-4). WAL is a persistent
+    # database property — setting it once means readers never block writers.
+    import sqlite3 as _sqlite3_init
+    os.makedirs(os.path.dirname(args.db_path) or ".", exist_ok=True)
+    _wal_conn = _sqlite3_init.connect(args.db_path)
+    try:
+        _wal_conn.execute("PRAGMA journal_mode=WAL")
+        _wal_conn.execute("PRAGMA synchronous=NORMAL")
+    finally:
+        _wal_conn.close()
+
     # Initialize stores
     pipeline = PipelineStore(db_path=args.db_path)
     proposals = ProposalStore(db_path=args.db_path)

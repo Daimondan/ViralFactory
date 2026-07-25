@@ -247,6 +247,18 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
     app.config["DB_PATH"] = db_path
     app.config["PLAYBOOKS_DIR"] = playbooks_dir
 
+    # WAL is a persistent database property — setting it once here means readers
+    # never block writers for any later connection, in any process. busy_timeout
+    # is per-connection and is handled by src/db.py (see P1-5). P0-4.
+    import sqlite3 as _sqlite3_init
+    os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
+    _wal_conn = _sqlite3_init.connect(db_path)
+    try:
+        _wal_conn.execute("PRAGMA journal_mode=WAL")
+        _wal_conn.execute("PRAGMA synchronous=NORMAL")
+    finally:
+        _wal_conn.close()
+
     # F5: Register from_json Jinja filter for parsing JSON strings in templates
     import json as _json
     @app.template_filter("from_json")

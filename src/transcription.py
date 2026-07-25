@@ -24,6 +24,9 @@ logger = logging.getLogger("viralfactory.transcription")
 # Polling interval (seconds)
 POLL_INTERVAL = 5
 
+# Maximum backoff between retries on persistent errors (seconds)
+MAX_BACKOFF = 300
+
 
 class TranscriptionWorker:
     """Background worker that transcribes audio materials."""
@@ -155,13 +158,36 @@ class TranscriptionWorker:
         finally:
             conn.close()
 
+    def _claim(self, material_id: int) -> bool:
+        """Atomically claim a material for transcription.
+
+        Returns True only if this process transitioned the row from pending
+        to processing. A False return means another worker got there first
+        and this process must skip the row.
+        """
+        conn = sqlite3.connect(self.db_path)
+        try:
+            cur = conn.execute(
+                """UPDATE materials SET transcription_status = 'processing'
+                   WHERE id = ?
+                     AND (transcription_status = 'pending' OR transcription_status IS NULL)""",
+                (material_id,),
+            )
+            conn.commit()
+            return cur.rowcount == 1
+        finally:
+            conn.close()
+
     def _process_one(self, material: dict) -> bool:
         """Process a single audio material. Returns True on success."""
         material_id = material["id"]
         filename = material.get("filename", "unknown")
 
-        # Mark as processing
-        self._update_material(material_id, "processing")
+        # Atomically claim the row — prevents two workers from
+        # transcribing the same file simultaneously (P0-3).
+        if not self._claim(material_id):
+            logger.debug(f"Material {material_id} claimed by another worker — skipping")
+            return False
 
         try:
             audio_path = self._find_audio_file(material)
@@ -239,18 +265,31 @@ class TranscriptionWorker:
         except Exception as e:
             logger.error(f"Backfill failed: {e}")
 
-        # Main loop
+        # Main loop with capped exponential backoff on persistent errors.
+        # The first occurrence of an error logs at error level; subsequent
+        # repeats of the same message log at debug to avoid flooding logs
+        # (~17,000 lines/day was the previous behaviour on a fresh DB).
+        backoff = POLL_INTERVAL
+        last_error = None
         while self._running:
             try:
                 pending = self._get_pending_audio()
                 if pending:
                     for material in pending:
                         self._process_one(material)
+                    backoff = POLL_INTERVAL
+                    last_error = None
                 else:
                     time.sleep(POLL_INTERVAL)
             except Exception as e:
-                logger.error(f"Worker loop error: {e}")
-                time.sleep(POLL_INTERVAL)
+                message = str(e)
+                if message != last_error:
+                    logger.error(f"Worker loop error: {message}")
+                    last_error = message
+                else:
+                    logger.debug(f"Worker loop error (repeat, backoff {backoff}s): {message}")
+                time.sleep(backoff)
+                backoff = min(backoff * 2, MAX_BACKOFF)
 
     def start(self):
         """Start the transcription worker thread."""
@@ -260,6 +299,13 @@ class TranscriptionWorker:
 
         if self._thread is not None and self._thread.is_alive():
             return
+
+        # The worker may boot before any material has been ingested.
+        # MaterialStore owns the schema and _init_db is idempotent;
+        # constructing it here guarantees the table exists without
+        # introducing a second CREATE TABLE (P0-2).
+        from materials import MaterialsIntake
+        MaterialsIntake(db_path=self.db_path, upload_dir=self.upload_dir)
 
         self._running = True
         self._thread = threading.Thread(target=self._run, daemon=True, name="transcription-worker")

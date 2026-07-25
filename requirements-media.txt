@@ -1,0 +1,25 @@
+# Media and ML paths. Every package here backs a code path with graceful-
+# degradation fallback, so a slim deploy (requirements.txt only) remains
+# valid with reduced capability: transcription, face identity QC, PDF/DOCX
+# material ingestion, composition previews, RSS/article extraction, and
+# image generation are lost when this file is skipped.
+#
+# NOTE: torchaudio and torch are installed as CPU-only builds from the
+# PyTorch index. The +cpu local tag is not available on PyPI; the
+# --extra-index-url below makes the CPU wheel resolvable.
+-r requirements.txt
+--extra-index-url https://download.pytorch.org/whl/cpu
+matplotlib==3.11.1
+opencv-python-headless==4.10.0.84
+python-docx==1.2.0
+pdfplumber==0.11.10
+PyPDF2==3.0.1
+feedparser==6.0.12
+trafilatura==2.1.0
+fal-client==1.0.0
+faster-whisper==1.2.1
+torch==2.6.0+cpu
+torchaudio==2.6.0+cpu
+chatterbox-tts==0.1.7
+onnxruntime==1.27.0
+insightface==0.7.3

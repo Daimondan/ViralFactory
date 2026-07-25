@@ -28,6 +28,16 @@ def main() -> None:
     config = load_all(config_dir)
     business_slug = config["business"]["business"]["slug"]
     worker_config = config["models"].get("media", {}).get("reel_production", {})
+
+    # Ensure WAL mode is set before any DB access (P0-4).
+    import sqlite3 as _sqlite3_init
+    os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
+    _wal_conn = _sqlite3_init.connect(db_path)
+    try:
+        _wal_conn.execute("PRAGMA journal_mode=WAL")
+        _wal_conn.execute("PRAGMA synchronous=NORMAL")
+    finally:
+        _wal_conn.close()
     poll_seconds = float(worker_config.get("worker_poll_seconds", 2))
 
     def runner(asset_id: int, approved_cost_usd: float) -> dict:

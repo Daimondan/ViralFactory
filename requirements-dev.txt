@@ -1,0 +1,4 @@
+# Development and test environment. Installs everything.
+-r requirements-media.txt
+pytest==9.1.1
+edge-tts==7.2.8
