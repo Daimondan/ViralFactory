@@ -41,6 +41,29 @@
         <a href="/materials" class="">Materials</a>
     </div>
 
+    {% if review_documents %}
+    <p class="section-label">Governance review · {{ review_documents | length }} awaiting operator decision</p>
+    <div class="module-grid">
+        {% for doc in review_documents %}
+        <div class="module-card alert" id="review-document-{{ loop.index }}">
+            <div class="module-head">
+                <p class="module-name">{{ doc.title }}</p>
+                <span class="badge badge-ready">{{ doc.status }} · review</span>
+            </div>
+            <p class="module-meta">{{ doc.path }}</p>
+            <div class="module-preview" id="review-preview-{{ loop.index }}">{{ doc.preview | strip_md }}</div>
+            <div style="display: flex; gap: var(--space-2); margin-top: var(--space-2);">
+                <button class="btn btn-small" onclick="toggleShowMore('review-preview-{{ loop.index }}')">Show more ▾</button>
+                <button class="btn btn-small" onclick='recordGovernanceDecision({{ doc.path | tojson }}, "approve")'>Approve</button>
+                <button class="btn btn-small" onclick='recordGovernanceDecision({{ doc.path | tojson }}, "reject")'>Reject</button>
+                <button class="btn btn-small" onclick='recordGovernanceDecision({{ doc.path | tojson }}, "park")'>Park</button>
+            </div>
+            <p class="module-meta">Awaiting operator decision. Approval is recorded; proposed documents are never silently applied.</p>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     {% if modules %}
     <p class="section-label">Living modules · {{ modules | length }} of {{ modules | length }} approved</p>
     <div class="module-grid">
@@ -85,7 +108,7 @@
 
 <script>
 function toggleShowMore(name) {
-    var preview = document.getElementById('preview-' + name);
+    var preview = document.getElementById(name.startsWith('review-preview-') ? name : 'preview-' + name);
     var btn = preview.nextElementSibling;
     if (preview.classList.contains('expanded')) {
         preview.classList.remove('expanded');
@@ -146,6 +169,19 @@ async function saveEdit(name) {
 }
 
 function cancelEdit(name) { location.reload(); }
+
+async function recordGovernanceDecision(path, decision) {
+    const notes = window.prompt('Optional decision notes:', '') || '';
+    try {
+        const resp = await fetch('/api/governance-documents/decision', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path, decision, notes }),
+        });
+        const data = await resp.json();
+        if (data.status === 'ok') window.location.reload();
+        else vfToastError('Decision not recorded', data.error || 'unknown');
+    } catch (err) { vfToastError('Connection error', 'Could not reach the server.'); }
+}
 </script>
 </body>
 </html>

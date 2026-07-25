@@ -12,6 +12,7 @@ import json
 import hashlib
 import shutil
 import subprocess
+import re
 from datetime import datetime, timezone
 from flask import Flask, render_template, request, redirect, jsonify, send_from_directory
 
@@ -54,6 +55,57 @@ def _verify_config_write(db_path: str, run_id: int, gate_token: str):
     """
     from module_store import verify_gate_token, GateTokenError
     verify_gate_token(db_path, run_id, gate_token)
+
+
+def _pending_governance_documents(business_slug: str) -> list[dict]:
+    """Find DRAFT/PROPOSED governance markdown for a business's review surface.
+
+    Governance documents may be modules or reference-registry documents.  Both
+    locations are discovered mechanically; status remains in the document until
+    an operator records a decision through its owning gate.
+    """
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    roots = (
+        os.path.join(project_root, "modules", business_slug),
+        os.path.join(project_root, "assets", "reference", business_slug),
+    )
+    pending = []
+    for root in roots:
+        if not os.path.isdir(root):
+            continue
+        for directory, _, filenames in os.walk(root):
+            for filename in sorted(filenames):
+                if not filename.endswith(".md"):
+                    continue
+                path = os.path.join(directory, filename)
+                content = open(path, encoding="utf-8").read()
+                match = re.search(r"^\*\*Status:\*\*\s*(DRAFT|PROPOSED)\b", content, re.MULTILINE)
+                if not match:
+                    continue
+                heading = next((line[2:].strip() for line in content.splitlines()
+                                if line.startswith("# ")), filename[:-3].replace("-", " ").title())
+                pending.append({
+                    "title": heading,
+                    "status": match.group(1),
+                    "path": os.path.relpath(path, project_root),
+                    "preview": content[:1200],
+                })
+    return pending
+
+
+def _resolve_governance_document(business_slug: str, relative_path: str) -> str | None:
+    """Resolve a review document only when it belongs to this business's roots."""
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    candidate = os.path.realpath(os.path.join(project_root, relative_path))
+    allowed_roots = (
+        os.path.realpath(os.path.join(project_root, "modules", business_slug)),
+        os.path.realpath(os.path.join(project_root, "assets", "reference", business_slug)),
+    )
+    if not candidate.endswith(".md") or not os.path.isfile(candidate):
+        return None
+    if not any(os.path.commonpath((candidate, root)) == root for root in allowed_roots):
+        return None
+    return candidate
 
 
 def _resolve_ai_video_generator(generator: str, media_config: dict) -> dict:
@@ -2694,6 +2746,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             business_slug = None
 
         modules = []
+        review_documents = []
         if business_slug:
             from module_store import ModuleStore
             store = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
@@ -2716,7 +2769,63 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     "preview": content[:500] if content else "",
                 })
 
-        return render_template("library.html", business_slug=business_slug, modules=modules)
+            review_documents = _pending_governance_documents(business_slug)
+
+        return render_template(
+            "library.html",
+            business_slug=business_slug,
+            modules=modules,
+            review_documents=review_documents,
+        )
+
+    @app.route("/api/governance-documents/decision", methods=["POST"])
+    def governance_document_decision():
+        """Record an operator decision for a pending governance document.
+
+        This is intentionally record-only. Approval does not silently apply a
+        proposed amendment or alter a reference canon.
+        """
+        try:
+            config = load_all(config_dir)
+            business_slug = config["business"]["business"]["slug"]
+        except ConfigError:
+            return jsonify({"error": "Business configuration is unavailable"}), 500
+
+        payload = request.get_json(silent=True) or {}
+        decision = payload.get("decision", "")
+        if decision not in ("approve", "reject", "park"):
+            return jsonify({"error": "Invalid decision"}), 400
+        document_path = _resolve_governance_document(
+            business_slug, payload.get("path", "")
+        )
+        if not document_path:
+            return jsonify({"error": "Governance document not found"}), 404
+
+        notes = (payload.get("notes", "") or "").strip()[:1000]
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        relative_path = os.path.relpath(document_path, project_root)
+        import sqlite3
+        conn = sqlite3.connect(app.config["DB_PATH"])
+        try:
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS governance_document_decisions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    document_path TEXT NOT NULL,
+                    decision TEXT NOT NULL,
+                    notes TEXT NOT NULL DEFAULT '',
+                    decided_at TEXT NOT NULL
+                )"""
+            )
+            conn.execute(
+                """INSERT INTO governance_document_decisions
+                   (document_path, decision, notes, decided_at)
+                   VALUES (?, ?, ?, ?)""",
+                (relative_path, decision, notes, datetime.now(timezone.utc).isoformat()),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return jsonify({"status": "ok", "decision": decision, "path": relative_path})
 
     @app.route("/api/library/<business_slug>/<module_name>")
     def api_library_module(business_slug, module_name):
@@ -9110,7 +9219,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         conn = __import__("sqlite3").connect(app.config["DB_PATH"])
         conn.row_factory = __import__("sqlite3").Row
         rows = conn.execute(
-            "SELECT * FROM sources WHERE business_slug = ? ORDER BY first_seen DESC LIMIT 500",
+            "SELECT * FROM sources WHERE business_slug = ? ORDER BY first_seen DESC LIMIT 2000",
             (business_slug,),
         ).fetchall()
         conn.close()
