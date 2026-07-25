@@ -6,6 +6,23 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-25 — BUILDER: P1-5 closed — app.py migrated to db.py connection factory
+
+**What:** Completed the final P1-5 migration. All 14 direct `sqlite3.connect` calls in `src/app.py` replaced with `_db_connect` (from `src/db.py`). This ensures every connection gets `busy_timeout=30s`, `foreign_keys=ON`, and `row_factory=sqlite3.Row`. Three orphaned `import sqlite3 as _sqlite3` lines removed from voice management routes. The v2 backup read (external DB with unknown schema) also uses `db.connect` — `sqlite3.OperationalError` is still caught for schema mismatch. Guard test (`test_db_factory_guard.py`) updated with `src/app.py` in the migrated list. `materials.py`, `jobs.py`, and `services/production_orchestrator.py` were already migrated.
+
+**Verification:**
+- Full test suite: 2545 passed, 2 skipped (395s)
+- Guard test: PASSED (all 5 migrated modules checked)
+- ffprobe on rendered master `data/media/26/final_1.mp4`: H.264 High 1080×1920 30fps 70s, AAC LC 48kHz mono 68.4s, MP4 isom 30.9MB
+
+**Type:** TECH / OPS
+
+**Rationale:** Direct `sqlite3.connect` calls bypass `busy_timeout`, causing "database is locked" errors under concurrent access. The `db.py` factory enforces consistent connection settings system-wide. P1-5 was reopened by the architect (AMENDMENT-016 manifest) because it was reported as complete with "Remaining modules pending" as an inline qualifier — four files were not yet migrated.
+
+**Files:** `src/app.py` (14 connect calls + 3 orphaned imports removed), `tests/test_db_factory_guard.py` (app.py added to migrated list)
+
+---
+
 ## 2026-07-25 — BUILDER: Inbox batch C processed (AMENDMENT-016 filed, DIVERGENCE-024 ratified, P1-5 reopened, DoD push rule)
 
 **What:** Processed MANIFEST-2026-07-25-C-amendment-016 from the architect. Filed AMENDMENT-016 (platform-native audio attachment as a distinct audio role) to `docs/decisions/`. Marked DIVERGENCE-024 as RATIFIED with a status pointer to AMENDMENT-016. Moved BUILDER-NOTE-019 to `docs/inbox/processed/`. Applied the DoD push-verification rule to `PROCESS-definition-of-done-v1.0.md`: work is not reportable as complete until it is on `origin/main`, verified with `git log --oneline origin/main..HEAD` returning nothing. Reopened P1-5 explicitly — four outstanding `src/db.py` connection factory migrations remain (`app.py`, `production_orchestrator.py`, `materials.py`, `jobs.py`), plus full test suite final run, ffprobe on a rendered master, and human UI walkthrough.

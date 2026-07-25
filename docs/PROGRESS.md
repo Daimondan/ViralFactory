@@ -4,7 +4,9 @@
 > blocked, or changed. Any agent should be able to read this and know
 > exactly where we are.
 
-**Last Updated:** 2026-07-25 (inbox batch C processed — AMENDMENT-016 filed, DIVERGENCE-024 ratified, P1-5 reopened, DoD push rule added)
+**Last Updated:** 2026-07-25 (P1-5 closed — all 4 files migrated to db.py, full suite green, ffprobe verified)
+
+2026-07-25 · P1-5 CLOSED · All four outstanding src/db.py connection factory migrations complete. app.py: 14 direct sqlite3.connect calls replaced with _db_connect (db.connect). materials.py, jobs.py, services/production_orchestrator.py were already migrated. Guard test updated with app.py in migrated list. Full suite: 2545 passed, 2 skipped. ffprobe on rendered master (asset 26/final_1.mp4): H.264 1080x1920 30fps 70s, AAC 48kHz mono 68.4s, MP4 isom 30.9MB. · Q: human UI walkthrough remains — operator must verify the live app at vf.glenbeu.com
 
 2026-07-25 · INBOX BATCH C · Processed MANIFEST-2026-07-25-C-amendment-016. Filed AMENDMENT-016 to docs/decisions/. Marked DIVERGENCE-024 as RATIFIED with pointer to AMENDMENT-016. Moved BUILDER-NOTE-019 to docs/inbox/processed/. Applied DoD push-verification rule to PROCESS-definition-of-done-v1.0.md. Reopened P1-5: four outstanding src/db.py migrations remain (app.py, production_orchestrator.py, materials.py, jobs.py), plus full test suite final run, ffprobe on a rendered master, and human UI walkthrough. BUILDER-NOTE-018 and DIVERGENCE-023 remain open — not answered by this batch. · Q: AMENDMENT-016 implementation (C1–C8) is a separate build task; C4 probe and C5 failure-path demo require live Instagram publish access
 
