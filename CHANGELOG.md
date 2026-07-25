@@ -6,6 +6,21 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-24 — BUILDER: Thread publish path fix (DIVERGENCE-022 related)
+
+**What:** Fixed thread publish path in `buffer_adapter.py:232-237`. For threads (`posts` = array of text strings with len > 1), the code was sending `content` (the internal summary line) to Buffer as the post text — NOT the actual thread posts. The operator approved the thread posts at Gate 2 and Gate 3, but the publish path sent the summary instead.
+
+**Root cause:** The comment said "Buffer handles thread posts as separate items" but the code didn't actually send them as separate items — it sent `content if content else posts[0]`, which is the summary line.
+
+**Fix:** Thread posts now use Buffer's native thread API: `metadata.{service}.thread` array where each item is `{text: "..."}`. The top-level `text` is set to `posts[0]` (the first tweet), per Buffer's API spec. Platform name maps to Buffer's service key via `_get_service_key()`: x/twitter→twitter, instagram→instagram, bluesky→bluesky, threads→threads, mastodon→mastodon. Frame objects (reel/story_series posts as dicts) are NOT treated as text threads — they fall through to the single-post path.
+
+**Type:** FIX
+**Rationale:** The operator approved the thread posts, but the publish path sent the summary line. This is a plumbing error, not a design question.
+
+**Files:** `src/buffer_adapter.py`, `tests/test_thread_publish_fix.py`
+
+---
+
 ## 2026-07-24 — BUILDER: DIVERGENCE-022 implemented — reel post caption (P1)
 
 **What:** Implemented the post-caption artifact for reel/story_series variants per architect ruling on DIVERGENCE-022. The internal `content` summary line was shipping to Buffer as the public IG caption without operator review — violating per-piece approval (charter §5).

@@ -195,6 +195,27 @@ class BufferAdapter:
 
     # ── Publishing ───────────────────────────────────────────────────────
 
+    @staticmethod
+    def _get_service_key(platform: str) -> str | None:
+        """Map a ViralFactory platform name to Buffer's metadata service key.
+
+        Buffer's GraphQL API uses platform-specific metadata keys for threads:
+        twitter (for X), instagram, bluesky, threads, mastodon.
+        See: https://developers.buffer.com/examples/create-threaded-post.html
+        """
+        platform_lower = platform.lower()
+        if platform_lower in ("x", "twitter"):
+            return "twitter"
+        if platform_lower in ("instagram", "ig"):
+            return "instagram"
+        if platform_lower in ("bluesky",):
+            return "bluesky"
+        if platform_lower in ("threads",):
+            return "threads"
+        if platform_lower in ("mastodon",):
+            return "mastodon"
+        return None
+
     def publish_piece(
         self,
         business_slug: str,
@@ -229,12 +250,30 @@ class BufferAdapter:
             mode = "shareNow"
             due_at = None
 
-        # Use the first post for single posts, or join for threads
+        # DIVERGENCE-022 related fix: thread publish path was sending the
+        # content summary line instead of the actual thread posts.
+        # For threads (posts = array of text strings with len > 1), use the
+        # Buffer thread API: metadata.{service}.thread array. Each item is
+        # {text: "..."} and they're published in order as a thread.
+        # For single posts, use the content/text as before.
         post_text = content
-        if posts and len(posts) > 1:
-            # Thread: join posts with newlines (Buffer handles thread posts as separate items)
-            # For now, use the content field as the main text
-            post_text = content if content else posts[0]
+        is_thread = posts and len(posts) > 1 and all(isinstance(p, str) for p in posts)
+
+        if is_thread:
+            # Thread: use the actual post texts, NOT the summary line
+            post_text = posts[0] if posts[0] else (content or "")
+            # Map platform to Buffer's metadata service key
+            service_key = self._get_service_key(platform)
+            if service_key:
+                thread_items = [{"text": p} for p in posts if p and p.strip()]
+                if len(thread_items) > 1:
+                    input_obj_meta = {service_key: {"thread": thread_items}}
+                else:
+                    input_obj_meta = None
+            else:
+                input_obj_meta = None
+        else:
+            input_obj_meta = None
 
         # Build GraphQL mutation
         input_obj = {
@@ -245,6 +284,10 @@ class BufferAdapter:
             "source": "viralfactory",
             "aiAssisted": True,
         }
+
+        # Thread metadata: Buffer uses metadata.{service}.thread for threads
+        if input_obj_meta:
+            input_obj["metadata"] = input_obj_meta
 
         if due_at:
             input_obj["dueAt"] = due_at
