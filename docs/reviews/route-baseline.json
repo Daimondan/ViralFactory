@@ -1,0 +1,521 @@
+{
+  "/": [
+    "GET"
+  ],
+  "/api/assets/<int:asset_id>/compliance": [
+    "GET"
+  ],
+  "/api/assets/<int:asset_id>/edit-plan": [
+    "POST"
+  ],
+  "/api/assets/<int:asset_id>/edit-plans": [
+    "GET"
+  ],
+  "/api/assets/<int:asset_id>/gate": [
+    "POST"
+  ],
+  "/api/assets/<int:asset_id>/gate3": [
+    "POST"
+  ],
+  "/api/assets/<int:asset_id>/generate-clip": [
+    "POST"
+  ],
+  "/api/assets/<int:asset_id>/generate-images": [
+    "POST"
+  ],
+  "/api/assets/<int:asset_id>/generate-media": [
+    "POST"
+  ],
+  "/api/assets/<int:asset_id>/generate-video": [
+    "POST"
+  ],
+  "/api/assets/<int:asset_id>/generate-vo": [
+    "POST"
+  ],
+  "/api/assets/<int:asset_id>/media": [
+    "GET"
+  ],
+  "/api/assets/<int:asset_id>/missing-captures": [
+    "GET"
+  ],
+  "/api/assets/<int:asset_id>/post-caption": [
+    "POST"
+  ],
+  "/api/assets/<int:asset_id>/produce-reel": [
+    "POST"
+  ],
+  "/api/assets/<int:asset_id>/reel-production-estimate": [
+    "GET"
+  ],
+  "/api/assets/<int:asset_id>/render": [
+    "POST"
+  ],
+  "/api/assets/<int:asset_id>/render-status": [
+    "GET"
+  ],
+  "/api/assets/<int:asset_id>/reviews": [
+    "GET"
+  ],
+  "/api/assets/<int:asset_id>/schedule": [
+    "POST"
+  ],
+  "/api/assets/<int:asset_id>/soundtrack-decision": [
+    "POST"
+  ],
+  "/api/assets/<int:asset_id>/soundtrack-discover": [
+    "POST"
+  ],
+  "/api/assets/<int:asset_id>/soundtrack-previewed": [
+    "POST"
+  ],
+  "/api/assets/<int:asset_id>/soundtrack-review": [
+    "GET"
+  ],
+  "/api/assets/<int:asset_id>/soundtrack-status": [
+    "GET"
+  ],
+  "/api/assets/<int:asset_id>/soundtrack-switch": [
+    "POST"
+  ],
+  "/api/assets/<int:draft_id>/fan-out": [
+    "POST"
+  ],
+  "/api/buffer/status": [
+    "GET"
+  ],
+  "/api/composition/<int:asset_id>/ratify": [
+    "POST"
+  ],
+  "/api/composition/<int:asset_id>/reject": [
+    "POST"
+  ],
+  "/api/draft/<int:card_id>/generate": [
+    "POST"
+  ],
+  "/api/draft/<int:draft_id>/audit-flag": [
+    "POST"
+  ],
+  "/api/draft/<int:draft_id>/edit-platform/<int:variant_index>": [
+    "POST"
+  ],
+  "/api/draft/<int:draft_id>/edit-text": [
+    "POST"
+  ],
+  "/api/draft/<int:draft_id>/feedback": [
+    "POST"
+  ],
+  "/api/draft/<int:draft_id>/gate": [
+    "POST"
+  ],
+  "/api/draft/<int:draft_id>/generate-visuals": [
+    "POST"
+  ],
+  "/api/draft/<int:draft_id>/visuals": [
+    "GET"
+  ],
+  "/api/ideas/<int:card_id>/capture-upload": [
+    "POST"
+  ],
+  "/api/ideas/<int:card_id>/edit": [
+    "POST"
+  ],
+  "/api/ideas/<int:card_id>/gate": [
+    "POST"
+  ],
+  "/api/ideas/<int:card_id>/generate-capture": [
+    "POST"
+  ],
+  "/api/ideas/<int:card_id>/retry-production": [
+    "POST"
+  ],
+  "/api/ideas/<int:parent_id>/bulk-approve-children": [
+    "POST"
+  ],
+  "/api/ideas/generate": [
+    "POST"
+  ],
+  "/api/ideas/seed": [
+    "POST"
+  ],
+  "/api/inspiration/<int:trend_item_id>/<int:observation_id>/bookmark": [
+    "POST"
+  ],
+  "/api/inspiration/<int:trend_item_id>/<int:observation_id>/create-idea": [
+    "POST"
+  ],
+  "/api/inspiration/<int:trend_item_id>/<int:observation_id>/promote": [
+    "POST"
+  ],
+  "/api/inspiration/bookmarks": [
+    "GET"
+  ],
+  "/api/inspiration/bookmarks/<int:bookmark_id>/revert": [
+    "POST"
+  ],
+  "/api/inspiration/bookmarks/bulk-revert": [
+    "POST"
+  ],
+  "/api/inspiration/refresh": [
+    "POST"
+  ],
+  "/api/library/<business_slug>/<module_name>": [
+    "GET"
+  ],
+  "/api/library/<business_slug>/<module_name>/approve": [
+    "POST"
+  ],
+  "/api/library/<business_slug>/<module_name>/edit": [
+    "POST"
+  ],
+  "/api/materials/<int:material_id>/edit": [
+    "POST"
+  ],
+  "/api/materials/<int:material_id>/exclude": [
+    "POST"
+  ],
+  "/api/materials/<int:material_id>/restore": [
+    "POST"
+  ],
+  "/api/metrics/pull": [
+    "POST"
+  ],
+  "/api/onboarding/<int:run_id>/gate/<playbook_name>": [
+    "POST"
+  ],
+  "/api/onboarding/<int:run_id>/message": [
+    "POST"
+  ],
+  "/api/onboarding/<int:run_id>/upload": [
+    "POST"
+  ],
+  "/api/onboarding/fill-input": [
+    "POST"
+  ],
+  "/api/onboarding/mine-sources": [
+    "POST"
+  ],
+  "/api/proposals/<int:proposal_id>/approve": [
+    "POST"
+  ],
+  "/api/proposals/<int:proposal_id>/reject": [
+    "POST"
+  ],
+  "/api/proposals/bulk-approve": [
+    "POST"
+  ],
+  "/api/proposals/bulk-reject": [
+    "POST"
+  ],
+  "/api/publish/<int:asset_id>/retry": [
+    "POST"
+  ],
+  "/api/reel-production-jobs/<int:job_id>": [
+    "GET"
+  ],
+  "/api/reference-assets": [
+    "POST"
+  ],
+  "/api/reference-assets/<int:asset_id>": [
+    "PUT"
+  ],
+  "/api/reference-assets/<int:asset_id>/approve": [
+    "POST"
+  ],
+  "/api/reference-assets/<int:asset_id>/new-version": [
+    "POST"
+  ],
+  "/api/reference-assets/<int:asset_id>/notes": [
+    "PUT"
+  ],
+  "/api/reference-assets/<int:asset_id>/retire": [
+    "POST"
+  ],
+  "/api/research/<int:item_id>/analyze": [
+    "POST"
+  ],
+  "/api/research/<int:item_id>/propose-experiment": [
+    "POST"
+  ],
+  "/api/research/run": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/admired-example": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/analyze-audience": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/analyze-business": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/analyze-format-guide": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/analyze-sources": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/analyze-story-frameworks": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/analyze-viral-patterns": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/analyze-visual-style": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/analyze-voice": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/anti-example": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/audience-input": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/business-qa": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/calibrate": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/corpus": [
+    "GET"
+  ],
+  "/api/run/<int:run_id>/format-input": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/gate": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/index-shot-library": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/input": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/interview-question": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/paste": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/seed-source": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/shot-library-item": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/store-audience-insights": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/store-business": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/store-format-guide": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/store-sources": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/store-story-frameworks": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/store-viral-patterns": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/store-visual-style": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/store-voice": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/story-input": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/upload": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/v2-bulk-import": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/viral-anti-example": [
+    "POST"
+  ],
+  "/api/run/<int:run_id>/visual-style-input": [
+    "POST"
+  ],
+  "/api/session/<int:run_id>/edit-readback": [
+    "POST"
+  ],
+  "/api/session/<int:run_id>/message": [
+    "POST"
+  ],
+  "/api/session/<int:run_id>/upload": [
+    "POST"
+  ],
+  "/api/sources/<int:source_id>/status": [
+    "POST"
+  ],
+  "/api/sources/bulk-status": [
+    "POST"
+  ],
+  "/api/sources/discover": [
+    "POST"
+  ],
+  "/api/stock/download": [
+    "POST"
+  ],
+  "/api/stock/search": [
+    "POST"
+  ],
+  "/api/voices": [
+    "POST"
+  ],
+  "/api/voices/<int:voice_id>": [
+    "DELETE"
+  ],
+  "/api/voices/<int:voice_id>/default": [
+    "POST"
+  ],
+  "/api/voices/test-clone": [
+    "POST"
+  ],
+  "/api/voices/upload-sample": [
+    "POST"
+  ],
+  "/api/workbench/<int:asset_id>/advance": [
+    "POST"
+  ],
+  "/api/workbench/<int:asset_id>/candidate/<int:candidate_id>/decision": [
+    "POST"
+  ],
+  "/api/workbench/<int:asset_id>/freeze": [
+    "POST"
+  ],
+  "/api/workbench/<int:asset_id>/generate-requirements": [
+    "POST"
+  ],
+  "/api/workbench/<int:asset_id>/register-visual-candidates": [
+    "POST"
+  ],
+  "/api/workbench/<int:asset_id>/register-vo-candidate": [
+    "POST"
+  ],
+  "/assemble": [
+    "GET"
+  ],
+  "/composition/<int:asset_id>": [
+    "GET"
+  ],
+  "/create": [
+    "GET"
+  ],
+  "/create/assets/<int:draft_id>": [
+    "GET"
+  ],
+  "/create/draft/<int:card_id>": [
+    "GET"
+  ],
+  "/create/publish/<int:draft_id>": [
+    "GET"
+  ],
+  "/health": [
+    "GET"
+  ],
+  "/ideas": [
+    "GET"
+  ],
+  "/ideas/<int:card_id>/capture": [
+    "GET"
+  ],
+  "/inspiration": [
+    "GET"
+  ],
+  "/library": [
+    "GET"
+  ],
+  "/materials": [
+    "GET"
+  ],
+  "/materials/<int:material_id>": [
+    "GET"
+  ],
+  "/media/<path:filepath>": [
+    "GET"
+  ],
+  "/media/voice-samples/<path:filepath>": [
+    "GET"
+  ],
+  "/metrics": [
+    "GET"
+  ],
+  "/onboard": [
+    "GET"
+  ],
+  "/onboard/<playbook_name>": [
+    "GET"
+  ],
+  "/onboard/<playbook_name>/<int:run_id>": [
+    "GET"
+  ],
+  "/onboard/<playbook_name>/<int:run_id>/audience-insights": [
+    "GET"
+  ],
+  "/onboard/<playbook_name>/<int:run_id>/business-profile": [
+    "GET"
+  ],
+  "/onboard/<playbook_name>/<int:run_id>/calibrate": [
+    "GET"
+  ],
+  "/onboard/<playbook_name>/<int:run_id>/format-guide": [
+    "GET"
+  ],
+  "/onboard/<playbook_name>/<int:run_id>/intake": [
+    "GET"
+  ],
+  "/onboard/<playbook_name>/<int:run_id>/interview": [
+    "GET"
+  ],
+  "/onboard/<playbook_name>/<int:run_id>/sources-engine": [
+    "GET"
+  ],
+  "/onboard/<playbook_name>/<int:run_id>/story-frameworks": [
+    "GET"
+  ],
+  "/onboard/<playbook_name>/<int:run_id>/viral-patterns": [
+    "GET"
+  ],
+  "/onboard/<playbook_name>/<int:run_id>/visual-style": [
+    "GET"
+  ],
+  "/onboard/hub": [
+    "GET"
+  ],
+  "/onboarding-health": [
+    "GET"
+  ],
+  "/proposals": [
+    "GET"
+  ],
+  "/published": [
+    "GET"
+  ],
+  "/research": [
+    "GET"
+  ],
+  "/setup/reference-assets": [
+    "GET"
+  ],
+  "/setup/voices": [
+    "GET"
+  ],
+  "/sources": [
+    "GET"
+  ],
+  "/static/<path:filename>": [
+    "GET"
+  ],
+  "/workbench/<int:asset_id>": [
+    "GET"
+  ]
+}
