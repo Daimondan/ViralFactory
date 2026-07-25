@@ -47,12 +47,15 @@
 #    ```bash
 #    sudo cp deploy/viralfactory.service /etc/systemd/system/viralfactory.service
 #    sudo mkdir -p /etc/viralfactory
-#    sudo tee /etc/viralfactory/env << 'EOF'
-#    OLLAMA_API_KEY=your_actual_key
-#    EOF
+#    sudoedit /etc/viralfactory/env
+#    # Add OLLAMA_API_KEY, and (when enabling soundtrack discovery)
+#    # BUNDLE_SOCIAL_API_KEY plus BUNDLE_TEAM_ID. Never commit this file
+#    # or paste its values into chat.
+#    sudo chown root:root /etc/viralfactory/env
+#    sudo chmod 600 /etc/viralfactory/env
 #    sudo systemctl daemon-reload
 #    sudo systemctl enable viralfactory
-#    sudo systemctl start viralfactory
+#    sudo systemctl start viralfactory viralfactory-reel-worker viralfactory-inspiration-collect
 #    ```
 #
 # 3. **Traefik dynamic config:**
