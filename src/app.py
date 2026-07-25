@@ -7073,17 +7073,45 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         from vo_generator import VOGenerator, VOGenerationError
 
-        vo_gen = VOGenerator(models_config, db_path=app.config["DB_PATH"])
+        # Run VO generation in a subprocess to avoid loading the Chatterbox
+        # TTS model (several GB of PyTorch + weights) into the gunicorn worker.
+        # The subprocess loads the model, generates audio, writes files, and
+        # exits — freeing all memory. The gunicorn worker just waits.
+        import subprocess as _subprocess
+
+        venv_python = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".venv", "bin", "python")
+        if not os.path.exists(venv_python):
+            venv_python = sys.executable
+
+        vo_script = os.path.join(os.path.dirname(__file__), "vo_subprocess.py")
+        cmd = [
+            venv_python, vo_script,
+            "--asset-id", str(asset_id),
+            "--db-path", app.config["DB_PATH"],
+            "--config-dir", app.config["CONFIG_DIR"],
+            "--business-slug", business_slug,
+        ]
+
         try:
-            result = vo_gen.generate_vo_per_frame(
-                asset_id=asset_id,
-                posts=posts,
-                business_slug=business_slug,
+            proc = _subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=300,
             )
-            store.save_vo_segments(asset_id, json.dumps(result["segments"]))
-        except VOGenerationError as exc:
-            _get_jobs_store().fail_job(vo_job_id, str(exc)[:200])
-            return jsonify({"error": str(exc)}), 500
+            if proc.returncode != 0:
+                error_msg = proc.stderr[-500:] if proc.stderr else "VO subprocess failed"
+                _get_jobs_store().fail_job(vo_job_id, error_msg[:200])
+                return jsonify({"error": f"VO generation failed: {error_msg}"}), 500
+
+            result = json.loads(proc.stdout)
+            if result.get("status") != "ok":
+                _get_jobs_store().fail_job(vo_job_id, result.get("error", "Unknown error")[:200])
+                return jsonify({"error": result.get("error", "VO generation failed")}), 500
+
+        except _subprocess.TimeoutExpired:
+            _get_jobs_store().fail_job(vo_job_id, "VO generation timed out (300s)")
+            return jsonify({"error": "VO generation timed out"}), 500
         except Exception as exc:
             _get_jobs_store().fail_job(vo_job_id, str(exc)[:200])
             return jsonify({"error": f"VO generation failed: {exc}"}), 500
