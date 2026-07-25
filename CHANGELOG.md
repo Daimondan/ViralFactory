@@ -1850,3 +1850,35 @@ Compiled actionable research on what makes short-form video go viral, covering: 
 **Why:** The production renderer was burning plain white text with black outline via ffmpeg drawtext using DejaVuSans-Bold — no pill background, no auto-wrapping, no brand colors, no modern fonts. The Writer's rich `text_on_screen` metadata (style, position, animation) was silently discarded. The soundtrack pipeline's discovery→ranking→mixing stages were built (VF-VS-511..514) but never wired — the planner always saw no candidates and fell to `vo_only`. The Netflix spike proved PIL overlays work but was never integrated.
 
 **Rationale:** The charter requires config-driven, not hardcoded, visual presentation. The Netflix spike (`scripts/netflix_caption_v2.py`) already proved the PIL approach: auto-wrapping, rounded pill, Montserrat Bold, shadow. This integrates that approach into the production renderer. The music pipeline fix is charter-compliant: discovery runs post-planner using the planner's own search queries, the operator gate remains intact, no bypass.
+
+## 2026-07-25 — Repo Health: Deployability, Worker Safety, Render Spec [TECH/OPS/FIX]
+
+**What:** Executed CORRECTION-repo-health-v1.0.md — 12 items (P0-1 through P2-12) in one batch.
+
+**P0-1:** Reconstructed requirements from live venv pip freeze. Split into `requirements.txt` (core), `requirements-media.txt` (ML/media, `--extra-index-url` for PyTorch CPU), `requirements-dev.txt` (test). Deleted corrupted `requirements-prod.txt`. Clean-venv install succeeds, `create_app()` boots. `deploy/README.md` updated.
+
+**P0-2:** Transcription worker fresh-DB spam fixed. `MaterialsIntake` constructed in `start()` for schema guarantee. Capped exponential backoff (5→300s) with first-error-only logging. 15s fresh-DB silence verified.
+
+**P0-3:** Atomic `_claim()` prevents two-worker race. 3 claim tests pass (two workers transcribe exactly once).
+
+**P0-4:** WAL + `synchronous=NORMAL` in `create_app()` and 3 cron/worker entrypoints. `deploy/README.md` documents `-wal`/`-shm` backup. 2 WAL tests pass.
+
+**P1-5:** `src/db.py` connection factory (30s busy_timeout, foreign_keys, row_factory). `pipeline.py` migrated (51 sites). Guard test enforces. Remaining modules pending.
+
+**P1-6:** Encode tiers — `_video_encode_args(intermediate CRF 16 / master CRF 20)` + `_audio_encode_args(48kHz/256k)`. All 8 libx264 + 11 audio sites routed through helpers. `anullsrc` and `vo_generator` → 48000. 258 assembly tests pass.
+
+**P1-7:** Caption sentence-boundary chunking. Hard-split on sentence terminators first, then word-count within. Soft punctuation preferred break. Word timestamps from `faster-whisper` threaded through `cue_compiler` to `chunk_captions`. New `materials.word_timestamps` column. 26 property tests pass.
+
+**P1-8:** `insightface` was NOT installed, ONNX model absent — identity QC never ran. Installed `insightface==0.7.3`, fetched `buffalo_l` model. Inert state text changed to "identity check unavailable — model not installed". Verdict remains advisory.
+
+**P2-9:** Shotstack/Creatomate removed from factory, raise `ProviderAdapterError`. Classes retained with UNREACHABLE BY DECISION comments.
+
+**P2-10:** Deleted dangling `performance_analysis` from `processes.yaml`. Added `validate_process_registry()` startup validator. 2 tests pass.
+
+**P2-11:** 9 reference assets `git mv` from gitignored `data/media/reference/` to tracked `assets/reference/`. Path defaults updated. Trailing newlines fixed in `.gitignore` and `pytest.ini`.
+
+**P2-12:** AMENDMENT-007 parsers ARE wired via `produce_chain.py` (not app.py). Deleted app.py duplicates + `_get_business_context` + `_load_all_modules` + unused `url_for` import. No charter compliance gap.
+
+**Why:** The repo was not safely deployable from a clean checkout — corrupted requirements, worker log spam, two-worker transcription race, reader/writer blocking, off-spec render output (44.1kHz, no CRF control), captions straddling sentences, inert identity QC, canonical assets in gitignored directory.
+
+**Rationale:** P0 items are deployment-blocking. P1 items close known quality gaps. P2 items clean up dormant defects. All 12 items reported per P-number with evidence.
