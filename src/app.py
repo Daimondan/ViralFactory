@@ -7444,7 +7444,14 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     @app.route("/api/assets/<int:asset_id>/edit-plan", methods=["POST"])
     def generate_edit_plan(asset_id):
-        """Generate an edit plan through the shared EditPlanningService."""
+        """Generate an edit plan through the shared services.
+
+        For Reel assets, runs MediaPlanningService first (to generate
+        video clips for video beats) then EditPlanningService — matching
+        the autonomous chain's produce_chain._step_media_plan →
+        _step_edit_plan order. Without this, the UI path skips video
+        generation and the feasibility check blocks on motion shortfall.
+        """
         business_slug = _get_business_slug()
         if not business_slug:
             return jsonify({"error": "Business not configured"}), 500
@@ -7456,6 +7463,44 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 "message": "Already generating edit plan.",
             }), 409
         job_id = job_info.get("job_id")
+
+        store = _get_pipeline_store()
+        asset = store.get_asset(asset_id)
+        if not asset:
+            _get_jobs_store().fail_job(job_id, "Asset not found")
+            return jsonify({"error": "Asset not found"}), 404
+
+        # For Reel assets, run media planning first to generate video
+        # clips for beats with media_type=video. The autonomous chain
+        # does this as a separate step before edit planning; the UI route
+        # must do the same or the feasibility check will block on motion
+        # shortfall (0s of moving source for beats that need motion).
+        variant = (asset.get("variant_type") or "").lower()
+        if variant in ("reel", "story_series"):
+            from services.media_planning import MediaPlanningService
+            mp_service = MediaPlanningService(
+                db_path=app.config["DB_PATH"],
+                config_dir=app.config["CONFIG_DIR"],
+                modules_dir=app.config.get("MODULES_DIR", "modules"),
+                prompts_dir="prompts",
+            )
+            mp_result = mp_service.generate_for_asset(
+                asset_id=asset_id,
+                business_slug=business_slug,
+                store=store,
+            )
+            if not mp_result.ok:
+                message = (
+                    mp_result.payload.get("error")
+                    or mp_result.payload.get("message")
+                    or "Media planning failed"
+                )
+                _get_jobs_store().fail_job(job_id, message[:200])
+                return jsonify({
+                    "status": "media_planning_failed",
+                    "message": message,
+                    "media_plan": mp_result.payload,
+                }), mp_result.status_code
 
         from services.edit_planning import EditPlanningService
 
@@ -7470,7 +7515,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             asset_id=asset_id,
             business_slug=business_slug,
             feedback=body.get("feedback", ""),
-            store=_get_pipeline_store(),
+            store=store,
         )
         if result.ok:
             _get_jobs_store().complete_job(

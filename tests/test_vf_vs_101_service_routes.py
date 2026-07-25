@@ -164,6 +164,31 @@ def test_shared_render_service_preserves_extended_operator_reviews(tmp_path):
 def test_edit_plan_route_delegates_to_edit_planning_service(monkeypatch, tmp_path):
     calls = []
 
+    # Mock MediaPlanningService so the media planning step doesn't
+    # hit real adapters. Returns ok with no results so the route
+    # proceeds to EditPlanningService.
+    def fake_media_plan(self, *, asset_id, business_slug, store=None):
+        return ServiceResponse({"status": "ok", "results": []})
+
+    monkeypatch.setattr(
+        MediaPlanningService, "generate_for_asset", fake_media_plan, raising=False,
+    )
+
+    # Mock store.get_asset to return a reel variant so the media
+    # planning branch is exercised.
+    def fake_get_asset(self, asset_id):
+        return {
+            "id": asset_id,
+            "draft_id": 1,
+            "variant_type": "reel",
+            "platform": "instagram",
+            "content": "test",
+            "posts": "[]",
+        }
+
+    from pipeline import PipelineStore
+    monkeypatch.setattr(PipelineStore, "get_asset", fake_get_asset, raising=False)
+
     def fake_generate(self, *, asset_id, business_slug, feedback="", store=None):
         calls.append((asset_id, business_slug, feedback, store is not None))
         return ServiceResponse({
