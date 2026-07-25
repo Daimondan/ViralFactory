@@ -351,7 +351,7 @@ def run_identity_check(
     if not embedder.available:
         return {
             "status": "skipped",
-            "reason": "Face embedding model not available — identity check skipped",
+            "reason": "identity check unavailable — model not installed",
             "flag": None,
             "per_image": [],
         }
