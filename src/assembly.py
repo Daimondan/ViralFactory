@@ -43,6 +43,9 @@ MASTER_MAX_BITRATE = "8M"
 MASTER_BUFSIZE = "16M"
 AUDIO_SAMPLE_RATE = "48000"
 AUDIO_BITRATE = "256k"
+MASTER_LOUDNESS_I = -14.0
+MASTER_LOUDNESS_TP = -1.5
+MASTER_LOUDNESS_LRA = 11.0
 
 
 def _video_encode_args(tier: str) -> list[str]:
@@ -64,8 +67,11 @@ def _video_encode_args(tier: str) -> list[str]:
 
 
 def _audio_encode_args() -> list[str]:
-    """ffmpeg audio encode arguments — 48 kHz is the platform upload spec."""
-    return ["-c:a", "aac", "-b:a", AUDIO_BITRATE, "-ar", AUDIO_SAMPLE_RATE]
+    """ffmpeg audio encode arguments for stereo 48 kHz platform masters."""
+    return [
+        "-c:a", "aac", "-b:a", AUDIO_BITRATE,
+        "-ar", AUDIO_SAMPLE_RATE, "-ac", "2",
+    ]
 
 
 class AssemblyRenderer:
@@ -664,15 +670,6 @@ class AssemblyRenderer:
             if overlay_result:
                 output_file = overlay_result
 
-            # Mix in SFX cues (whoosh, pop, hit, riser)
-            # The edit plan's per-segment sfx array has offsets relative to each
-            # segment. We convert to cumulative timeline positions and generate
-            # short synthetic audio tones mixed into the output.
-            sfx_result = self._mix_sfx(plan, segments, output_file, media_dir, version,
-                                       asset_id, draft_id, business_slug)
-            if sfx_result:
-                output_file = sfx_result
-
             # Audio strategy: driven by the edit plan's audio block, not a heuristic.
             # The LLM decided the audio strategy in the edit plan; the renderer
             # executes it. This replaced the old post-concat audio bed that looped
@@ -683,6 +680,16 @@ class AssemblyRenderer:
                 output_file, audio_block, media_dir, version,
                 asset_id, draft_id, business_slug, plan,
             )
+
+            # Mix SFX after the primary VO/music/original-audio strategy so it
+            # survives the strategy's replacement/mix pass.
+            sfx_result = self._mix_sfx(plan, segments, output_file, media_dir, version,
+                                       asset_id, draft_id, business_slug)
+            if sfx_result:
+                output_file = sfx_result
+
+            # Final mastering is unconditional and runs after every audio layer.
+            self._finalize_audio_master(output_file, media_dir, version)
 
             # Get final duration
             final_duration = self._get_duration(output_file)
@@ -1095,13 +1102,8 @@ class AssemblyRenderer:
 
         # Mix SFX into existing audio (or silence if no audio track)
         has_audio = self._has_audio_stream(output_file)
-        # Episode-format plans carry an enforced loudnorm target (I=-14)
-        ln = (plan or {}).get("loudnorm_target") or {}
-        ln_I = ln.get("I", -16.0)
-        ln_TP = ln.get("TP", -1.5)
-        ln_LRA = ln.get("LRA", 11.0)
         if has_audio:
-            filter_parts.append(f"[0:a]loudnorm=I={ln_I}:TP={ln_TP}:LRA={ln_LRA}[base]")
+            filter_parts.append("[0:a]aformat=channel_layouts=stereo[base]")
             mix_inputs = "[base]" + "".join(sfx_labels)
             n_inputs = len(sfx_labels) + 1
             filter_parts.append(
@@ -1352,6 +1354,41 @@ class AssemblyRenderer:
             os.replace(normalized, output_file)
         elif os.path.exists(normalized):
             os.remove(normalized)
+
+    def _finalize_audio_master(self, output_file: str, media_dir: str, version: int):
+        """Master the completed audio mix to the platform stereo delivery spec.
+
+        This is deliberately the final audio operation. VO, music, original
+        audio, and optional SFX may each change integrated loudness or peaks,
+        so normalizing an earlier layer cannot guarantee the delivered master.
+        """
+        if not self._has_audio_stream(output_file):
+            self._apply_silent_audio(output_file, media_dir, version)
+        if not self._has_audio_stream(output_file):
+            raise AssemblyError("Final audio mastering requires an audio track")
+
+        audio_filter = (
+            f"aresample={AUDIO_SAMPLE_RATE},aformat=channel_layouts=stereo,"
+            f"loudnorm=I={MASTER_LOUDNESS_I}:TP={MASTER_LOUDNESS_TP}:"
+            f"LRA={MASTER_LOUDNESS_LRA},alimiter=limit=-1.5dB:level=disabled"
+        )
+        mastered = os.path.join(media_dir, f"final_{version}_mastered.mp4")
+        cmd = [
+            "ffmpeg", "-y", "-i", output_file,
+            "-map", "0:v:0", "-map", "0:a:0",
+            "-af", audio_filter,
+            "-c:v", "copy",
+        ] + _audio_encode_args() + [mastered]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        if result.returncode == 0 and os.path.exists(mastered):
+            os.replace(mastered, output_file)
+            return
+        if os.path.exists(mastered):
+            os.remove(mastered)
+        stderr_lines = result.stderr.strip().split("\n")
+        error_lines = [line for line in stderr_lines if line.startswith(("Error", "[error"))]
+        error_msg = "\n".join(error_lines[-3:]) if error_lines else result.stderr[-500:]
+        raise AssemblyError(f"Final audio mastering failed: {error_msg}")
 
     def _apply_loudnorm(self, output_file: str, media_dir: str, version: int,
                         loudnorm_I: float = -16.0, loudnorm_TP: float = -1.5,

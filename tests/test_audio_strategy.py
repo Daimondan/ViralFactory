@@ -342,8 +342,17 @@ class TestNoLoopingAudioBed:
         }
 
         os.makedirs(os.path.join("data", "media", "9972"), exist_ok=True)
+        final_master_calls = []
+        original_final_master = renderer._finalize_audio_master
+
+        def record_final_master(*args, **kwargs):
+            final_master_calls.append((args, kwargs))
+            return original_final_master(*args, **kwargs)
+
+        renderer._finalize_audio_master = record_final_master
         result = renderer.render(plan, asset_id=9972, draft_id=1)
         assert os.path.exists(result["path"])
+        assert len(final_master_calls) == 1
 
         # The audio should be silent — check volume at multiple timestamps
         for t in [2, 6, 10, 15]:
