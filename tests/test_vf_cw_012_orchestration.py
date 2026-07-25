@@ -235,7 +235,7 @@ class TestReconcileStaleJobs:
         session, _ = _setup_session(db_path)
 
         from jobs import JobsStore
-        jobs = JobsStore(db_path=db_path)
+        jobs = JobsStore(db_path=db_path, foreign_keys=False)
         jobs.start_job("test", entity_id=session["id"])
 
         result = svc.reconcile_stale_jobs("test_tenant", session["id"])

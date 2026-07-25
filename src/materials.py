@@ -10,6 +10,7 @@ import os
 import re
 import json
 import sqlite3
+import db
 from datetime import datetime
 from typing import Optional
 from pathlib import Path
@@ -18,16 +19,18 @@ from pathlib import Path
 class MaterialsIntake:
     """Manages user material collection, normalization, and storage."""
 
-    def __init__(self, db_path: str = "data/viralfactory.db", upload_dir: str = "data/uploads"):
+    def __init__(self, db_path: str = "data/viralfactory.db", upload_dir: str = "data/uploads",
+                 foreign_keys: bool = True):
         self.db_path = db_path
         self.upload_dir = upload_dir
+        self._foreign_keys = foreign_keys
         os.makedirs(upload_dir, exist_ok=True)
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self._init_db()
 
     def _init_db(self):
         """Create the materials table."""
-        conn = sqlite3.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=False)
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS materials (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -399,8 +402,7 @@ class MaterialsIntake:
         as corpus. Pending/failed audio is excluded.
         Excluded materials are dropped (never deleted).
         """
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         rows = conn.execute(
             "SELECT * FROM materials WHERE run_id = ? ORDER BY id",
             (run_id,),
@@ -443,8 +445,7 @@ class MaterialsIntake:
 
     def get_material(self, material_id: int) -> dict:
         """Get a single material by ID."""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         row = conn.execute(
             "SELECT * FROM materials WHERE id = ?", (material_id,)
         ).fetchone()
@@ -453,8 +454,7 @@ class MaterialsIntake:
 
     def list_materials(self, business_slug: str = None, run_id: int = None) -> list[dict]:
         """List materials, optionally filtered."""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         if run_id:
             rows = conn.execute(
                 "SELECT * FROM materials WHERE run_id = ? ORDER BY id DESC", (run_id,)
@@ -504,7 +504,7 @@ class MaterialsIntake:
         wc = len(raw_content.split()) if raw_content else 0
         ts = datetime.now().isoformat()
 
-        conn = sqlite3.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         cursor = conn.execute(
             """INSERT INTO materials
                (run_id, business_slug, filename, material_type, channel,
@@ -539,7 +539,7 @@ class MaterialsIntake:
         }
         if field not in ALLOWED_FIELDS:
             raise ValueError(f"Invalid field name: {field!r}. Allowed: {sorted(ALLOWED_FIELDS)}")
-        conn = sqlite3.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         conn.execute(
             f"UPDATE materials SET {field} = ? WHERE id = ?",
             (value, material_id),
@@ -560,8 +560,7 @@ class MaterialsIntake:
         - Returns the updated material dict.
         """
         import hashlib
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         row = conn.execute(
             "SELECT normalized_content, raw_content FROM materials WHERE id = ?",
             (material_id,),
@@ -600,8 +599,7 @@ class MaterialsIntake:
         - The restore is logged in material_edits like any other edit.
         """
         import hashlib
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         row = conn.execute(
             "SELECT normalized_content, raw_content FROM materials WHERE id = ?",
             (material_id,),
@@ -636,7 +634,7 @@ class MaterialsIntake:
         Excluded materials drop out of corpus, summaries, and drafting packages
         but are never deleted. Toggling back to False restores them.
         """
-        conn = sqlite3.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         conn.execute(
             "UPDATE materials SET excluded = ? WHERE id = ?",
             (1 if excluded else 0, material_id),
@@ -648,8 +646,7 @@ class MaterialsIntake:
 
     def get_edit_history(self, material_id: int) -> list[dict]:
         """Return the edit history log for a material (newest first)."""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         rows = conn.execute(
             "SELECT * FROM material_edits WHERE material_id = ? ORDER BY id DESC",
             (material_id,),

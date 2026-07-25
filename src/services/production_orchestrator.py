@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import db
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -207,13 +208,14 @@ class ProductionSessionService:
     write state directly.
     """
 
-    def __init__(self, db_path: str = "data/viralfactory.db"):
+    def __init__(self, db_path: str = "data/viralfactory.db", foreign_keys: bool = True):
+        self._foreign_keys = foreign_keys
         self.db_path = db_path
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self._init_db()
 
     def _init_db(self):
-        conn = sqlite3.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=False)
         conn.executescript(SCHEMA_SQL)
         conn.commit()
         conn.close()
@@ -242,8 +244,7 @@ class ProductionSessionService:
             )
 
         ts = self._now()
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         cursor = conn.execute(
             """INSERT INTO production_sessions
                (business_slug, draft_id, asset_id, platform, format,
@@ -270,8 +271,7 @@ class ProductionSessionService:
 
     def get_session(self, business_slug: str, session_id: int) -> dict:
         """Get a session by ID, verifying tenant scope."""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         row = conn.execute(
             "SELECT * FROM production_sessions WHERE id = ?", (session_id,)
         ).fetchone()
@@ -287,8 +287,7 @@ class ProductionSessionService:
 
     def get_session_for_asset(self, business_slug: str, asset_id: int) -> Optional[dict]:
         """Get the production session for a given asset, if one exists."""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         row = conn.execute(
             "SELECT * FROM production_sessions WHERE business_slug = ? AND asset_id = ?",
             (business_slug, asset_id),
@@ -300,8 +299,7 @@ class ProductionSessionService:
         self, business_slug: str, draft_id: int
     ) -> list[dict]:
         """Get all production sessions for a draft (one per platform asset)."""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         rows = conn.execute(
             "SELECT * FROM production_sessions WHERE business_slug = ? AND draft_id = ? ORDER BY id",
             (business_slug, draft_id),
@@ -335,8 +333,7 @@ class ProductionSessionService:
 
         ts = self._now()
         attempt = session["attempt"]
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
 
         # Compare-and-set: only update if current state hasn't changed
         cursor = conn.execute(
@@ -373,7 +370,7 @@ class ProductionSessionService:
         """Set the active requirements version pointer."""
         session = self.get_session(business_slug, session_id)
         ts = self._now()
-        conn = sqlite3.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         conn.execute(
             "UPDATE production_sessions SET active_requirements_version = ?, updated_at = ? WHERE id = ?",
             (version, ts, session_id),
@@ -388,7 +385,7 @@ class ProductionSessionService:
         """Set the active manifest version pointer."""
         session = self.get_session(business_slug, session_id)
         ts = self._now()
-        conn = sqlite3.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         conn.execute(
             "UPDATE production_sessions SET active_manifest_version = ?, updated_at = ? WHERE id = ?",
             (version, ts, session_id),
@@ -403,7 +400,7 @@ class ProductionSessionService:
         """Set the active render version pointer."""
         session = self.get_session(business_slug, session_id)
         ts = self._now()
-        conn = sqlite3.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         conn.execute(
             "UPDATE production_sessions SET active_render_version = ?, updated_at = ? WHERE id = ?",
             (version, ts, session_id),
@@ -418,7 +415,7 @@ class ProductionSessionService:
         """Set the active composition plan hash (AMENDMENT-014)."""
         session = self.get_session(business_slug, session_id)
         ts = self._now()
-        conn = sqlite3.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         conn.execute(
             "UPDATE production_sessions SET active_composition_plan_hash = ?, updated_at = ? WHERE id = ?",
             (plan_hash, ts, session_id),
@@ -434,7 +431,7 @@ class ProductionSessionService:
         session = self.get_session(business_slug, session_id)
         ts = self._now()
         new_attempt = session["attempt"] + 1
-        conn = sqlite3.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         conn.execute(
             "UPDATE production_sessions SET attempt = ?, updated_at = ? WHERE id = ?",
             (new_attempt, ts, session_id),
@@ -449,8 +446,7 @@ class ProductionSessionService:
         """Get the full transition history for a session."""
         # Verify tenant scope
         self.get_session(business_slug, session_id)
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         rows = conn.execute(
             "SELECT * FROM production_session_transitions WHERE session_id = ? ORDER BY id",
             (session_id,),
@@ -465,8 +461,7 @@ class ProductionSessionService:
         draft_id: int = None,
     ) -> list[dict]:
         """List sessions, optionally filtered by state or draft."""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         query = "SELECT * FROM production_sessions WHERE business_slug = ?"
         params = [business_slug]
         if state:

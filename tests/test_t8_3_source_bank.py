@@ -260,7 +260,7 @@ class TestMaterialsDoNotRegisterSources:
     def test_ingest_text_does_not_create_source(self, db_path):
         """ingest_text must NOT create a sources row."""
         from materials import MaterialsIntake
-        ms = MaterialsIntake(db_path=db_path)
+        ms = MaterialsIntake(db_path=db_path, foreign_keys=False)
         mid = ms.ingest_text(
             content="This is my voice. I speak with a Caribbean accent and use Bajan dialect.",
             business_slug="test-biz",
@@ -276,7 +276,7 @@ class TestMaterialsDoNotRegisterSources:
     def test_ingest_text_twice_no_sources(self, db_path):
         """Ingesting the same content twice still creates zero source rows."""
         from materials import MaterialsIntake
-        ms = MaterialsIntake(db_path=db_path)
+        ms = MaterialsIntake(db_path=db_path, foreign_keys=False)
         content = "Same content for dedupe test."
         ms.ingest_text(content=content, business_slug="test-biz", material_type="pasted")
         ms.ingest_text(content=content, business_slug="test-biz", material_type="pasted")
@@ -288,7 +288,7 @@ class TestMaterialsDoNotRegisterSources:
     def test_audio_material_no_source(self, db_path):
         """Audio materials don't create sources rows."""
         from materials import MaterialsIntake
-        ms = MaterialsIntake(db_path=db_path)
+        ms = MaterialsIntake(db_path=db_path, foreign_keys=False)
         mid = ms.ingest_text(
             content="[Audio: transcription pending]",
             business_slug="test-biz",
@@ -302,7 +302,7 @@ class TestMaterialsDoNotRegisterSources:
     def test_no_business_slug_no_source(self, db_path):
         """Without business_slug, no sources row is created."""
         from materials import MaterialsIntake
-        ms = MaterialsIntake(db_path=db_path)
+        ms = MaterialsIntake(db_path=db_path, foreign_keys=False)
         ms.ingest_text(
             content="Content without business",
             business_slug="",

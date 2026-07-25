@@ -40,7 +40,7 @@ def tmp_upload_dir():
 
 @pytest.fixture
 def intake(tmp_db, tmp_upload_dir):
-    return MaterialsIntake(db_path=tmp_db, upload_dir=tmp_upload_dir)
+    return MaterialsIntake(db_path=tmp_db, foreign_keys=False, upload_dir=tmp_upload_dir)
 
 
 WHATSAPP_EXPORT = """12/31/23, 11:45 PM - Daimon: Caribbean wealth isn't just about money in the bank

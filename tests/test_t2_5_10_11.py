@@ -139,7 +139,7 @@ class TestMaterialsColumnAllowlist:
         """Allowed field names are accepted by _update_field."""
         from materials import MaterialsIntake
         config_dir, modules_dir, db_path = tmp_dirs
-        intake = MaterialsIntake(db_path)
+        intake = MaterialsIntake(db_path, foreign_keys=False)
         mid = intake.ingest_text("test content", business_slug="testbrand")
         intake._update_field(mid, "normalized_content", "normalized text")
         material = intake.get_material(mid)
@@ -149,7 +149,7 @@ class TestMaterialsColumnAllowlist:
         """Non-allowlisted field names raise ValueError."""
         from materials import MaterialsIntake
         config_dir, modules_dir, db_path = tmp_dirs
-        intake = MaterialsIntake(db_path)
+        intake = MaterialsIntake(db_path, foreign_keys=False)
         mid = intake.ingest_text("test content", business_slug="testbrand")
         with pytest.raises(ValueError, match="Invalid field name"):
             intake._update_field(mid, "id; DROP TABLE materials; --", "evil")

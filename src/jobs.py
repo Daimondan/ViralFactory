@@ -20,6 +20,7 @@ job_key is derived from endpoint + entity id (+ input hash where inputs vary).
 import json
 import os
 import sqlite3
+import db
 import time
 from datetime import datetime, timezone
 from typing import Optional
@@ -65,13 +66,14 @@ DEFAULT_STALE_TIMEOUT_S = 600  # 10 minutes
 class JobsStore:
     """SQLite-backed job tracking and idempotency guard."""
 
-    def __init__(self, db_path: str = "data/viralfactory.db"):
+    def __init__(self, db_path: str = "data/viralfactory.db", foreign_keys: bool = True):
+        self._foreign_keys = foreign_keys
         self.db_path = db_path
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self._init_db()
 
     def _init_db(self):
-        conn = sqlite3.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=False)
         # Create table if not exists (original columns only for new DBs)
         # Then run migrations to add correlation columns to existing tables
         # before creating indexes that reference them
@@ -159,8 +161,7 @@ class JobsStore:
         """
         job_key = self.make_job_key(job_type, entity_id, input_hash)
         ts = self._now()
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
 
         # Check for an existing job with this key
         existing = conn.execute(
@@ -207,7 +208,7 @@ class JobsStore:
     def complete_job(self, job_id: int, result_ref: str = None):
         """Mark a job as done with an optional result reference."""
         ts = self._now()
-        conn = sqlite3.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         conn.execute(
             "UPDATE jobs SET status = 'done', result_ref = ?, completed_at = ? WHERE id = ?",
             (result_ref, ts, job_id),
@@ -218,7 +219,7 @@ class JobsStore:
     def fail_job(self, job_id: int, error: str = ""):
         """Mark a job as failed with an error message."""
         ts = self._now()
-        conn = sqlite3.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         conn.execute(
             "UPDATE jobs SET status = 'failed', error = ?, completed_at = ? WHERE id = ?",
             (error, ts, job_id),
@@ -228,8 +229,7 @@ class JobsStore:
 
     def get_job(self, job_id: int) -> Optional[dict]:
         """Get a single job by ID."""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         row = conn.execute(
             "SELECT * FROM jobs WHERE id = ?", (job_id,)
         ).fetchone()
@@ -238,8 +238,7 @@ class JobsStore:
 
     def get_job_by_key(self, job_key: str) -> Optional[dict]:
         """Get the most recent job with a given key."""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         row = conn.execute(
             "SELECT * FROM jobs WHERE job_key = ? ORDER BY id DESC LIMIT 1",
             (job_key,),
@@ -255,8 +254,7 @@ class JobsStore:
         limit: int = 50,
     ) -> list[dict]:
         """List jobs, optionally filtered."""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         query = "SELECT * FROM jobs WHERE 1=1"
         params = []
         if job_type:
@@ -278,8 +276,7 @@ class JobsStore:
         """Mark all stale 'running' jobs as 'dead'. Returns count of cleaned jobs."""
         ts = self._now()
         cutoff = datetime.now(timezone.utc).timestamp() - stale_timeout_s
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         running = conn.execute(
             "SELECT * FROM jobs WHERE status = 'running'"
         ).fetchall()

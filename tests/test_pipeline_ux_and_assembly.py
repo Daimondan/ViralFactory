@@ -26,13 +26,13 @@ class TestJobsTable:
     """F1: Jobs table — idempotency and async job tracking."""
 
     def test_start_job_returns_started(self, tmp_path):
-        store = JobsStore(str(tmp_path / "test.db"))
+        store = JobsStore(str(tmp_path / "test.db"), foreign_keys=False)
         result = store.start_job("draft_generate", entity_id=1)
         assert result["status"] == "started"
         assert "job_id" in result
 
     def test_duplicate_job_returns_running(self, tmp_path):
-        store = JobsStore(str(tmp_path / "test.db"))
+        store = JobsStore(str(tmp_path / "test.db"), foreign_keys=False)
         r1 = store.start_job("draft_generate", entity_id=1)
         assert r1["status"] == "started"
         r2 = store.start_job("draft_generate", entity_id=1)
@@ -40,7 +40,7 @@ class TestJobsTable:
         assert r2["job_id"] == r1["job_id"]
 
     def test_complete_job_allows_new_same_key(self, tmp_path):
-        store = JobsStore(str(tmp_path / "test.db"))
+        store = JobsStore(str(tmp_path / "test.db"), foreign_keys=False)
         r1 = store.start_job("fan_out", entity_id=5)
         store.complete_job(r1["job_id"], "result_ref")
         r2 = store.start_job("fan_out", entity_id=5)
@@ -48,7 +48,7 @@ class TestJobsTable:
         assert r2["job_id"] != r1["job_id"]
 
     def test_completed_job_returns_done(self, tmp_path):
-        store = JobsStore(str(tmp_path / "test.db"))
+        store = JobsStore(str(tmp_path / "test.db"), foreign_keys=False)
         r1 = store.start_job("media_images", entity_id=10)
         store.complete_job(r1["job_id"], "images:3")
         r2 = store.start_job("media_images", entity_id=10)
@@ -56,14 +56,14 @@ class TestJobsTable:
         assert r2["status"] == "started"
 
     def test_fail_job_allows_retry(self, tmp_path):
-        store = JobsStore(str(tmp_path / "test.db"))
+        store = JobsStore(str(tmp_path / "test.db"), foreign_keys=False)
         r1 = store.start_job("media_video", entity_id=3)
         store.fail_job(r1["job_id"], "API timeout")
         r2 = store.start_job("media_video", entity_id=3)
         assert r2["status"] == "started"
 
     def test_job_key_with_input_hash(self, tmp_path):
-        store = JobsStore(str(tmp_path / "test.db"))
+        store = JobsStore(str(tmp_path / "test.db"), foreign_keys=False)
         r1 = store.start_job("analyze", entity_id=1, input_hash="abc123")
         r2 = store.start_job("analyze", entity_id=1, input_hash="abc123")
         assert r2["status"] == "running"  # same key = running
@@ -71,7 +71,7 @@ class TestJobsTable:
         assert r3["status"] == "started"  # different hash = new job
 
     def test_stale_job_is_marked_dead(self, tmp_path):
-        store = JobsStore(str(tmp_path / "test.db"))
+        store = JobsStore(str(tmp_path / "test.db"), foreign_keys=False)
         r1 = store.start_job("assembly_render", entity_id=7)
         # Simulate stale by manually setting old timestamp
         import sqlite3
@@ -87,7 +87,7 @@ class TestJobsTable:
         assert r2["job_id"] != r1["job_id"]
 
     def test_list_jobs_filtered(self, tmp_path):
-        store = JobsStore(str(tmp_path / "test.db"))
+        store = JobsStore(str(tmp_path / "test.db"), foreign_keys=False)
         store.start_job("draft_generate", entity_id=1)
         store.start_job("fan_out", entity_id=2)
         store.start_job("draft_generate", entity_id=3)
@@ -653,7 +653,7 @@ class TestAssemblyRenderer:
         renderer = AssemblyRenderer({}, db_path=str(tmp_path / "test.db"))
 
         # Create a materials table with a session_upload entry
-        intake = MaterialsIntake(str(tmp_path / "test.db"))
+        intake = MaterialsIntake(str(tmp_path / "test.db"), foreign_keys=False)
         # We need to insert directly since MaterialsIntake may not have a helper
         import sqlite3
         conn = sqlite3.connect(str(tmp_path / "test.db"))
@@ -725,7 +725,7 @@ class TestFlaskRoutes:
         db_path = str(tmp_path / "test.db")
         app = create_app(config_dir="config", db_path=db_path)
         store = PipelineStore(db_path)
-        intake = MaterialsIntake(db_path)
+        intake = MaterialsIntake(db_path, foreign_keys=False)
         intake._store(None, "stackpenni", "old-water.mp4", "audio", "capture_upload", "", "", "old unrelated clip")
 
         card_id = store.create_idea_card(

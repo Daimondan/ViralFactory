@@ -65,7 +65,7 @@ def jobs_store(tmp_db):
     if src_dir not in sys.path:
         sys.path.insert(0, src_dir)
     from jobs import JobsStore
-    return JobsStore(db_path=tmp_db)
+    return JobsStore(db_path=tmp_db, foreign_keys=False)
 
 
 def _make_approved_card(store, business_slug="test_tenant"):
@@ -439,7 +439,7 @@ class TestJobCorrelationIDs:
     def test_jobs_table_has_correlation_columns(self, tmp_db):
         """The jobs table has correlation columns for production observability."""
         from jobs import JobsStore
-        js = JobsStore(db_path=tmp_db)
+        js = JobsStore(db_path=tmp_db, foreign_keys=False)
 
         conn = sqlite3.connect(tmp_db)
         cols = [r[1] for r in conn.execute("PRAGMA table_info(jobs)").fetchall()]
@@ -453,7 +453,7 @@ class TestJobCorrelationIDs:
     def test_start_job_persists_correlation(self, tmp_db):
         """start_job accepts and persists correlation fields."""
         from jobs import JobsStore
-        js = JobsStore(db_path=tmp_db)
+        js = JobsStore(db_path=tmp_db, foreign_keys=False)
 
         result = js.start_job(
             "assembly_render",
@@ -505,7 +505,7 @@ class TestJobCorrelationIDs:
 
         # Now initialize JobsStore — it should add the missing columns
         from jobs import JobsStore
-        js = JobsStore(db_path=tmp_db)
+        js = JobsStore(db_path=tmp_db, foreign_keys=False)
 
         conn = sqlite3.connect(tmp_db)
         cols = [r[1] for r in conn.execute("PRAGMA table_info(jobs)").fetchall()]

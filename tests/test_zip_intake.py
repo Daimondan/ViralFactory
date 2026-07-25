@@ -23,7 +23,7 @@ def db_path(tmp_path):
 def intake(db_path, tmp_path):
     from materials import MaterialsIntake
     upload_dir = str(tmp_path / "uploads")
-    return MaterialsIntake(db_path=db_path, upload_dir=upload_dir)
+    return MaterialsIntake(db_path=db_path, foreign_keys=False, upload_dir=upload_dir)
 
 
 @pytest.fixture

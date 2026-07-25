@@ -56,7 +56,7 @@ class TestF2bDocxExtraction:
         """Create a real .docx and verify text extraction works."""
         from docx import Document
         db_path = os.path.join(tempfile.mkdtemp(), "test.db")
-        intake = MaterialsIntake(db_path)
+        intake = MaterialsIntake(db_path, foreign_keys=False)
 
         with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
             docx_path = f.name
@@ -78,7 +78,7 @@ class TestF2bDocxExtraction:
 
     def test_docx_extraction_returns_none_for_invalid_file(self):
         db_path = os.path.join(tempfile.mkdtemp(), "test.db")
-        intake = MaterialsIntake(db_path)
+        intake = MaterialsIntake(db_path, foreign_keys=False)
         with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
             f.write(b"not a real docx")
             path = f.name
@@ -95,7 +95,7 @@ class TestF2cAudioRecognition:
     def test_audio_extensions_recognized(self, ext):
         """Audio extensions should be handled as audio, not fall through to the text/binary branch."""
         db_path = os.path.join(tempfile.mkdtemp(), "test.db")
-        intake = MaterialsIntake(db_path)
+        intake = MaterialsIntake(db_path, foreign_keys=False)
         with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as f:
             f.write(b"\x00\x00\x00\x1cftypisom")  # Fake binary header
             path = f.name

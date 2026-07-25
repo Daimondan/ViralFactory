@@ -12,6 +12,9 @@ def test_no_direct_sqlite_connect_in_migrated_modules():
         # Migration order per P1-5: pipeline.py, app.py, production_orchestrator.py,
         # materials.py, jobs.py, then the remainder.
         "src/pipeline.py",
+        "src/materials.py",
+        "src/jobs.py",
+        "src/services/production_orchestrator.py",
     ]
     for path in migrated:
         import os

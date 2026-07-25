@@ -43,7 +43,7 @@ def tmp_upload_dir():
 
 @pytest.fixture
 def intake(tmp_db, tmp_upload_dir):
-    return MaterialsIntake(db_path=tmp_db, upload_dir=tmp_upload_dir)
+    return MaterialsIntake(db_path=tmp_db, foreign_keys=False, upload_dir=tmp_upload_dir)
 
 
 @pytest.fixture
@@ -213,7 +213,7 @@ class TestMaterialsRoutes:
         from app import create_app
         config_dir, modules_dir, db_path = tmp_dirs
         # Add a material first
-        intake = MaterialsIntake(db_path=db_path)
+        intake = MaterialsIntake(db_path=db_path, foreign_keys=False)
         intake.ingest_text("Test material content.", business_slug="testbrand",
                            material_type="pasted", channel="social_post")
         app = create_app(config_dir=config_dir, db_path=db_path)
@@ -226,7 +226,7 @@ class TestMaterialsRoutes:
         """GET /materials/<id> loads with 200."""
         from app import create_app
         config_dir, modules_dir, db_path = tmp_dirs
-        intake = MaterialsIntake(db_path=db_path)
+        intake = MaterialsIntake(db_path=db_path, foreign_keys=False)
         mid = intake.ingest_text("Detail content here.", business_slug="testbrand")
         app = create_app(config_dir=config_dir, db_path=db_path)
         client = app.test_client()
@@ -247,7 +247,7 @@ class TestMaterialsRoutes:
         """POST /api/materials/<id>/edit saves normalized_content."""
         from app import create_app
         config_dir, modules_dir, db_path = tmp_dirs
-        intake = MaterialsIntake(db_path=db_path)
+        intake = MaterialsIntake(db_path=db_path, foreign_keys=False)
         mid = intake.ingest_text("Original content.", business_slug="testbrand")
         app = create_app(config_dir=config_dir, db_path=db_path)
         client = app.test_client()
@@ -265,7 +265,7 @@ class TestMaterialsRoutes:
         """POST /api/materials/<id>/exclude toggles the excluded flag."""
         from app import create_app
         config_dir, modules_dir, db_path = tmp_dirs
-        intake = MaterialsIntake(db_path=db_path)
+        intake = MaterialsIntake(db_path=db_path, foreign_keys=False)
         mid = intake.ingest_text("Exclude me.", business_slug="testbrand",
                                  run_id=300)
         app = create_app(config_dir=config_dir, db_path=db_path)
@@ -283,7 +283,7 @@ class TestMaterialsRoutes:
         """POST /api/materials/<id>/restore restores to raw."""
         from app import create_app
         config_dir, modules_dir, db_path = tmp_dirs
-        intake = MaterialsIntake(db_path=db_path)
+        intake = MaterialsIntake(db_path=db_path, foreign_keys=False)
         mid = intake.ingest_text("Original.", business_slug="testbrand")
         intake.save_edit(mid, "Modified.")
         app = create_app(config_dir=config_dir, db_path=db_path)
@@ -306,7 +306,7 @@ class TestMaterialsRoutes:
         """Excluded materials show an 'Excluded' badge on the list page."""
         from app import create_app
         config_dir, modules_dir, db_path = tmp_dirs
-        intake = MaterialsIntake(db_path=db_path)
+        intake = MaterialsIntake(db_path=db_path, foreign_keys=False)
         mid = intake.ingest_text("Will be excluded.", business_slug="testbrand")
         intake.toggle_exclude(mid, True)
         app = create_app(config_dir=config_dir, db_path=db_path)

@@ -89,7 +89,7 @@ class TestInterviewProducesCorpus:
             db_path = f.name
         os.unlink(db_path)
 
-        intake = MaterialsIntake(db_path=db_path)
+        intake = MaterialsIntake(db_path=db_path, foreign_keys=False)
 
         # Simulate 5 interview answers
         answers = [

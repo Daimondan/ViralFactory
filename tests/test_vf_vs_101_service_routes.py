@@ -68,7 +68,7 @@ def test_uploaded_binary_path_is_available_to_shared_inventory(tmp_path):
     db_path = str(tmp_path / "test.db")
     upload = tmp_path / "capture.mp4"
     upload.write_bytes(b"capture fixture")
-    intake = MaterialsIntake(db_path, upload_dir=str(tmp_path / "uploads"))
+    intake = MaterialsIntake(db_path, upload_dir=str(tmp_path / "uploads"), foreign_keys=False)
     material_id = intake.ingest_file(
         str(upload),
         business_slug="stackpenni",

@@ -31,7 +31,7 @@ def test_enqueue_returns_immediately_and_prevents_duplicate_work(tmp_path):
     assert first["status"] == "started"
     assert second == {"status": "running", "job_id": first["job_id"],
                       "started_at": second["started_at"]}
-    job = JobsStore(db_path).get_job(first["job_id"])
+    job = JobsStore(db_path, foreign_keys=False).get_job(first["job_id"])
     assert json.loads(job["result_ref"]) == {
         "approved_cost_usd": 3.0,
         "source_hash": "writer-hash",
@@ -121,7 +121,7 @@ def test_operator_route_does_not_enqueue_the_retired_vo_led_path(tmp_path):
 
     assert response.status_code == 409
     assert "retired" in response.get_json()["error"].lower()
-    assert JobsStore(db_path).list_jobs(job_type="reel_production") == []
+    assert JobsStore(db_path, foreign_keys=False).list_jobs(job_type="reel_production") == []
 
 
 def test_fal_poll_download_uses_adapter_contract():

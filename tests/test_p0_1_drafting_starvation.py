@@ -245,7 +245,7 @@ class TestShotLibrarySummary:
             upload_dir = os.path.join(tmpdir, "uploads")
             os.makedirs(upload_dir)
 
-            intake = MaterialsIntake(db_path, upload_dir)
+            intake = MaterialsIntake(db_path, upload_dir, foreign_keys=False)
             mid = intake.ingest_text(
                 "This is a test brand document with visual style information.",
                 run_id=1, business_slug="test-biz",
