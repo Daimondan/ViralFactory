@@ -185,7 +185,7 @@ def test_edit_and_soundtrack_plan_rollback_together_on_soundtrack_insert_failure
     tmp_path,
 ):
     db_path = str(tmp_path / "pipeline.db")
-    store = PipelineStore(db_path)
+    store = PipelineStore(db_path, foreign_keys=False)
     card_id = store.create_idea_card(
         "test-business", "Idea", ["Hook"], {}, "ai_originated",
     )

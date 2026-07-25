@@ -15,7 +15,7 @@ from services.edit_planning import EditPlanningService
 
 def _make_voice_led_reel(tmp_path):
     db_path = str(tmp_path / "pipeline.db")
-    store = PipelineStore(db_path)
+    store = PipelineStore(db_path, foreign_keys=False)
     draft_id = store.create_draft(
         "stackpenni",
         0,

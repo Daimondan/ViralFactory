@@ -1004,13 +1004,16 @@ class PipelineStore:
     All state transitions happen through explicit methods — no implicit writes.
     """
 
-    def __init__(self, db_path: str = "data/viralfactory.db"):
+    def __init__(self, db_path: str = "data/viralfactory.db", foreign_keys: bool = True):
         self.db_path = db_path
+        self._foreign_keys = foreign_keys
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self._init_db()
 
     def _init_db(self):
-        conn = db.connect(self.db_path)
+        # FK disabled during schema creation — executescript may create
+        # tables in dependency order, and CREATE TABLE doesn't need FK checks.
+        conn = db.connect(self.db_path, foreign_keys=False)
         conn.executescript(SCHEMA_SQL)
         from soundtrack_rights import SoundtrackRightsStore
         from soundtrack_mix import SoundtrackMixStore
@@ -1093,7 +1096,7 @@ class PipelineStore:
         parent_id: int = None,
     ) -> int:
         """Create a new idea card. Returns the card ID."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         ts = self._now()
         cursor = conn.execute(
             """INSERT INTO idea_cards
@@ -1113,7 +1116,7 @@ class PipelineStore:
 
     def get_idea_card(self, card_id: int) -> dict:
         """Get a single idea card by ID."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         row = conn.execute(
             "SELECT * FROM idea_cards WHERE id = ?", (card_id,)
         ).fetchone()
@@ -1124,7 +1127,7 @@ class PipelineStore:
         self, business_slug: str, state: str = None,
     ) -> list[dict]:
         """List idea cards for a business, optionally filtered by state."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         if state:
             rows = conn.execute(
                 "SELECT * FROM idea_cards WHERE business_slug = ? AND card_state = ? ORDER BY id DESC",
@@ -1145,7 +1148,7 @@ class PipelineStore:
         if not states:
             return []
         placeholders = ",".join("?" * len(states))
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         rows = conn.execute(
             f"SELECT * FROM idea_cards WHERE business_slug = ? AND card_state IN ({placeholders}) ORDER BY id DESC",
             [business_slug] + states,
@@ -1159,7 +1162,7 @@ class PipelineStore:
         production_error: dict = None,
     ) -> dict:
         """Transition an idea card to a new state."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         ts = self._now()
         if kill_reason is not None:
             conn.execute(
@@ -1184,7 +1187,7 @@ class PipelineStore:
 
     def update_card_treatment(self, card_id: int, treatment: dict) -> dict:
         """Update the treatment on a card (direct-edit at Gate 1)."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         ts = self._now()
         conn.execute(
             "UPDATE idea_cards SET treatment = ?, updated_at = ? WHERE id = ?",
@@ -1200,7 +1203,7 @@ class PipelineStore:
         """Update editable fields on an idea card (operator edit at Gate 1).
         Only idea text and hook_options are operator-editable. Treatment,
         origin, and source_refs are not touched."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         ts = self._now()
         if idea is not None:
             conn.execute(
@@ -1223,7 +1226,7 @@ class PipelineStore:
             return None
         uploads = json.loads(card.get("capture_uploads") or "[]")
         uploads.append(material_id)
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         ts = self._now()
         conn.execute(
             "UPDATE idea_cards SET capture_uploads = ?, updated_at = ? WHERE id = ?",
@@ -1250,7 +1253,7 @@ class PipelineStore:
 
     def list_series_children(self, parent_id: int) -> list[dict]:
         """List child cards spawned from a series parent."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         rows = conn.execute(
             "SELECT * FROM idea_cards WHERE parent_id = ? ORDER BY id ASC",
             (parent_id,),
@@ -1269,7 +1272,7 @@ class PipelineStore:
         scope: str = None,
     ) -> int:
         """Create a new draft record linked to an idea card. Returns draft ID."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         ts = self._now()
         cursor = conn.execute(
             """INSERT INTO drafts
@@ -1291,7 +1294,7 @@ class PipelineStore:
 
     def get_draft(self, draft_id: int) -> dict:
         """Get a single draft by ID."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         row = conn.execute(
             "SELECT * FROM drafts WHERE id = ?", (draft_id,)
         ).fetchone()
@@ -1313,7 +1316,7 @@ class PipelineStore:
         derived from the first platform_content entry's content for legacy
         views that still read draft_text.
         """
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         ts = self._now()
         # If platform_content provided but draft_text is empty, derive a summary
         if platform_content and not draft_text:
@@ -1333,7 +1336,7 @@ class PipelineStore:
 
     def update_draft_state(self, draft_id: int, state: str) -> dict:
         """Transition a draft to a new state."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         ts = self._now()
         conn.execute(
             "UPDATE drafts SET draft_state = ?, updated_at = ? WHERE id = ?",
@@ -1346,7 +1349,7 @@ class PipelineStore:
     def save_review_history(self, draft_id: int, review_history: list[dict],
                             converged: bool) -> dict:
         """T9.5: Save the AI review loop history and convergence status."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         ts = self._now()
         conn.execute(
             "UPDATE drafts SET review_history = ?, review_converged = ?, updated_at = ? WHERE id = ?",
@@ -1358,7 +1361,7 @@ class PipelineStore:
 
     def save_platform_content(self, draft_id: int, platform_content: list[dict]) -> dict:
         """T9.3: Save updated platform_content (e.g. after AI review loop fix)."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         ts = self._now()
         # Also update draft_text summary from first entry
         draft_text = platform_content[0].get("content", "") if platform_content else ""
@@ -1376,7 +1379,7 @@ class PipelineStore:
         DEPRECATED by F1: direct edits now go through save_edited_text which
         writes draft_text directly. This method is kept for historical rows.
         """
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         ts = self._now()
         conn.execute(
             "UPDATE drafts SET human_edits = ?, updated_at = ? WHERE id = ?",
@@ -1392,7 +1395,7 @@ class PipelineStore:
         route through save_draft_content (which resets state and clobbers
         visual_direction/flags). Bumps draft_version.
         """
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         ts = self._now()
         conn.execute(
             "UPDATE drafts SET draft_text = ?, "
@@ -1448,7 +1451,7 @@ class PipelineStore:
                     draft_id=draft_id,
                 )
             # Bump version
-            conn = db.connect(self.db_path)
+            conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
             ts = self._now()
             conn.execute(
                 "UPDATE drafts SET draft_text = ?, self_audit_flags = ?, "
@@ -1465,7 +1468,7 @@ class PipelineStore:
                 feedback_text=f"Dismissed audit flag: rule='{flag.get('rule', '')}' line='{flag.get('line', '')[:100]}'",
                 draft_id=draft_id,
             )
-            conn = db.connect(self.db_path)
+            conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
             ts = self._now()
             conn.execute(
                 "UPDATE drafts SET self_audit_flags = ?, updated_at = ? WHERE id = ?",
@@ -1478,7 +1481,7 @@ class PipelineStore:
 
     def increment_draft_version(self, draft_id: int) -> int:
         """Increment the draft version (after a revise cycle). Returns new version."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         ts = self._now()
         conn.execute(
             "UPDATE drafts SET draft_version = draft_version + 1, draft_state = 'revised', updated_at = ? WHERE id = ?",
@@ -1493,7 +1496,7 @@ class PipelineStore:
         self, business_slug: str, state: str = None,
     ) -> list[dict]:
         """List drafts for a business, optionally filtered by state."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         if state:
             rows = conn.execute(
                 "SELECT * FROM drafts WHERE business_slug = ? AND draft_state = ? ORDER BY id DESC",
@@ -1527,7 +1530,7 @@ class PipelineStore:
         DIVERGENCE-022: post_caption stores the {text, hashtags[]} caption
         artifact for reel/story_series variants (None for text formats).
         """
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         # Ensure posts column exists (migration for existing DBs)
         cols = [row[1] for row in conn.execute("PRAGMA table_info(assets)").fetchall()]
         if "posts" not in cols:
@@ -1562,7 +1565,7 @@ class PipelineStore:
 
     def get_asset(self, asset_id: int) -> dict:
         """Get a single asset by ID."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         row = conn.execute(
             "SELECT * FROM assets WHERE id = ?", (asset_id,)
         ).fetchone()
@@ -1571,7 +1574,7 @@ class PipelineStore:
 
     def get_asset_by_draft(self, draft_id: int) -> dict:
         """Get the first asset variant in deterministic fan-out order."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         row = conn.execute(
             "SELECT * FROM assets WHERE draft_id = ? ORDER BY id ASC LIMIT 1",
             (draft_id,),
@@ -1581,7 +1584,7 @@ class PipelineStore:
 
     def _set_step_data(self, draft_id: int, step_name: str, data: dict) -> None:
         """Persist one autonomous production-step result for restart safety."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         conn.execute(
             """INSERT INTO production_step_data (draft_id, step_name, data_json, updated_at)
                VALUES (?, ?, ?, ?)
@@ -1595,7 +1598,7 @@ class PipelineStore:
 
     def _get_step_data(self, draft_id: int, step_name: str) -> dict | None:
         """Load a persisted autonomous production-step result."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         row = conn.execute(
             "SELECT data_json FROM production_step_data WHERE draft_id = ? AND step_name = ?",
             (draft_id, step_name),
@@ -1610,7 +1613,7 @@ class PipelineStore:
 
     def list_assets(self, draft_id: int) -> list[dict]:
         """List all asset variants for a draft."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         rows = conn.execute(
             "SELECT * FROM assets WHERE draft_id = ? ORDER BY id ASC",
             (draft_id,),
@@ -1620,7 +1623,7 @@ class PipelineStore:
 
     def update_asset_state(self, asset_id: int, state: str) -> dict:
         """Transition an asset to a new state."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         ts = self._now()
         conn.execute(
             "UPDATE assets SET asset_state = ?, updated_at = ? WHERE id = ?",
@@ -1632,7 +1635,7 @@ class PipelineStore:
 
     def set_asset_schedule(self, asset_id: int, scheduled_at: str) -> dict:
         """Set the publish schedule for an approved asset."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         ts = self._now()
         conn.execute(
             "UPDATE assets SET publish_scheduled_at = ?, updated_at = ? WHERE id = ?",
@@ -1648,7 +1651,7 @@ class PipelineStore:
         Stores the {text, hashtags[]} caption artifact for reel/story_series.
         Called when the operator edits the caption at Gate 3 before approving.
         """
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         # Ensure post_caption column exists (idempotent migration for older DBs)
         cols = [row[1] for row in conn.execute("PRAGMA table_info(assets)").fetchall()]
         if "post_caption" not in cols:
@@ -1665,7 +1668,7 @@ class PipelineStore:
 
     def save_vo_segments(self, asset_id: int, vo_segments_json: str):
         """Store per-frame VO segments on the asset row."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         ts = self._now()
         conn.execute(
             "UPDATE assets SET vo_segments = ?, updated_at = ? WHERE id = ?",
@@ -1676,7 +1679,7 @@ class PipelineStore:
 
     def get_vo_segments(self, asset_id: int) -> str | None:
         """Retrieve stored VO segments JSON for an asset."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         row = conn.execute(
             "SELECT vo_segments FROM assets WHERE id = ?", (asset_id,)
         ).fetchone()
@@ -1702,7 +1705,7 @@ class PipelineStore:
             "direct_edit": 3,
         }
         weight = weight_map.get(feedback_type, 1)
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         ts = self._now()
         cursor = conn.execute(
             """INSERT INTO feedback_log
@@ -1721,7 +1724,7 @@ class PipelineStore:
         self, business_slug: str, draft_id: int = None,
     ) -> list[dict]:
         """List feedback entries, optionally filtered by draft."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         if draft_id:
             rows = conn.execute(
                 "SELECT * FROM feedback_log WHERE business_slug = ? AND draft_id = ? ORDER BY id ASC",
@@ -1739,7 +1742,7 @@ class PipelineStore:
 
     def get_pipeline_stats(self, business_slug: str) -> dict:
         """Get stats for the nightly performance note: origin/format/scope breakdown."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
 
         # Count shipped drafts by origin
         shipped = conn.execute(
@@ -1865,7 +1868,7 @@ CREATE INDEX IF NOT EXISTS idx_soundtrack_plans_contract
         if soundtrack_plan is not None:
             self._validate_soundtrack_plan_for_storage(soundtrack_plan)
 
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         ts = self._now()
         conn.executescript(self.EDIT_PLAN_SCHEMA)
         self._ensure_edit_plan_columns(conn)
@@ -1911,7 +1914,7 @@ CREATE INDEX IF NOT EXISTS idx_soundtrack_plans_contract
 
     def get_edit_plan(self, plan_id: int) -> dict:
         """Get an edit plan by ID."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         row = conn.execute(
             "SELECT * FROM edit_plans WHERE id = ?", (plan_id,)
         ).fetchone()
@@ -1920,7 +1923,7 @@ CREATE INDEX IF NOT EXISTS idx_soundtrack_plans_contract
 
     def list_edit_plans(self, asset_id: int) -> list[dict]:
         """List all edit plans for an asset."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         # Ensure edit_plans table exists with T10.2 columns
         conn.executescript(self.EDIT_PLAN_SCHEMA)
         self._ensure_edit_plan_columns(conn)
@@ -1990,7 +1993,7 @@ CREATE INDEX IF NOT EXISTS idx_soundtrack_plans_contract
         """Validate and append an immutable soundtrack plan linked to a Reel."""
         self._validate_soundtrack_plan_for_storage(plan)
 
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         conn.executescript(self.EDIT_PLAN_SCHEMA)
         self._ensure_edit_plan_columns(conn)
         conn.executescript(self.SOUNDTRACK_PLAN_SCHEMA)
@@ -2033,7 +2036,7 @@ CREATE INDEX IF NOT EXISTS idx_soundtrack_plans_contract
 
     def get_soundtrack_plan(self, soundtrack_plan_id: int) -> dict | None:
         """Return one persisted soundtrack plan with decoded contract data."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         conn.executescript(self.SOUNDTRACK_PLAN_SCHEMA)
         row = conn.execute(
             "SELECT * FROM soundtrack_plans WHERE id = ?",
@@ -2044,7 +2047,7 @@ CREATE INDEX IF NOT EXISTS idx_soundtrack_plans_contract
 
     def list_soundtrack_plans(self, asset_id: int) -> list[dict]:
         """List immutable soundtrack plan versions for an asset, newest first."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         conn.executescript(self.SOUNDTRACK_PLAN_SCHEMA)
         rows = conn.execute(
             "SELECT * FROM soundtrack_plans WHERE asset_id = ? ORDER BY id DESC",
@@ -2055,7 +2058,7 @@ CREATE INDEX IF NOT EXISTS idx_soundtrack_plans_contract
 
     def update_edit_plan_status(self, plan_id: int, status: str, feedback: str = None) -> dict:
         """Update edit plan status (proposed → approved → rendering → rendered → failed)."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         ts = self._now()
         if feedback:
             conn.execute(
@@ -2077,7 +2080,7 @@ CREATE INDEX IF NOT EXISTS idx_soundtrack_plans_contract
         round_entry: {round, verdict, actions_taken, artifact_hashes, ...}
         Returns the updated edit plan.
         """
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         ts = self._now()
         self._ensure_edit_plan_columns(conn)
         row = conn.execute(
@@ -2098,7 +2101,7 @@ CREATE INDEX IF NOT EXISTS idx_soundtrack_plans_contract
 
     def get_review_round_history(self, plan_id: int) -> list[dict]:
         """T10.2: Get the review round history for an edit plan."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         row = conn.execute(
             "SELECT review_round_history FROM edit_plans WHERE id = ?", (plan_id,)
         ).fetchone()
@@ -2109,7 +2112,7 @@ CREATE INDEX IF NOT EXISTS idx_soundtrack_plans_contract
 
     def get_compliance_contract(self, plan_id: int) -> dict | None:
         """T10.2: Get the compliance contract for an edit plan."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         row = conn.execute(
             "SELECT compliance_contract_json, source_draft_hash FROM edit_plans WHERE id = ?",
             (plan_id,),
@@ -2140,7 +2143,7 @@ CREATE INDEX IF NOT EXISTS idx_soundtrack_plans_contract
     ) -> int:
         """Add a source to the Source Bank. Dedupes on content_hash.
         Returns the source ID (existing if deduped)."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         ts = self._now()
         # Check for existing source with same hash
         if content_hash:
@@ -2166,7 +2169,7 @@ CREATE INDEX IF NOT EXISTS idx_soundtrack_plans_contract
 
     def get_source(self, source_id: int) -> dict:
         """Get a single source by ID."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         row = conn.execute(
             "SELECT * FROM sources WHERE id = ?", (source_id,)
         ).fetchone()
@@ -2179,7 +2182,7 @@ CREATE INDEX IF NOT EXISTS idx_soundtrack_plans_contract
     ) -> list[dict]:
         """List sources for a business, optionally filtered by status.
         Ordered by most recently first_seen first."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         rows = conn.execute(
             """SELECT * FROM sources
                WHERE business_slug = ? AND status = ?
@@ -2194,7 +2197,7 @@ CREATE INDEX IF NOT EXISTS idx_soundtrack_plans_contract
         Returns only sources that exist and belong to the given business."""
         if not source_refs:
             return []
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         placeholders = ",".join("?" * len(source_refs))
         rows = conn.execute(
             f"""SELECT * FROM sources
@@ -2207,7 +2210,7 @@ CREATE INDEX IF NOT EXISTS idx_soundtrack_plans_contract
 
     def archive_source(self, source_id: int) -> dict:
         """Archive a source (soft delete)."""
-        conn = db.connect(self.db_path)
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
         conn.execute(
             "UPDATE sources SET status = 'archived' WHERE id = ?",
             (source_id,),

@@ -174,7 +174,7 @@ def make_visual_reel(
 ):
     """Create one measured-VO Reel with approved visual intent and inventory."""
     db_path = str(tmp_path / "pipeline.db")
-    store = PipelineStore(db_path)
+    store = PipelineStore(db_path, foreign_keys=False)
     draft_id = store.create_draft(
         "stackpenni", 0, "test", format_name="Instagram Reel Script",
     )

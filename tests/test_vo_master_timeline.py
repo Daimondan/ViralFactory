@@ -104,7 +104,7 @@ def test_asset_table_has_vo_segments_column():
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
     try:
-        store = PipelineStore(db_path)
+        store = PipelineStore(db_path, foreign_keys=False)
         # Create a draft + asset
         draft_id = store.create_draft("testbiz", 1, "ai_originated", "Instagram Reel Script", "one_off")
         store.save_draft_content(draft_id, "summary", {}, [], platform_content=[{

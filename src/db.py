@@ -13,7 +13,7 @@ import sqlite3
 BUSY_TIMEOUT_MS = 30_000
 
 
-def connect(db_path: str, row_factory: bool = True) -> sqlite3.Connection:
+def connect(db_path: str, row_factory: bool = True, foreign_keys: bool = True) -> sqlite3.Connection:
     """Create a connection with busy_timeout, foreign_keys, and row_factory.
 
     Parameters
@@ -25,6 +25,9 @@ def connect(db_path: str, row_factory: bool = True) -> sqlite3.Connection:
         can be accessed by column name. Pass False only when a caller
         genuinely depends on tuple-style positional indexing — and leave a
         comment saying why.
+    foreign_keys : bool
+        When True (default), enables ``PRAGMA foreign_keys=ON``. Pass False
+        only for test setups that create records out of FK order.
 
     Returns
     -------
@@ -32,7 +35,8 @@ def connect(db_path: str, row_factory: bool = True) -> sqlite3.Connection:
     """
     conn = sqlite3.connect(db_path, timeout=BUSY_TIMEOUT_MS / 1000)
     conn.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
-    conn.execute("PRAGMA foreign_keys=ON")
+    if foreign_keys:
+        conn.execute("PRAGMA foreign_keys=ON")
     if row_factory:
         conn.row_factory = sqlite3.Row
     return conn

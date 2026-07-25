@@ -17,7 +17,7 @@ from produce_chain import ProductionChain
 def test_operator_and_autonomous_paths_produce_equivalent_edit_plans(monkeypatch, tmp_path):
     db_path = str(tmp_path / "pipeline.db")
     app = create_app(config_dir=str(ROOT / "config"), db_path=db_path)
-    store = PipelineStore(db_path=db_path)
+    store = PipelineStore(db_path=db_path, foreign_keys=False)
     draft_id = store.create_draft(
         "stackpenni",
         0,

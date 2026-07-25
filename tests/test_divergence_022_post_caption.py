@@ -131,7 +131,7 @@ class TestValidatePostCaption:
 @pytest.fixture
 def store(tmp_path):
     db = str(tmp_path / "test.db")
-    return PipelineStore(db_path=db)
+    return PipelineStore(db_path=db, foreign_keys=False)
 
 
 class TestAssetStorage:
@@ -222,7 +222,7 @@ class TestAssetStorage:
     def test_legacy_asset_without_post_caption_column(self, tmp_path):
         """An old asset row with no post_caption column should not break get_asset."""
         db = str(tmp_path / "legacy.db")
-        s = PipelineStore(db_path=db)
+        s = PipelineStore(db_path=db, foreign_keys=False)
         # Create an asset (this adds the column)
         asset_id = s.create_asset(
             business_slug="test",

@@ -99,7 +99,7 @@ def test_operator_route_does_not_enqueue_the_retired_vo_led_path(tmp_path):
 
     db_path = str(tmp_path / "pipeline.db")
     app = create_app(config_dir=str(ROOT / "config"), db_path=db_path)
-    store = PipelineStore(db_path=db_path)
+    store = PipelineStore(db_path=db_path, foreign_keys=False)
     asset_id = store.create_asset(
         "fixture",
         1,
