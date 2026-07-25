@@ -290,3 +290,42 @@ class TestOverlayBurnIn:
 
         emphasis = renderer._resolve_overlay_style("emphasis")
         assert emphasis["fontsize"] == 56
+
+    def test_active_word_caption_keeps_the_same_pill_geometry(self, tmp_path):
+        """Word emphasis changes colour only; it must not make the pill jitter."""
+        renderer = AssemblyRenderer({}, db_path=str(tmp_path / "test.db"))
+        style = renderer._resolve_overlay_style("caption")
+        inactive = renderer._render_pil_overlay(
+            "Money moves slowly", style, "bottom", 1080, 1920,
+            renderer._DEFAULT_FONT,
+        )
+        active = renderer._render_pil_overlay(
+            "Money moves slowly", style, "bottom", 1080, 1920,
+            renderer._DEFAULT_FONT, active_word_index=1,
+        )
+        assert inactive is not None and active is not None
+        assert inactive.getbbox() == active.getbbox()
+        assert inactive.tobytes() != active.tobytes()
+
+    def test_timestamped_caption_burns_with_one_active_word_per_interval(self, tmp_path):
+        """Timestamped captions exercise the real FFmpeg overlay expansion path."""
+        renderer = AssemblyRenderer({}, db_path=str(tmp_path / "test.db"))
+        video_file = str(tmp_path / "input.mp4")
+        _make_video(video_file, duration=2)
+        plan = {"canvas": {"resolution": "1080x1920"}}
+        segments = [{
+            "source": "generated:1", "in": 0, "out": 2,
+            "overlays": [{
+                "type": "caption", "text": "Money moves", "start": 0, "end": 1,
+                "style_ref": "caption", "position": "bottom",
+                "word_timestamps": [
+                    {"word": "Money", "start": 0.0, "end": 0.45},
+                    {"word": "moves", "start": 0.45, "end": 0.9},
+                ],
+            }],
+        }]
+        result = renderer._burn_overlays(
+            plan, segments, video_file, str(tmp_path), 1, 1, 1, "test",
+        )
+        assert result == video_file
+        assert os.path.exists(video_file)

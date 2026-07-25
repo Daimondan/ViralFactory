@@ -240,6 +240,7 @@ class CueCompiler:
                         "phrase_index": caption_idx,
                         "word_count": phrase.word_count,
                         "approximate_timing": phrase.approximate,
+                        "word_timestamps": phrase.word_timestamps,
                     },
                 ))
                 caption_idx += 1

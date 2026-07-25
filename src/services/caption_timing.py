@@ -42,6 +42,7 @@ class CaptionPhrase:
     # True when timing is proportional (no word-level timestamps). Flips to
     # False once word timestamps are wired (T2.6–T2.8).
     approximate: bool = True
+    word_timestamps: Optional[list[dict]] = None
 
 
 def _chunk_words(
@@ -173,6 +174,7 @@ def chunk_captions(
                     end_sec=round(end, 3),
                     word_count=len(group),
                     approximate=False,
+                    word_timestamps=word_timestamps[idx : idx + len(group)],
                 )
             )
             idx += len(group)

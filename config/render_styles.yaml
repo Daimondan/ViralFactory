@@ -57,6 +57,7 @@ overlay_styles:
   caption:
     fontsize: 42
     fontcolor: white
+    active_word_fontcolor: "#E54B2C"
     borderw: 2
     bordercolor: black
     shadowx: 1

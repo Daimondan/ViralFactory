@@ -787,6 +787,7 @@ class AssemblyRenderer:
     def _render_pil_overlay(
         self, text: str, style: dict, position: str,
         width: int, height: int, font_path: str,
+        active_word_index: int | None = None,
     ) -> str | None:
         """Render a single text overlay as a transparent PNG using PIL.
 
@@ -876,27 +877,46 @@ class AssemblyRenderer:
             radius=16, fill=pill_fill,
         )
 
-        # Draw text lines — centered horizontally with shadow for readability
+        def parse_color(value: str) -> tuple[int, int, int, int]:
+            if value.startswith("#") and len(value) == 7:
+                return tuple(int(value[index:index + 2], 16) for index in (1, 3, 5)) + (255,)
+            return (255, 255, 255, 255)
+
+        # Draw text lines — centered horizontally with shadow for readability.
+        # `active_word_index` changes only glyph colour; line measurement and
+        # the pill rectangle above remain unchanged across every word frame.
         borderw = int(style.get("borderw", 0))
+        active_color = parse_color(style.get("active_word_fontcolor", fontcolor))
+        word_index = 0
         for i, line in enumerate(lines):
             bbox = draw.textbbox((0, 0), line, font=font)
             line_w = bbox[2] - bbox[0]
             x = (width - line_w) // 2
             y = y_start + i * line_height
-            # Shadow stroke for contrast
-            if borderw > 0:
-                bordercolor = style.get("bordercolor", "black")
-                if bordercolor.startswith("#"):
-                    bc = bordercolor[1:]
-                    br, bg, bb = int(bc[0:2], 16), int(bc[2:4], 16), int(bc[4:6], 16)
-                else:
-                    br, bg, bb = 0, 0, 0
+            bordercolor = style.get("bordercolor", "black")
+            if bordercolor.startswith("#"):
+                bc = bordercolor[1:]
+                br, bg, bb = int(bc[0:2], 16), int(bc[2:4], 16), int(bc[4:6], 16)
+            else:
+                br, bg, bb = 0, 0, 0
+
+            def draw_glyph(glyph: str, glyph_x: int, color: tuple[int, int, int, int]) -> None:
                 for dx, dy in [(-borderw, 0), (borderw, 0), (0, -borderw), (0, borderw),
                                (-borderw, -borderw), (borderw, -borderw),
                                (-borderw, borderw), (borderw, borderw)]:
-                    draw.text((x + dx, y + dy), line, font=font, fill=(br, bg, bb, 255))
-            # Main text
-            draw.text((x, y), line, font=font, fill=text_color)
+                    if borderw > 0:
+                        draw.text((glyph_x + dx, y + dy), glyph, font=font, fill=(br, bg, bb, 255))
+                draw.text((glyph_x, y), glyph, font=font, fill=color)
+
+            if active_word_index is None:
+                draw_glyph(line, x, text_color)
+                continue
+
+            for word in line.split():
+                color = active_color if word_index == active_word_index else text_color
+                draw_glyph(word, x, color)
+                x += draw.textlength(word + " ", font=font)
+                word_index += 1
 
         return overlay
 
@@ -934,6 +954,7 @@ class AssemblyRenderer:
                     "end": ov_end,
                     "style_ref": ov.get("style_ref", "default"),
                     "position": ov.get("position", "center"),
+                    "word_timestamps": ov.get("word_timestamps"),
                 })
             cumulative += seg_duration
 
@@ -953,10 +974,32 @@ class AssemblyRenderer:
         body_font = self._get_font_path()
         display_font = self._get_display_font_path()
 
+        # Expand timestamped caption overlays to one stable-geometry PNG per
+        # spoken word. Missing/incomplete timestamp data deliberately retains
+        # the existing single static pill fallback.
+        render_items = []
+        for ov in all_overlays:
+            timestamps = ov.get("word_timestamps")
+            words = ov["text"].split()
+            if (
+                isinstance(timestamps, list)
+                and len(timestamps) == len(words)
+                and all(isinstance(item, dict) and "start" in item and "end" in item for item in timestamps)
+            ):
+                for word_index, timestamp in enumerate(timestamps):
+                    render_items.append({
+                        **ov,
+                        "start": ov["start"] + float(timestamp["start"]),
+                        "end": ov["start"] + float(timestamp["end"]),
+                        "active_word_index": word_index,
+                    })
+            else:
+                render_items.append({**ov, "active_word_index": None})
+
         # Render each overlay as a PNG
         overlay_inputs = []
         filter_parts = []
-        for i, ov in enumerate(all_overlays):
+        for i, ov in enumerate(render_items):
             style = self._resolve_overlay_style(ov["style_ref"])
             # Use display font for hooks and titles, body font for everything else
             style_name = ov["style_ref"]
@@ -964,7 +1007,7 @@ class AssemblyRenderer:
             png_path = os.path.join(media_dir, f"overlay_{version}_{i}.png")
             pil_img = self._render_pil_overlay(
                 ov["text"], style, ov["position"],
-                width, height, font_path,
+                width, height, font_path, ov["active_word_index"],
             )
             if pil_img is None:
                 continue
@@ -977,7 +1020,7 @@ class AssemblyRenderer:
                 prev_label = "0:v"
             else:
                 prev_label = f"v{i - 1}"
-            if i == len(all_overlays) - 1:
+            if i == len(render_items) - 1:
                 next_label = "vout"
             else:
                 next_label = f"v{i}"
