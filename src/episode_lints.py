@@ -145,7 +145,7 @@ def lint_beat_grammar(
     - First beat must be 'hook'
     - Hook duration ≤ hook_max_duration_s (if duration is specified)
     - 'lesson' and 'cta' roles must be present
-    - Exactly one shot per beat (beats have staged_action)
+    - Every beat has one staged action; Amendment-015 derives its shots mechanically
 
     Args:
         beats: EpisodePlan beats list
@@ -201,13 +201,14 @@ def lint_beat_grammar(
             "message": "Missing 'cta' beat — episode must contain a cta (sign-off) beat",
         })
 
-    # Every beat must have staged_action (one shot per beat)
+    # Every beat must have a staged action. The shot count is then derived from
+    # measured VO duration by the Amendment-015 mechanical assembler.
     for beat in beats:
         if not beat.get("staged_action"):
             errors.append({
                 "lint": "beat_grammar",
                 "beat_id": beat.get("id", "?"),
-                "message": "Beat has no staged_action — exactly one shot per beat is required",
+                "message": "Beat has no staged_action — it cannot produce its required shots",
             })
 
     return errors

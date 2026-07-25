@@ -6,7 +6,7 @@ Proves:
 2. Shot spec assembly is mechanical (character_block + staged_action + location_block + grade_token)
 3. Edit plan compiles with beat_id on segments (existing EDIT_PLAN_SCHEMA)
 4. Loudnorm I=-14 is enforced for episode format (not optional)
-5. One shot per beat by construction
+5. Amendment-015 shots per measured-VO beat by construction
 6. Compliance contract beats map 1:1 to authored beats
 7. Approved text = ordered vo_text sequence (AMENDMENT-008 firewall)
 8. Banned tokens detected in shot specs
@@ -246,12 +246,39 @@ class TestShotSpecAssembly:
         # Should include location_ref files
         assert any("kitchen_dawn" in f for f in spec.reference_images)
 
-    def test_one_shot_per_beat_by_construction(self, ref_store):
-        """Exactly one shot spec per beat — by construction."""
+    def test_shots_per_beat_follow_measured_vo_and_keep_blocks_identical(self, ref_store):
+        """AMENDMENT-015 mechanically splits one staged action into VO-led shots."""
         assembler = ShotSpecAssembler(ref_store=ref_store, business_slug="test_business")
-        plan = _make_valid_plan()
+        plan = _make_valid_plan(beats=[
+            _make_beat("b01", duration_ms=11000),
+            _make_beat("b02", role="lesson", duration_ms=3200),
+        ])
         specs = assembler.assemble_all(plan["beats"])
-        assert len(specs) == len(plan["beats"])
+
+        first_beat = [spec for spec in specs if spec.beat_id == "b01"]
+        second_beat = [spec for spec in specs if spec.beat_id == "b02"]
+        assert len(first_beat) == 3
+        assert len(second_beat) == 1
+        assert [spec.framing for spec in first_beat] == ["wide", "medium", "close"]
+        assert sum(spec.duration_ms for spec in first_beat) == 11000
+        assert sum(spec.duration_ms for spec in second_beat) == 3200
+        assert len({spec.character_block for spec in first_beat}) == 1
+        assert len({spec.location_block for spec in first_beat}) == 1
+        assert len({spec.grade_token for spec in first_beat}) == 1
+
+    def test_full_plan_shot_durations_do_not_cross_beat_boundaries(self, ref_store):
+        assembler = ShotSpecAssembler(ref_store=ref_store, business_slug="test_business")
+        beats = [
+            _make_beat("b01", duration_ms=11000),
+            _make_beat("b02", role="lesson", duration_ms=8001),
+            _make_beat("b03", role="cta", duration_ms=3200),
+        ]
+        specs = assembler.assemble_all(beats)
+
+        for beat in beats:
+            shots = [spec for spec in specs if spec.beat_id == beat["id"]]
+            assert shots
+            assert sum(spec.duration_ms for spec in shots) == beat["duration_ms"]
 
     def test_no_character_ref_produces_empty_character_block(self, ref_store):
         """A beat without character_ref produces a shot spec without a character block."""
@@ -327,15 +354,24 @@ class TestEditPlanCompilation:
         plan = _make_valid_plan()
         edit_plan = compiler.compile_to_edit_plan(plan)
 
-        for seg, beat in zip(edit_plan["segments"], plan["beats"]):
-            assert seg["beat_id"] == beat["id"], f"Segment beat_id mismatch: {seg.get('beat_id')} != {beat['id']}"
+        assert {seg["beat_id"] for seg in edit_plan["segments"]} == {
+            beat["id"] for beat in plan["beats"]
+        }
 
-    def test_one_segment_per_beat(self, ref_store):
-        """Exactly one segment per beat."""
+    def test_compiler_emits_each_mechanical_shot_without_beat_drift(self, ref_store):
+        """AMENDMENT-015 output contains every VO-led shot, not one long hold."""
         compiler = EpisodePlanCompiler(ref_store=ref_store, business_slug="test_business")
-        plan = _make_valid_plan()
+        plan = _make_valid_plan(beats=[
+            _make_beat("b01", duration_ms=11000),
+            _make_beat("b02", role="lesson", duration_ms=3200),
+        ])
         edit_plan = compiler.compile_to_edit_plan(plan)
-        assert len(edit_plan["segments"]) == len(plan["beats"])
+        first_beat = [segment for segment in edit_plan["segments"] if segment["beat_id"] == "b01"]
+        second_beat = [segment for segment in edit_plan["segments"] if segment["beat_id"] == "b02"]
+        assert len(first_beat) == 3
+        assert len(second_beat) == 1
+        assert sum(segment["out"] - segment["in"] for segment in first_beat) == 11
+        assert sum(segment["out"] - segment["in"] for segment in second_beat) == 3.2
 
     def test_segment_source_is_generated(self, ref_store):
         """Segment source is generated:<beat_id> (resolved to video_media_id after animation)."""

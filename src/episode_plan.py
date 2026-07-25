@@ -14,10 +14,11 @@ This module implements the EpisodePlan layer:
    refs. The shot spec is NOT LLM-freeform: it is
      character_block(character_ref) + staged_action + location_block(location_ref) + grade_token
    Reference images are always the canonical registry files — never chained
-   outputs. Re-anchoring is structural. One shot per beat by construction.
+   outputs. Re-anchoring is structural. Amendment-015 derives multiple shots
+   mechanically from each measured-VO beat when needed.
 
 3. EpisodePlanCompiler — compiles an EpisodePlan down to the EXISTING edit plan
-   schema (pipeline.EDIT_PLAN_SCHEMA): one segment per beat, beat_id on each
+   schema (pipeline.EDIT_PLAN_SCHEMA): beat-scoped segments, beat_id on each
    segment, overlays = captions chunked 3–5 words from vo_text + graphics,
    audio block = VO primary + registry music_bed for dominant register (ducked),
    enforced loudnorm I=-14 for this format (not optional).
@@ -27,6 +28,7 @@ the episode-format module and reference asset registry.
 """
 
 import json
+import math
 import re
 from dataclasses import dataclass, field
 from typing import Optional
@@ -185,7 +187,7 @@ def validate_episode_plan_schema(plan: dict) -> list[str]:
 
 @dataclass
 class ShotSpec:
-    """A mechanically assembled shot spec for one beat.
+    """A mechanically assembled shot within one EpisodePlan beat.
 
     Per §3.2: image_prompt = character_block + staged_action + location_block + grade_token
     Reference images are always canonical registry files — never chained outputs.
@@ -198,6 +200,10 @@ class ShotSpec:
     graphics: list[dict] = field(default_factory=list)
     location_ref: str = ""
     character_ref: str = ""
+    framing: str = "wide"
+    character_block: str = ""
+    location_block: str = ""
+    grade_token: str = ""
 
     def to_dict(self) -> dict:
         return {
@@ -209,6 +215,10 @@ class ShotSpec:
             "graphics": self.graphics,
             "location_ref": self.location_ref,
             "character_ref": self.character_ref,
+            "framing": self.framing,
+            "character_block": self.character_block,
+            "location_block": self.location_block,
+            "grade_token": self.grade_token,
         }
 
 
@@ -313,7 +323,12 @@ class ShotSpecAssembler:
 
         return refs
 
-    def assemble_shot_spec(self, beat: dict) -> ShotSpec:
+    def assemble_shot_spec(
+        self,
+        beat: dict,
+        framing: str = "wide",
+        duration_ms: float | None = None,
+    ) -> ShotSpec:
         """Mechanically assemble a shot spec from one beat.
 
         image_prompt = character_block + staged_action + location_block + grade_token
@@ -329,7 +344,9 @@ class ShotSpecAssembler:
         location_block = self._resolve_location_block(location_ref)
         grade_token = self._resolve_grade_token()
 
-        # Assemble image prompt: character + action + location + grade
+        # Assemble image prompt: character + action + location + grade + framing.
+        # Framing is the only mechanical per-shot variation in this prompt;
+        # the separate motion prompt is authored by the media-planning process.
         prompt_parts = []
         if character_block:
             prompt_parts.append(character_block)
@@ -339,6 +356,7 @@ class ShotSpecAssembler:
             prompt_parts.append(location_block)
         if grade_token:
             prompt_parts.append(grade_token)
+        prompt_parts.append(f"{framing} framing")
 
         image_prompt = ", ".join(prompt_parts)
 
@@ -350,15 +368,42 @@ class ShotSpecAssembler:
             image_prompt=image_prompt,
             reference_images=reference_images,
             motion_prompt="",  # LLM-authored separately (storyboard/animation stage)
-            duration_ms=beat.get("duration_ms", 0.0),
+            duration_ms=beat.get("duration_ms", 0.0) if duration_ms is None else duration_ms,
             graphics=beat.get("graphics", []),
             location_ref=location_ref,
             character_ref=character_ref,
+            framing=framing,
+            character_block=character_block,
+            location_block=location_block,
+            grade_token=grade_token,
         )
 
     def assemble_all(self, beats: list[dict]) -> list[ShotSpec]:
-        """Assemble shot specs for all beats — one shot per beat by construction."""
-        return [self.assemble_shot_spec(b) for b in beats]
+        """Split each VO-led beat into its Amendment-015 mechanical shots.
+
+        Shot count is ``ceil(duration_ms / 4000)`` with a minimum of one.
+        Earlier shots get whole milliseconds evenly; the final shot receives
+        the remainder so no duration can drift across a beat boundary.
+        """
+        specs = []
+        framing_cycle = ("wide", "medium", "close", "insert")
+        for beat in beats:
+            duration_ms = float(beat.get("duration_ms", 0.0) or 0.0)
+            shot_count = max(1, math.ceil(max(duration_ms, 0.0) / 4000.0))
+            base_duration_ms = math.floor(duration_ms / shot_count)
+            final_duration_ms = duration_ms - base_duration_ms * (shot_count - 1)
+            for shot_index in range(shot_count):
+                shot_duration_ms = (
+                    final_duration_ms
+                    if shot_index == shot_count - 1
+                    else float(base_duration_ms)
+                )
+                specs.append(self.assemble_shot_spec(
+                    beat,
+                    framing=framing_cycle[shot_index % len(framing_cycle)],
+                    duration_ms=shot_duration_ms,
+                ))
+        return specs
 
     def scan_banned_tokens(self, shot_spec: ShotSpec) -> list[str]:
         """Check a shot spec's image_prompt for banned tokens.
@@ -379,7 +424,7 @@ class ShotSpecAssembler:
 class EpisodePlanCompiler:
     """Compiles an EpisodePlan down to the existing edit plan schema.
 
-    Per §3.3: one segment per beat, beat_id on each segment, overlays = captions
+    Per §3.3 as amended by AMENDMENT-015: VO-led shot segments per beat, beat_id on each segment, overlays = captions
     chunked 3–5 words from vo_text + graphics as overlay entries, sfx per
     standing order 10, audio = VO primary + registry music_bed for dominant
     register (ducked), loudnorm I=-14 ENFORCED for this format.
@@ -510,7 +555,7 @@ class EpisodePlanCompiler:
         """Compile an EpisodePlan to the existing edit plan schema.
 
         Per §3.3:
-        - One segment per beat (source: generated:<video_media_id>, in/out = full clip)
+        - One segment per mechanically derived shot (source: generated:<video_media_id>, in/out = full clip)
         - beat_id carried on each segment
         - overlays = captions chunked 3–5 words from vo_text + graphics
         - sfx per existing standing order 10
@@ -540,6 +585,12 @@ class EpisodePlanCompiler:
         segments = []
         cumulative_time = 0.0
         total_duration = 0.0
+        shot_specs_by_beat: dict[str, list[ShotSpec]] = {}
+        for shot_spec in ShotSpecAssembler(
+            ref_store=self.ref_store,
+            business_slug=self.business_slug,
+        ).assemble_all(beats):
+            shot_specs_by_beat.setdefault(shot_spec.beat_id, []).append(shot_spec)
 
         for i, beat in enumerate(beats):
             beat_id = beat.get("id", f"b{i+1:02d}")
@@ -562,18 +613,20 @@ class EpisodePlanCompiler:
             )
             overlays = caption_overlays + graphics_overlays
 
-            # One segment per beat — source will be resolved to generated:<video_media_id>
-            # The media_id is filled when the animation is produced (storyboard gate)
-            segment = {
-                "source": f"generated:pending_{beat_id}",
-                "in": 0,
-                "out": round(duration_s, 2),
-                "beat_id": beat_id,  # ← carried on each segment for compliance linkage
-                "transition_in": "cut" if i > 0 else "none",
-                "overlays": overlays,
-                "sfx": [],  # per standing order 10 — sparse, motivated only
-            }
-            segments.append(segment)
+            # Each visual shot gets its own pending source. Only the first
+            # shot carries beat-level overlays; their absolute timeline bounds
+            # still cover the entire VO-led beat.
+            for shot_index, shot_spec in enumerate(shot_specs_by_beat[beat_id], start=1):
+                segment = {
+                    "source": f"generated:pending_{beat_id}_{shot_index}",
+                    "in": 0,
+                    "out": shot_spec.duration_ms / 1000.0,
+                    "beat_id": beat_id,
+                    "transition_in": "cut" if segments else "none",
+                    "overlays": overlays if shot_index == 1 else [],
+                    "sfx": [],  # per standing order 10 — sparse, motivated only
+                }
+                segments.append(segment)
 
             cumulative_time = beat_end
             total_duration += duration_s
