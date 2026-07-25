@@ -1882,3 +1882,47 @@ Compiled actionable research on what makes short-form video go viral, covering: 
 **Why:** The repo was not safely deployable from a clean checkout — corrupted requirements, worker log spam, two-worker transcription race, reader/writer blocking, off-spec render output (44.1kHz, no CRF control), captions straddling sentences, inert identity QC, canonical assets in gitignored directory.
 
 **Rationale:** P0 items are deployment-blocking. P1 items close known quality gaps. P2 items clean up dormant defects. All 12 items reported per P-number with evidence.
+
+## 2026-07-25 — Batch B P0-1: Governance document review gate [TECH/OPS]
+
+**What:** Filed `AMENDMENT-015-shots-per-beat-and-two-tier-render.md` to `docs/decisions/` and added a governance-review section to `/library`. It mechanically discovers DRAFT/PROPOSED markdown under the active business's module and reference-asset roots, shows the status, source path, expandable preview, and individual Approve/Reject/Park controls. Decisions are append-only rows in `governance_document_decisions`; they do not silently alter or apply the reviewed document.
+
+**Why:** The world canon is a reference-registry document outside `modules/`, so the existing Library did not surface it. The visual-style amendment and canon therefore could not receive the operator decision required before episode work.
+
+**Rationale:** A decision record is not application. Explicit operator action is required for every document, no bulk action exists, and a PROPOSED amendment remains unapplied until its owning flow consumes a recorded approval.
+
+## 2026-07-25 — Batch B P0-2: Episode-format routing blocked [STRUCTURE]
+
+**What:** Filed `DIVERGENCE-023-episode-format-guide-resolution.md`. No `media_plan_v2` episode-routing special case was added.
+
+**Why:** The active Format Guide has no ratified, generic field that identifies episode formats, names their governing module, and authorizes use of approved registry/canon context. Implementing the route now would require a StackPenni-specific name, filename inference, or use of DRAFT/PROPOSED material as authority.
+
+**Rationale:** Format routing is a gated module decision, not a code heuristic. The pipeline remains on the current safe path until the architect resolves DIVERGENCE-023.
+
+## 2026-07-25 — Batch B P0-3: Process/prompt input contracts [FIX]
+
+**What:** `validate_process_registry()` now checks both missing prompt variables and unused declared inputs for every registered process. It treats `module_views` as a declared module-context expansion via `prompts/views.yaml`, and raises `ProcessError` at startup on a contract mismatch. Reconciled all 18 registry entries; the episode media-plan declaration now uses the ratified prompt vocabulary. Escaped literal event-ID braces in the Visual Director prompt so they are not mistaken for template variables.
+
+**Why:** The old validator only noticed missing prompt files. It accepted incompatible process declarations that could silently pass blank values into prompts—including the unwired episode media plan.
+
+**Rationale:** Prompt variable names are an executable contract. A startup failure is safer than issuing an under-specified LLM call. Module context remains explicit in the registry without duplicating each view-map key in every process definition.
+
+## 2026-07-25 — Batch B P0-4: Final audio master normalization [FIX]
+
+**What:** Audio strategy now runs before optional SFX so the SFX are retained. Every final render then receives a final stereo 48 kHz mastering pass after VO, music, original audio, and SFX: `loudnorm=I=-14:TP=-1.5:LRA=11` followed by `alimiter=limit=-1.5dB:level=disabled`.
+
+**Why:** Loudness normalization had been conditional on earlier strategy branches and SFX could be mixed before a later strategy overwrote them. Those paths could deliver unmastered or incomplete audio.
+
+**Rationale:** The final master—not an intermediate layer—is the only point at which full-piece loudness and peak constraints are meaningful. Disabling alimiter auto-level prevents it from undoing the loudnorm gain while retaining the true-peak ceiling.
+
+## 2026-07-25 — Batch B P1-5: VO-led episode shot subdivision [LOGIC]
+
+**What:** The episode compiler now subdivides each VO-owned beat into `ceil(duration_ms / 4000)` shots, preserves exact beat coverage and ownership, emits one render segment per generated shot, uses the required wide → medium → close → insert framing cycle, and keeps shared beat-level character/location/grade references stable.
+
+**Rationale:** Amendment 015 is ratified. This is mechanical timing assembly—not creative routing—and removes the former one-shot-per-beat drift without treating DRAFT/PROPOSED episode references as authority.
+
+## 2026-07-25 — Batch B P1-8: Word-level caption emphasis [FIX]
+
+**What:** Complete word timestamps now create a stable pill-caption overlay for each spoken-word interval. The active word colour is configured through `render_styles.yaml`; phrase geometry remains fixed across transitions. Incomplete timestamp input preserves the static caption fallback.
+
+**Rationale:** Caption timing must improve readability without introducing visual jitter or silently claiming exact timing when timestamp data is absent.
