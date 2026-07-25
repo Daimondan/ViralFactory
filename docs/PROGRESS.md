@@ -4,7 +4,11 @@
 > blocked, or changed. Any agent should be able to read this and know
 > exactly where we are.
 
-**Last Updated:** 2026-07-25 (cinematic realism direction + idea diversity fixes + render state repair)
+**Last Updated:** 2026-07-25 (inbox batch C processed — AMENDMENT-016 filed, DIVERGENCE-024 ratified, P1-5 reopened, DoD push rule added)
+
+2026-07-25 · INBOX BATCH C · Processed MANIFEST-2026-07-25-C-amendment-016. Filed AMENDMENT-016 to docs/decisions/. Marked DIVERGENCE-024 as RATIFIED with pointer to AMENDMENT-016. Moved BUILDER-NOTE-019 to docs/inbox/processed/. Applied DoD push-verification rule to PROCESS-definition-of-done-v1.0.md. Reopened P1-5: four outstanding src/db.py migrations remain (app.py, production_orchestrator.py, materials.py, jobs.py), plus full test suite final run, ffprobe on a rendered master, and human UI walkthrough. BUILDER-NOTE-018 and DIVERGENCE-023 remain open — not answered by this batch. · Q: AMENDMENT-016 implementation (C1–C8) is a separate build task; C4 probe and C5 failure-path demo require live Instagram publish access
+
+2026-07-25 · P1-5 REOPENED · Per AMENDMENT-016 manifest APPLY directive. P1-5 was reported in the repo-health changelog alongside eleven completed items with "Remaining modules pending" as an inline qualifier. It is a partial item reported as a finished one. Four outstanding migrations to the src/db.py connection factory remain: app.py, production_orchestrator.py, materials.py, jobs.py. Also outstanding from that batch's own recorded questions: full test suite final run, ffprobe on a rendered master, and human UI walkthrough. The blueprint split does not begin until these close. · Q: none
 
 2026-07-25 · FIX · Successful `RenderReviewService.render_for_asset()` calls now transition the asset to `rendered` after a final artifact exists, including review-not-ready results that still require human decision. This repairs the prior Gate-3 invisibility defect; a real service integration test verifies the persisted state. 27 render/gate focused tests passed. · Q: none
 

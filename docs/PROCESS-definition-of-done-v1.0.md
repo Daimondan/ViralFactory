@@ -28,6 +28,12 @@ Hermes does not report work as done until Hermes has fully tested it — and "fu
 
 4. **Report format.** The done report states what was tested and how: which automated tests, which UI paths were manually walked, what inputs were used, and anything observed but out of scope (fileed as a note, not silently ignored). "Tests pass" alone is not a done report.
 
+## Push verification rule (added 2026-07-25, per AMENDMENT-016 manifest)
+
+**Work is not reportable as complete until it is on `origin/main`.** A local commit is not a delivered commit. Every completion report must quote the `origin/main` SHA that contains the work, verified with `git log --oneline -1 origin/main` after pushing — not a local `HEAD` SHA. Before reporting any batch done, run `git log --oneline origin/main..HEAD` and confirm it returns nothing.
+
+Rationale, recorded so it is not relitigated: on 2026-07-25 twenty-two commits — including the whole of the episode-wiring batch and both 07-25 inbox filings — sat on the VPS local `main` with a clean working tree while `origin/main` still pointed at an operator browser upload. Three consecutive architect reviews were conducted against a repository that did not contain the work under review, and each reported it missing. This is the third variant of the same failure: first documents in the working tree, then documents committed locally, both reported as "in the repo." The gap is a missing check, not a discipline problem, so the check goes in the process.
+
 ## Boundary
 
 This does not change the gate structure: Hermes testing its own work is a precondition for reporting done, not a substitute for the operator's review. The operator still gates. The point is that when the operator sits down to review, the trivial breakage layer has already been burned away.

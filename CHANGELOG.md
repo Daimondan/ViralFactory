@@ -6,6 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-25 — BUILDER: Inbox batch C processed (AMENDMENT-016 filed, DIVERGENCE-024 ratified, P1-5 reopened, DoD push rule)
+
+**What:** Processed MANIFEST-2026-07-25-C-amendment-016 from the architect. Filed AMENDMENT-016 (platform-native audio attachment as a distinct audio role) to `docs/decisions/`. Marked DIVERGENCE-024 as RATIFIED with a status pointer to AMENDMENT-016. Moved BUILDER-NOTE-019 to `docs/inbox/processed/`. Applied the DoD push-verification rule to `PROCESS-definition-of-done-v1.0.md`: work is not reportable as complete until it is on `origin/main`, verified with `git log --oneline origin/main..HEAD` returning nothing. Reopened P1-5 explicitly — four outstanding `src/db.py` connection factory migrations remain (`app.py`, `production_orchestrator.py`, `materials.py`, `jobs.py`), plus full test suite final run, ffprobe on a rendered master, and human UI walkthrough.
+
+**Type:** STRUCTURE / OPS
+
+**Rationale:** AMENDMENT-016 ratifies the platform-native audio attachment role with 8 binding conditions (C1–C8). C4 (VO intelligibility probe) and C5 (post-publish verification with failure path) are measurements/demos, not code changes — they require live Instagram publish access and are reported separately. The DoD push rule closes a process gap where 22 local commits sat unpushed while three architect reviews reported the work missing. P1-5 was a partial item reported as finished; reopening it makes the remaining work visible.
+
+**Files:** `docs/decisions/AMENDMENT-016-platform-native-audio-attachment.md` (moved from inbox), `docs/decisions/DIVERGENCE-024-bundle-native-instagram-audio.md` (status updated), `docs/inbox/processed/BUILDER-NOTE-019-bundle-native-instagram-audio.md` (moved from inbox), `docs/PROCESS-definition-of-done-v1.0.md` (push rule added), `docs/PROGRESS.md` (batch C + P1-5 reopen entries)
+
+---
+
 ## 2026-07-24 — BUILDER: Thread publish path fix (DIVERGENCE-022 related)
 
 **What:** Fixed thread publish path in `buffer_adapter.py:232-237`. For threads (`posts` = array of text strings with len > 1), the code was sending `content` (the internal summary line) to Buffer as the post text — NOT the actual thread posts. The operator approved the thread posts at Gate 2 and Gate 3, but the publish path sent the summary instead.

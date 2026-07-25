@@ -2,7 +2,7 @@
 
 **Filed by:** Builder
 **Date:** 2026-07-25
-**Status:** AWAITING ARCHITECT RULING
+**Status:** RATIFIED — see `docs/decisions/AMENDMENT-016-platform-native-audio-attachment.md` (approved with binding conditions C1–C8, Charter v3.11)
 **Severity:** P1 — blocks using Bundle-discovered audio in a production render/publish path
 **Type:** LOGIC / STRUCTURE / OPS
 
