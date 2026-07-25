@@ -7198,7 +7198,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=300,
+                timeout=840,
             )
             if proc.returncode != 0:
                 error_msg = proc.stderr[-500:] if proc.stderr else "VO subprocess failed"
@@ -7211,7 +7211,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 return jsonify({"error": result.get("error", "VO generation failed")}), 500
 
         except _subprocess.TimeoutExpired:
-            _get_jobs_store().fail_job(vo_job_id, "VO generation timed out (300s)")
+            _get_jobs_store().fail_job(vo_job_id, "VO generation timed out (840s)")
             return jsonify({"error": "VO generation timed out"}), 500
         except Exception as exc:
             _get_jobs_store().fail_job(vo_job_id, str(exc)[:200])
