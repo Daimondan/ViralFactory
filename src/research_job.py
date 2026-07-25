@@ -157,9 +157,6 @@ class ResearchJob:
         channels = sources_config.get("channels", [])
         youtube_channels = [ch for ch in channels if ch.get("platform", "").lower() == "youtube" and ch.get("enabled", True)]
 
-        if not youtube_channels:
-            return {"discovered": 0, "new": 0, "duplicates": 0, "channels_scanned": 0}
-
         discovered = 0
         new_count = 0
         dup_count = 0
@@ -205,12 +202,24 @@ class ResearchJob:
             conn.commit()
             conn.close()
 
-        logger.info(f"Research job for {business_slug}: {discovered} videos found, {new_count} new, {dup_count} duplicates")
+        from query_ingestion import QueryIngestionRunner
+        query_result = QueryIngestionRunner(self.db_path).run(
+            business_slug,
+            sources_config.get("queries", []),
+            sources_config.get("query_rotation", {}),
+        )
+        logger.info(
+            "Research job for %s: %s videos found, %s new, %s duplicates; "
+            "%s search results found, %s new",
+            business_slug, discovered, new_count, dup_count,
+            query_result["discovered"], query_result["new"],
+        )
         return {
             "discovered": discovered,
             "new": new_count,
             "duplicates": dup_count,
             "channels_scanned": channels_scanned,
+            "query_ingestion": query_result,
         }
 
     def list_research_items(self, business_slug: str, status: str = None, limit: int = 50) -> list[dict]:

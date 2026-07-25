@@ -1926,3 +1926,9 @@ Compiled actionable research on what makes short-form video go viral, covering: 
 **What:** Complete word timestamps now create a stable pill-caption overlay for each spoken-word interval. The active word colour is configured through `render_styles.yaml`; phrase geometry remains fixed across transitions. Incomplete timestamp input preserves the static caption fallback.
 
 **Rationale:** Caption timing must improve readability without introducing visual jitter or silently claiming exact timing when timestamp data is absent.
+
+## 2026-07-25 — Batch B P1-7: Configured rotating source-query ingestion [TECH]
+
+**What:** Restored three live, diversified RSS feeds, removed malformed/unresolved channel configuration, and wired a generic query-ingestion runner into the existing research job. It deterministically selects the configured per-cycle subset, executes public DuckDuckGo retrieval or credential-gated Exa retrieval, and writes mechanically discovered results to the Source Bank as `search_item` records with `status='new'`.
+
+**Rationale:** Search configuration without an executing ingestion path is cosmetic. Result relevance remains outside Python: candidates enter the existing human source-review gate rather than silently grounding ideation.
