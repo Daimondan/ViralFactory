@@ -46,7 +46,6 @@ processes:
       distribution_intent: {source: dynamic}
       concept_cards: {source: dynamic}
       format_usage: {source: dynamic, builder: "format_usage"}
-      num_cards: {source: dynamic, default: "3"}
 
   ideas_generate:
     prompt_file: "ideas/generate_v1.md"
@@ -61,6 +60,7 @@ processes:
       origin_type: {source: dynamic, default: "ai_originated"}
       distribution_intent: {source: dynamic, default: '{"mode":"open","platforms":[],"formats":[]}'}
       source_material: {source: dynamic}
+      source_criteria: {source: dynamic}
       num_cards: {source: dynamic, default: "3"}
       existing_ideas: {source: dynamic, builder: "existing_ideas"}
       kill_lessons: {source: dynamic, builder: "kill_lessons"}
@@ -79,6 +79,7 @@ processes:
       origin_type: {source: dynamic}
       distribution_intent: {source: dynamic, default: '{"mode":"open","platforms":[],"formats":[]}'}
       source_material: {source: dynamic, template: "Operator seed: {seed}"}
+      source_criteria: {source: dynamic}
       num_cards: {source: static, value: "1"}
       existing_ideas: {source: dynamic, builder: "existing_ideas"}
       kill_lessons: {source: dynamic, builder: "kill_lessons"}
@@ -104,9 +105,9 @@ processes:
       idea: {source: dynamic}
       hook_options: {source: dynamic, transform: "join_newline_bullet"}
       capture_material: {source: dynamic, transform: "truncate_2000"}
-      capture_policy: {source: dynamic, default: "legacy_unclassified"}
       previous_draft: {source: dynamic}
       revision_feedback: {source: dynamic}
+      grounding_sources: {source: dynamic}
 
   writer_contract_v4:
     prompt_file: "draft/generate_v4.md"
@@ -118,7 +119,9 @@ processes:
       audience_description: {source: business, field: "audience_description"}
       module_views: "draft/generate_v4.md"
       origin: {source: dynamic}
+      draft_id: {source: dynamic}
       format_name: {source: dynamic}
+      platform: {source: dynamic}
       scope: {source: dynamic}
       idea: {source: dynamic}
       hook_options: {source: dynamic, transform: "join_newline_bullet"}
@@ -126,6 +129,7 @@ processes:
       capture_policy: {source: dynamic}
       previous_draft: {source: dynamic}
       revision_feedback: {source: dynamic}
+      grounding_sources: {source: dynamic}
 
   # ── Retired processes (AMENDMENT-007 retired these from active Assembler path) ──
 
@@ -137,6 +141,13 @@ processes:
     context_template: "RETIRED — Asset fan-out (AMENDMENT-007: Writer produces per-platform content)"
     inputs:
       business_name: {source: business, field: "business.name"}
+      draft_text: {source: dynamic}
+      format: {source: dynamic}
+      platform_handle: {source: dynamic}
+      platform_name: {source: dynamic}
+      source_titles: {source: dynamic}
+      visual_direction: {source: dynamic}
+      visual_style: {source: dynamic}
 
   native_structure:
     prompt_file: "assets/structure_v1.md"
@@ -145,6 +156,9 @@ processes:
     retired: true
     context_template: "RETIRED — Native structuring (AMENDMENT-007: Writer produces structured posts)"
     inputs:
+      draft_text: {source: dynamic}
+      format_name: {source: dynamic}
+      variant_type: {source: dynamic}
       platform_name: {source: dynamic}
 
   # ── Assembler processes (new per AMENDMENT-009) ──
@@ -157,14 +171,10 @@ processes:
     inputs:
       business_name: {source: business, field: "business.name"}
       module_views: "assembly/media_plan_v2.md"
-      contract_beats: {source: dynamic}
-      measured_vo: {source: dynamic}
-      visual_style: {source: dynamic}
-      format_guide: {source: dynamic}
-      references: {source: dynamic}
-      inventory: {source: dynamic}
-      available_providers: {source: dynamic}
-      costs: {source: dynamic}
+      format_module: {source: dynamic}
+      episode_plan_beats: {source: dynamic}
+      registry_context: {source: dynamic}
+      vo_timeline: {source: dynamic}
 
   motion_plan_v1:
     prompt_file: "assembly/motion_plan_v1.md"
@@ -172,7 +182,6 @@ processes:
     schema: "MOTION_PLAN_SCHEMA"
     context_template: "Motion plan for asset {asset_id} | module_ctx: {module_prov}"
     inputs:
-      business_name: {source: business, field: "business.name"}
       module_views: "assembly/motion_plan_v1.md"
       storyboard_beats: {source: dynamic}
       generator_constraints: {source: dynamic}
@@ -213,11 +222,14 @@ processes:
     inputs:
       business_name: {source: business, field: "business.name"}
       module_views: "assembly/edit_plan_v2.md"
-      contract: {source: dynamic}
-      media_recipes: {source: dynamic}
-      compiled_cues: {source: dynamic}
-      render_ready_inventory: {source: dynamic}
-      measured_source_facts: {source: dynamic}
+      asset_content: {source: dynamic}
+      beats_json: {source: dynamic}
+      compiled_cues_json: {source: dynamic}
+      format_name: {source: dynamic}
+      inventory_json: {source: dynamic}
+      max_segment_seconds: {source: dynamic}
+      platform_name: {source: dynamic}
+      vo_take_json: {source: dynamic}
 
   compliance_review:
     prompt_file: "assembly/compliance_review_v1.md"
@@ -226,12 +238,13 @@ processes:
     context_template: "Compliance review for asset {asset_id} | module_ctx: {module_prov}"
     inputs:
       approved_script: {source: dynamic}
-      compliance_contract: {source: dynamic}
-      edit_plan: {source: dynamic}
+      compliance_contract_json: {source: dynamic}
+      edit_plan_json: {source: dynamic}
       final_file_facts: {source: dynamic}
-      vo_transcript: {source: dynamic}
-      keyframes: {source: dynamic}
-      prior_findings: {source: dynamic}
+      keyframe_descriptions: {source: dynamic}
+      prior_review_findings: {source: dynamic}
+      remediation_round_info: {source: dynamic}
+      vo_transcript_info: {source: dynamic}
 
   remediation:
     prompt_file: "assembly/remediation_instruction_v1.md"
@@ -239,11 +252,11 @@ processes:
     schema: "REMEDIATION_INSTRUCTION_SCHEMA"
     context_template: "Remediation instruction for asset {asset_id} (round {round}) | module_ctx: {module_prov}"
     inputs:
-      compliance_review: {source: dynamic}
-      edit_plan: {source: dynamic}
-      writer_contract_hash: {source: dynamic}
-      max_rounds: {source: dynamic, default: "3"}
-      max_cost_usd: {source: dynamic}
+      approved_script: {source: dynamic}
+      compliance_contract_json: {source: dynamic}
+      compliance_review_json: {source: dynamic}
+      edit_plan_json: {source: dynamic}
+      media_inventory: {source: dynamic}
 
   series_breakdown:
     prompt_file: "ideas/series_breakdown_v1.md"
@@ -252,10 +265,13 @@ processes:
     context_template: "Series breakdown for card {card_id}"
     inputs:
       business_name: {source: business, field: "business.name"}
+      subjects: {source: business, field: "subjects", transform: "join_comma"}
+      audience_description: {source: business, field: "audience_description"}
       module_views: "ideas/series_breakdown_v1.md"
       parent_idea: {source: dynamic}
+      parent_hooks: {source: dynamic}
+      parent_treatment: {source: dynamic}
       n: {source: dynamic}
-      format_name: {source: dynamic}
       cadence: {source: dynamic}
 
   # ── VF-CW-003: Component Requirements Planner ──
@@ -267,16 +283,7 @@ processes:
     playbook_type: "production"
     context_template: "Component requirements v1 for asset {asset_id} ({format}, {platform}) | module_ctx: {module_prov}"
     inputs:
-      business_name: {source: business, field: "business.name"}
       module_views: "assembly/component_requirements_v1.md"
-      writer_contract: {source: dynamic}
-      format: {source: dynamic}
-      platform: {source: dynamic}
-      visual_events: {source: dynamic}
-      audio_intents: {source: dynamic}
-      capture_policy: {source: dynamic}
-      category_registry: {source: dynamic}
-      tenant_modules: {source: dynamic}
 
   research_analyze:
     prompt_file: "research/analyze_v1.md"

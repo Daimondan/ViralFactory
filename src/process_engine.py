@@ -14,6 +14,7 @@ Routes contain zero inline module wiring — they call:
 
 import os
 import json
+import re
 import yaml
 import importlib
 import logging
@@ -21,13 +22,17 @@ from typing import Any
 
 logger = logging.getLogger("viralfactory.process_engine")
 
+_PROMPT_PLACEHOLDER = re.compile(
+    r"(?<!\{)\{([A-Za-z_][A-Za-z0-9_]*)\}(?!\})"
+)
+
 
 class ProcessError(Exception):
     """Process registry or composition error."""
     pass
 
 
-def load_process_registry(config_dir: str = "config") -> dict:
+def load_process_registry(config_dir: str = "config", prompts_dir: str = "prompts") -> dict:
     """Load config/processes.yaml. Returns the parsed dict.
 
     Also validates that every declared prompt_file resolves on disk and
@@ -41,19 +46,32 @@ def load_process_registry(config_dir: str = "config") -> dict:
     if not data or "processes" not in data:
         raise ProcessError("processes.yaml missing 'processes' key")
 
-    # Validate prompt files exist (P2-10)
-    unresolved = validate_process_registry(config_dir=config_dir)
-    for entry in unresolved:
-        logger.warning(f"Process '{entry['process']}' references missing prompt: {entry['prompt_file']}")
+    issues = validate_process_registry(config_dir=config_dir, prompts_dir=prompts_dir)
+    contract_issues = [issue for issue in issues if issue["kind"] != "missing_prompt"]
+    if contract_issues:
+        details = "; ".join(
+            f"{issue['process']} ({issue['prompt_file']}): "
+            f"{issue['kind']}={', '.join(issue['names'])}"
+            for issue in contract_issues
+        )
+        raise ProcessError(f"Process registry prompt/input contract mismatch: {details}")
+    for entry in issues:
+        logger.warning(
+            "Process '%s' references missing prompt: %s",
+            entry["process"],
+            entry["prompt_file"],
+        )
 
     return data
 
 
 def validate_process_registry(config_dir: str = "config", prompts_dir: str = "prompts") -> list[dict]:
-    """Return a list of processes whose prompt_file does not resolve. Empty is healthy.
+    """Return missing prompt files and prompt/input contract violations.
 
-    Each entry is ``{process, prompt_file}``. Called from ``load_process_registry``
-    at startup so unresolved references are logged rather than silently dormant.
+    ``module_views`` is an expansion directive rather than a prompt value. Its
+    keys are read from ``prompts/views.yaml`` and count as declared inputs for
+    the associated prompt. Every other declared input must be used directly by
+    the prompt, and every simple ``{placeholder}`` must be declared.
     """
     path = os.path.join(config_dir, "processes.yaml")
     if not os.path.exists(path):
@@ -65,16 +83,53 @@ def validate_process_registry(config_dir: str = "config", prompts_dir: str = "pr
     if not data or "processes" not in data:
         return []
 
-    unresolved = []
+    views_path = os.path.join(prompts_dir, "views.yaml")
+    views = {}
+    if os.path.exists(views_path):
+        with open(views_path) as f:
+            views = yaml.safe_load(f) or {}
+
+    issues = []
     for proc_name, proc_config in data["processes"].items():
         prompt_file = proc_config.get("prompt_file")
         if not prompt_file:
             continue
         full_path = os.path.join(prompts_dir, prompt_file)
         if not os.path.exists(full_path):
-            unresolved.append({"process": proc_name, "prompt_file": prompt_file})
+            issues.append({
+                "process": proc_name,
+                "prompt_file": prompt_file,
+                "kind": "missing_prompt",
+                "names": [],
+            })
+            continue
 
-    return unresolved
+        with open(full_path) as f:
+            placeholders = set(_PROMPT_PLACEHOLDER.findall(f.read()))
+        inputs = proc_config.get("inputs") or {}
+        declared = set(inputs) - {"module_views"}
+        module_inputs = set()
+        if "module_views" in inputs:
+            module_inputs = set(views.get(prompt_file, {}))
+
+        missing = sorted(placeholders - declared - module_inputs)
+        unused = sorted(declared - placeholders)
+        if missing:
+            issues.append({
+                "process": proc_name,
+                "prompt_file": prompt_file,
+                "kind": "missing_input",
+                "names": missing,
+            })
+        if unused:
+            issues.append({
+                "process": proc_name,
+                "prompt_file": prompt_file,
+                "kind": "unused_input",
+                "names": unused,
+            })
+
+    return issues
 
 
 def _resolve_schema(schema_ref: str, registry: dict, inline_schemas: dict = None):
