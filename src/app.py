@@ -328,6 +328,24 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
     def request_entity_too_large(error):
         return jsonify({"status": "error", "error": "File too large. Maximum upload size is 2GB."}), 413
 
+    @app.errorhandler(500)
+    def internal_server_error(error):
+        """Return JSON for 500 errors so API callers don't get an HTML page.
+
+        Without this, Flask's default 500 handler returns an HTML error page.
+        The browser's fetch().json() then throws SyntaxError: Unexpected token '<',
+        and the user sees a cryptic 'Network error' instead of a real message.
+        """
+        app.logger.error("500 error: %s", error)
+        return jsonify({"status": "error", "error": "Internal server error. Check server logs."}), 500
+
+    @app.errorhandler(Exception)
+    def unhandled_exception(error):
+        """Catch-all for any unhandled exception — return JSON, not HTML."""
+        import traceback
+        app.logger.error("Unhandled exception: %s\n%s", error, traceback.format_exc())
+        return jsonify({"status": "error", "error": str(error)[:500]}), 500
+
     @app.after_request
     def add_no_cache_headers(response):
         """Prevent browser caching of HTML pages so code updates are always served."""

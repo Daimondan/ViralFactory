@@ -88,6 +88,18 @@ function busyAction(btn, url, options) {
                 unbusyBtn(btn);
             });
         }
+        // Guard: server may return HTML (500 error page, proxy timeout) instead of JSON.
+        // Parse JSON only when the content-type says so; otherwise surface a readable error.
+        var ct = r.headers.get('content-type') || '';
+        if (ct.indexOf('application/json') === -1) {
+            unbusyBtn(btn);
+            var msg = r.status >= 500
+                ? 'Server error (HTTP ' + r.status + '). The request may have timed out — try again in a moment.'
+                : 'Unexpected response (HTTP ' + r.status + ')';
+            if (statusElem) setStatusLine(statusElem, msg, true);
+            onError(msg);
+            return;
+        }
         return r.json().then(function(data) {
             if (data.status === 'ok' || data.status === 'already_exists') {
                 unbusyBtn(btn);
