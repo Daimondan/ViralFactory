@@ -57,6 +57,15 @@ class MaterialsIntake:
                 -- JSON array of [{word, start, end}, ...] for exact caption timing (P1-7)
                 FOREIGN KEY (run_id) REFERENCES playbook_runs(id)
             );
+            -- Create playbook_runs if it doesn't exist (PipelineStore owns it,
+            -- but MaterialsIntake may be instantiated first in some test paths).
+            CREATE TABLE IF NOT EXISTS playbook_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                playbook_name TEXT,
+                business_slug TEXT,
+                state TEXT,
+                created_at TEXT
+            );
         """)
         # Additive migration: add transcription_status column if it doesn't exist
         try:
