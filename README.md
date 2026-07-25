@@ -40,6 +40,7 @@ docs/
     DIVERGENCE-019-provider-neutral-render-execution-boundary.md ← portable RendererSpec + hosted/local renderer adapters
     DIVERGENCE-020-two-phase-composition-plan-and-ratification.md ← filed divergence (ratified as AMENDMENT-014)
     DIVERGENCE-021-operator-visual-engagement-criteria.md ← operator visual engagement criteria (4s max clip, caption emphasis, VO-only visual life, video-over-stills)
+    DIVERGENCE-022-reel-post-caption-missing.md ← reel/story_series post caption artifact + Gate 3 review (architect approved, awaiting builder)
   inbox/                         ← architect→builder filing protocol (README + processed/)
   reviews/                      ← Claude's weekly review notes (review-wN.md)
   diagrams/                     ← system diagrams (Mermaid + vertical-flow text + SVG)

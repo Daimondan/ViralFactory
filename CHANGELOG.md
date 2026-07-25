@@ -6,13 +6,32 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
-## 2026-07-24 — DIVERGENCE-016: Reel post caption missing (P1)
+## 2026-07-24 — ARCHITECT: DIVERGENCE-022 ruling — reel post caption (P1)
 
-**What:** Filed DIVERGENCE-016. IG reel assets have no post-caption artifact. The `content` field (an internal summary line from the Writer) is sent to Buffer as the public IG caption text (`buffer_adapter.py:233`). The operator never sees, reviews, or approves the caption that ships under the reel — violates per-piece approval (charter §4). Same gap applies to `story_series`.
+**What:** Architect ruled on BUILDER-NOTE-017. IG reel assets have no post-caption artifact. The internal `content` summary line ships to Buffer as the public IG caption text (`buffer_adapter.py:233`) without operator review — violates per-piece approval (charter §5). Same gap for `story_series`.
+
+**Ruling:** APPROVED. No charter amendment needed — this is a bug fix enforcing the existing per-piece approval rule (§5). The caption is part of the piece; the charter already says every piece passes human approval. Three questions answered: (1) structured object `{text, hashtags[]}`, (2) Writer produces caption in same pass as reel script (not a separate step), (3) inline edit at Gate 3 (same pattern as draft platform-content editing, not a separate modal).
+
+**Renumbering:** Original filing used DIVERGENCE-016, colliding with the already-ratified DIVERGENCE-016 (inspiration center → AMENDMENT-012). Renumbered to DIVERGENCE-022 (last filed was DIVERGENCE-021).
+
+**Related defect noted (separate, NOT in scope):** Thread publish path at `buffer_adapter.py:232-237` sends `content` (summary) instead of the actual thread `posts` array to Buffer. Builder should fix or file separately.
+
+**Fix scope:** Add `post_caption` (text + hashtags) to Writer output for reel/story_series variants; store on asset (additive column); show at Gate 3 for inline operator edit/approval; use `post_caption.text` at Gate 4 publish instead of `content`. Backward compatible (legacy assets fall back to `content`). Self-audited against AI Tells Catalog.
+
+**Type:** STRUCTURE / LOGIC
+**Rationale:** Per-piece approval is a hard business rule. The caption is part of the piece. Shipping an unreviewed summary as public post text is a defect even if Buffer accepts it.
+
+**Files:** `docs/decisions/DIVERGENCE-022-reel-post-caption-missing.md`, `docs/inbox/ARCHITECT-NOTE-2026-07-24-reel-post-caption.md`, `docs/inbox/MANIFEST-2026-07-24-reel-post-caption.md`
+
+---
+
+## 2026-07-24 — BUILDER filed DIVERGENCE-016 (reel post caption) — renumbered to DIVERGENCE-022
+
+**What:** Builder filed DIVERGENCE-016 (reel post caption missing) + BUILDER-NOTE-017. IG reel assets have no post-caption artifact. The `content` field (an internal summary line from the Writer) is sent to Buffer as the public IG caption text (`buffer_adapter.py:233`). The operator never sees, reviews, or approves the caption that ships under the reel — violates per-piece approval (charter §5). Same gap applies to `story_series`.
 
 **Root cause:** `prompts/draft/generate_v4.md` defines `content` as "a summary line or the full text for single-post formats." For reel, `posts` = frame objects (video script), so `content` is just a summary — not feed caption copy. No distinct `post_caption` field exists in the Writer schema, asset schema, Gate 3 review, or publish path.
 
-**Proposed fix (awaiting architect ruling):** Add `post_caption` (text + hashtags) to Writer output for reel/story_series variants; store on asset; show at Gate 3 for operator edit/approval; use at Gate 4 publish instead of `content`. Backward compatible (legacy assets fall back to `content`).
+**Status:** Renumbered to DIVERGENCE-022 (collision with ratified DIVERGENCE-016 → AMENDMENT-012). Architect ruling issued same day — see above.
 
 **Type:** STRUCTURE / LOGIC
 **Rationale:** Per-piece approval is a hard business rule. The caption is part of the piece. Shipping an unreviewed summary as public post text is a defect even if Buffer accepts it.

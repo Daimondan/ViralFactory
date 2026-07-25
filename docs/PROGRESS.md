@@ -4,7 +4,9 @@
 > blocked, or changed. Any agent should be able to read this and know
 > exactly where we are.
 
-**Last Updated:** 2026-07-23 (review-w9 builder fixes applied)
+**Last Updated:** 2026-07-24 (architect ruled on DIVERGENCE-022 — reel post caption)
+
+2026-07-24 · ARCHITECT / DIVERGENCE-022 · Ruled on BUILDER-NOTE-017: IG reel assets have no post-caption artifact. The internal `content` summary line ships to Buffer as the public IG caption without operator review — violates per-piece approval (charter §5). APPROVED: add `post_caption` {text, hashtags[]} to Writer output for reel/story_series; store on asset (additive); show at Gate 3 for inline edit/approval; use `post_caption.text` at Gate 4 publish instead of `content`. Backward compatible. No charter amendment (bug fix enforcing existing rule). Renumbered from DIVERGENCE-016 (collision with ratified AMENDMENT-012). Related thread publish bug noted (separate, NOT in scope). Ruling: `docs/decisions/DIVERGENCE-022-reel-post-caption-missing.md` · Q: builder implementation
 
 2026-07-23 · REVIEW-w9 BUILDER FIXES · All P0/P1/P2 corrections from review-w9 applied. Composition route wired to CompositionPlanGenerator + PreviewGenerator — generates real plans with text/audio/visual/graphics/transition elements and per-element previews from frozen manifest + writer contract + cue timeline. Canvas dims from config. Navigation links added: asset page → Workbench, Workbench → Composition. Workbench back-link fixed. MAX_CLIP_DURATION + max_segment_seconds moved to config/render_styles.yaml. DIVERGENCE-021 renumbered. State dissonance, false greens, stale ratify button, raw file paths, raw JSON dict, jargon, timestamps, titles, version badges, and empty state all fixed. 93 composition/workbench/divergence tests pass · Q: full suite verification + hands-on UI walkthrough
 
