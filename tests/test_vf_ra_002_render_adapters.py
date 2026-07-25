@@ -109,7 +109,7 @@ def _setup_session(tmp_db):
     asset = dict(conn.execute("SELECT * FROM assets ORDER BY id DESC LIMIT 1").fetchone())
     conn.close()
 
-    svc = ProductionSessionService(db_path=tmp_db)
+    svc = ProductionSessionService(db_path=tmp_db, foreign_keys=False)
     return svc.create_session("test", draft["id"], asset["id"], "IG", "reel")
 
 

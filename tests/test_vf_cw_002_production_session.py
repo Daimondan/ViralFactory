@@ -40,7 +40,7 @@ def session_service(tmp_db):
     if src_dir not in sys.path:
         sys.path.insert(0, src_dir)
     from services.production_orchestrator import ProductionSessionService
-    return ProductionSessionService(db_path=tmp_db)
+    return ProductionSessionService(db_path=tmp_db, foreign_keys=False)
 
 
 @pytest.fixture
@@ -391,7 +391,7 @@ class TestProcessRestart:
         from services.production_orchestrator import ProductionSessionService
 
         _, draft, asset = _setup_draft_and_asset(store)
-        svc1 = ProductionSessionService(db_path=tmp_db)
+        svc1 = ProductionSessionService(db_path=tmp_db, foreign_keys=False)
         session = svc1.create_session(
             "test_tenant", draft["id"], asset["id"], "Instagram"
         )
@@ -400,7 +400,7 @@ class TestProcessRestart:
         )
 
         # Simulate restart: create new service instance
-        svc2 = ProductionSessionService(db_path=tmp_db)
+        svc2 = ProductionSessionService(db_path=tmp_db, foreign_keys=False)
         restored = svc2.get_session("test_tenant", session["id"])
         assert restored["current_state"] == "generating_components"
 

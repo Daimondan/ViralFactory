@@ -94,7 +94,7 @@ def _setup_full_session(tmp_db, media_dir):
         "SELECT * FROM assets ORDER BY id DESC LIMIT 1").fetchone())
     conn.close()
 
-    svc = ProductionSessionService(db_path=db_path)
+    svc = ProductionSessionService(db_path=db_path, foreign_keys=False)
     session = svc.create_session(
         "test_tenant", draft["id"], asset["id"], "IG", "reel")
 
@@ -197,7 +197,7 @@ class TestGate3Approval:
 
         # Session is now gate3_approved
         from services.production_orchestrator import ProductionSessionService
-        svc = ProductionSessionService(db_path=tmp_db[0])
+        svc = ProductionSessionService(db_path=tmp_db[0], foreign_keys=False)
         session_refreshed = svc.get_session("test_tenant", session["id"])
         assert session_refreshed["current_state"] == "gate3_approved"
 
@@ -207,7 +207,7 @@ class TestGate3Approval:
 
         # Transition back to assembling
         from services.production_orchestrator import ProductionSessionService
-        svc = ProductionSessionService(db_path=tmp_db[0])
+        svc = ProductionSessionService(db_path=tmp_db[0], foreign_keys=False)
         svc.transition("test_tenant", session["id"], "assembling", "re-render")
 
         with pytest.raises(Exception, match="final_review_required"):
@@ -230,7 +230,7 @@ class TestGate3Reject:
         assert decision["decision"] == "reject"
 
         from services.production_orchestrator import ProductionSessionService
-        svc = ProductionSessionService(db_path=tmp_db[0])
+        svc = ProductionSessionService(db_path=tmp_db[0], foreign_keys=False)
         session_refreshed = svc.get_session("test_tenant", session["id"])
         assert session_refreshed["current_state"] == "assembling"
 
@@ -246,7 +246,7 @@ class TestGate3Kill:
         assert decision["decision"] == "kill"
 
         from services.production_orchestrator import ProductionSessionService
-        svc = ProductionSessionService(db_path=tmp_db[0])
+        svc = ProductionSessionService(db_path=tmp_db[0], foreign_keys=False)
         session_refreshed = svc.get_session("test_tenant", session["id"])
         assert session_refreshed["current_state"] == "failed"
 

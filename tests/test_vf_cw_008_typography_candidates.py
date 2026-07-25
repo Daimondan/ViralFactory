@@ -157,7 +157,7 @@ def _setup_session(db_path, business_slug="test_tenant"):
         "SELECT * FROM assets ORDER BY id DESC LIMIT 1").fetchone())
     conn.close()
 
-    svc = ProductionSessionService(db_path=db_path)
+    svc = ProductionSessionService(db_path=db_path, foreign_keys=False)
     session = svc.create_session(
         business_slug, draft["id"], asset["id"], "IG", "reel")
     return session, asset

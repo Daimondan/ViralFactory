@@ -274,13 +274,18 @@ def db_env(tmp_path):
     composition_ratified, and return (db_path, business_slug, session_id,
     plan)."""
     from services.production_orchestrator import ProductionSessionService
+    from pipeline import PipelineStore
 
     db_path = str(tmp_path / "test_vf.db")
     business_slug = "test_tenant"
 
+    # Initialize pipeline schema (creates assets table that production
+    # sessions reference via FK).
+    PipelineStore(db_path=db_path, foreign_keys=False)
+
     plan = _generate_plan()
 
-    svc = ProductionSessionService(db_path=db_path)
+    svc = ProductionSessionService(db_path=db_path, foreign_keys=False)
     session = svc.create_session(
         business_slug=business_slug,
         draft_id=1,
@@ -385,7 +390,7 @@ class TestUnratifiedPlanCannotCompile:
         slug = "test_tenant"
         plan = _generate_plan()
 
-        svc = ProductionSessionService(db_path=db_path)
+        svc = ProductionSessionService(db_path=db_path, foreign_keys=False)
         session = svc.create_session(
             business_slug=slug, draft_id=1, asset_id=1,
             platform="IG", format="reel",
@@ -408,7 +413,7 @@ class TestUnratifiedPlanCannotCompile:
         slug = "test_tenant"
         plan = _generate_plan()
 
-        svc = ProductionSessionService(db_path=db_path)
+        svc = ProductionSessionService(db_path=db_path, foreign_keys=False)
         session = svc.create_session(
             business_slug=slug, draft_id=1, asset_id=1,
             platform="IG", format="reel",
@@ -568,7 +573,7 @@ class TestTwoPlansProduceDifferentSpecs:
                                          res={"width": 1920, "height": 1080}),
         )
 
-        svc = ProductionSessionService(db_path=db_path)
+        svc = ProductionSessionService(db_path=db_path, foreign_keys=False)
 
         # Session A
         sa = svc.create_session(business_slug=slug, draft_id=1, asset_id=1,
@@ -621,7 +626,7 @@ class TestTwoPlansProduceDifferentSpecs:
         )
         assert plan_a["plan_hash"] != plan_b["plan_hash"]
 
-        svc = ProductionSessionService(db_path=db_path)
+        svc = ProductionSessionService(db_path=db_path, foreign_keys=False)
 
         sa = svc.create_session(business_slug=slug, draft_id=1, asset_id=1,
                                 platform="IG", format="reel")

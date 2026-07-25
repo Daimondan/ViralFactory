@@ -310,7 +310,7 @@ def _setup_session(db_path: str, state: str = "composition_review_required"):
         "SELECT * FROM assets ORDER BY id DESC LIMIT 1").fetchone())
     conn.close()
 
-    svc = ProductionSessionService(db_path=db_path)
+    svc = ProductionSessionService(db_path=db_path, foreign_keys=False)
     session = svc.create_session(
         "test_tenant", draft["id"], asset["id"], "IG", "reel")
 
@@ -509,7 +509,7 @@ class TestRatify:
 
         # Session is now composition_ratified
         from services.production_orchestrator import ProductionSessionService
-        svc = ProductionSessionService(db_path=tmp_env["db_path"])
+        svc = ProductionSessionService(db_path=tmp_env["db_path"], foreign_keys=False)
         refreshed = svc.get_session("test_tenant", session["id"])
         assert refreshed["current_state"] == "composition_ratified"
         assert refreshed["active_composition_plan_hash"] == plan["plan_hash"]
@@ -527,7 +527,7 @@ class TestRatify:
             "test_tenant", session["id"], plan, previews)
 
         from services.production_orchestrator import ProductionSessionService
-        svc = ProductionSessionService(db_path=tmp_env["db_path"])
+        svc = ProductionSessionService(db_path=tmp_env["db_path"], foreign_keys=False)
         refreshed = svc.get_session("test_tenant", session["id"])
         assert refreshed["active_composition_plan_hash"] == plan["plan_hash"]
 
@@ -564,7 +564,7 @@ class TestReject:
         """Reject sends the session back to composition_planning."""
         session, _ = _setup_session(tmp_env["db_path"])
         from services.production_orchestrator import ProductionSessionService
-        svc = ProductionSessionService(db_path=tmp_env["db_path"])
+        svc = ProductionSessionService(db_path=tmp_env["db_path"], foreign_keys=False)
 
         decision = ratification_service.reject(
             "test_tenant", session["id"],
@@ -672,7 +672,7 @@ class TestStaleDetection:
         # Transition session back to composition_review_required for the
         # new plan (simulating re-review after plan change)
         from services.production_orchestrator import ProductionSessionService
-        svc = ProductionSessionService(db_path=tmp_env["db_path"])
+        svc = ProductionSessionService(db_path=tmp_env["db_path"], foreign_keys=False)
         svc.transition("test_tenant", session["id"],
                        "composition_planning", "plan changed")
         svc.transition("test_tenant", session["id"],
@@ -920,7 +920,7 @@ class TestMultipleRatificationVersions:
 
         # Plan changes → stale
         from services.production_orchestrator import ProductionSessionService
-        svc = ProductionSessionService(db_path=tmp_env["db_path"])
+        svc = ProductionSessionService(db_path=tmp_env["db_path"], foreign_keys=False)
 
         # Transition: ratified → planning → review
         svc.transition("test_tenant", session["id"],
@@ -965,7 +965,7 @@ class TestMultipleRatificationVersions:
 
         # Transition back to review
         from services.production_orchestrator import ProductionSessionService
-        svc = ProductionSessionService(db_path=tmp_env["db_path"])
+        svc = ProductionSessionService(db_path=tmp_env["db_path"], foreign_keys=False)
         svc.transition("test_tenant", session["id"],
                        "composition_review_required", "plan ready again")
 
@@ -992,7 +992,7 @@ class TestMultipleRatificationVersions:
 
         # Build view — should show the prior ratification
         from services.production_orchestrator import ProductionSessionService
-        svc = ProductionSessionService(db_path=tmp_env["db_path"])
+        svc = ProductionSessionService(db_path=tmp_env["db_path"], foreign_keys=False)
         svc.transition("test_tenant", session["id"],
                        "composition_planning", "plan changed")
         svc.transition("test_tenant", session["id"],

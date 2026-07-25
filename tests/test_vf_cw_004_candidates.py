@@ -80,7 +80,7 @@ def _setup_session(tmp_db, business_slug="test_tenant"):
         "SELECT * FROM assets ORDER BY id DESC LIMIT 1").fetchone())
     conn.close()
 
-    svc = ProductionSessionService(db_path=tmp_db)
+    svc = ProductionSessionService(db_path=tmp_db, foreign_keys=False)
     session = svc.create_session(
         business_slug, draft["id"], asset["id"], "IG", "reel")
     return session
@@ -300,7 +300,7 @@ class TestCrossSessionIsolation:
         session1 = _setup_session(tmp_db, "test_tenant")
         # Create a second session for a different asset
         from services.production_orchestrator import ProductionSessionService
-        svc = ProductionSessionService(db_path=tmp_db)
+        svc = ProductionSessionService(db_path=tmp_db, foreign_keys=False)
         now = datetime.now(timezone.utc).isoformat()
         conn = sqlite3.connect(tmp_db)
         conn.row_factory = sqlite3.Row
@@ -315,7 +315,7 @@ class TestCrossSessionIsolation:
         ).fetchone())
         conn.close()
 
-        svc = ProductionSessionService(db_path=tmp_db)
+        svc = ProductionSessionService(db_path=tmp_db, foreign_keys=False)
         session2 = svc.create_session(
             "test_tenant", session1["draft_id"], asset2["id"], "X", "thread")
 

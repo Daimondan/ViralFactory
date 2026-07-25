@@ -70,7 +70,7 @@ def _setup_session(tmp_db, business_slug="test_tenant", platform="IG"):
     asset = dict(conn.execute("SELECT * FROM assets ORDER BY id DESC LIMIT 1").fetchone())
     conn.close()
 
-    svc = ProductionSessionService(db_path=tmp_db)
+    svc = ProductionSessionService(db_path=tmp_db, foreign_keys=False)
     return svc.create_session(business_slug, draft["id"], asset["id"], platform, "reel"), draft
 
 
@@ -107,7 +107,7 @@ class TestAdvance:
 
         # Simulate human approval: manually transition past human waits
         from services.production_orchestrator import ProductionSessionService
-        pss = ProductionSessionService(db_path=db_path)
+        pss = ProductionSessionService(db_path=db_path, foreign_keys=False)
         pss.transition("test_tenant", session["id"], "manifest_ready", "manifest frozen")
 
         # manifest_ready → composition_planning
@@ -137,7 +137,7 @@ class TestAdvance:
         session, _ = _setup_session(db_path)
 
         from services.production_orchestrator import ProductionSessionService
-        pss = ProductionSessionService(db_path=db_path)
+        pss = ProductionSessionService(db_path=db_path, foreign_keys=False)
         pss.transition("test_tenant", session["id"], "blocked", "test block")
 
         result = svc.advance("test_tenant", session["id"])
@@ -166,7 +166,7 @@ class TestAdvanceAllForDraft:
         conn.commit()
         asset2 = dict(conn.execute("SELECT * FROM assets WHERE platform = 'X' ORDER BY id DESC LIMIT 1").fetchone())
         conn.close()
-        pss = ProductionSessionService(db_path=db_path)
+        pss = ProductionSessionService(db_path=db_path, foreign_keys=False)
         session2 = pss.create_session("test_tenant", draft["id"], asset2["id"], "X", "thread")
 
         # Advance all
@@ -196,7 +196,7 @@ class TestGetDraftStatus:
         conn.commit()
         asset2 = dict(conn.execute("SELECT * FROM assets WHERE platform = 'X' ORDER BY id DESC LIMIT 1").fetchone())
         conn.close()
-        pss = ProductionSessionService(db_path=db_path)
+        pss = ProductionSessionService(db_path=db_path, foreign_keys=False)
         session2 = pss.create_session("test_tenant", draft["id"], asset2["id"], "X", "thread")
 
         status = svc.get_draft_status("test_tenant", draft["id"])

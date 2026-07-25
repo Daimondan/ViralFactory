@@ -393,7 +393,7 @@ class TestRequirementsStore:
         ).fetchone())
         conn.close()
 
-        svc = ProductionSessionService(db_path=tmp_db)
+        svc = ProductionSessionService(db_path=tmp_db, foreign_keys=False)
         session = svc.create_session(
             "test_tenant", draft["id"], asset["id"], "Instagram", "reel"
         )

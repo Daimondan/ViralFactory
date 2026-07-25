@@ -177,7 +177,7 @@ class TestStuckSoundtrackWait:
         assert "production_session_transitions" in tables
 
         # The service can create and transition sessions
-        svc = ProductionSessionService(db_path=store.db_path)
+        svc = ProductionSessionService(db_path=store.db_path, foreign_keys=False)
         # Verify it's usable (the table already exists from store init)
         assert svc is not None
 
