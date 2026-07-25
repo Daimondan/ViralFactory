@@ -50,6 +50,8 @@ class MaterialsIntake:
                 -- NULL for non-audio; pending/processing/done/failed for audio
                 file_path TEXT,
                 -- durable local path for uploaded binary media
+                word_timestamps TEXT,
+                -- JSON array of [{word, start, end}, ...] for exact caption timing (P1-7)
                 FOREIGN KEY (run_id) REFERENCES playbook_runs(id)
             );
         """)
@@ -68,6 +70,11 @@ class MaterialsIntake:
             conn.execute("SELECT file_path FROM materials LIMIT 1")
         except sqlite3.OperationalError:
             conn.execute("ALTER TABLE materials ADD COLUMN file_path TEXT")
+        # Additive migration: word timestamps for exact caption timing (P1-7)
+        try:
+            conn.execute("SELECT word_timestamps FROM materials LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute("ALTER TABLE materials ADD COLUMN word_timestamps TEXT")
         # Material edits log — lightweight versioning (material_id, timestamp, before_hash)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS material_edits (

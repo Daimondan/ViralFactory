@@ -110,8 +110,13 @@ class TranscriptionWorker:
 
         return None
 
-    def _transcribe(self, audio_path: str) -> tuple[str, int]:
-        """Transcribe an audio file. Returns (transcript, word_count)."""
+    def _transcribe(self, audio_path: str) -> tuple[str, int, list[dict] | None]:
+        """Transcribe an audio file. Returns (transcript, word_count, word_timestamps).
+
+        Word timestamps are requested from faster-whisper so captions can be
+        timed exactly rather than proportionally (P1-7). When word_timestamps
+        is None, the caller falls back to proportional timing.
+        """
         model = self._load_model()
         if model is None:
             raise RuntimeError("Whisper model not available")
@@ -120,34 +125,50 @@ class TranscriptionWorker:
             audio_path,
             language=self.language if self.language != "auto" else None,
             beam_size=5,
+            word_timestamps=True,
         )
 
         transcript_parts = []
+        word_timestamps: list[dict] = []
         for segment in segments:
             transcript_parts.append(segment.text.strip())
+            if segment.words:
+                for word in segment.words:
+                    word_timestamps.append({
+                        "word": word.word.strip(),
+                        "start": round(word.start, 3),
+                        "end": round(word.end, 3),
+                    })
 
         transcript = " ".join(transcript_parts)
         word_count = len(transcript.split()) if transcript else 0
-        return transcript, word_count
+        return transcript, word_count, word_timestamps or None
 
     def _update_material(self, material_id: int, status: str,
-                         normalized_content: str = None, word_count: int = None):
-        """Update a material's transcription status and content."""
+                         normalized_content: str = None, word_count: int = None,
+                         word_timestamps: str = None):
+        """Update a material's transcription status and content.
+
+        ``word_timestamps`` is a JSON string of ``[{word, start, end}, ...]``
+        for exact caption timing (P1-7).
+        """
         conn = sqlite3.connect(self.db_path)
         try:
             if normalized_content is not None and word_count is not None:
                 conn.execute(
                     """UPDATE materials
-                       SET transcription_status = ?, normalized_content = ?, word_count = ?
+                       SET transcription_status = ?, normalized_content = ?,
+                           word_count = ?, word_timestamps = ?
                        WHERE id = ?""",
-                    (status, normalized_content, word_count, material_id),
+                    (status, normalized_content, word_count, word_timestamps, material_id),
                 )
             elif normalized_content is not None:
                 conn.execute(
                     """UPDATE materials
-                       SET transcription_status = ?, normalized_content = ?
+                       SET transcription_status = ?, normalized_content = ?,
+                           word_timestamps = ?
                        WHERE id = ?""",
-                    (status, normalized_content, material_id),
+                    (status, normalized_content, word_timestamps, material_id),
                 )
             else:
                 conn.execute(
@@ -200,7 +221,7 @@ class TranscriptionWorker:
                 return False
 
             logger.info(f"Transcribing material {material_id} ({filename})...")
-            transcript, word_count = self._transcribe(audio_path)
+            transcript, word_count, word_ts = self._transcribe(audio_path)
 
             if not transcript.strip():
                 self._update_material(
@@ -211,10 +232,12 @@ class TranscriptionWorker:
                 logger.warning(f"Material {material_id} ({filename}): no speech detected")
                 return False
 
+            import json as _json
             self._update_material(
                 material_id, "done",
                 normalized_content=transcript,
                 word_count=word_count,
+                word_timestamps=_json.dumps(word_ts) if word_ts else None,
             )
             logger.info(f"Material {material_id} ({filename}): transcribed ({word_count} words)")
             return True

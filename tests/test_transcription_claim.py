@@ -36,6 +36,7 @@ def temp_db():
             normalized_content TEXT,
             transcription_status TEXT,
             word_count INTEGER,
+            word_timestamps TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )"""
@@ -92,7 +93,7 @@ def test_two_workers_transcribe_once(temp_db):
             transcribe_calls.append(audio_path)
         # Simulate some processing time so the race window is real
         time.sleep(0.2)
-        return ("transcript text", 2)
+        return ("transcript text", 2, None)
 
     worker1 = TranscriptionWorker(db_path=db_path, upload_dir=upload_dir, models_config={})
     worker2 = TranscriptionWorker(db_path=db_path, upload_dir=upload_dir, models_config={})

@@ -16,6 +16,7 @@ whitespace normalization equals the approved VO text.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Optional
 
@@ -23,6 +24,11 @@ from typing import Optional
 # Default phrase bounds per AMENDMENT-010 Condition 3.
 DEFAULT_MIN_WORDS = 3
 DEFAULT_MAX_WORDS = 6
+
+# Sentence terminators force a chunk break. Soft punctuation is a preferred
+# break point when a chunk must be split anyway.
+_SENTENCE_END = re.compile(r"[.!?]['\")\]]?$")
+_SOFT_BREAK = re.compile(r"[,;:—]$")
 
 
 @dataclass(frozen=True)
@@ -43,11 +49,13 @@ def _chunk_words(
     min_words: int = DEFAULT_MIN_WORDS,
     max_words: int = DEFAULT_MAX_WORDS,
 ) -> list[list[str]]:
-    """Split ``words`` into min..max word groups with no dangling tail.
+    """Split ``words`` into min..max word groups, never straddling a sentence boundary.
 
-    Reuses the algorithm from ``episode_plan._chunk_vo_text``: take up to
-    ``max_words`` per group, but if that would leave a dangling 1–2 word
-    tail, shrink the current group so the tail reaches ``min_words``.
+    Hard-splits on sentence terminators first (., !, ?), then applies the
+    existing word-count rule within each sentence. A short trailing sentence
+    — "Simple." — correctly becomes its own one-word cue; the ``min_words``
+    floor is not enforced across a sentence boundary, because merging sentences
+    to satisfy it is the exact defect being fixed (P1-7).
     """
     if not words:
         return []
@@ -55,6 +63,37 @@ def _chunk_words(
         raise ValueError(
             f"Invalid phrase bounds: min={min_words} max={max_words}"
         )
+
+    # Hard-split into sentences first.
+    sentences: list[list[str]] = []
+    current: list[str] = []
+    for word in words:
+        current.append(word)
+        if _SENTENCE_END.search(word):
+            sentences.append(current)
+            current = []
+    if current:
+        sentences.append(current)
+
+    chunks: list[list[str]] = []
+    for sentence in sentences:
+        chunks.extend(_chunk_sentence(sentence, min_words, max_words))
+    return chunks
+
+
+def _chunk_sentence(
+    words: list[str],
+    min_words: int,
+    max_words: int,
+) -> list[list[str]]:
+    """Split one sentence's words into min..max groups with no dangling tail.
+
+    This is the original ``_chunk_words`` body, with one addition: when a
+    split is required and a word within ``[min_words, max_words]`` of the
+    cursor ends in soft punctuation, break there instead of at ``max_words``.
+    """
+    if not words:
+        return []
 
     chunks: list[list[str]] = []
     i = 0
@@ -70,6 +109,14 @@ def _chunk_words(
                 chunk_len = remaining - min_words
                 if chunk_len < min_words:
                     chunk_len = min_words
+
+            # Soft-break preference: if a word within [min_words, max_words]
+            # of the cursor ends in soft punctuation, break there.
+            for j in range(i + min_words, min(i + chunk_len, n)):
+                if _SOFT_BREAK.search(words[j]):
+                    chunk_len = j - i + 1
+                    break
+
         chunks.append(words[i : i + chunk_len])
         i += chunk_len
     return chunks

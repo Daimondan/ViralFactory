@@ -64,7 +64,10 @@ class CueCompiler:
                     text=text,
                     start_sec=current_time,
                     end_sec=current_time + duration,
-                    metadata={"measured": True},
+                    metadata={
+                        "measured": True,
+                        "word_timestamps": seg.get("word_timestamps"),
+                    },
                 ))
                 current_time += duration
         else:
@@ -210,6 +213,7 @@ class CueCompiler:
             phrases = chunk_captions(
                 caption_text,
                 duration_sec=beat_duration,
+                word_timestamps=vo_timing.metadata.get("word_timestamps"),
             )
             if not phrases:
                 # Blank caption or zero-duration beat — emit one cue spanning
