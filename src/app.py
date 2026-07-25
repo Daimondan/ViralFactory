@@ -13,7 +13,7 @@ import hashlib
 import shutil
 import subprocess
 from datetime import datetime, timezone
-from flask import Flask, render_template, request, redirect, url_for, jsonify, send_from_directory
+from flask import Flask, render_template, request, redirect, jsonify, send_from_directory
 
 # Support both package and direct imports
 try:
@@ -3782,14 +3782,6 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     # ── T2.3: Viral Patterns + Audience Insights + Story Frameworks + Format Guide ──
 
-    def _get_business_context(self):
-        """Helper: load business context for LLM calls. Returns dict or raises."""
-        try:
-            config = load_all(self.config["CONFIG_DIR"])
-            return config["business"], config["models"]
-        except ConfigError as e:
-            return None, None
-
     # --- Viral Patterns ---
 
     @app.route("/onboard/<playbook_name>/<int:run_id>/viral-patterns")
@@ -4680,20 +4672,6 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             return True, result
         return False, result
 
-    def _load_all_modules(business_slug: str) -> dict:
-        """Load all available modules for a business as markdown text.
-        Returns dict of {module_name: markdown_content or '(not yet built)'}.
-        The drafter and idea generator consult these modules."""
-        from module_store import ModuleStore
-        store = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
-        modules = {}
-        for name in ["voice-profile", "viral-patterns", "story-frameworks",
-                      "format-guide", "audience-insights", "visual-style",
-                      "source-criteria", "brand-context"]:
-            content = store.load(business_slug, name)
-            modules[name] = content if content else f"({name} not yet built)"
-        return modules
-
     def _get_business_slug() -> str:
         """Get the current business slug from config."""
         try:
@@ -4724,53 +4702,6 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         )
         conn.commit()
         conn.close()
-
-    # ── T9.1: Format Guide metadata parsers (mechanical, no keyword heuristics) ──
-    # These replace the charter-violating _resolve_format_platforms (regex parser)
-    # and _determine_variant_type (keyword heuristic). Per AMENDMENT-007, the
-    # format + platform set are locked from the treatment at Gate 1 — no code
-    # re-derives them with keyword matching or regex parsing.
-
-    def _get_platforms_from_format_entry(ms: "ModuleStore", business_slug: str, format_name: str) -> list[str]:
-        """T9.1: Resolve which platforms a format is native to, from the Format Guide
-        entry's structured '- **Platforms:**' field.
-        Returns a list of platform names (e.g. ['X', 'Instagram']).
-        Returns empty list if the format or its platforms field is not found.
-        """
-        if not format_name:
-            return []
-        try:
-            entry = ms.get_entry(business_slug, "format-guide", "Formats", format_name)
-            if not entry:
-                return []
-            for line in entry.split("\n"):
-                stripped = line.strip()
-                if stripped.startswith("- **Platforms:**"):
-                    raw = stripped.split("**Platforms:**", 1)[1].strip()
-                    return [p.strip() for p in raw.split(",") if p.strip()]
-            return []
-        except Exception:
-            return []
-
-    def _get_variant_type_from_format_entry(ms: "ModuleStore", business_slug: str, format_name: str) -> str | None:
-        """T9.1: Resolve variant_type from the Format Guide entry's structured
-        '- **Variant type:**' field. Returns None if the field is not present
-        (T9.2 adds this field to the Format Guide schema). The caller falls back
-        to 'single_post' when None.
-        """
-        if not format_name:
-            return None
-        try:
-            entry = ms.get_entry(business_slug, "format-guide", "Formats", format_name)
-            if not entry:
-                return None
-            for line in entry.split("\n"):
-                stripped = line.strip()
-                if stripped.startswith("- **Variant type:**"):
-                    return stripped.split("**Variant type:**", 1)[1].strip()
-            return None
-        except Exception:
-            return None
 
     def _carry_draft_media(db_path: str, draft_id: int, asset_id: int):
         """S4: Copy draft media rows into a spawned asset (link, don't re-render).

@@ -300,6 +300,13 @@ class FakeRenderAdapter(BaseRenderAdapter):
 
 
 class ShotstackAdapter(BaseRenderAdapter):
+    """Shotstack render adapter — UNREACHABLE BY DECISION (P2-9).
+
+    The deterministic FFmpeg renderer is the owned path. This class is
+    retained for its lowering logic (``lower()``) as reference if a hosted
+    renderer is ever revisited. ``ProviderAdapterFactory.create("shotstack")``
+    raises ``ProviderAdapterError`` rather than returning an instance.
+    """
     """Shotstack render adapter.
 
     Submits RendererSpec as a Shotstack Edit JSON. Polls for completion.
@@ -418,6 +425,13 @@ class ShotstackAdapter(BaseRenderAdapter):
 
 
 class CreatomateAdapter(BaseRenderAdapter):
+    """Creatomate render adapter — UNREACHABLE BY DECISION (P2-9).
+
+    The deterministic FFmpeg renderer is the owned path. This class is
+    retained for its lowering logic (``lower()``) as reference if a hosted
+    renderer is ever revisited. ``ProviderAdapterFactory.create("creatomate")``
+    raises ``ProviderAdapterError`` rather than returning an instance.
+    """
     """Creatomate render adapter.
 
     Submits RendererSpec as a Creatomate RenderScript. Polls for completion.
@@ -517,14 +531,16 @@ class ProviderAdapterFactory:
 
     @staticmethod
     def create(provider: str, db_path: str, config: dict = None) -> BaseRenderAdapter:
-        if provider == "shotstack":
-            return ShotstackAdapter(db_path, config)
-        elif provider == "creatomate":
-            return CreatomateAdapter(db_path, config)
-        elif provider == "fake":
+        if provider == "fake":
             return FakeRenderAdapter(db_path, config)
         elif provider == "local":
             from services.renderer_spec import LocalConformanceAdapter
             return LocalConformanceAdapter()
+        elif provider in ("shotstack", "creatomate"):
+            raise ProviderAdapterError(
+                f"{provider} adapter is not implemented (submit persists a job that "
+                f"can never complete; check_status and download raise). The local "
+                f"FFmpeg renderer is the supported path."
+            )
         else:
             raise ProviderAdapterError(f"Unknown provider: {provider}")

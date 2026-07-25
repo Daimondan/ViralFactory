@@ -279,10 +279,19 @@ class TestProviderFactory:
         adapter = factory.create("fake", adapters["db_path"])
         assert adapter.PROVIDER_NAME == "fake"
 
-    def test_create_shotstack(self, adapters):
+    def test_create_shotstack_raises(self, adapters):
+        """Shotstack adapter is not implemented — factory raises (P2-9)."""
+        from services.render_adapters import ProviderAdapterError
         factory = adapters["factory"]
-        adapter = factory.create("shotstack", adapters["db_path"])
-        assert adapter.PROVIDER_NAME == "shotstack"
+        with pytest.raises(ProviderAdapterError, match="not implemented"):
+            factory.create("shotstack", adapters["db_path"])
+
+    def test_create_creatomate_raises(self, adapters):
+        """Creatomate adapter is not implemented — factory raises (P2-9)."""
+        from services.render_adapters import ProviderAdapterError
+        factory = adapters["factory"]
+        with pytest.raises(ProviderAdapterError, match="not implemented"):
+            factory.create("creatomate", adapters["db_path"])
 
     def test_create_unknown_fails(self, adapters):
         factory = adapters["factory"]
