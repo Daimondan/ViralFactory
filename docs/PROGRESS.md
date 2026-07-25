@@ -6,6 +6,8 @@
 
 **Last Updated:** 2026-07-25 (cinematic realism direction + idea diversity fixes + render state repair)
 
+2026-07-25 · FIX · Successful `RenderReviewService.render_for_asset()` calls now transition the asset to `rendered` after a final artifact exists, including review-not-ready results that still require human decision. This repairs the prior Gate-3 invisibility defect; a real service integration test verifies the persisted state. 27 render/gate focused tests passed. · Q: none
+
 2026-07-25 · BATCH-B P1-8 · Word-level caption emphasis committed as `079871f`. Complete word timestamps produce a stable caption pill with the current word highlighted by config; incomplete timestamps retain static captions. Real FFmpeg overlay regression passed. Full suite: 2543 passed, 2 skipped. · Q: none
 
 2026-07-25 · BATCH-B P1-7 · Restored and live-verified three diversified RSS feeds (Caribbean Development Bank, Caribbean Export, MIT Technology Review; 10 fetched items each), removed malformed/unresolved YouTube channels, and retained the verified Jordan Peterson channel ID. Added a generic rotating query-ingestion runner: deterministic configured subset selection, public DuckDuckGo retrieval, credential-gated Exa retrieval, Source Bank persistence as `search_item` / `new`, and existing research-job wiring. Live temp-DB run selected 4 queries, discovered/stored 29 results. 22 focused tests passed. · Q: source-review gate remains operator-owned

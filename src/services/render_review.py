@@ -457,6 +457,10 @@ class RenderReviewService:
             business_slug=business_slug,
             mechanical_findings=result.review.findings,
         ))
+        # A successful final artifact must be visible to Gate 3. Review
+        # readiness still controls whether the operator can approve it; it does
+        # not erase the fact that a render exists.
+        store.update_asset_state(asset_id, "rendered")
         return ServiceResponse({
             "status": "ok" if result.ready_for_gate3 else "needs_operator_decision",
             "path": result.render.output_path,

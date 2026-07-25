@@ -1932,3 +1932,9 @@ Compiled actionable research on what makes short-form video go viral, covering: 
 **What:** Restored three live, diversified RSS feeds, removed malformed/unresolved channel configuration, and wired a generic query-ingestion runner into the existing research job. It deterministically selects the configured per-cycle subset, executes public DuckDuckGo retrieval or credential-gated Exa retrieval, and writes mechanically discovered results to the Source Bank as `search_item` records with `status='new'`.
 
 **Rationale:** Search configuration without an executing ingestion path is cosmetic. Result relevance remains outside Python: candidates enter the existing human source-review gate rather than silently grounding ideation.
+
+## 2026-07-25 — Render state transition after a completed final artifact [FIX]
+
+**What:** `RenderReviewService.render_for_asset()` now sets `assets.asset_state` to `rendered` after a successful final render and review path returns. The state transition occurs whether the resulting review is Gate-3-ready or requires further human decision.
+
+**Rationale:** A final artifact must appear in the operator’s Gate-3 review queue. Review readiness controls approval, not visibility; leaving the asset `pending` hid completed renders and required unsafe manual database repair.

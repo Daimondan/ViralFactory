@@ -237,3 +237,4 @@ def test_render_for_asset_passes_exact_gate_decision_into_final_mix_review(
     assert response.payload["status"] == "ok"
     assert response.payload["ready_for_gate3"] is True
     assert response.payload["review"]["verdict"] == "compliant"
+    assert store.get_asset(asset_id)["asset_state"] == "rendered"
