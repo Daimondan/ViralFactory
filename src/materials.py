@@ -315,14 +315,16 @@ class MaterialsIntake:
             with pdfplumber.open(filepath) as pdf:
                 text = "\n\n".join(page.extract_text() or "" for page in pdf.pages)
                 return text.strip() if text.strip() else None
-        except ImportError:
+        except Exception:
+            # A file can have a .pdf suffix without being a complete PDF.
+            # Continue to the fallback reader or operator-visible placeholder.
             pass
         try:
             from PyPDF2 import PdfReader
             reader = PdfReader(filepath)
             text = "\n\n".join(page.extract_text() or "" for page in reader.pages)
             return text.strip() if text.strip() else None
-        except ImportError:
+        except Exception:
             pass
         return None
 
