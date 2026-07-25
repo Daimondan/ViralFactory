@@ -20,9 +20,11 @@ from flask import Flask, render_template, request, redirect, jsonify, send_from_
 try:
     from .config_loader import load_all, ConfigError
     from .playbook_runner import PlaybookParser, PlaybookRunner
+    from .db import connect as _db_connect
 except ImportError:
     from config_loader import load_all, ConfigError
     from playbook_runner import PlaybookParser, PlaybookRunner
+    from db import connect as _db_connect
 
 
 def _archive_config_file(filepath):
@@ -302,9 +304,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
     # WAL is a persistent database property — setting it once here means readers
     # never block writers for any later connection, in any process. busy_timeout
     # is per-connection and is handled by src/db.py (see P1-5). P0-4.
-    import sqlite3 as _sqlite3_init
     os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
-    _wal_conn = _sqlite3_init.connect(db_path)
+    _wal_conn = _db_connect(db_path)
     try:
         _wal_conn.execute("PRAGMA journal_mode=WAL")
         _wal_conn.execute("PRAGMA synchronous=NORMAL")
@@ -1021,9 +1022,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         from inspiration_store import InspirationStore
         insp_store = InspirationStore(app.config["DB_PATH"])
         # Get the trend item and latest observation
-        import sqlite3 as _sqlite3
-        conn = _sqlite3.connect(app.config["DB_PATH"])
-        conn.row_factory = _sqlite3.Row
+        conn = _db_connect(app.config["DB_PATH"])
         item = conn.execute(
             "SELECT * FROM insp_trend_items WHERE id=? AND business_slug=?",
             (trend_item_id, business_slug),
@@ -2804,8 +2803,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         notes = (payload.get("notes", "") or "").strip()[:1000]
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         relative_path = os.path.relpath(document_path, project_root)
-        import sqlite3
-        conn = sqlite3.connect(app.config["DB_PATH"])
+        conn = _db_connect(app.config["DB_PATH"])
         try:
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS governance_document_decisions (
@@ -3785,8 +3783,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         import sqlite3
         FETCH_LIMIT = 500
         try:
-            conn = sqlite3.connect(db_file)
-            conn.row_factory = sqlite3.Row
+            conn = _db_connect(db_file)
             # Try to read sources table (v2 schema may vary)
             try:
                 total_available = conn.execute("SELECT COUNT(*) FROM sources").fetchone()[0]
@@ -4796,8 +4793,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
     # ── VF-VS-515: Gate 3 soundtrack approval helpers ──
     def _gate3_approved(asset_id: int) -> bool:
         """Check if Gate 3 (asset approval) is currently approved."""
-        import sqlite3 as _sqlite3
-        conn = _sqlite3.connect(app.config["DB_PATH"])
+        conn = _db_connect(app.config["DB_PATH"])
         row = conn.execute(
             "SELECT asset_state FROM assets WHERE id = ?", (asset_id,)
         ).fetchone()
@@ -4807,8 +4803,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
     def _invalidate_gate3_approval(asset_id: int):
         """Switching soundtrack invalidates prior Gate 3 approval — the operator
         must re-review the asset with the new track."""
-        import sqlite3 as _sqlite3
-        conn = _sqlite3.connect(app.config["DB_PATH"])
+        conn = _db_connect(app.config["DB_PATH"])
         conn.execute(
             "UPDATE assets SET asset_state = 'pending', updated_at = ? WHERE id = ?",
             (datetime.now(timezone.utc).isoformat(), asset_id),
@@ -4826,9 +4821,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         generation (different content) is silently skipped — it would produce
         mismatched image/text pairing on the asset page.
         """
-        import sqlite3 as _sqlite3
         import json as _json
-        conn = _sqlite3.connect(db_path)
+        conn = _db_connect(db_path)
         # Check owner_type column exists
         cols = [row[1] for row in conn.execute("PRAGMA table_info(asset_media)").fetchall()]
         if "owner_type" not in cols:
@@ -6378,8 +6372,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     changed = True
         if changed:
             # Save updated flags
-            import sqlite3 as _sqlite3
-            conn = _sqlite3.connect(app.config["DB_PATH"])
+            conn = _db_connect(app.config["DB_PATH"])
             conn.execute(
                 "UPDATE drafts SET self_audit_flags = ? WHERE id = ?",
                 (json.dumps(flags), draft_id),
@@ -6447,8 +6440,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         store.save_platform_content(draft_id, platform_content)
 
         # Bump version separately (save_platform_content doesn't bump)
-        import sqlite3 as _sqlite3
-        conn = _sqlite3.connect(app.config["DB_PATH"])
+        conn = _db_connect(app.config["DB_PATH"])
         conn.execute("UPDATE drafts SET draft_version = draft_version + 1 WHERE id = ?", (draft_id,))
         conn.commit()
         conn.close()
@@ -7840,13 +7832,11 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         except ConfigError:
             models_config = {}
         from asset_review import AssetReviewer
-        import sqlite3 as _sqlite3
         reviewer = AssetReviewer(models_config, db_path=app.config["DB_PATH"])
 
         # Only return reviews for the LATEST final_cut — old renders' reviews
         # are stale and shouldn't clutter the UI
-        conn = _sqlite3.connect(app.config["DB_PATH"])
-        conn.row_factory = _sqlite3.Row
+        conn = _db_connect(app.config["DB_PATH"])
         latest_media = conn.execute(
             "SELECT id FROM asset_media WHERE asset_id = ? AND kind = 'final_cut' "
             "ORDER BY id DESC LIMIT 1",
@@ -7876,8 +7866,6 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         No raw JSON default — everything is structured for the template.
         """
-        import sqlite3 as _sqlite3
-
         try:
             config = load_all(app.config["CONFIG_DIR"])
             models_config = config["models"]
@@ -8038,9 +8026,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             return jsonify({"error": str(e)}), 500
 
         # Get the stock_cache ID for this download
-        import sqlite3 as _sqlite3
-        conn = _sqlite3.connect(app.config["DB_PATH"])
-        conn.row_factory = _sqlite3.Row
+        conn = _db_connect(app.config["DB_PATH"])
         row = conn.execute(
             "SELECT id FROM stock_cache WHERE local_path = ?",
             (path,),
@@ -9300,12 +9286,11 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
     @app.route("/setup/voices")
     def voice_management():
         """Voice management page — part of the VF setup section."""
-        import sqlite3
         business_slug = _get_business_slug()
         if not business_slug:
             return "Business not configured", 500
 
-        conn = sqlite3.connect(db_path)
+        conn = _db_connect(db_path)
         voices = conn.execute(
             "SELECT * FROM voices WHERE business_slug = ? ORDER BY is_default DESC, name ASC",
             (business_slug,),
@@ -9354,7 +9339,6 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
     @app.route("/api/voices", methods=["POST"])
     def create_voice():
         """Create a new voice in the registry."""
-        import sqlite3
         business_slug = _get_business_slug()
         if not business_slug:
             return jsonify({"error": "Business not configured"}), 500
@@ -9369,7 +9353,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         if not name:
             return jsonify({"error": "Name is required"}), 400
 
-        conn = sqlite3.connect(db_path)
+        conn = _db_connect(db_path)
         ts = datetime.now(timezone.utc).isoformat()
 
         # If is_default, unset all other defaults for this business
@@ -9393,8 +9377,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
     @app.route("/api/voices/<int:voice_id>", methods=["DELETE"])
     def delete_voice(voice_id):
         """Delete a voice from the registry."""
-        import sqlite3
-        conn = sqlite3.connect(db_path)
+        conn = _db_connect(db_path)
         conn.execute("DELETE FROM voices WHERE id = ?", (voice_id,))
         conn.commit()
         conn.close()
@@ -9403,9 +9386,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
     @app.route("/api/voices/<int:voice_id>/default", methods=["POST"])
     def set_default_voice(voice_id):
         """Set a voice as the default for the business."""
-        import sqlite3
         business_slug = _get_business_slug()
-        conn = sqlite3.connect(db_path)
+        conn = _db_connect(db_path)
         conn.execute(
             "UPDATE voices SET is_default = 0 WHERE business_slug = ?",
             (business_slug,),
