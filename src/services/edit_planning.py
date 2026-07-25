@@ -1035,16 +1035,34 @@ class EditPlanningService:
                     normalized = _normalize_text(required_text)
                     if normalized not in approved_fragments:
                         # Distinguish internal graphic labels (snake_case,
-                        # no spaces) from invented audience copy.
+                        # no spaces) and short numeric/graphic labels from
+                        # invented audience copy.
                         # The Visual Director may use required_text as an
                         # internal label for renderer_graphic events (e.g.
-                        # "cost_comparison_card"), which is not audience text.
+                        # "cost_comparison_card") or as a short numeric
+                        # overlay (e.g. "0.05%", "$2,000") that appears as
+                        # a graphics card — neither is audience prose.
+                        stripped = required_text.strip()
                         is_internal_label = (
                             event.get("source_policy") == "renderer_graphic"
-                            and " " not in required_text.strip()
-                            and required_text.replace("_", "").isalnum()
+                            and " " not in stripped
+                            and stripped.replace("_", "").isalnum()
                         )
-                        if not is_internal_label:
+                        # Short numeric/percentage/currency labels for
+                        # graphic events — not audience copy, just data
+                        # shown on a number card overlay.
+                        import re as _re
+                        is_numeric_graphic = (
+                            event.get("source_policy") in (
+                                "renderer_graphic", "generated_graphic",
+                                "generated_still"
+                            )
+                            and len(stripped) <= 20
+                            and bool(_re.match(
+                                r'^[\d.,$%€£\s]+$', stripped
+                            ))
+                        )
+                        if not is_internal_label and not is_numeric_graphic:
                             errors.append(
                                 f"Visual event '{event.get('event_id', '?')}' invents audience text"
                             )

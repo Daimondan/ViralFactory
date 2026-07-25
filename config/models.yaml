@@ -27,7 +27,8 @@ ollama_glm52:
   provider: "ollama_cloud"
   model: "glm-5.2"
   temperature: 0
-  max_tokens: 8192              # GLM-5.2 is a reasoning model — needs headroom
+  max_tokens: 16384             # GLM-5.2 is a reasoning model — edit plans need ~6K output tokens,
+                                # reasoning overhead consumes the rest. 16K gives enough headroom.
   base_url: "https://ollama.com"
 
 # Generative backend for idea generation + drafting (real temperature per
