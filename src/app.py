@@ -7205,6 +7205,11 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 _get_jobs_store().fail_job(vo_job_id, error_msg[:200])
                 return jsonify({"error": f"VO generation failed: {error_msg}"}), 500
 
+            if not proc.stdout or not proc.stdout.strip():
+                error_msg = proc.stderr[-500:] if proc.stderr else "No output from VO subprocess"
+                _get_jobs_store().fail_job(vo_job_id, f"Empty stdout: {error_msg[:200]}")
+                return jsonify({"error": f"VO generation failed: subprocess returned empty output"}), 500
+
             result = json.loads(proc.stdout)
             if result.get("status") != "ok":
                 _get_jobs_store().fail_job(vo_job_id, result.get("error", "Unknown error")[:200])

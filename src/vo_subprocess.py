@@ -55,15 +55,20 @@ def main():
         )
         store.save_vo_segments(args.asset_id, json.dumps(result["segments"]))
 
-        print(json.dumps({
+        output = json.dumps({
             "status": "ok",
             "segments_generated": len(result["segments"]),
             "total_duration": round(result["total_duration"], 2),
             "take_id": result["take_id"],
-        }))
+        })
+        sys.stdout.write(output)
+        sys.stdout.flush()
     except Exception as exc:
         traceback.print_exc(file=sys.stderr)
-        print(json.dumps({"status": "error", "error": str(exc)}))
+        sys.stderr.flush()
+        error_output = json.dumps({"status": "error", "error": str(exc)})
+        sys.stdout.write(error_output)
+        sys.stdout.flush()
         sys.exit(1)
 
 
