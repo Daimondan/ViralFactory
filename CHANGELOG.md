@@ -6,6 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-26 — BUILDER: Filed DIVERGENCE-025 for 2D-vector Fitzroy request
+
+**What:** The operator asked for a standalone Fitzroy rocking-chair portrait to be "more like the 2d vector" after reviewing a cinematic-painted-realism render. Filed `docs/decisions/DIVERGENCE-025-fitzroy-vector-film-style-request.md` and `docs/inbox/BUILDER-NOTE-020-fitzroy-vector-style-request.md`. Generated a non-production flat-vector comparison set: the empty room plate, isolated Fitzroy, isolated Stacks, blank newspaper, and controller. Final PNGs were deterministically palette-locked and validated to contain only the declared outline, cream, navy, gold, wood, warm-brown skin, and newspaper-grey swatches; the canonical visual module, character references, prompts, configuration, renderer, and production path remain unchanged.
+
+**Type:** STRATEGIC / STRUCTURE
+
+**Rationale:** AMENDMENT-015 ratifies painterly cinematic realism for footage/world subjects and reserves flat vector for renderer-drawn graphics, explicitly forbidding a flat-vector Fitzroy as a footage-layer performer. The operator's feedback is a valid direction signal, but changing that boundary requires an architect ruling rather than a silent prompt or code change.
+
+**Files:** `docs/decisions/DIVERGENCE-025-fitzroy-vector-film-style-request.md`, `docs/inbox/BUILDER-NOTE-020-fitzroy-vector-style-request.md`
+
+---
+
 ## 2026-07-25 — BUILDER: P1-5 closed — app.py migrated to db.py connection factory
 
 **What:** Completed the final P1-5 migration. All 14 direct `sqlite3.connect` calls in `src/app.py` replaced with `_db_connect` (from `src/db.py`). This ensures every connection gets `busy_timeout=30s`, `foreign_keys=ON`, and `row_factory=sqlite3.Row`. Three orphaned `import sqlite3 as _sqlite3` lines removed from voice management routes. The v2 backup read (external DB with unknown schema) also uses `db.connect` — `sqlite3.OperationalError` is still caught for schema mismatch. Guard test (`test_db_factory_guard.py`) updated with `src/app.py` in the migrated list. `materials.py`, `jobs.py`, and `services/production_orchestrator.py` were already migrated.

@@ -7475,13 +7475,28 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             _get_jobs_store().fail_job(job_id, "Asset not found")
             return jsonify({"error": "Asset not found"}), 404
 
-        # For Reel assets, run media planning first to generate video
-        # clips for beats with media_type=video. The autonomous chain
-        # does this as a separate step before edit planning; the UI route
-        # must do the same or the feasibility check will block on motion
-        # shortfall (0s of moving source for beats that need motion).
+        # For Reel assets, run media planning first only when the asset has
+        # unfulfilled writer-authored image prompts. Running the media planner
+        # for every reel calls an LLM before EditPlanningService can reject
+        # missing operator capture evidence or use already-ready media.
         variant = (asset.get("variant_type") or "").lower()
-        if variant in ("reel", "story_series"):
+        draft = store.get_draft(asset["draft_id"])
+        card = (
+            store.get_idea_card(draft["idea_card_id"])
+            if draft and draft.get("idea_card_id") else None
+        )
+        treatment = json.loads(card.get("treatment") or "{}") if card else {}
+        capture_required = treatment.get("capture_required") or []
+        capture_uploads = json.loads(card.get("capture_uploads") or "[]") if card else []
+        missing_captures = capture_required[len(capture_uploads):]
+        image_prompts = json.loads(asset.get("image_prompts") or "[]")
+        generated_images = json.loads(asset.get("generated_images") or "[]")
+        needs_media_generation = (
+            bool(image_prompts)
+            and len(generated_images) < len(image_prompts)
+            and not missing_captures
+        )
+        if variant in ("reel", "story_series") and needs_media_generation:
             from services.media_planning import MediaPlanningService
             mp_service = MediaPlanningService(
                 db_path=app.config["DB_PATH"],
@@ -8339,11 +8354,27 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             except (json.JSONDecodeError, TypeError):
                 pass
 
-        # Get generated images for this asset
+        # Get generated media for this asset (images + videos)
         from media_adapter import MediaAdapter
         media_adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
         asset_media = media_adapter.list_asset_media(asset_id)
         images = [{"id": m.get("postiz_id", ""), "path": m.get("path", "")} for m in asset_media if m.get("kind") == "image"]
+
+        # Build video asset URLs for Buffer (public HTTPS URL required)
+        videos = []
+        video_media = [m for m in asset_media if m.get("kind") in ("video", "final_cut")]
+        if video_media:
+            public_base = publish.public_media_base_url
+            if public_base:
+                for vm in video_media:
+                    vm_path = vm.get("path", "")
+                    # Strip leading "data/media/" if present (DB stores relative to data/media/)
+                    if vm_path.startswith("data/media/"):
+                        vm_path = vm_path[len("data/media/"):]
+                    video_url = f"{public_base}/media/{vm_path}"
+                    videos.append({"url": video_url})
+            else:
+                logger.warning("Video media found but public_media_base_url not configured — cannot publish video to Buffer")
 
         try:
             result = publish.publish_piece(
@@ -8353,6 +8384,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 content=publish_text,
                 posts=posts_list if posts_list else None,
                 images=images if images else None,
+                videos=videos if videos else None,
                 scheduled_at=scheduled_at,
                 asset_state=asset["asset_state"],
             )
@@ -8402,6 +8434,19 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         asset_media = media_adapter.list_asset_media(asset_id)
         images = [{"id": m.get("postiz_id", ""), "path": m.get("path", "")} for m in asset_media if m.get("kind") == "image"]
 
+        # Build video asset URLs for Buffer (public HTTPS URL required)
+        videos = []
+        video_media = [m for m in asset_media if m.get("kind") in ("video", "final_cut")]
+        if video_media:
+            public_base = publish.public_media_base_url
+            if public_base:
+                for vm in video_media:
+                    vm_path = vm.get("path", "")
+                    if vm_path.startswith("data/media/"):
+                        vm_path = vm_path[len("data/media/"):]
+                    video_url = f"{public_base}/media/{vm_path}"
+                    videos.append({"url": video_url})
+
         # DIVERGENCE-022: use post_caption.text for reel/story_series (legacy fallback to content)
         publish_text = asset["content"]
         post_caption_raw = asset.get("post_caption")
@@ -8423,6 +8468,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 content=publish_text,
                 posts=posts_list if posts_list else None,
                 images=images if images else None,
+                videos=videos if videos else None,
                 scheduled_at=scheduled_at,
                 asset_state="approved",
             )
@@ -8430,6 +8476,151 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             return jsonify({"status": "ok", "postiz_post_id": result.get("postiz_post_id", "")})
         except BufferError as e:
             return jsonify({"error": str(e)}), 502
+
+    # ── Import external content into the pipeline for publishing ──
+
+    @app.route("/api/import/video", methods=["POST"])
+    def import_video():
+        """Import an externally-produced video into the pipeline as an approved asset.
+
+        Lets operators bring their own content (e.g. manually produced Reels)
+        into the same Gate 4 publish flow. Creates a draft + asset row with
+        the video recorded in asset_media, ready for the publish page.
+
+        Required body:
+          - video_path: relative path to video file under data/media/ (e.g. "stacks_nis_tiktok_green_screen/video.mp4")
+          - platform: target platform ("Instagram", "X", etc.)
+          - variant_type: "reel", "story_series", "single_post", etc.
+          - caption_text: the post caption text
+          - caption_hashtags: array of hashtag strings
+          - content_summary: short description of the content
+
+        Optional:
+          - vo_text: the voiceover script (stored as posts)
+        """
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        body = request.json or {}
+        video_path = (body.get("video_path") or "").strip()
+        platform = (body.get("platform") or "Instagram").strip()
+        variant_type = (body.get("variant_type") or "reel").strip()
+        caption_text = (body.get("caption_text") or "").strip()
+        caption_hashtags = body.get("caption_hashtags") or []
+        content_summary = (body.get("content_summary") or "").strip()
+        vo_text = body.get("vo_text", "").strip()
+
+        if not video_path:
+            return jsonify({"error": "video_path is required"}), 400
+        if not caption_text:
+            return jsonify({"error": "caption_text is required"}), 400
+
+        # Verify the video file exists
+        full_video_path = os.path.join(app.config["DB_PATH"].replace("viralfactory.db", ""), "data", "media", video_path)
+        if not os.path.exists(full_video_path):
+            # Also try without data/media prefix
+            alt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "media", video_path)
+            if not os.path.exists(alt_path):
+                return jsonify({"error": f"Video file not found: {video_path}"}), 404
+
+        store = _get_pipeline_store()
+        import json as _json
+        from datetime import datetime, timezone as _tz
+
+        ts = datetime.now(_tz.utc).isoformat()
+
+        # Create draft with external origin
+        # Use the external-import idea card (created once, reused for all imports)
+        from db import connect as _db_connect
+        _conn = _db_connect(app.config["DB_PATH"])
+        _card = _conn.execute(
+            "SELECT id FROM idea_cards WHERE origin = 'external_import' AND business_slug = ? ORDER BY id ASC LIMIT 1",
+            (business_slug,),
+        ).fetchone()
+        _conn.close()
+        external_card_id = _card[0] if _card else None
+        if not external_card_id:
+            # Create the external-import card if it doesn't exist
+            _conn = _db_connect(app.config["DB_PATH"])
+            _ts = datetime.now(_tz.utc).isoformat()
+            _cursor = _conn.execute(
+                """INSERT INTO idea_cards
+                   (business_slug, idea, hook_options, treatment, origin, evidence_links,
+                    seed_text, parent_id, card_state, kill_reason, capture_uploads,
+                    created_at, updated_at, source_refs, production_error)
+                   VALUES (?, 'External import — operator-produced content', '[]', '{}',
+                    'external_import', '[]', '', NULL, 'drafting', NULL, '[]', ?, ?, '[]', NULL)""",
+                (business_slug, _ts, _ts),
+            )
+            external_card_id = _cursor.lastrowid
+            _conn.commit()
+            _conn.close()
+
+        draft_id = store.create_draft(
+            business_slug=business_slug,
+            idea_card_id=external_card_id,
+            origin="external_import",
+            format_name=variant_type,
+            scope="single",
+        )
+
+        # Save draft content
+        platform_content = [{
+            "platform": platform,
+            "variant_type": variant_type,
+            "content": content_summary or caption_text[:200],
+            "post_caption": {"text": caption_text, "hashtags": caption_hashtags},
+            "posts": [{"label": "FULL", "vo_text": vo_text}] if vo_text else [],
+        }]
+        store.save_draft_content(
+            draft_id=draft_id,
+            draft_text=content_summary or caption_text[:200],
+            visual_direction={},
+            self_audit_flags=[],
+            platform_content=platform_content,
+        )
+        store.update_draft_state(draft_id, "approved")
+
+        # Create asset
+        post_caption = {"text": caption_text, "hashtags": caption_hashtags}
+        posts = [{"label": "FULL", "vo_text": vo_text}] if vo_text else []
+        asset_id = store.create_asset(
+            business_slug=business_slug,
+            draft_id=draft_id,
+            platform=platform,
+            variant_type=variant_type,
+            content=content_summary or caption_text[:200],
+            posts=posts,
+            post_caption=post_caption,
+            native=True,
+        )
+
+        # Record video in asset_media
+        from media_adapter import MediaAdapter
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            models_config = config["models"]
+        except ConfigError:
+            models_config = {}
+        media_adapter = MediaAdapter(models_config, db_path=app.config["DB_PATH"])
+        media_adapter._record_media(
+            asset_id=asset_id,
+            kind="final_cut",
+            path=video_path,
+            model="external_import",
+            prompt=content_summary[:2000] if content_summary else "Manually imported video",
+        )
+
+        # Mark as approved so it shows up at Gate 4
+        store.update_asset_state(asset_id, "approved")
+
+        return jsonify({
+            "status": "ok",
+            "draft_id": draft_id,
+            "asset_id": asset_id,
+            "publish_url": f"/create/publish/{draft_id}",
+        })
 
     @app.route("/api/buffer/status")
     def buffer_status():

@@ -87,6 +87,21 @@
     </div>
     {% endfor %}
     {% endif %}
+
+    <h2>Import external video</h2>
+    <p class="subtle">Bring your own produced video into the pipeline for publishing. The video file must already be in <code>data/media/</code>.</p>
+    <div class="asset-card" style="margin-bottom: 16px;">
+        <div style="display: grid; gap: 8px;">
+            <input type="text" id="import-video-path" placeholder="Video path (e.g. stacks_nis_tiktok_green_screen/video.mp4)" style="padding: 6px; border-radius: 4px; border: 1px solid #D8D4C8; background: #F0EDE4; color: #1A1A1A; font-size: 0.85rem;">
+            <input type="text" id="import-platform" placeholder="Platform (e.g. Instagram)" value="Instagram" style="padding: 6px; border-radius: 4px; border: 1px solid #D8D4C8; background: #F0EDE4; color: #1A1A1A; font-size: 0.85rem;">
+            <input type="text" id="import-variant" placeholder="Variant type (e.g. reel)" value="reel" style="padding: 6px; border-radius: 4px; border: 1px solid #D8D4C8; background: #F0EDE4; color: #1A1A1A; font-size: 0.85rem;">
+            <textarea id="import-caption" placeholder="Caption text (the post caption that appears under the video)" rows="4" style="padding: 6px; border-radius: 4px; border: 1px solid #D8D4C8; background: #F0EDE4; color: #1A1A1A; font-size: 0.85rem; resize: vertical;"></textarea>
+            <input type="text" id="import-hashtags" placeholder="Hashtags (comma-separated, e.g. #stackpenni, #nis)" style="padding: 6px; border-radius: 4px; border: 1px solid #D8D4C8; background: #F0EDE4; color: #1A1A1A; font-size: 0.85rem;">
+            <input type="text" id="import-summary" placeholder="Content summary (short description)" style="padding: 6px; border-radius: 4px; border: 1px solid #D8D4C8; background: #F0EDE4; color: #1A1A1A; font-size: 0.85rem;">
+            <button class="btn btn-go" onclick="importVideo(this)">Import video → Gate 4</button>
+        </div>
+        <div id="import-error" style="margin-top: 8px;"></div>
+    </div>
 </div>
 
 <script>
@@ -136,6 +151,45 @@ function hold(id, btn) {
         reloadOnSuccess: false,
         onSuccess: function() { vfToastInfo('Held', 'Not scheduled'); },
         onError: function(msg) { vfToastError('Error', String(msg)); }
+    });
+}
+
+function importVideo(btn) {
+    var path = document.getElementById('import-video-path').value.trim();
+    var platform = document.getElementById('import-platform').value.trim() || 'Instagram';
+    var variant = document.getElementById('import-variant').value.trim() || 'reel';
+    var caption = document.getElementById('import-caption').value.trim();
+    var hashtagsRaw = document.getElementById('import-hashtags').value.trim();
+    var summary = document.getElementById('import-summary').value.trim();
+    var errDiv = document.getElementById('import-error');
+    errDiv.innerHTML = '';
+
+    if (!path) { errDiv.innerHTML = '<div class="error-box">Video path is required</div>'; return; }
+    if (!caption) { errDiv.innerHTML = '<div class="error-box">Caption text is required</div>'; return; }
+
+    var hashtags = hashtagsRaw ? hashtagsRaw.split(',').map(function(s) { return s.trim(); }).filter(Boolean) : [];
+
+    busyAction(btn, '/api/import/video', {
+        busyLabel: 'Importing…',
+        body: JSON.stringify({
+            video_path: path,
+            platform: platform,
+            variant_type: variant,
+            caption_text: caption,
+            caption_hashtags: hashtags,
+            content_summary: summary
+        }),
+        reloadOnSuccess: false,
+        onSuccess: function(data) {
+            if (data.publish_url) {
+                window.location.href = data.publish_url;
+            } else {
+                vfToastInfo('Imported', 'Video imported — reload to see it at Gate 4');
+            }
+        },
+        onError: function(msg) {
+            errDiv.innerHTML = '<div class="error-box">' + msg + '</div>';
+        }
     });
 }
 </script>

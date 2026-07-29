@@ -298,6 +298,11 @@ buffer:
   api_url: "https://api.buffer.com"
   api_key: ""                              # from BUFFER_API_KEY env var
   organization_id: ""                       # from Buffer account (optional — channels can be in config)
+  # Public base URL where this VF instance serves media files.
+  # Buffer fetches video/image assets from this URL — must be publicly
+  # accessible (no auth), HTTPS, stable. Configured in traefik to bypass
+  # basic auth for /media/ paths.
+  public_media_base_url: "https://vf.glenbeu.com"
   channels:
     x:
       id: "6a4169425ab6d2f10680f68e"

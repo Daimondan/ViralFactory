@@ -46,6 +46,7 @@ class BufferAdapter:
         self.api_key = buffer_cfg.get("api_key", "") or os.environ.get("BUFFER_API_KEY", "")
         self.organization_id = buffer_cfg.get("organization_id", "")
         self.channels = buffer_cfg.get("channels", {})
+        self.public_media_base_url = buffer_cfg.get("public_media_base_url", "").rstrip("/")
         self._ensure_tables()
 
     def _ensure_tables(self):
@@ -224,12 +225,17 @@ class BufferAdapter:
         content: str,
         posts: list[str] = None,
         images: list[dict] = None,
+        videos: list[dict] = None,
         scheduled_at: str = None,
         asset_state: str = "approved",
     ) -> dict:
         """Publish or schedule a piece via Buffer.
         HARD RULE: asset_state must be 'approved'. No auto-publish.
-        Returns a publish_log row dict."""
+        Returns a publish_log row dict.
+
+        videos: list of {"url": "https://...", "thumbnail_offset_ms": int} dicts.
+        Buffer fetches the video from the public URL — no file upload endpoint.
+        """
         if asset_state != "approved":
             raise BufferError(
                 "Per-piece approval required: asset must be 'approved' before publishing. "
@@ -292,7 +298,7 @@ class BufferAdapter:
         if due_at:
             input_obj["dueAt"] = due_at
 
-        # Attach images if provided (as public URLs)
+        # Attach media assets (images and/or videos as public URLs)
         assets = []
         if images:
             for img in images:
@@ -303,8 +309,27 @@ class BufferAdapter:
                 elif img_id:
                     # Already uploaded — use ID reference
                     assets.append({"image": {"id": img_id}})
+        if videos:
+            for vid in videos:
+                vid_url = vid.get("url", "")
+                if vid_url and vid_url.startswith("http"):
+                    video_asset = {"video": {"url": vid_url}}
+                    # Optional thumbnail offset (milliseconds into the video)
+                    thumb_ms = vid.get("thumbnail_offset_ms")
+                    if thumb_ms is not None:
+                        video_asset["video"]["metadata"] = {"thumbnailOffset": thumb_ms}
+                    assets.append(video_asset)
         if assets:
             input_obj["assets"] = assets
+
+        # Instagram Reel metadata: set post type to "reel" when video is attached
+        platform_lower = platform.lower()
+        if videos and platform_lower in ("instagram", "ig"):
+            service_key = self._get_service_key(platform)
+            if service_key:
+                existing_meta = input_obj.get("metadata", {})
+                existing_meta.setdefault(service_key, {})["type"] = "reel"
+                input_obj["metadata"] = existing_meta
 
         mutation = """
             mutation CreatePost($input: CreatePostInput!) {
