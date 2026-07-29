@@ -1107,7 +1107,10 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         source_criteria = ms.load(business_slug, "source-criteria") or "(not built)"
 
         # Build source material digest (includes the inspiration source)
-        active_sources = store.list_sources(business_slug, limit=50)
+        sample_size, fresh_window = _get_source_sample_config(config)
+        active_sources = store.list_sources_sampled(
+            business_slug, sample_size=sample_size, fresh_window=fresh_window,
+        )
         source_lines = []
         for src in active_sources:
             line = f"[S{src['id']}] {src['title']}"
@@ -4875,17 +4878,34 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     # ── S1b/S2: Novelty context helpers ──
 
+    def _get_source_sample_config(config: dict) -> tuple[int, int]:
+        """Extract source sampling params from config. Returns (sample_size, fresh_window)."""
+        sources_cfg = config.get("sources", {}) if config else {}
+        ig_cfg = sources_cfg.get("idea_generation", {}) if sources_cfg else {}
+        return (
+            int(ig_cfg.get("source_sample_size", 50)),
+            int(ig_cfg.get("fresh_window", 10)),
+        )
+
     def _build_existing_ideas(business_slug: str, limit: int = 40) -> str:
-        """S1b: Build the existing_ideas prompt variable — recent idea cards, one line each."""
+        """S1b: Build the existing_ideas prompt variable — recent idea cards.
+
+        Each line shows the card state, a sentence-complete summary of the idea
+        (not a mid-word truncation), source refs, and format — giving the LLM
+        enough context to avoid generating near-duplicate ideas.
+        """
+        from idea_diversity import summarize_idea
         store = _get_pipeline_store()
         cards = store.list_idea_cards(business_slug)
         lines = []
         for card in cards[:limit]:
             state = card.get("card_state", "?")
-            idea = card.get("idea", "")[:120]
+            idea = summarize_idea(card.get("idea", ""))
+            source_refs = card.get("source_refs", "")
             treatment = json.loads(card.get("treatment") or "{}")
             fmt = treatment.get("format", {}).get("format_name", "?") if isinstance(treatment.get("format"), dict) else "?"
-            lines.append(f"[{state}] {idea} ({fmt})")
+            src_str = f" sources={source_refs}" if source_refs else ""
+            lines.append(f"[{state}] {idea} ({fmt}){src_str}")
         return "\n".join(lines) if lines else "(no existing ideas)"
 
     def _build_kill_lessons(business_slug: str, limit: int = 20) -> str:
@@ -5268,7 +5288,10 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         ms = ModuleStore(modules_dir="modules", db_path=app.config["DB_PATH"])
         source_criteria = ms.load(business_slug, "source-criteria") or "(not built)"
 
-        active_sources = store.list_sources(business_slug, limit=50)
+        sample_size, fresh_window = _get_source_sample_config(config)
+        active_sources = store.list_sources_sampled(
+            business_slug, sample_size=sample_size, fresh_window=fresh_window,
+        )
         if active_sources:
             source_lines = []
             for src in active_sources:
@@ -5389,10 +5412,13 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         except Exception:
             pass
 
-        # Build digest view from the sources table — count-bounded, ID-prefixed
+        # Build digest view from the sources table — randomized sample, ID-prefixed
         from pipeline import PipelineStore
         store = _get_pipeline_store()
-        active_sources = store.list_sources(business_slug, limit=50)
+        sample_size, fresh_window = _get_source_sample_config(config)
+        active_sources = store.list_sources_sampled(
+            business_slug, sample_size=sample_size, fresh_window=fresh_window,
+        )
         if active_sources:
             source_lines = []
             for src in active_sources:

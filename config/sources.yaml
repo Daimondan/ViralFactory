@@ -68,5 +68,13 @@ queries:
     enabled: true
     date_window_months: 24
 
+# Idea generation source sampling — prevents the same sources from
+# dominating every generation run. With 1000+ active sources, always
+# taking the first 50 by first_seen DESC means the same 50 get reused.
+# This config controls the randomized sample fed to the LLM.
+idea_generation:
+  source_sample_size: 50    # how many sources to surface per generation run
+  fresh_window: 10          # always include the N most recent sources
+
 # Source criteria (written by the Sources Engine playbook as a module)
 # The actual criteria live in modules/{business}/source-criteria.md

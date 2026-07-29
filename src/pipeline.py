@@ -2192,6 +2192,53 @@ CREATE INDEX IF NOT EXISTS idx_soundtrack_plans_contract
         conn.close()
         return [dict(r) for r in rows]
 
+    def list_sources_sampled(
+        self, business_slug: str, status: str = "active",
+        sample_size: int = 50, fresh_window: int = 10,
+    ) -> list[dict]:
+        """Return a randomized sample of active sources to prevent the same
+        sources from dominating every idea generation run.
+
+        Strategy:
+        1. Always include the N most recent sources (fresh_window) — new
+           material should be available immediately.
+        2. Randomly sample the rest from all remaining active sources.
+
+        This ensures variety across runs while still surfacing new items.
+        """
+        import random
+
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
+        # Get all active sources ordered by recency
+        all_rows = conn.execute(
+            """SELECT * FROM sources
+               WHERE business_slug = ? AND status = ?
+               ORDER BY first_seen DESC""",
+            (business_slug, status),
+        ).fetchall()
+        conn.close()
+
+        all_sources = [dict(r) for r in all_rows]
+        if len(all_sources) <= sample_size:
+            return all_sources
+
+        # Take the most recent ones first
+        fresh = all_sources[:fresh_window]
+        remaining_pool = all_sources[fresh_window:]
+
+        # Sample from the rest
+        sample_remaining = sample_size - fresh_window
+        if sample_remaining > 0 and remaining_pool:
+            sampled = random.sample(remaining_pool, min(sample_remaining, len(remaining_pool)))
+        else:
+            sampled = []
+
+        # Combine — fresh first, then sampled (shuffled so the LLM doesn't
+        # see a predictable pattern)
+        result = fresh + sampled
+        random.shuffle(result)
+        return result
+
     def resolve_source_refs(self, business_slug: str, source_refs: list[int]) -> list[dict]:
         """Resolve a list of source IDs to their full source records.
         Returns only sources that exist and belong to the given business."""
