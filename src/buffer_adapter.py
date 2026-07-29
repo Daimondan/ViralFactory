@@ -323,12 +323,14 @@ class BufferAdapter:
             input_obj["assets"] = assets
 
         # Instagram Reel metadata: set post type to "reel" when video is attached
+        # Buffer requires shouldShareToFeed=true for Reels (shares to main feed)
         platform_lower = platform.lower()
         if videos and platform_lower in ("instagram", "ig"):
             service_key = self._get_service_key(platform)
             if service_key:
                 existing_meta = input_obj.get("metadata", {})
                 existing_meta.setdefault(service_key, {})["type"] = "reel"
+                existing_meta[service_key]["shouldShareToFeed"] = True
                 input_obj["metadata"] = existing_meta
 
         mutation = """
