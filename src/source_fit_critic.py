@@ -97,6 +97,7 @@ class SourceFitCritic:
     """Run the registry-owned Source-Fit Critic through the shared adapter."""
 
     prompt_file = "ideas/source_fit_critic_v1.md"
+    repair_prompt_file = "ideas/source_fit_repair_v1.md"
 
     def __init__(self, adapter: Any, config_dir: str = "config"):
         self.adapter = adapter
@@ -109,9 +110,15 @@ class SourceFitCritic:
         proposed_fit: list[dict],
     ) -> dict:
         source_evidence = []
+        seen_source_ids = set()
         for source in sources:
             if not isinstance(source, dict) or not isinstance(source.get("id"), int):
                 raise SourceFitValidationError("each source must include an integer id")
+            if isinstance(source.get("id"), bool) or source["id"] in seen_source_ids:
+                raise SourceFitValidationError("source IDs must be unique integers")
+            if not isinstance(source.get("content"), str) or not source["content"].strip():
+                raise SourceFitValidationError("each source must include exact content")
+            seen_source_ids.add(source["id"])
             source_evidence.append(dict(source))
         catalogue = load_lens_catalogue(business_slug, self.config_dir)
         configured = {item.get("id") for item in catalogue if isinstance(item, dict)}
@@ -136,3 +143,49 @@ class SourceFitCritic:
             [source["id"] for source in source_evidence],
             sorted(configured),
         )
+
+    def run_with_bounded_repair(
+        self,
+        business_slug: str,
+        card_context: dict,
+        sources: list[dict],
+        proposed_fit: list[dict],
+    ) -> dict:
+        """Run once, then allow exactly one card-specific repair attempt."""
+        try:
+            return self.run(business_slug, sources, proposed_fit)
+        except SourceFitValidationError as first_error:
+            source_evidence = [dict(source) for source in sources]
+            catalogue = load_lens_catalogue(business_slug, self.config_dir)
+            configured = {item.get("id") for item in catalogue if isinstance(item, dict)}
+            repaired = self.adapter.complete(
+                prompt_file=self.repair_prompt_file,
+                variables={
+                    "card_context": card_context,
+                    "source_evidence": source_evidence,
+                    "proposed_fit": proposed_fit,
+                    "critic_findings": str(first_error),
+                },
+                schema=SOURCE_FIT_CRITIC_SCHEMA,
+                backend="ideator",
+                context=f"Source-Fit Critic bounded repair for {business_slug}",
+                business_slug=business_slug,
+                profile="source_fit_critic_repair",
+            )
+            return validate_source_fit_result(
+                repaired,
+                [source["id"] for source in source_evidence],
+                sorted(configured),
+            )
+
+    @staticmethod
+    def retain_valid_results(results: list[tuple[Any, dict]], source_ids_by_card: dict, lens_ids: list[str]):
+        """Keep valid results and report invalid cards without padding."""
+        kept = []
+        omitted = []
+        for card_id, result in results:
+            try:
+                kept.append((card_id, validate_source_fit_result(result, source_ids_by_card[card_id], lens_ids)))
+            except (KeyError, SourceFitValidationError, TypeError, ValueError) as exc:
+                omitted.append({"card_id": card_id, "reason": str(exc)})
+        return kept, omitted

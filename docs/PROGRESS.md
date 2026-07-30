@@ -6,6 +6,8 @@
 
 **Last Updated:** 2026-07-30 (VF-IDEA-1608 editorial lens persistence complete; M16 implementation continues)
 
+2026-07-30 · VF-IDEA-1610 · Added exact-input mechanical boundary checks, one card-specific bounded repair prompt/call, and invalid-result omission reporting without padding or fallback. Focused tests: 9 passed. · Q: VF-IDEA-1611 recent editorial-balance context
+
 2026-07-30 · VF-IDEA-1609 · Added versioned Source-Fit Critic prompt/schema/service, Process Registry and schema-registry entries, configured-lens/source membership validator, and shared adapter cache/provenance integration. Focused tests: 6 passed. · Q: VF-IDEA-1610 mechanical boundary and bounded repair
 
 2026-07-30 · VF-IDEA-1608 · Added tenant-owned editorial lens catalogues, nullable `editorial_fit` and provenance columns/migrations on idea cards, schema fields on concept/card outputs, and Gate 1 “Not recorded”/evidence display. Python validates configured IDs only; it does not judge source fit. Focused/regression tests: 67 passed. · Q: VF-IDEA-1609 Source-Fit Critic process

@@ -6,6 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-30 — BUILDER: Add bounded Source-Fit repair boundary (VF-IDEA-1610)
+
+**What:** Added exact source-content/unique-ID checks, a single card-specific repair prompt/call, and a retention helper that omits still-invalid cards with reasons rather than padding or bypassing validation.
+
+**Type:** TECH / LOGIC
+
+**Rationale:** Mechanical validation may enforce schema and configured membership only. A repair pass may correct critic findings once; unresolved outputs remain omitted and auditable.
+
+**Files:** `src/source_fit_critic.py`, `prompts/ideas/source_fit_repair_v1.md`, `config/processes.yaml`, `tests/test_vf_idea_1610_bounded_repair.py`
+
+---
+
 ## 2026-07-30 — BUILDER: Add Source-Fit Critic process (VF-IDEA-1609)
 
 **What:** Added the versioned Source-Fit Critic prompt and schema, registry entry, mechanical membership validator, and service wrapper through the shared LLM adapter. Unchanged source evidence/proposed-fit inputs reuse the adapter cache and still create cached provenance rows.

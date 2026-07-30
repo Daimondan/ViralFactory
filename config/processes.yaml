@@ -94,6 +94,17 @@ processes:
       source_evidence: {source: dynamic}
       proposed_fit: {source: dynamic}
 
+  source_fit_critic_repair:
+    prompt_file: "ideas/source_fit_repair_v1.md"
+    backend: "ideator"
+    schema: "SOURCE_FIT_CRITIC_SCHEMA"
+    context_template: "Source-Fit Critic bounded repair"
+    inputs:
+      card_context: {source: dynamic}
+      source_evidence: {source: dynamic}
+      proposed_fit: {source: dynamic}
+      critic_findings: {source: dynamic}
+
   # ── Writer (AMENDMENT-007, updated to v4 per AMENDMENT-009) ──
   # Writer v3 remains active for backward compatibility; Writer v4 is the new
   # Production Contract v2 path. Both are registered; the route/chain selects
