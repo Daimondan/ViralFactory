@@ -1,0 +1,23 @@
+# Tenant-owned editorial lens catalogues. IDs are references only; source-fit
+# judgment is produced by the versioned Source-Fit Critic, never by Python.
+catalogues:
+  stackpenni:
+    lenses:
+      - id: ai
+        label: AI and technology
+        description: Technology, AI, automation, and their consequences.
+      - id: sou_sou
+        label: Collective wealth
+        description: Collective saving, mutual aid, and shared financial systems.
+      - id: entrepreneurship
+        label: Entrepreneurship
+        description: Building, operating, and learning from ventures.
+      - id: policy
+        label: Policy and systems
+        description: Public policy, institutions, regulation, and structural change.
+      - id: culture
+        label: Caribbean culture
+        description: Caribbean life, history, identity, and cultural practice.
+      - id: money
+        label: Money and household economics
+        description: Prices, income, debt, saving, and household financial decisions.

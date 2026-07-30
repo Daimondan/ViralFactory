@@ -76,6 +76,8 @@ CREATE TABLE IF NOT EXISTS idea_cards (
     origin TEXT NOT NULL,                -- ai_originated | human_seeded | human_seeded_ai_developed | inspiration
     evidence_links TEXT,                 -- JSON array of {url, note} (derived display field)
     source_refs TEXT,                     -- JSON array of source IDs from the sources table
+    editorial_fit TEXT,                   -- JSON critic result; NULL means not recorded
+    editorial_fit_provenance TEXT,        -- JSON provenance for the critic result
     seed_text TEXT,                      -- original seed (for human-seeded origins)
     parent_id INTEGER,                   -- for series children: links to parent card
     card_state TEXT NOT NULL DEFAULT 'new',  -- new | approved | awaiting_capture (DEPRECATED per AMENDMENT-006) | capture_fulfilled | writing | reviewing | draft_ready | drafted | killed | parked | producing | assembling | asset_ready | writer_failed | assembly_failed | production_failed
@@ -232,6 +234,7 @@ IDEA_CONCEPT_SCHEMA = {
                     "source_refs": {
                         "type": "array", "items": {"type": "integer"}, "minItems": 1
                     },
+                    "editorial_fit": {"type": ["object", "null"]},
                     "source_notes": {
                         "type": "array",
                         "items": {
@@ -330,6 +333,8 @@ IDEA_CARD_SCHEMA = {
                         "items": {"type": "integer"},  # source IDs from the sources table
                         "minItems": 1,  # at least one source required
                     },
+                    "editorial_fit": {"type": ["object", "null"]},
+                    "editorial_fit_provenance": {"type": ["object", "null"]},
                     "source_notes": {
                         "type": "array",
                         "items": {
@@ -1067,6 +1072,10 @@ class PipelineStore:
         cols = [r[1] for r in conn.execute("PRAGMA table_info(idea_cards)").fetchall()]
         if "source_refs" not in cols:
             conn.execute("ALTER TABLE idea_cards ADD COLUMN source_refs TEXT")
+        if "editorial_fit" not in cols:
+            conn.execute("ALTER TABLE idea_cards ADD COLUMN editorial_fit TEXT")
+        if "editorial_fit_provenance" not in cols:
+            conn.execute("ALTER TABLE idea_cards ADD COLUMN editorial_fit_provenance TEXT")
         if "production_error" not in cols:
             conn.execute("ALTER TABLE idea_cards ADD COLUMN production_error TEXT")
         # T9.3: add platform_content, review_history, review_converged to drafts
@@ -1112,6 +1121,8 @@ class PipelineStore:
         source_refs: list[int] = None,
         seed_text: str = None,
         parent_id: int = None,
+        editorial_fit: dict = None,
+        editorial_fit_provenance: dict = None,
     ) -> int:
         """Create a new idea card. Returns the card ID."""
         conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
@@ -1119,12 +1130,15 @@ class PipelineStore:
         cursor = conn.execute(
             """INSERT INTO idea_cards
                (business_slug, idea, hook_options, treatment, origin,
-                evidence_links, source_refs, seed_text, parent_id, card_state,
+                evidence_links, source_refs, editorial_fit,
+                editorial_fit_provenance, seed_text, parent_id, card_state,
                 capture_uploads, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', '[]', ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', '[]', ?, ?)""",
             (business_slug, idea, json.dumps(hook_options),
              json.dumps(treatment), origin,
              json.dumps(evidence_links or []), json.dumps(source_refs or []),
+             json.dumps(editorial_fit) if editorial_fit is not None else None,
+             json.dumps(editorial_fit_provenance) if editorial_fit_provenance is not None else None,
              seed_text, parent_id, ts, ts),
         )
         card_id = cursor.lastrowid

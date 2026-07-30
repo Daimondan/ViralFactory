@@ -1175,6 +1175,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 origin="inspiration",
                 evidence_links=evidence_links,
                 source_refs=source_refs,
+                editorial_fit=card_data.get("editorial_fit"),
                 seed_text=seed_text,
             )
             cards_created.append(card_id)
@@ -5037,6 +5038,14 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             treatment = json.loads(c.get("treatment") or "{}")
             card["treatment"] = treatment
             card["evidence_links"] = json.loads(c.get("evidence_links") or "[]")
+            try:
+                card["editorial_fit_parsed"] = json.loads(c.get("editorial_fit") or "null")
+            except (json.JSONDecodeError, TypeError):
+                card["editorial_fit_parsed"] = None
+            card["editorial_fit_label"] = (
+                card["editorial_fit_parsed"].get("lens_id", "Recorded")
+                if card["editorial_fit_parsed"] else "Not recorded"
+            )
             # T8.4: Resolve source_refs to display sources with title, url, type badge
             source_ref_ids = json.loads(c.get("source_refs") or "[]")
             if source_ref_ids:
@@ -5370,6 +5379,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 origin=origin,
                 evidence_links=evidence_links,
                 source_refs=source_refs,
+                editorial_fit=card_data.get("editorial_fit"),
                 seed_text=card_data.get("seed_text", seed),
             )
             cards_created.append(card_id)
@@ -5512,6 +5522,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 origin="ai_originated",
                 evidence_links=evidence_links,
                 source_refs=source_refs,
+                editorial_fit=card_data.get("editorial_fit"),
             )
             cards_created.append(card_id)
 

@@ -172,6 +172,17 @@
             <p class="expanded-detail-row"><span class="expanded-detail-label">Why this format:</span> {{ card.treatment.get('rationale', '')[:200] }}</p>
             {% endif %}
 
+            <p class="expanded-detail-row">
+                <span class="expanded-detail-label">Editorial fit:</span>
+                {{ card.editorial_fit_label }}
+                {% if card.editorial_fit_parsed and card.editorial_fit_parsed.status %}
+                · {{ card.editorial_fit_parsed.status }}
+                {% endif %}
+                {% if card.editorial_fit_parsed and card.editorial_fit_parsed.evidence %}
+                · {{ card.editorial_fit_parsed.evidence | length }} evidence item(s)
+                {% endif %}
+            </p>
+
             {% if card.resolved_sources %}
             <p class="expanded-detail-row">
                 <span class="expanded-detail-label">Sources on the card:</span>

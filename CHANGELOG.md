@@ -6,6 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-30 — BUILDER: Add configurable editorial lens persistence (VF-IDEA-1608)
+
+**What:** Added tenant-owned editorial lens catalogues, nullable `editorial_fit` and provenance fields on idea cards, concept/card schema support, migrations, generation-path persistence, and Gate 1 display. Legacy cards show `Not recorded`.
+
+**Type:** TECH / LOGIC / STRUCTURE
+
+**Rationale:** Lens definitions belong to tenant configuration. Python may validate configured IDs and display persisted results, but source-fit judgment must remain in the versioned Source-Fit Critic rather than keyword or heuristic code.
+
+**Files:** `config/editorial_lenses.yaml`, `src/editorial_lenses.py`, `src/pipeline.py`, `src/app.py`, `src/templates/ideas.html`, `tests/test_vf_idea_1608_editorial_lenses.py`
+
+---
+
 ## 2026-07-30 — BUILDER: Prepare operator-gated episode proposals (VF-FMT-1607)
 
 **What:** Added a config-owned proposal bundle for the StackPenni parable Format Guide entry, episode process activation, and fictional-persona canon prerequisite. Added `POST /api/production/episode/proposals` to create pending queue rows only.
