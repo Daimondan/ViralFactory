@@ -76,6 +76,9 @@ def test_registry_prompt_and_schema_are_declared():
     spec = registry["processes"]["source_fit_critic"]
     assert spec["prompt_file"] == "ideas/source_fit_critic_v1.md"
     assert spec["schema"] == "SOURCE_FIT_CRITIC_SCHEMA"
+    assert '<!-- version: 1.2 -->' in Path("prompts/ideas/source_fit_critic_v1.md").read_text()
+    assert 'critic_version` to the exact string `"1.0"' in Path("prompts/ideas/source_fit_critic_v1.md").read_text()
+    assert 'critic_version` to the exact string `"1.0"' in Path("prompts/ideas/source_fit_repair_v1.md").read_text()
 
 
 def test_critic_passes_exact_source_evidence_and_proposed_fit(tmp_path):

@@ -42,6 +42,7 @@ After restarting `viralfactory.service`:
 - `POST /api/ideas/88/editorial-fit` with operator-selected `policy` lens → HTTP 200
 - Live result: `policy / supported`
 - Live result source evidence IDs: `111, 112, 123, 126, 128`
+- Follow-up fresh uncached request after prompt version 1.2 → HTTP 200; provenance recorded one invalid first attempt followed by a valid retry (`cached: 0`, `validator_verdict: valid`, `critic_version: 1.0`).
 
 ## Empty-source-bank proof
 
@@ -54,6 +55,6 @@ The endpoint regression test verifies that an empty AI-originated Source Bank:
 
 ## Verification
 
-- Focused adapter/source-fit/proof/idea tests: **80 passed**
+- Focused adapter/source-fit/proof/idea tests: **80 passed**; prompt-contract regression: **11 passed**
 - Fixed-source real-adapter runner: **success**
 - Deployed Gate 1 page/API probes: **HTTP 200**
