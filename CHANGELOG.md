@@ -6,6 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-30 — BUILDER: Prepare operator-gated module/config proposals (VF-IDEA-1612)
+
+**What:** Added a config-owned StackPenni proposal bundle and explicit API that queues exact Voice Profile, Audience Insights, and business-config diffs as pending records.
+
+**Type:** STRATEGIC / STRUCTURE / OPS
+
+**Rationale:** Broader editorial range and belief labeling must be operator-approved. Proposal preparation never mutates current tenant truth; rejection leaves all target files unchanged.
+
+**Files:** `config/module_proposals.yaml`, `src/module_proposal.py`, `src/app.py`, `tests/test_vf_idea_1612_module_proposals.py`
+
+---
+
 ## 2026-07-30 — BUILDER: Add advisory editorial-balance context (VF-IDEA-1611)
 
 **What:** Added mechanical counts from persisted `editorial_fit.lens_id` values and a separate versioned framing-family analysis process that receives recent cards, counts, and current candidates as exact prompt evidence.

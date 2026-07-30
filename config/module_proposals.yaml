@@ -1,0 +1,49 @@
+# Operator-gated StackPenni module/config proposals.
+# POST /api/governance/module-proposals creates pending rows only.
+proposals:
+  stackpenni:
+    - target_module: voice-profile
+      target_section: remit-and-editorial-range
+      proposal_type: module_change
+      evidence:
+        - "AMENDMENT-019 source-fit editorial range"
+        - "Operator request for broader remit"
+      change_description: "Broaden the remit beyond a single AI/money/friction thesis while preserving the established voice."
+      exact_diff: |
+        --- modules/stackpenni/voice-profile.md
+        +++ modules/stackpenni/voice-profile.md
+        @@ remit-and-editorial-range @@
+        -Primary remit is limited to AI, money, and friction narratives.
+        +Primary remit covers the configured editorial lenses; AI, money, and friction remain optional lenses.
+      rationale: "The source bank must be allowed to support policy, culture, household economics, and entrepreneurship without forcing one thesis."
+      confidence: high
+    - target_module: audience-insights
+      target_section: claims-and-beliefs
+      proposal_type: module_change
+      evidence:
+        - "AMENDMENT-019 source-fit editorial range"
+        - "Audience Insights claims are not verified facts"
+      change_description: "Preserve audience observations while marking them as beliefs requiring evidence rather than universal claims."
+      exact_diff: |
+        --- modules/stackpenni/audience-insights.md
+        +++ modules/stackpenni/audience-insights.md
+        @@ claims-and-beliefs @@
+        -Audience claims are stated as universal facts.
+        +Audience claims are labeled beliefs/working hypotheses until supported by source or operator evidence.
+      rationale: "Editorial range expands without silently rewriting audience truth."
+      confidence: high
+    - target_module: business-config
+      target_section: subjects-and-audience
+      proposal_type: config_change
+      evidence:
+        - "AMENDMENT-019 source-fit editorial range"
+        - "Configured tenant subjects and audience"
+      change_description: "Add configurable breadth to subjects and audience while keeping the existing tenant values intact pending approval."
+      exact_diff: |
+        --- config/business.yaml
+        +++ config/business.yaml
+        @@ subjects-and-audience @@
+        +# Proposed only: broaden subject coverage through operator-approved lens references.
+        +editorial_range_ref: stackpenni_source_fit_v1
+      rationale: "The proposal creates a governed configuration reference; it does not mutate current business truth."
+      confidence: medium
