@@ -6,6 +6,8 @@
 
 **Last Updated:** 2026-07-30 (VF-IDEA-1608 editorial lens persistence complete; M16 implementation continues)
 
+2026-07-30 · VF-IDEA-1609 · Added versioned Source-Fit Critic prompt/schema/service, Process Registry and schema-registry entries, configured-lens/source membership validator, and shared adapter cache/provenance integration. Focused tests: 6 passed. · Q: VF-IDEA-1610 mechanical boundary and bounded repair
+
 2026-07-30 · VF-IDEA-1608 · Added tenant-owned editorial lens catalogues, nullable `editorial_fit` and provenance columns/migrations on idea cards, schema fields on concept/card outputs, and Gate 1 “Not recorded”/evidence display. Python validates configured IDs only; it does not judge source fit. Focused/regression tests: 67 passed. · Q: VF-IDEA-1609 Source-Fit Critic process
 
 2026-07-30 · VF-FMT-1607 · Added config-owned exact proposals for the StackPenni parable Format Guide entry, episode process activation, and fictional-persona canon prerequisite. `POST /api/production/episode/proposals` only creates pending queue rows; it never approves, writes modules, or activates the proposed process. Focused/regression tests: 86 passed. · Q: VF-IDEA-1608 Configurable editorial lens catalogue

@@ -85,6 +85,15 @@ processes:
       kill_lessons: {source: dynamic, builder: "kill_lessons"}
       format_usage: {source: dynamic, builder: "format_usage"}
 
+  source_fit_critic:
+    prompt_file: "ideas/source_fit_critic_v1.md"
+    backend: "ideator"
+    schema: "SOURCE_FIT_CRITIC_SCHEMA"
+    context_template: "Source-Fit Critic"
+    inputs:
+      source_evidence: {source: dynamic}
+      proposed_fit: {source: dynamic}
+
   # ── Writer (AMENDMENT-007, updated to v4 per AMENDMENT-009) ──
   # Writer v3 remains active for backward compatibility; Writer v4 is the new
   # Production Contract v2 path. Both are registered; the route/chain selects
@@ -315,6 +324,7 @@ schemas:
   SOUNDTRACK_PLAN_LLM_SCHEMA: "pipeline.SOUNDTRACK_PLAN_LLM_SCHEMA"
   EDIT_PLAN_SCHEMA: "pipeline.EDIT_PLAN_SCHEMA"
   COMPLIANCE_REVIEW_SCHEMA: "pipeline.COMPLIANCE_REVIEW_SCHEMA"
+  SOURCE_FIT_CRITIC_SCHEMA: "source_fit_critic.SOURCE_FIT_CRITIC_SCHEMA"
   REMEDIATION_INSTRUCTION_SCHEMA: "pipeline.REMEDIATION_INSTRUCTION_SCHEMA"
   PERFORMANCE_ANALYSIS_SCHEMA: "inline:performance_analysis_schema"
   COMPONENT_REQUIREMENTS_SCHEMA: "services.component_requirements.COMPONENT_REQUIREMENTS_SCHEMA"

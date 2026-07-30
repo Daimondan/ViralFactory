@@ -6,6 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-30 — BUILDER: Add Source-Fit Critic process (VF-IDEA-1609)
+
+**What:** Added the versioned Source-Fit Critic prompt and schema, registry entry, mechanical membership validator, and service wrapper through the shared LLM adapter. Unchanged source evidence/proposed-fit inputs reuse the adapter cache and still create cached provenance rows.
+
+**Type:** TECH / LOGIC / STRUCTURE
+
+**Rationale:** Source-fit is an LLM judgment task. Python only assembles exact evidence, validates configured references and result membership, and records provenance; it never decides lens support with keywords or heuristics.
+
+**Files:** `prompts/ideas/source_fit_critic_v1.md`, `src/source_fit_critic.py`, `config/processes.yaml`, `tests/test_vf_idea_1609_source_fit.py`
+
+---
+
 ## 2026-07-30 — BUILDER: Add configurable editorial lens persistence (VF-IDEA-1608)
 
 **What:** Added tenant-owned editorial lens catalogues, nullable `editorial_fit` and provenance fields on idea cards, concept/card schema support, migrations, generation-path persistence, and Gate 1 display. Legacy cards show `Not recorded`.
