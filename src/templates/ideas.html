@@ -74,6 +74,16 @@
         <a href="/assemble" class="">Assets</a>
         <a href="/published" class="">Published</a>
     </div>
+    {% if review_set_options %}
+    <div class="expanded-actions" style="margin-bottom: var(--space-3);">
+        <span style="font-size: 0.8rem; color: var(--muted);">Review set:</span>
+        {% for review_set in review_set_options %}
+        <a class="btn btn-small {% if review_set_name == review_set.name %}btn-primary{% endif %}"
+           href="/ideas?tab={{ active_tab }}&review_set={{ review_set.name }}">{{ review_set.label }}</a>
+        {% endfor %}
+        {% if review_set_name %}<a class="btn btn-small" href="/ideas?tab={{ active_tab }}">Clear</a>{% endif %}
+    </div>
+    {% endif %}
     <span class="time-ago hidden" style="display:none;">relative_time</span>
 
     {% set state_labels = {
@@ -132,6 +142,13 @@
 
     {% if cards %}
     {% set has_expanded = cards | length > 0 %}
+    {% if active_tab == 'queue' %}
+    <div class="expanded-actions" style="margin-bottom: var(--space-3);">
+        <label><input type="checkbox" id="selectAllIdeas" onchange="toggleAllIdeaChecks(this.checked)"> Select all visible Gate 1 cards</label>
+        <button class="btn btn-small" onclick="bulkIdeaGate('park')">Park selected</button>
+        <button class="btn btn-small" onclick="bulkIdeaGate('kill')">Kill selected</button>
+    </div>
+    {% endif %}
     {% for card in cards %}
     {% if card.card_state == 'new' and active_tab == 'queue' %}
     {# Gate 1 card — all new cards get the full detail, first one expanded by default #}
@@ -142,6 +159,7 @@
         <div class="expanded-head">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-4);">
                 <div>
+                    <label><input type="checkbox" class="idea-card-check" value="{{ card.id }}"> Select</label>
                     <p class="expanded-meta">№ {{ "%03d" | format(card.id) }} · {{ {'ai_originated': 'proposed by Researcher', 'human_seeded': 'from your seed', 'human_seeded_ai_developed': 'from your seed · AI developed', 'inspiration': '💡 from Inspiration Center'}.get(card.origin, card.origin) }}{% if card.created_at %} · {{ card.created_at[:16] }}{% endif %}</p>
                     <p class="expanded-title">{{ card.idea }}</p>
                     <p class="expanded-sub">
@@ -430,6 +448,32 @@ function actionCard(id, action, reason) {
     }).then(r => r.json()).then(data => {
         if (data.status === 'ok') window.location.reload();
         else vfToastError('Error', data.error || 'unknown');
+    });
+}
+
+function toggleAllIdeaChecks(checked) {
+    document.querySelectorAll('.idea-card-check').forEach(function(input) {
+        input.checked = checked;
+    });
+}
+
+function bulkIdeaGate(action) {
+    var ids = Array.prototype.slice.call(document.querySelectorAll('.idea-card-check:checked'))
+        .map(function(input) { return parseInt(input.value, 10); })
+        .filter(function(id) { return Number.isInteger(id); });
+    if (!ids.length) return vfToastWarning('Select cards', 'Choose at least one Gate 1 card.');
+    var reason = '';
+    if (action === 'kill') {
+        reason = window.prompt('Why are these cards being killed?') || '';
+        if (!reason.trim()) return vfToastWarning('Reason needed', 'Kill requires a reason.');
+    }
+    fetch('/api/ideas/bulk-gate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: action, ids: ids, reason: reason})
+    }).then(function(response) { return response.json(); }).then(function(data) {
+        if (data.status === 'ok') window.location.reload();
+        else vfToastError('Error', data.error || 'Bulk action failed');
     });
 }
 

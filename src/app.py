@@ -5007,6 +5007,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         # Determine active tab
         active_tab = request.args.get("tab", "queue")
+        review_set_name = request.args.get("review_set", "").strip()
+        from review_set import cards_for_review, list_review_sets
+        review_set_options = list_review_sets(business_slug, app.config["CONFIG_DIR"])
 
         # Map tabs to states
         state_map = {
@@ -5022,6 +5025,14 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             cards_raw = store.list_idea_cards_by_states(business_slug, states)
         else:
             cards_raw = store.list_idea_cards(business_slug)
+        if review_set_name:
+            try:
+                review_ids = {card["id"] for card in cards_for_review(
+                    store, business_slug, review_set_name, app.config["CONFIG_DIR"]
+                )}
+            except ValueError:
+                return "Review set not found", 404
+            cards_raw = [card for card in cards_raw if card["id"] in review_ids]
 
         # UI-REVIEW-002 #5: Human-readable scope labels
         SCOPE_LABELS = {
@@ -5187,7 +5198,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             business_name=business_name, business_slug=business_slug,
             cards=cards, active_tab=active_tab, counts=counts_display,
             scope_labels=SCOPE_LABELS, platform_options=platform_options,
-            format_options=format_options, gate_counts=gate_counts)
+            format_options=format_options, gate_counts=gate_counts,
+            review_set_name=review_set_name, review_set_options=review_set_options)
 
     def _run_idea_concept_and_treatment_stages(
         adapter, business_slug: str, business: dict, generation_vars: dict,
@@ -5574,6 +5586,46 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         except Exception as exc:
             logger.exception("Source-Fit Critic failed for card %s", card_id)
             return jsonify({"error": str(exc)[:300]}), 502
+
+    @app.route("/api/ideas/review-set/<name>", methods=["GET"])
+    def ideas_review_set(name):
+        """Return a config-owned related-card review set for operator review."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+        from review_set import cards_for_review, load_review_set
+        try:
+            spec = load_review_set(name, business_slug, app.config["CONFIG_DIR"])
+            cards = cards_for_review(_get_pipeline_store(), business_slug, name, app.config["CONFIG_DIR"])
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 404
+        return jsonify({"name": name, "spec": spec, "cards": cards})
+
+    @app.route("/api/ideas/bulk-gate", methods=["POST"])
+    def ideas_bulk_gate():
+        """Bulk park/kill selected Gate 1 cards; operator supplies every ID/reason."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+        payload = request.get_json(silent=True) or {}
+        action = payload.get("action")
+        ids = payload.get("ids")
+        reason = (payload.get("reason") or "").strip()
+        if action not in {"park", "kill"} or not isinstance(ids, list) or not ids:
+            return jsonify({"error": "action must be park or kill and ids must be non-empty"}), 400
+        if action == "kill" and not reason:
+            return jsonify({"error": "kill requires a reason"}), 400
+        store = _get_pipeline_store()
+        updated, omitted = [], []
+        for card_id in ids:
+            card = store.get_idea_card(card_id)
+            if not card or card["business_slug"] != business_slug or card["card_state"] != "new":
+                omitted.append({"card_id": card_id, "reason": "not an eligible Gate 1 card"})
+                continue
+            updated.append(store.update_card_state(card_id, action + "ed" if action == "park" else "killed", kill_reason=reason if action == "kill" else None))
+            if action == "kill":
+                store.add_feedback(business_slug, "kill_reason", reason, idea_card_id=card_id)
+        return jsonify({"status": "ok", "updated": updated, "omitted": omitted})
 
     @app.route("/api/ideas/<int:card_id>/gate", methods=["POST"])
     def ideas_gate_decision(card_id):

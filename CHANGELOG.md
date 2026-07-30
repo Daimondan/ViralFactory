@@ -6,6 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-30 — BUILDER: Add source-111 review set and bulk Gate 1 actions (VF-IDEA-1614)
+
+**What:** Added the config-owned `source_111` review set for cards 81, 88, 92, and 97; exposed it as a server-rendered Ideas queue filter; and added explicit bulk park/kill actions with select-all UI. Kill reasons are persisted through the normal Feedback Log path.
+
+**Type:** TECH / LOGIC / OPS
+
+**Rationale:** Related cards need grouped, expandable operator review without database patching, auto-delete, or automated terminal decisions. Bulk operations must preserve the existing human Gate 1 semantics.
+
+**Files:** `config/review_sets.yaml`, `src/review_set.py`, `src/app.py`, `src/templates/ideas.html`, `tests/test_vf_idea_1614_review_set.py`
+
+---
+
 ## 2026-07-30 — BUILDER: Wire Gate 1 Source-Fit Critic action (VF-IDEA-1613, blocked proof)
 
 **What:** Added the per-card Gate 1 Source-Fit Critic endpoint and UI action, persisted the critic-owned `card_fit` with exact critic evidence and provenance, and exercised the real adapter path with five fixed sources.

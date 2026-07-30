@@ -4,7 +4,9 @@
 > blocked, or changed. Any agent should be able to read this and know
 > exactly where we are.
 
-**Last Updated:** 2026-07-30 (VF-IDEA-1608 editorial lens persistence complete; M16 implementation continues)
+**Last Updated:** 2026-07-30 (VF-IDEA-1614 review set and bulk Gate 1 actions complete; M16 implementation continues)
+
+2026-07-30 · VF-IDEA-1614 · Added the config-owned StackPenni source-111 review set for cards 81/88/92/97, a server-rendered queue filter, and explicit bulk park/kill actions. Every selected card remains operator-decided; kill reasons enter the normal Feedback Log and no delete path exists. Focused/regression tests: 56 passed. Live service remains on the pre-1614 deployment pending restart. · Q: VF-VIS-1615 versioned visual treatment contract
 
 2026-07-30 · VF-IDEA-1613 · Wired Gate 1 `POST /api/ideas/<id>/editorial-fit`, persisted critic-owned `card_fit` + evidence/provenance, and added the Ideas UI action. Fixed-source unit/UI boundary tests: 11 passed. **BLOCKED:** real adapter proof returned Ollama `401 Unauthorized`; no adapter credentials are configured in this environment. · Q: operator supplies provider credential through normal environment/config path, then rerun five-source proof
 

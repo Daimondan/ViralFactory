@@ -1,0 +1,7 @@
+# Operator-curated review sets. No code path auto-deletes or changes cards.
+review_sets:
+  stackpenni:
+    source_111:
+      label: "Source 111 related-card review"
+      source_id: 111
+      card_ids: [81, 88, 92, 97]
