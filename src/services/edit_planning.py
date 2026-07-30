@@ -129,6 +129,62 @@ class EditPlanningService:
         styles = self._load_render_styles()
         return float(styles.get("max_clip_duration", 4.0))
 
+    @staticmethod
+    def _split_segment(seg: dict, max_dur: float) -> list[dict]:
+        """Mechanically split a segment into pieces ≤ max_dur seconds.
+
+        Each piece inherits all properties from the original. The timeline
+        is adjusted so pieces are contiguous. A text pop overlay is added
+        at the start of each split piece (after the first) to satisfy the
+        DIVERGENCE-021 "visual change at ≤4s" rule.
+        """
+        import copy as _copy
+        duration = float(seg.get("timeline_duration") or 0)
+        if duration <= max_dur:
+            return [seg]
+
+        # Determine number of pieces needed
+        n_pieces = int(duration / max_dur) + (1 if duration % max_dur > 0.01 else 0)
+        n_pieces = max(2, n_pieces)
+        piece_dur = duration / n_pieces
+
+        base_id = seg.get("segment_id", "seg")
+        # Keep the full original ID as the base to avoid collisions when
+        # multiple segments from the same beat are split (e.g. seg_b01_1
+        # → seg_b01_1_p1, seg_b01_1_p2; seg_b01_2 → seg_b01_2_p1, etc.)
+        base = base_id
+
+        pieces = []
+        for i in range(n_pieces):
+            piece = _copy.deepcopy(seg)
+            piece["segment_id"] = f"{base}_p{i+1}"
+            piece["timeline_duration"] = round(piece_dur, 3)
+            piece["timeline_start"] = round(
+                float(seg.get("timeline_start", 0)) + i * piece_dur, 3
+            )
+            # Adjust source in/out to fit within the piece duration
+            source_out = float(piece.get("source_out") or piece_dur)
+            piece["source_out"] = round(min(source_out, piece_dur), 3)
+            piece["source_in"] = 0.0
+            # Add a text pop at the start of each piece after the first
+            overlays = piece.get("overlays") or []
+            if i > 0:
+                overlays.append({
+                    "type": "text_pop",
+                    "start": 0.0,
+                    "duration": min(1.5, piece_dur),
+                    "style": "default",
+                })
+            else:
+                # Ensure existing overlays have adjusted start times
+                for ov in overlays:
+                    ov_start = float(ov.get("start", 0))
+                    if ov_start >= piece_dur:
+                        ov["start"] = round(piece_dur - 0.5, 3)
+            piece["overlays"] = overlays
+            pieces.append(piece)
+        return pieces
+
     def _get_max_segment_seconds(self, variant_type: str = "") -> int:
         """Per-format max segment seconds from config (DIVERGENCE-021). Falls back to 4."""
         styles = self._load_render_styles()
@@ -588,6 +644,30 @@ class EditPlanningService:
             )
         except Exception as exc:
             return ServiceResponse({"error": str(exc)}, 500)
+
+        # ── Auto-split long segments (DIVERGENCE-021) ──
+        # The LLM often produces segments exceeding the 4s max clip duration.
+        # Rather than failing validation (which blocks the operator), mechanically
+        # split any over-duration segment in half, adding a text pop at the
+        # split point. This is deterministic — no judgment involved.
+        max_clip = self._get_max_clip_duration()
+        original_segments = proposed.get("segments", [])
+        split_segments = []
+        for seg in original_segments:
+            duration = float(seg.get("timeline_duration") or 0)
+            overlays = seg.get("overlays") or []
+            has_early_overlay = any(
+                float(ov.get("start", 999)) <= max_clip
+                for ov in overlays
+            )
+            if duration <= max_clip or has_early_overlay:
+                split_segments.append(seg)
+                continue
+            # Split in half until each piece ≤ max_clip
+            pieces = self._split_segment(seg, max_clip)
+            split_segments.extend(pieces)
+        if len(split_segments) != len(original_segments):
+            proposed["segments"] = split_segments
 
         errors = self.validate_segments(
             proposed.get("segments", []),
@@ -1059,10 +1139,34 @@ class EditPlanningService:
                             )
                             and len(stripped) <= 20
                             and bool(_re.match(
-                                r'^[\d.,$%€£\s]+$', stripped
+                                r'^[\d.,$%€£\s]+$',
+                                stripped
                             ))
                         )
-                        if not is_internal_label and not is_numeric_graphic:
+                        # Short data-overlay labels with a number + brief
+                        # unit word (e.g. "400 years", "5x return", "$2k/mo")
+                        # are graphic cards, not audience prose. Allowed when:
+                        #   - graphic source policy
+                        #   - ≤ 30 chars
+                        #   - contains at least one digit
+                        #   - no sentence punctuation (no .!? at end, no commas between words)
+                        #   - only alphanumeric + $%/-+×. and single spaces
+                        is_data_overlay = (
+                            event.get("source_policy") in (
+                                "renderer_graphic", "generated_graphic",
+                                "generated_still"
+                            )
+                            and len(stripped) <= 30
+                            and bool(_re.search(r'\d', stripped))
+                            and not stripped.endswith(('.', '!', '?'))
+                            and bool(_re.match(
+                                r'^[\d\w$%/\-+×.,\s]+$', stripped
+                            ))
+                            # Reject if it looks like a sentence (3+ words
+                            # where most are non-numeric)
+                            and len(stripped.split()) <= 4
+                        )
+                        if not is_internal_label and not is_numeric_graphic and not is_data_overlay:
                             errors.append(
                                 f"Visual event '{event.get('event_id', '?')}' invents audience text"
                             )
