@@ -318,3 +318,12 @@ schemas:
   REMEDIATION_INSTRUCTION_SCHEMA: "pipeline.REMEDIATION_INSTRUCTION_SCHEMA"
   PERFORMANCE_ANALYSIS_SCHEMA: "inline:performance_analysis_schema"
   COMPONENT_REQUIREMENTS_SCHEMA: "services.component_requirements.COMPONENT_REQUIREMENTS_SCHEMA"
+
+# Production-binding registry. Entries are gate-owned data, not Python routing
+# logic. The episode entry remains proposed until its exact format/module proposal
+# is approved by the operator.
+production_processes:
+  episode-format:
+    status: proposed
+    module_variable: episode_format
+    budget: 8000

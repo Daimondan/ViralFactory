@@ -636,20 +636,19 @@ class TestVisualStyleAmendment:
 class TestContextAssemblyWiring:
 
     def test_views_yaml_has_episode_format_for_writer(self):
-        """views.yaml maps the Writer v4 prompt to the episode_format module."""
+        """Writer v4 does not hardcode a tenant episode module in views.yaml."""
         import yaml
         views_path = os.path.join(os.path.dirname(__file__), "..",
                                   "prompts", "views.yaml")
         with open(views_path) as f:
             views = yaml.safe_load(f) or {}
 
-        # Writer v4 should have episode_format view
+        # Production binding resolution owns this context now.
         writer_views = views.get("draft/generate_v4.md", {})
-        assert "episode_format" in writer_views
-        assert writer_views["episode_format"]["module"] == "episode-format-parable"
+        assert "episode_format" not in writer_views
 
     def test_views_yaml_has_episode_format_for_media_plan(self):
-        """views.yaml maps media_plan_v2 to the episode_format module."""
+        """Media planning does not hardcode a tenant episode module."""
         import yaml
         views_path = os.path.join(os.path.dirname(__file__), "..",
                                   "prompts", "views.yaml")
@@ -657,10 +656,10 @@ class TestContextAssemblyWiring:
             views = yaml.safe_load(f) or {}
 
         mp_views = views.get("assembly/media_plan_v2.md", {})
-        assert "episode_format" in mp_views
+        assert "episode_format" not in mp_views
 
     def test_views_yaml_has_episode_format_for_edit_plan(self):
-        """views.yaml maps edit_plan_v2 to the episode_format module."""
+        """Edit planning does not hardcode a tenant episode module."""
         import yaml
         views_path = os.path.join(os.path.dirname(__file__), "..",
                                   "prompts", "views.yaml")
@@ -668,22 +667,21 @@ class TestContextAssemblyWiring:
             views = yaml.safe_load(f) or {}
 
         ep_views = views.get("assembly/edit_plan_v2.md", {})
-        assert "episode_format" in ep_views
+        assert "episode_format" not in ep_views
 
     def test_context_assembly_resolves_episode_format(self):
-        """Context assembly resolves the episode_format view from the module."""
-        from context_assembly import assemble_module_context
-        variables, prov = assemble_module_context(
-            "draft/generate_v4.md",
-            "stackpenni",
-            db_path="data/viralfactory.db",
-            modules_dir=os.path.join(os.path.dirname(__file__), "..", "modules"),
-            prompts_dir=os.path.join(os.path.dirname(__file__), "..", "prompts"),
-        )
-        # The episode_format variable should be present
-        assert "episode_format" in variables
-        assert len(variables["episode_format"]) > 0
-        # It should contain the format name
-        assert "parable" in variables["episode_format"].lower()
-        # Provenance should mention episode-format-parable
-        assert "episode-format-parable" in prov
+        """The proposed registry entry cannot activate episode context."""
+        from production_resolver import ProductionResolutionError, resolve_production_binding
+        binding = {
+            "mode": "episode",
+            "process_ref": "episode-format",
+            "governance_module_ref": "episode-format-parable",
+            "governance_module_version": "1.0",
+        }
+        with pytest.raises(ProductionResolutionError, match="not approved"):
+            resolve_production_binding(
+                binding,
+                "stackpenni",
+                config_dir=os.path.join(os.path.dirname(__file__), "..", "config"),
+                modules_dir=os.path.join(os.path.dirname(__file__), "..", "modules"),
+            )

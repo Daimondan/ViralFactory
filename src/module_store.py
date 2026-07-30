@@ -185,12 +185,14 @@ class ModuleStore:
 
     def get_status(self, business_slug: str, module_name: str) -> str:
         """P1-1: Get the status of a module ('draft' or 'approved').
-        Checks for the status marker comment at the top of the file."""
+        Checks for the status marker comment at the top of the file. Proposal
+        statuses are preserved and fail closed for production resolution."""
         content = self.load(business_slug, module_name)
         if not content:
             return "none"
-        if content.startswith("<!-- status: draft -->"):
-            return "draft"
+        marker = re.match(r"<!--\s*status:\s*([a-z_]+)\s*-->", content)
+        if marker:
+            return marker.group(1)
         return "approved"
 
     def promote_to_approved(self, business_slug: str, module_name: str,

@@ -6,6 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-30 — BUILDER: Add fail-closed dynamic production resolver (VF-FMT-1606)
+
+**What:** Added a config-owned production-process registry and resolver. Standard bindings remain standard; episode bindings require an approved process, approved ModuleStore module, valid schema, and exact version. Dynamic module context is resolved before Writer adapter work. The active view map no longer hardcodes the tenant episode module.
+
+**Type:** TECH / LOGIC / STRUCTURE
+
+**Rationale:** Production routing must be selected by an approved persisted binding, not by tenant-specific Python or a stale prompt view. Missing, proposed, rejected, draft, missing, and version-mismatched references must fail before provider spend.
+
+**Files:** `src/production_resolver.py`, `src/produce_chain.py`, `src/module_store.py`, `config/processes.yaml`, `prompts/views.yaml`, `tests/test_vf_fmt_1606_production_resolver.py`, `tests/test_t11_5_episode_format.py`
+
+---
+
 ## 2026-07-30 — BUILDER: Locked approved production binding at Gate 1 (VF-FMT-1605)
 
 **What:** Gate 1 now deep-copies the selected Format Guide binding into the approved treatment before the Writer chain starts. The Writer-contract hash and full-contract integrity validation include that exact binding; missing metadata remains null and standard bindings remain standard.

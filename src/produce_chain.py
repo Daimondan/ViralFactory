@@ -581,6 +581,17 @@ class ProductionChain:
         format_name = treatment.get("format", {}).get("format_name", "")
         scope = treatment.get("scope", {}).get("type", "")
 
+        # Resolve the immutable Gate-1 production binding before any adapter
+        # work. Invalid process/module/status/version references fail closed.
+        from production_resolver import resolve_production_binding
+        production_context = resolve_production_binding(
+            treatment.get("production_binding"),
+            business_slug,
+            config_dir=self.config_dir,
+            modules_dir=self.modules_dir,
+            db_path=self.db_path,
+        )
+
         # Load config
         try:
             config = load_all(self.config_dir)
@@ -595,6 +606,11 @@ class ProductionChain:
             dynamic={"treatment.format_name": format_name},
             db_path=self.db_path, modules_dir=self.modules_dir,
         )
+        if production_context["module_content"] is not None:
+            module_vars[production_context["module_variable"]] = production_context["module_content"]
+            module_prov = " | ".join(
+                part for part in (module_prov, production_context["provenance"]) if part
+            )
 
         # Load capture material
         capture_text = ""
