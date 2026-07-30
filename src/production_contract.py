@@ -74,6 +74,17 @@ VISUAL_EVENT_SOURCE_POLICIES = frozenset({
 
 PRODUCTION_CONTRACT_VERSION = "2.0"
 
+PRODUCTION_BINDING_SCHEMA = {
+    "type": ["object", "null"],
+    "required": ["mode"],
+    "properties": {
+        "mode": {"type": "string", "enum": ["standard", "episode"]},
+        "process_ref": {"type": ["string", "null"]},
+        "governance_module_ref": {"type": ["string", "null"]},
+        "governance_module_version": {"type": ["string", "null"]},
+    },
+}
+
 
 # ── Custom exception ─────────────────────────────────────────────────────────
 
@@ -123,6 +134,7 @@ CONTENT_CONTRACT_SCHEMA = {
             "type": "string",
             "enum": list(EVIDENCE_LABELS),
         },
+        "production_binding": PRODUCTION_BINDING_SCHEMA,
     },
 }
 
@@ -604,9 +616,23 @@ def compute_writer_contract_hash(writer_contract: dict) -> str:
         "beats": _extract_hashable_beats(writer_contract.get("beats", [])),
         "primary_audience_action": writer_contract.get("primary_audience_action", ""),
         "capture_policy": writer_contract.get("capture_policy", ""),
+        "production_binding": writer_contract.get("production_binding"),
     }
     canonical = json.dumps(hash_fields, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def validate_production_binding(binding: dict | None) -> list[str]:
+    """Validate the optional binding contract without selecting a route."""
+    if binding is None:
+        return []
+    if not isinstance(binding, dict):
+        return ["production_binding must be an object or null"]
+    errors = validate_contract_schema(binding, PRODUCTION_BINDING_SCHEMA)
+    mode = binding.get("mode")
+    if mode not in ("standard", "episode"):
+        errors.append("production_binding.mode must be 'standard' or 'episode'")
+    return errors
 
 
 def _extract_hashable_beats(beats: list[dict]) -> list[dict]:
@@ -668,6 +694,9 @@ def assemble_contract(
     errors = validate_contract_schema(content_contract, CONTENT_CONTRACT_SCHEMA)
     if errors:
         raise ContractValidationError(f"Content contract invalid: {'; '.join(errors)}")
+    binding_errors = validate_production_binding(content_contract.get("production_binding"))
+    if binding_errors:
+        raise ContractValidationError("Production binding invalid: " + "; ".join(binding_errors))
 
     # Check for duplicate beat IDs
     beat_dupes = find_duplicate_ids(beats, "beat_id")
@@ -738,6 +767,7 @@ def assemble_contract(
         "beats": beats,
         "primary_audience_action": content_contract.get("primary_audience_action", ""),
         "capture_policy": content_contract.get("capture_policy", ""),
+        "production_binding": content_contract.get("production_binding"),
     }
     writer_hash = compute_writer_contract_hash(writer_contract)
 

@@ -6,6 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-30 — BUILDER: Locked approved production binding at Gate 1 (VF-FMT-1605)
+
+**What:** Gate 1 now deep-copies the selected Format Guide binding into the approved treatment before the Writer chain starts. The Writer-contract hash and full-contract integrity validation include that exact binding; missing metadata remains null and standard bindings remain standard.
+
+**Type:** TECH / LOGIC
+
+**Rationale:** An approved piece must retain the production route that the operator approved. Later Format Guide edits must require a new treatment approval rather than mutating an existing card or silently changing its Writer contract.
+
+**Files:** `src/pipeline.py`, `src/app.py`, `src/production_contract.py`, `src/production_contract_validators.py`, `tests/test_vf_fmt_1605_binding_lock.py`
+
+---
+
 ## 2026-07-30 — BUILDER: Implemented Format Guide production binding round-trip (VF-FMT-1604)
 
 **What:** Added the optional `production_binding` contract to the Format Guide schema; embedded and parsed exact structured data in markdown; preserved structured binding data in module history; added deterministic approved-to-proposed diffs; and rendered binding, diff, and history information at the operator gate. Missing binding remains absent rather than being inferred as an episode route.

@@ -265,6 +265,7 @@ def validate_full_contract(contract: dict) -> ValidationResult:
             "beats": beats,
             "primary_audience_action": content.get("primary_audience_action", ""),
             "capture_policy": content.get("capture_policy", ""),
+            "production_binding": content.get("production_binding"),
         }
         hash_result = validate_hash_integrity(expected_hash, writer_contract)
         result.add_errors(hash_result.errors)

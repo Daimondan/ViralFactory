@@ -34,6 +34,7 @@ States for assets:
 import os
 import json
 import sqlite3
+from copy import deepcopy
 import db
 from datetime import datetime, timezone
 from typing import Optional
@@ -44,6 +45,23 @@ from soundtrack_plan import (
     compute_soundtrack_plan_hash,
     validate_soundtrack_plan,
 )
+
+
+def lock_approved_production_binding(treatment: dict) -> dict:
+    """Snapshot the selected Format Guide binding at the Gate-1 boundary.
+
+    The nested Format Guide entry is proposal input.  The top-level treatment
+    field is the immutable card snapshot consumed by later production steps.
+    Missing metadata remains ``None``; it is never interpreted as an episode
+    route.
+    """
+    locked = deepcopy(treatment or {})
+    fmt = locked.get("format")
+    if isinstance(fmt, dict) and "production_binding" in fmt:
+        locked["production_binding"] = deepcopy(fmt["production_binding"])
+    elif "production_binding" not in locked:
+        locked["production_binding"] = None
+    return locked
 
 
 # ─── Schema ──────────────────────────────────────────────────────────────────

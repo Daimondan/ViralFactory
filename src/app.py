@@ -5546,6 +5546,8 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             # like any other approved card. The Assembler creates what it can;
             # real photos arrive later and update the asset.
             treatment = json.loads(card.get("treatment") or "{}")
+            from pipeline import lock_approved_production_binding
+            treatment = lock_approved_production_binding(treatment)
             new_state = "approved"
 
             # F3 (CORRECTION-feedback-plumbing): Series spawning via LLM breakdown
@@ -5586,6 +5588,9 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             if fmt.get("experimental") and fmt.get("format_spec"):
                 _debut_experimental_format(business_slug, card_id, fmt, treatment)
 
+            # Persist the exact binding snapshot before enqueueing the Writer;
+            # later Format Guide edits must not mutate this approved card.
+            store.update_card_treatment(card_id, treatment)
             store.update_card_state(card_id, new_state)
             response = {"status": "ok", "new_state": new_state}
             if spawn_warning:
