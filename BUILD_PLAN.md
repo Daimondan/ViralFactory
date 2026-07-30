@@ -1,6 +1,6 @@
 # BUILD_PLAN.md — ViralFactory
 
-*Instructions to the builder agent (Hermes). Read `docs/CHARTER-v3.10.md` and all of `playbooks/` before writing any code. This file is the single source of truth for what to build and in what order. v2.4 — 2026-07-23 — AMENDMENT-014 adds two-phase assembly: CompositionPlan + per-element previews + ratification sub-gate between manifest freeze and render (VF-CP-001..004). DIVERGENCE-019 provider-neutral render execution boundary remains in force inside M15. VF-CW-001..010 → VF-CP-001..004 → VF-RA-001..004 → VF-CW-011..012 must complete before fresh VF-VS-516/702/703 proof. Prior: v2.3 (DIVERGENCE-019).*
+*Instructions to the builder agent (Hermes). Read `docs/CHARTER-v3.11.md` and all of `playbooks/` before writing any code. This file is the single source of truth for what to build and in what order. v2.4 — 2026-07-23 — AMENDMENT-014 adds two-phase assembly: CompositionPlan + per-element previews + ratification sub-gate between manifest freeze and render (VF-CP-001..004). DIVERGENCE-019 provider-neutral render execution boundary remains in force inside M15. VF-CW-001..010 → VF-CP-001..004 → VF-RA-001..004 → VF-CW-011..012 must complete before fresh VF-VS-516/702/703 proof. Prior: v2.3 (DIVERGENCE-019).*
 
 ## How to work (non-negotiable)
 
@@ -319,7 +319,7 @@ The following tasks were marked complete but their acceptance criteria were met 
 ### Phase M16-A — Filing and constitution recovery (blocking)
 
 - [x] VF-GOV-1601 **File the 2026-07-30 architect batch (P0):** follow the manifest exactly, mark DIVERGENCE-023/025/026 ratified, move answered notes and the stale already-processed 07-25-C manifest to `processed/`, and retain git history. — AC: top-level inbox contains only the protocol README and genuinely unanswered/new batches; every moved file is reachable in history.
-- [ ] VF-GOV-1602 **Restore the charter chain (P0):** produce the missing current charter revision incorporating AMENDMENT-015, AMENDMENT-016, and AMENDMENT-017–019 in order; update README, CONTEXT, PROGRESS, and CHANGELOG references together. — AC: no document claims a nonexistent charter; all start-here pointers resolve; amendment index and effective rules agree; `origin/main` contains the same revision.
+- [x] VF-GOV-1602 **Restore the charter chain (P0):** produce the missing current charter revision incorporating AMENDMENT-015, AMENDMENT-016, and AMENDMENT-017–019 in order; update README, CONTEXT, PROGRESS, and CHANGELOG references together. — AC: no document claims a nonexistent charter; all start-here pointers resolve; amendment index and effective rules agree; `origin/main` contains the same revision.
 - [ ] VF-GOV-1603 **Doc alignment audit (P0):** reconcile BUILD_PLAN checkboxes with PROGRESS, update the repo map through DIVERGENCE-026/AMENDMENT-019, and record the old source-diversity instruction as superseded where it conflicts with AMENDMENT-019. — AC: no current status says the diversity defect is only `sources.yaml`; no completed item still appears open or vice versa.
 
 ### Phase M16-B — Generic Format Guide production binding (AMENDMENT-017; unblocks DIVERGENCE-023)

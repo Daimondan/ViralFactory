@@ -6,6 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-30 — BUILDER: Restored Charter v3.11 and aligned current pointers (VF-GOV-1602)
+
+**What:** Created `docs/CHARTER-v3.11.md`, preserving `docs/CHARTER-v3.10.md` as superseded audit history. Incorporated AMENDMENT-015 and AMENDMENT-016, then AMENDMENT-017, AMENDMENT-018, and AMENDMENT-019 in order. The revision records measured-VO shot subdivision, two-tier rendering, the narrow platform-native audio role, gated Format Guide production bindings, versioned visual treatments, and the Source-Fit Critic/editorial-fit boundary. Updated current start-here and status pointers in `README.md`, `docs/CONTEXT.md`, `BUILD_PLAN.md`, and `docs/PROGRESS.md`.
+
+**Type:** STRUCTURE / LOGIC / STRATEGIC / OPS
+
+**Rationale:** AMENDMENT-016 claimed incorporation into Charter v3.11 while no v3.11 file existed, and AMENDMENT-015 plus AMENDMENT-017–019 were not incorporated into the current constitution. The repository must have one resolvable current charter before implementation proceeds; the v3.10 file remains unchanged for audit history.
+
+**Files:** `docs/CHARTER-v3.11.md`, `README.md`, `docs/CONTEXT.md`, `BUILD_PLAN.md`, `docs/PROGRESS.md`
+
+---
+
 ## 2026-07-30 — BUILDER: Filed architect inbox batch 018–021 (VF-GOV-1601)
 
 **What:** Processed `MANIFEST-2026-07-30-inbox-018-021.md` exactly as directed. Filed the review in `docs/reviews/`, filed AMENDMENT-017, AMENDMENT-018, DIVERGENCE-026, and AMENDMENT-019 in `docs/decisions/`, marked DIVERGENCE-023 and DIVERGENCE-025 ratified with amendment pointers, and moved the answered builder notes, stale 2026-07-25-C manifest, current manifest, and architect note into `docs/inbox/processed/`. The top-level inbox now contains only its permanent README.

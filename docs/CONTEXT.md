@@ -1,6 +1,6 @@
 # Context: ViralFactory
 
-> **This is an operational mirror of `docs/CHARTER-v3.10.md`.** It captures
+> **This is an operational mirror of `docs/CHARTER-v3.11.md`.** It captures
 > current shared language, workflows, and implementation state. It conforms
 > to the charter and BUILD_PLAN; where it conflicts, that conflict is a bug
 > or a new divergence to file — never a silent override.
@@ -12,10 +12,10 @@
 > **On change:** bump `updated_at` date, add/update a decision note in
 > `docs/decisions/` if the change is non-obvious.
 
-**Updated:** 2026-07-30 (architect inbox 018–021 review filed; M16 added. AMENDMENT-017–019 await builder filing. Known P0 governance defect: AMENDMENT-016 claims Charter v3.11 but the repository's latest charter file remains v3.10; M16 restores the chain before implementation.)
-**Conforms to:** `docs/CHARTER-v3.10.md` (v3.10 — all prior amendments through AMENDMENT-013 remain in force; AMENDMENT-014 adds a CompositionPlan with per-element previews and a composition ratification sub-gate between manifest freeze and render; rights/cost/evidence rules remain; AMENDMENT-013's ingredient selection before assembly and final-artifact Gate 3 are preserved)
+**Updated:** 2026-07-30 (Charter v3.11 restored; AMENDMENT-015–019 incorporated in order; M16 implementation active.)
+**Conforms to:** `docs/CHARTER-v3.11.md` (v3.11 — all prior amendments through AMENDMENT-014 remain in force; AMENDMENT-015 adds measured-VO shot subdivision and the two-tier render boundary; AMENDMENT-016 adds the narrow platform-native audio role; AMENDMENT-017 adds gated Format Guide production bindings; AMENDMENT-018 adds coexisting versioned visual treatments; AMENDMENT-019 adds persisted editorial fit and the Source-Fit Critic boundary)
 
-> **Pending constitution recovery:** Ratified AMENDMENT-015 and AMENDMENT-016 are not yet incorporated into an existing charter file, despite AMENDMENT-016's v3.11 claim. The 2026-07-30 architect batch also approves explicit Format Guide production bindings, versioned visual treatments, and source-fit editorial range. Treat `docs/inbox/MANIFEST-2026-07-30-inbox-018-021.md` and M16 as the active recovery work order; do not silently edit this mirror ahead of the actual charter revision.
+> **Current constitution:** `docs/CHARTER-v3.11.md` is the effective charter. It incorporates AMENDMENT-015, AMENDMENT-016, and AMENDMENT-017–019 in order. `docs/CHARTER-v3.10.md` remains preserved for audit history. M16 implementation must still keep module/config changes as exact operator-gated proposals and must preserve the Source-Fit Critic boundary: Python performs mechanical validation only.
 
 ---
 

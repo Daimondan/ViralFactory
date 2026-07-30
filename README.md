@@ -12,8 +12,8 @@ A content co-creation system for entrepreneurs who have ideas and domain experie
 
 | You are | Read, in order |
 |---|---|
-| **Builder agent (Hermes)** | 1. `docs/CONTEXT.md` (the domain + decisions) → 2. `docs/CHARTER-v3.10.md` (the constitution) → 3. `BUILD_PLAN.md` (your tasks, guardrails) → 4. `playbooks/` (the procedures you implement). Then work `BUILD_PLAN.md` top-down, one task at a time. |
-| **Architect / reviewer (Claude)** | `docs/CONTEXT.md` → `docs/CHARTER-v3.10.md` → `docs/decisions/DIVERGENCE-001-charter-amendments.md` → `docs/PROGRESS.md` → latest `review-wN` tag diff → write `docs/reviews/review-wN.md`. Incorporate approved divergences through a versioned charter amendment. |
+| **Builder agent (Hermes)** | 1. `docs/CONTEXT.md` (the domain + decisions) → 2. `docs/CHARTER-v3.11.md` (the constitution) → 3. `BUILD_PLAN.md` (your tasks, guardrails) → 4. `playbooks/` (the procedures you implement). Then work `BUILD_PLAN.md` top-down, one task at a time. |
+| **Architect / reviewer (Claude)** | `docs/CONTEXT.md` → `docs/CHARTER-v3.11.md` → `docs/decisions/DIVERGENCE-001-charter-amendments.md` → `docs/PROGRESS.md` → latest `review-wN` tag diff → write `docs/reviews/review-wN.md`. Incorporate approved divergences through a versioned charter amendment. |
 | **Operator (human)** | `docs/CONTEXT.md` (what we're building and why) → `docs/INTAKE-USER1.md` (what materials you need to provide). You direct in plain language, react to drafts, and approve at gates. You never write code. |
 | **New contributor / other AI** | `docs/CONTEXT.md`, then this README's repo map. |
 
@@ -37,10 +37,18 @@ docs/
     AMENDMENT-012-inspiration-evidence-workbench.md ← top-level Researcher evidence surface
     AMENDMENT-013-pre-assembly-component-workbench.md ← exact component approval + manifest-only assembly
     AMENDMENT-014-two-phase-composition-plan-and-ratification.md ← CompositionPlan + previews + ratification sub-gate
+    AMENDMENT-015-shots-per-beat-and-two-tier-render.md ← measured-VO shot subdivision + two-tier rendering
+    AMENDMENT-016-platform-native-audio-attachment.md ← narrow Instagram-native audio role
+    AMENDMENT-017-format-guide-production-routing.md ← gated generic production binding
+    AMENDMENT-018-versioned-visual-treatments.md ← coexisting exact Tier-1 treatments
+    AMENDMENT-019-source-fit-editorial-range.md ← inspectable editorial fit + Source-Fit Critic
     DIVERGENCE-019-provider-neutral-render-execution-boundary.md ← portable RendererSpec + hosted/local renderer adapters
     DIVERGENCE-020-two-phase-composition-plan-and-ratification.md ← filed divergence (ratified as AMENDMENT-014)
     DIVERGENCE-021-operator-visual-engagement-criteria.md ← operator visual engagement criteria (4s max clip, caption emphasis, VO-only visual life, video-over-stills)
     DIVERGENCE-022-reel-post-caption-missing.md ← reel/story_series post caption artifact + Gate 3 review (architect approved, awaiting builder)
+    DIVERGENCE-023-episode-format-guide-resolution.md ← ratified by AMENDMENT-017
+    DIVERGENCE-025-fitzroy-vector-film-style-request.md ← ratified by AMENDMENT-018
+    DIVERGENCE-026-idea-generation-source-fit-and-editorial-range.md ← ratified by AMENDMENT-019
   inbox/                         ← architect→builder filing protocol (README + processed/)
   reviews/                      ← Claude's weekly review notes (review-wN.md)
   diagrams/                     ← system diagrams (Mermaid + vertical-flow text + SVG)
@@ -78,9 +86,9 @@ Builder works `BUILD_PLAN.md` top-down → commit per task (task ID in message) 
 
 ## Status
 
-**Current engineering state (2026-07-30):** The architect has filed `MANIFEST-2026-07-30-inbox-018-021.md` and added M16. Pending builder filing: AMENDMENT-017 resolves DIVERGENCE-023 with a generic gated Format Guide production binding; AMENDMENT-018 resolves DIVERGENCE-025 with coexisting versioned visual treatments; DIVERGENCE-026/AMENDMENT-019 resolves repetitive thematic framing with persisted editorial fit and an LLM Source-Fit Critic. The proposed keyword-based source-fit validator is rejected as judgment in code. P1-5 migrations, full-suite baseline (**2545 passed, 2 skipped**), ffprobe proof, kill-feedback plumbing, render-state transition, and source restoration are recorded complete. The deep human UI walkthrough, live Buffer auth/scheduled-post proof, and fresh end-to-end release proof remain open.
+**Current engineering state (2026-07-30):** The 2026-07-30 architect batch is filed and Charter v3.11 is current. M16 is active: AMENDMENT-017 resolves DIVERGENCE-023 with a generic gated Format Guide production binding; AMENDMENT-018 resolves DIVERGENCE-025 with coexisting versioned visual treatments; DIVERGENCE-026/AMENDMENT-019 resolves repetitive thematic framing with persisted editorial fit and an LLM Source-Fit Critic. The proposed keyword-based source-fit validator is rejected as judgment in code. P1-5 migrations, full-suite baseline (**2545 passed, 2 skipped**), ffprobe proof, kill-feedback plumbing, render-state transition, and source restoration are recorded complete. The deep human UI walkthrough, live Buffer auth/scheduled-post proof, and fresh end-to-end release proof remain open.
 
-The latest charter file is still **v3.10**, but that is a known P0 governance defect: AMENDMENT-016 claims incorporation into v3.11 while no v3.11 file exists, and AMENDMENT-015 is also absent from v3.10. M16 begins by restoring the charter chain and aligning every pointer before implementation. Until that lands, read v3.10 together with ratified AMENDMENT-015/016 and the pending 2026-07-30 architect batch; do not claim a nonexistent current charter version. The existing Component Workbench, CompositionPlan, RendererSpec, and exact-artifact gates remain in force.
+`docs/CHARTER-v3.11.md` is the current constitution. It incorporates AMENDMENT-015 and AMENDMENT-016, then AMENDMENT-017–019 in order; `docs/CHARTER-v3.10.md` remains preserved for audit history. The existing Component Workbench, CompositionPlan, RendererSpec, exact-artifact gates, gated production bindings, versioned visual treatments, and Source-Fit Critic boundary remain in force.
 
 ## Original architect docs (preserved for reference)
 
