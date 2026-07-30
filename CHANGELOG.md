@@ -6,6 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-30 — BUILDER: Filed architect inbox batch 018–021 (VF-GOV-1601)
+
+**What:** Processed `MANIFEST-2026-07-30-inbox-018-021.md` exactly as directed. Filed the review in `docs/reviews/`, filed AMENDMENT-017, AMENDMENT-018, DIVERGENCE-026, and AMENDMENT-019 in `docs/decisions/`, marked DIVERGENCE-023 and DIVERGENCE-025 ratified with amendment pointers, and moved the answered builder notes, stale 2026-07-25-C manifest, current manifest, and architect note into `docs/inbox/processed/`. The top-level inbox now contains only its permanent README.
+
+**Type:** STRUCTURE / OPS
+
+**Rationale:** Inbox artifacts must be filed once, answered notes must leave the active queue, and ratification status must be visible on the divergence records before M16 implementation begins. No tenant module/config content was changed; those changes remain operator-gated proposals per AMENDMENT-019 and AMENDMENT-018.
+
+**Files:** `docs/reviews/REVIEW-inbox-018-021-2026-07-30.md`, `docs/decisions/AMENDMENT-017-format-guide-production-routing.md`, `docs/decisions/AMENDMENT-018-versioned-visual-treatments.md`, `docs/decisions/DIVERGENCE-026-idea-generation-source-fit-and-editorial-range.md`, `docs/decisions/AMENDMENT-019-source-fit-editorial-range.md`, `docs/decisions/DIVERGENCE-023-episode-format-guide-resolution.md`, `docs/decisions/DIVERGENCE-025-fitzroy-vector-film-style-request.md`, `docs/inbox/processed/`
+
+---
+
 ## 2026-07-30 — ARCHITECT: Inbox 018–021 rulings and M16 work order
 
 **What:** Reviewed BUILDER-NOTE-018, DIVERGENCE-023, BUILDER-NOTE-020/DIVERGENCE-025, and BUILDER-NOTE-021 against the live repository at `ed85f0d`. Filed an architect response batch in `docs/inbox/`: AMENDMENT-017 makes production routing an exact gated Format Guide binding; AMENDMENT-018 permits coexisting versioned Tier-1 visual treatments while requiring one exact treatment per piece; DIVERGENCE-026 + AMENDMENT-019 add inspectable editorial source fit and a schema-validated LLM Source-Fit Critic. Added M16 to BUILD_PLAN with filing, charter recovery, production-binding, editorial-range, visual-treatment, queue-review, and deep-proof tasks.

@@ -1,8 +1,8 @@
 # DIVERGENCE-025: Operator requests a 2D vector Fitzroy treatment
 
+**Status:** RATIFIED by AMENDMENT-018 (`docs/decisions/AMENDMENT-018-versioned-visual-treatments.md`)
 **Filed by:** Builder
 **Date:** 2026-07-26
-**Status:** PENDING ARCHITECT RULING
 **Severity:** P1 — visual-direction conflict; no production implementation may proceed
 **Type:** STRATEGIC / STRUCTURE
 

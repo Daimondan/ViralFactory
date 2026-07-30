@@ -1,8 +1,8 @@
 # DIVERGENCE-023: No ratified Format Guide mapping for episode-format routing
 
+**Status:** RATIFIED by AMENDMENT-017 (`docs/decisions/AMENDMENT-017-format-guide-production-routing.md`)
 **Filed by:** Builder
 **Date:** 2026-07-25
-**Status:** AWAITING ARCHITECT RULING
 **Severity:** P0 — blocks `CORRECTION-episode-wiring-and-source-diversity-v1.0` P0-2
 **Type:** LOGIC / STRUCTURE
 

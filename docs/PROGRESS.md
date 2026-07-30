@@ -4,7 +4,9 @@
 > blocked, or changed. Any agent should be able to read this and know
 > exactly where we are.
 
-**Last Updated:** 2026-07-30 (architect inbox 018–021 review filed; M16 added; builder filing/implementation pending)
+**Last Updated:** 2026-07-30 (VF-GOV-1601 inbox filing complete; charter recovery and M16 implementation remain)
+
+2026-07-30 · VF-GOV-1601 · Filed the 2026-07-30 architect batch exactly per manifest: review to `docs/reviews/`, AMENDMENT-017/018/019 and DIVERGENCE-026 to `docs/decisions/`; marked DIVERGENCE-023 and DIVERGENCE-025 ratified; moved answered BUILDER-NOTEs, the stale 2026-07-25-C manifest, this manifest, and the architect note to `docs/inbox/processed/`. Top-level inbox now contains only the permanent README. · Q: VF-GOV-1602 charter chain recovery
 
 2026-07-30 · ARCHITECT / INBOX 018–021 · Reviewed live `origin/main` at `ed85f0d` plus local BUILDER-NOTE-020. Approved DIVERGENCE-023 via AMENDMENT-017 (generic gated Format Guide production binding), approved DIVERGENCE-025 via AMENDMENT-018 (coexisting versioned Tier-1 visual treatments, one per piece), and ratified idea thematic-range gap as DIVERGENCE-026/AMENDMENT-019 (persisted editorial fit + LLM Source-Fit Critic; no keyword judgment). Added M16 tasks. Found P0 governance drift: AMENDMENT-016 claims Charter v3.11 but repo stops at v3.10; AMENDMENT-015 is also absent from charter. Found stale processed manifest still top-level. Verified kill feedback, render-state, and source restoration code/config; human UI and live Buffer proof remain open because browser automation timed out although `/health` passed and port 9121 listened. · Q: builder processes `MANIFEST-2026-07-30-inbox-018-021.md`
 
