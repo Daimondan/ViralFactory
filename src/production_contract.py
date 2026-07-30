@@ -25,6 +25,11 @@ import json
 import hashlib
 from typing import Any
 
+from visual_treatment_lineage import (
+    VISUAL_TREATMENT_REF_SCHEMA,
+    validate_visual_treatment_ref_shape,
+)
+
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
@@ -135,6 +140,7 @@ CONTENT_CONTRACT_SCHEMA = {
             "enum": list(EVIDENCE_LABELS),
         },
         "production_binding": PRODUCTION_BINDING_SCHEMA,
+    "visual_treatment_ref": VISUAL_TREATMENT_REF_SCHEMA,
     },
 }
 
@@ -617,6 +623,7 @@ def compute_writer_contract_hash(writer_contract: dict) -> str:
         "primary_audience_action": writer_contract.get("primary_audience_action", ""),
         "capture_policy": writer_contract.get("capture_policy", ""),
         "production_binding": writer_contract.get("production_binding"),
+        "visual_treatment_ref": writer_contract.get("visual_treatment_ref"),
     }
     canonical = json.dumps(hash_fields, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -697,6 +704,11 @@ def assemble_contract(
     binding_errors = validate_production_binding(content_contract.get("production_binding"))
     if binding_errors:
         raise ContractValidationError("Production binding invalid: " + "; ".join(binding_errors))
+    treatment_errors = validate_visual_treatment_ref_shape(
+        content_contract.get("visual_treatment_ref")
+    )
+    if treatment_errors:
+        raise ContractValidationError("Visual treatment invalid: " + "; ".join(treatment_errors))
 
     # Check for duplicate beat IDs
     beat_dupes = find_duplicate_ids(beats, "beat_id")
@@ -768,6 +780,7 @@ def assemble_contract(
         "primary_audience_action": content_contract.get("primary_audience_action", ""),
         "capture_policy": content_contract.get("capture_policy", ""),
         "production_binding": content_contract.get("production_binding"),
+        "visual_treatment_ref": content_contract.get("visual_treatment_ref"),
     }
     writer_hash = compute_writer_contract_hash(writer_contract)
 

@@ -5194,12 +5194,30 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             elif pipeline_state == "asset_ready":
                 gate_counts["assets"] += 1
 
+        from visual_treatment_gate import visual_style_data
+        visual_style = visual_style_data(
+            app.config.get("MODULES_DIR", "modules"),
+            app.config["DB_PATH"],
+            business_slug,
+        )
+        visual_treatment_options = []
+        for treatment_option in visual_style.get("visual_treatments", []):
+            if treatment_option.get("status") != "approved":
+                continue
+            from visual_treatment_lineage import make_visual_treatment_ref
+            visual_treatment_options.append({
+                "treatment_id": treatment_option["treatment_id"],
+                "version": treatment_option["version"],
+                "ref": make_visual_treatment_ref(treatment_option),
+            })
+
         return render_template("ideas.html",
             business_name=business_name, business_slug=business_slug,
             cards=cards, active_tab=active_tab, counts=counts_display,
             scope_labels=SCOPE_LABELS, platform_options=platform_options,
             format_options=format_options, gate_counts=gate_counts,
-            review_set_name=review_set_name, review_set_options=review_set_options)
+            review_set_name=review_set_name, review_set_options=review_set_options,
+            visual_treatment_options=visual_treatment_options)
 
     def _run_idea_concept_and_treatment_stages(
         adapter, business_slug: str, business: dict, generation_vars: dict,
@@ -5636,6 +5654,43 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 store.add_feedback(business_slug, "kill_reason", reason, idea_card_id=card_id)
         return jsonify({"status": "ok", "updated": updated, "omitted": omitted})
 
+    @app.route("/api/ideas/<int:card_id>/visual-treatment", methods=["POST"])
+    def ideas_select_visual_treatment(card_id):
+        """Select one approved exact treatment before Gate 1 approval."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+        store = _get_pipeline_store()
+        card = store.get_idea_card(card_id)
+        if not card:
+            return jsonify({"error": "Card not found"}), 404
+        if card["business_slug"] != business_slug:
+            return jsonify({"error": "Card does not belong to this business"}), 403
+        if card["card_state"] not in ("new", "parked"):
+            return jsonify({"error": "Visual treatment can only be selected before Gate 1 approval"}), 400
+
+        payload = request.get_json(silent=True) or {}
+        try:
+            from visual_treatment_gate import visual_style_data
+            from visual_treatment_lineage import resolve_visual_treatment_ref
+            style_data = visual_style_data(
+                app.config.get("MODULES_DIR", "modules"),
+                app.config["DB_PATH"],
+                business_slug,
+            )
+            supplied = payload.get("visual_treatment_ref") or {
+                "treatment_id": payload.get("treatment_id"),
+                "version": payload.get("version"),
+                "treatment_hash": payload.get("treatment_hash"),
+            }
+            resolved = resolve_visual_treatment_ref(supplied, style_data)
+            treatment = json.loads(card.get("treatment") or "{}")
+            treatment["visual_treatment_ref"] = resolved
+            updated = store.update_card_treatment(card_id, treatment)
+            return jsonify({"status": "ok", "visual_treatment_ref": resolved, "card": updated})
+        except Exception as exc:
+            return jsonify({"error": str(exc)[:300]}), 400
+
     @app.route("/api/ideas/<int:card_id>/gate", methods=["POST"])
     def ideas_gate_decision(card_id):
         """Gate 1 decision: approve / kill / park an idea card (T3.2)."""
@@ -5662,6 +5717,21 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             # like any other approved card. The Assembler creates what it can;
             # real photos arrive later and update the asset.
             treatment = json.loads(card.get("treatment") or "{}")
+            visual_treatment_ref = treatment.get("visual_treatment_ref")
+            if visual_treatment_ref is not None:
+                from visual_treatment_gate import visual_style_data
+                from visual_treatment_lineage import resolve_visual_treatment_ref
+                try:
+                    treatment["visual_treatment_ref"] = resolve_visual_treatment_ref(
+                        visual_treatment_ref,
+                        visual_style_data(
+                            app.config.get("MODULES_DIR", "modules"),
+                            app.config["DB_PATH"],
+                            business_slug,
+                        ),
+                    )
+                except Exception as exc:
+                    return jsonify({"error": str(exc)[:300], "next_action": "Select a current approved visual treatment or clear the stale selection."}), 400
             from pipeline import lock_approved_production_binding
             treatment = lock_approved_production_binding(treatment)
             new_state = "approved"
@@ -10336,6 +10406,12 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         )
         req_store_check = ComponentRequirementsStore(db_path=app.config["DB_PATH"])
         existing_reqs = req_store_check.get_current_requirements(business_slug, session["id"])
+        session_visual_treatment_ref = session.get("visual_treatment_ref")
+        if isinstance(session_visual_treatment_ref, str):
+            try:
+                session_visual_treatment_ref = json.loads(session_visual_treatment_ref)
+            except json.JSONDecodeError:
+                session_visual_treatment_ref = None
         if not existing_reqs:
             try:
                 registry = ComponentCategoryRegistry(config_dir=app.config["CONFIG_DIR"])
@@ -10357,7 +10433,12 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                             "preview_required": role_def.get("preview_required", True),
                         })
                     categories.append({"category": cat_key, "required": True, "roles": roles})
-                reqs = {"format": format_name, "platform": asset["platform"], "categories": categories}
+                reqs = {
+                    "format": format_name,
+                    "platform": asset["platform"],
+                    "categories": categories,
+                    "visual_treatment_ref": session_visual_treatment_ref,
+                }
                 req_store_check.save_requirements(
                     business_slug=business_slug,
                     production_session_id=session["id"],
@@ -10531,6 +10612,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             "format": format_name,
             "platform": asset["platform"],
             "categories": categories,
+            "visual_treatment_ref": session_visual_treatment_ref,
         }
 
         req_store = ComponentRequirementsStore(db_path=app.config["DB_PATH"])
@@ -10849,6 +10931,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                     writer_contract = {
                         "beats": beats,
                         "text_intents": text_intents,
+                        "visual_treatment_ref": manifest_data.get("visual_treatment_ref"),
                         "writer_contract_hash": _hl.sha256(wc_blob.encode()).hexdigest(),
                     }
 
@@ -10884,6 +10967,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             plan = {
                 "schema_version": "1.0",
                 "manifest_hash": manifest_data.get("manifest_hash", ""),
+                "visual_treatment_ref": manifest_data.get("visual_treatment_ref"),
                 "canvas": canvas_config,
                 "text_elements": [],
                 "audio": {},

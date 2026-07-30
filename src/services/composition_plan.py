@@ -23,6 +23,8 @@ import math
 import re
 from typing import Any
 
+from visual_treatment_lineage import require_matching_visual_treatment_ref
+
 
 COMPOSITION_PLAN_SCHEMA_VERSION = "1.0"
 
@@ -287,6 +289,7 @@ class CompositionPlanGenerator:
         plan = {
             "schema_version": COMPOSITION_PLAN_SCHEMA_VERSION,
             "manifest_hash": manifest.get("manifest_hash", ""),
+            "visual_treatment_ref": manifest.get("visual_treatment_ref"),
             "writer_contract_hash": writer_contract.get("writer_contract_hash", ""),
             "text_hash": timeline.get("text_hash", ""),
             "canvas": canvas,
@@ -723,6 +726,14 @@ def validate_plan(plan: dict, manifest: dict, writer_contract: dict) -> list[str
     - Plan hash is correct
     """
     errors: list[str] = []
+
+    try:
+        require_matching_visual_treatment_ref(
+            manifest.get("visual_treatment_ref"),
+            plan.get("visual_treatment_ref"),
+        )
+    except ValueError as exc:
+        errors.append(str(exc))
 
     # Build text intent index
     text_intents_by_id: dict[str, dict] = {}

@@ -20,6 +20,8 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Optional
 
+from visual_treatment_lineage import require_matching_visual_treatment_ref
+
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS gate3_decisions (
@@ -34,6 +36,7 @@ CREATE TABLE IF NOT EXISTS gate3_decisions (
     evidence_json TEXT,
     decision TEXT NOT NULL,
     feedback TEXT,
+    visual_treatment_ref TEXT,
     actor TEXT NOT NULL DEFAULT 'operator',
     created_at TEXT NOT NULL,
     FOREIGN KEY (production_session_id) REFERENCES production_sessions(id),
@@ -75,6 +78,9 @@ class Gate3Service:
     def _init_db(self):
         conn = sqlite3.connect(self.db_path)
         conn.executescript(SCHEMA_SQL)
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(gate3_decisions)")}
+        if "visual_treatment_ref" not in columns:
+            conn.execute("ALTER TABLE gate3_decisions ADD COLUMN visual_treatment_ref TEXT")
         conn.commit()
         conn.close()
 
@@ -127,6 +133,28 @@ class Gate3Service:
                 "manifest": None,
                 "final_hash": None,
             }
+
+        session_ref = session.get("visual_treatment_ref")
+        if isinstance(session_ref, str):
+            try:
+                session_ref = json.loads(session_ref)
+            except json.JSONDecodeError:
+                blockers.append("Production session visual treatment reference is malformed")
+                session_ref = None
+        manifest_data = manifest.get("manifest_json", {})
+        if isinstance(manifest_data, str):
+            try:
+                manifest_data = json.loads(manifest_data)
+            except json.JSONDecodeError:
+                blockers.append("Manifest visual treatment lineage is malformed")
+                manifest_data = {}
+        try:
+            require_matching_visual_treatment_ref(
+                session_ref,
+                manifest_data.get("visual_treatment_ref"),
+            )
+        except ValueError as exc:
+            blockers.append(str(exc))
 
         # 3. Verify final artifact exists and compute hash
         if not final_artifact_path or not os.path.exists(final_artifact_path):
@@ -203,6 +231,9 @@ class Gate3Service:
 
         manifest = readiness["manifest"]
         final_hash = readiness["final_hash"]
+        manifest_data = manifest.get("manifest_json", {})
+        if isinstance(manifest_data, str):
+            manifest_data = json.loads(manifest_data)
 
         # Record the decision
         ts = self._now()
@@ -212,13 +243,16 @@ class Gate3Service:
             """INSERT INTO gate3_decisions
                (business_slug, production_session_id, asset_id, manifest_id,
                 manifest_hash, final_artifact_hash, final_artifact_path,
-                evidence_json, decision, feedback, actor, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'approve', ?, ?, ?)""",
+                evidence_json, decision, feedback, visual_treatment_ref, actor, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'approve', ?, ?, ?, ?)""",
             (business_slug, production_session_id, manifest["asset_id"],
              manifest["id"], manifest["manifest_hash"],
              final_hash, final_artifact_path,
              json.dumps(evidence, ensure_ascii=False) if evidence else None,
-             feedback, actor, ts),
+             feedback,
+             json.dumps(manifest_data.get("visual_treatment_ref"), ensure_ascii=False)
+             if manifest_data.get("visual_treatment_ref") else None,
+             actor, ts),
         )
         decision_id = cursor.lastrowid
         # Update asset state in the same transaction

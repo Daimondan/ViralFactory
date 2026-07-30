@@ -201,6 +201,31 @@
                 {% endif %}
             </p>
 
+            <div class="expanded-detail-row" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span class="expanded-detail-label">Visual treatment:</span>
+                {% if visual_treatment_options %}
+                <select id="visual-treatment-{{ card.id }}" onchange="selectVisualTreatment({{ card.id }}, this)" style="padding: 5px 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); color: var(--text);">
+                    <option value="">No exact treatment selected</option>
+                    {% for option in visual_treatment_options %}
+                    <option value="{{ option.treatment_id }}@{{ option.version }}"
+                            data-treatment-id="{{ option.treatment_id }}"
+                            data-version="{{ option.version }}"
+                            data-treatment-hash="{{ option.ref.treatment_hash }}"
+                            {% if card.treatment.get('visual_treatment_ref') == option.ref %}selected{% endif %}>
+                        {{ option.treatment_id }} · v{{ option.version }}
+                    </option>
+                    {% endfor %}
+                </select>
+                {% elif card.treatment.get('visual_treatment_ref') %}
+                <span class="badge badge-held">selected treatment unavailable — approval blocked</span>
+                {% else %}
+                <span class="muted">No structured approved treatment configured</span>
+                {% endif %}
+                {% if card.treatment.get('visual_treatment_ref') %}
+                <span class="badge badge-approved">{{ card.treatment.visual_treatment_ref.treatment_id }} · v{{ card.treatment.visual_treatment_ref.version }}</span>
+                {% endif %}
+            </div>
+
             {% if card.resolved_sources %}
             <p class="expanded-detail-row">
                 <span class="expanded-detail-label">Sources on the card:</span>
@@ -385,6 +410,28 @@ function runEditorialFit(id) {
         })})
     }).then(function(response) { return response.json(); }).then(function(data) {
         if (data.error) { alert(data.error); return; }
+        window.location.reload();
+    });
+}
+
+function selectVisualTreatment(id, select) {
+    var option = select.options[select.selectedIndex];
+    if (!option || !option.dataset.treatmentId) return;
+    fetch('/api/ideas/' + id + '/visual-treatment', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            treatment_id: option.dataset.treatmentId,
+            version: option.dataset.version,
+            treatment_hash: option.dataset.treatmentHash
+        })
+    }).then(function(response) {
+        return response.json().then(function(data) { return {ok: response.ok, data: data}; });
+    }).then(function(result) {
+        if (!result.ok) {
+            vfToastError('Treatment selection failed', result.data.error || 'Unknown error');
+            return;
+        }
         window.location.reload();
     });
 }

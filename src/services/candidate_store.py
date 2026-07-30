@@ -162,6 +162,35 @@ class CandidateStore:
         if status not in VALID_STATUSES:
             raise CandidateError(f"Invalid status: {status}")
 
+        # A selected Gate-1 treatment is session-scoped. Stamp it into every
+        # candidate's generation provenance and reject an explicit mismatch.
+        # Legacy sessions without a selected treatment remain backward compatible.
+        lineage_provenance = dict(generation_provenance or {})
+        lineage_conn = None
+        try:
+            lineage_conn = sqlite3.connect(self.db_path)
+            session_row = lineage_conn.execute(
+                "SELECT visual_treatment_ref FROM production_sessions WHERE id = ? AND business_slug = ?",
+                (production_session_id, business_slug),
+            ).fetchone()
+            if session_row and session_row[0]:
+                session_ref = json.loads(session_row[0])
+                supplied_ref = lineage_provenance.get("visual_treatment_ref")
+                if supplied_ref is not None and supplied_ref != session_ref:
+                    raise CandidateError(
+                        "Candidate visual treatment reference does not match production session"
+                    )
+                lineage_provenance["visual_treatment_ref"] = session_ref
+        except CandidateError:
+            raise
+        except (sqlite3.Error, json.JSONDecodeError, TypeError):
+            # CandidateStore is also used by isolated legacy fixtures that do
+            # not create production_sessions; those remain unbound.
+            pass
+        finally:
+            if lineage_conn is not None:
+                lineage_conn.close()
+
         lineage_id = self._compute_lineage_id(
             business_slug, production_session_id, category, role,
             beat_refs[0] if beat_refs else None,
@@ -194,7 +223,7 @@ class CandidateStore:
              preview_ref, preview_hash, preview_path,
              source_type,
              json.dumps(source_provenance, ensure_ascii=False) if source_provenance else None,
-             json.dumps(generation_provenance, ensure_ascii=False) if generation_provenance else None,
+             json.dumps(lineage_provenance, ensure_ascii=False) if lineage_provenance else None,
              json.dumps(rights_snapshot, ensure_ascii=False) if rights_snapshot else None,
              cost_estimate_usd, 1 if cost_approved else 0,
              json.dumps(beat_refs, ensure_ascii=False) if beat_refs else None,

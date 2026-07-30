@@ -22,6 +22,8 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Optional
 
+from visual_treatment_lineage import require_matching_visual_treatment_ref
+
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS assembly_manifests (
@@ -234,6 +236,23 @@ class ManifestStore:
 
         requirements = current_reqs["requirements_json"]
 
+        def _session_treatment_ref(value):
+            if not value:
+                return None
+            if isinstance(value, dict):
+                return value
+            try:
+                return json.loads(value)
+            except (TypeError, json.JSONDecodeError) as exc:
+                raise ManifestError("Production session visual treatment reference is malformed") from exc
+
+        session_ref = _session_treatment_ref(session.get("visual_treatment_ref"))
+        requirements_ref = requirements.get("visual_treatment_ref")
+        try:
+            require_matching_visual_treatment_ref(session_ref, requirements_ref)
+        except ValueError as exc:
+            raise ManifestError(str(exc)) from exc
+
         # Check completeness
         completeness = self.check_completeness(
             business_slug, production_session_id, requirements
@@ -245,8 +264,39 @@ class ManifestStore:
                 "Cannot freeze manifest — incomplete: " + "; ".join(blocker_msgs)
             )
 
-        # Build the manifest
         approved = completeness["approved_candidates"]
+
+        # A treatment-bound session may freeze only candidates generated under
+        # that exact identity. Missing refs intentionally fail closed.
+        if session_ref:
+            for candidate in approved:
+                provenance = candidate.get("generation_provenance_json")
+                if isinstance(provenance, str):
+                    try:
+                        provenance = json.loads(provenance)
+                    except json.JSONDecodeError:
+                        provenance = None
+                candidate_ref = (provenance or {}).get("visual_treatment_ref")
+                try:
+                    require_matching_visual_treatment_ref(session_ref, candidate_ref)
+                except ValueError as exc:
+                    raise ManifestError(
+                        f"Candidate {candidate['id']} visual treatment lineage invalid: {exc}"
+                    ) from exc
+
+        # Build the manifest
+        def _candidate_visual_treatment_ref(candidate):
+            raw = candidate.get("generation_provenance_json")
+            if not raw:
+                return None
+            if isinstance(raw, str):
+                try:
+                    raw = json.loads(raw)
+                except json.JSONDecodeError as exc:
+                    raise ManifestError(
+                        f"Candidate {candidate['id']} generation provenance is malformed"
+                    ) from exc
+            return raw.get("visual_treatment_ref") if isinstance(raw, dict) else None
 
         manifest_data = {
             "business_slug": business_slug,
@@ -257,6 +307,7 @@ class ManifestStore:
             "format": session.get("format"),
             "requirements_version": current_reqs["version"],
             "requirements_hash": current_reqs["requirements_hash"],
+            "visual_treatment_ref": session_ref,
             "writer_contract_hash": session.get("writer_contract_hash"),
             "candidates": [
                 {
@@ -273,6 +324,7 @@ class ManifestStore:
                     "cost_approved": bool(c.get("cost_approved")),
                     "beat_refs": json.loads(c["beat_refs_json"]) if c.get("beat_refs_json") else [],
                     "measurement": json.loads(c["measurement_json"]) if c.get("measurement_json") else {},
+                    "visual_treatment_ref": _candidate_visual_treatment_ref(c),
                 }
                 for c in approved
             ],

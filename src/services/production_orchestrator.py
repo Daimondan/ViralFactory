@@ -152,6 +152,7 @@ CREATE TABLE IF NOT EXISTS production_sessions (
     active_manifest_version INTEGER,
     active_render_version INTEGER,
     active_composition_plan_hash TEXT,
+    visual_treatment_ref TEXT,
     attempt INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -217,6 +218,9 @@ class ProductionSessionService:
     def _init_db(self):
         conn = db.connect(self.db_path, foreign_keys=False)
         conn.executescript(SCHEMA_SQL)
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(production_sessions)")}
+        if "visual_treatment_ref" not in columns:
+            conn.execute("ALTER TABLE production_sessions ADD COLUMN visual_treatment_ref TEXT")
         conn.commit()
         conn.close()
 
@@ -231,6 +235,7 @@ class ProductionSessionService:
         platform: str,
         format: str = None,
         writer_contract_hash: str = None,
+        visual_treatment_ref: dict | None = None,
     ) -> dict:
         """Create a new production session for a platform asset.
 
@@ -248,11 +253,13 @@ class ProductionSessionService:
         cursor = conn.execute(
             """INSERT INTO production_sessions
                (business_slug, draft_id, asset_id, platform, format,
-                writer_contract_hash, current_state, state_reason,
+                writer_contract_hash, visual_treatment_ref, current_state, state_reason,
                 created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, 'planning_components', 'session created', ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'planning_components', 'session created', ?, ?)""",
             (business_slug, draft_id, asset_id, platform, format,
-             writer_contract_hash, ts, ts),
+             writer_contract_hash,
+             json.dumps(visual_treatment_ref, ensure_ascii=False) if visual_treatment_ref else None,
+             ts, ts),
         )
         session_id = cursor.lastrowid
         # Record initial transition

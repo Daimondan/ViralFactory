@@ -19,6 +19,8 @@ import json
 import os
 from typing import Optional
 
+from visual_treatment_lineage import require_matching_visual_treatment_ref
+
 
 RENDERER_SPEC_VERSION = "1.0"
 
@@ -118,6 +120,7 @@ RENDERER_SPEC_SCHEMA = {
                 "session_id": {"type": "integer"},
                 "asset_id": {"type": "integer"},
                 "business_slug": {"type": "string"},
+                "visual_treatment_ref": {"type": ["object", "null"]},
             },
         },
         "canvas": {
@@ -453,6 +456,7 @@ def compile_from_ratified_plan(
             "session_id": session.get("id"),
             "asset_id": session.get("asset_id"),
             "business_slug": session.get("business_slug"),
+            "visual_treatment_ref": manifest_data.get("visual_treatment_ref"),
         },
         "canvas": {
             "width": canvas.get("width", 1080),
@@ -640,6 +644,22 @@ class RendererSpecCompiler:
                 f"declared={plan_hash[:16]}, computed={computed_hash[:16]}"
             )
 
+        # Treatment identity is a separate lineage invariant from the plan
+        # hash. A changed or mixed treatment must return upstream.
+        try:
+            manifest = self._get_active_manifest(business_slug, session_id)
+            manifest_data = manifest.get("manifest_json", {}) if manifest else {}
+            if isinstance(manifest_data, str):
+                manifest_data = json.loads(manifest_data)
+            session_ref = session.get("visual_treatment_ref")
+            if isinstance(session_ref, str):
+                session_ref = json.loads(session_ref)
+            manifest_ref = manifest_data.get("visual_treatment_ref") if manifest_data else None
+            require_matching_visual_treatment_ref(session_ref, manifest_ref)
+            require_matching_visual_treatment_ref(session_ref, plan.get("visual_treatment_ref"))
+        except (ValueError, TypeError, json.JSONDecodeError) as exc:
+            blockers.append(str(exc))
+
         return blockers
 
     # ── compilation ──────────────────────────────────────────────────
@@ -677,6 +697,10 @@ class RendererSpecCompiler:
                 "session_id": session.get("id"),
                 "asset_id": session.get("asset_id"),
                 "business_slug": session.get("business_slug"),
+                "visual_treatment_ref": plan.get(
+                    "visual_treatment_ref",
+                    md.get("visual_treatment_ref") if manifest else None,
+                ),
             },
             "canvas": canvas,
             "timeline": timeline,
