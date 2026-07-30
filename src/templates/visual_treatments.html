@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/vf.css">
+    <title>Visual Treatment Gate — ViralFactory</title>
+    <style>
+        .treatment-card, .proposal-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin: 0.8rem 0; }
+        .badge { display: inline-block; padding: .15rem .5rem; border-radius: 10px; font-size: .75rem; background: rgba(47,129,247,.15); color: var(--accent); }
+        .badge-proposed { color: var(--yellow); } .badge-approved { color: var(--green); }
+        .diff { white-space: pre-wrap; overflow-x: auto; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem; font: .78rem ui-monospace, monospace; max-height: 300px; }
+        .muted { color: var(--muted); }
+        button { padding: .45rem .8rem; border: 0; border-radius: 6px; cursor: pointer; }
+        .approve { background: var(--green); color: white; } .reject { background: var(--red); color: white; }
+    </style>
+</head>
+<body>
+<div class="container">
+    {% include "_nav.html" %}
+    <h1>Visual Treatment Gate</h1>
+    <p class="muted">One exact versioned Tier-1 treatment governs a piece. Proposals remain pending until the operator decides.</p>
+
+    <h2>Current treatments</h2>
+    {% if current_treatments %}
+        {% for treatment in current_treatments %}
+        <div class="treatment-card">
+            <strong>{{ treatment.treatment_id }}</strong>
+            <span class="badge badge-{{ treatment.status }}">v{{ treatment.version }} · {{ treatment.status }}</span>
+            <p>{{ treatment.description }}</p>
+            <p class="muted">Allowed formats: {{ treatment.allowed_formats|join(', ') }}</p>
+            <p class="muted">Continuity: {{ treatment.continuity.world_subjects }}</p>
+        </div>
+        {% endfor %}
+    {% else %}
+        <p class="muted">No structured visual treatments are currently installed. Existing v1 Visual Style remains readable.</p>
+    {% endif %}
+
+    <h2>Pending treatment proposals</h2>
+    {% if pending_proposals %}
+        {% for proposal in pending_proposals %}
+        <div class="proposal-card" id="proposal-{{ proposal.id }}">
+            <h3>{{ proposal.target_section }}</h3>
+            <span class="badge badge-proposed">pending operator decision</span>
+            <p>{{ proposal.change_description }}</p>
+            <p class="muted">Rationale: {{ proposal.rationale }}</p>
+            <h4>Proposal diff</h4>
+            <div class="diff">Before: {{ proposal.diff_payload.before|tojson(indent=2) }}
+
+After: {{ proposal.diff_payload.after|tojson(indent=2) }}</div>
+            <h4>Reference candidates</h4>
+            <div class="diff">{{ proposal.diff_payload.reference_candidates|tojson(indent=2) }}</div>
+            <button class="approve" onclick="decide({{ proposal.id }}, 'approve')">Approve proposal</button>
+            <button class="reject" onclick="rejectProposal({{ proposal.id }})">Reject proposal</button>
+        </div>
+        {% endfor %}
+    {% else %}
+        <p class="muted">No pending visual-treatment proposals.</p>
+    {% endif %}
+</div>
+<script>
+function decide(id, action) {
+    fetch('/api/proposals/' + id + '/' + action, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'}).then(function(r) {
+        if (!r.ok) throw new Error('Gate action failed');
+        location.reload();
+    }).catch(function(e) { alert(e.message); });
+}
+function rejectProposal(id) {
+    var reason = prompt('Reason for rejecting this treatment proposal:');
+    if (!reason) return;
+    fetch('/api/proposals/' + id + '/reject', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({reason: reason})}).then(function(r) {
+        if (!r.ok) throw new Error('Gate action failed');
+        location.reload();
+    }).catch(function(e) { alert(e.message); });
+}
+</script>
+</body>
+</html>

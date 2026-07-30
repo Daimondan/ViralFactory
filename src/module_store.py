@@ -254,7 +254,7 @@ class ModuleStore:
         VALID_SCHEMAS = {
             "voice_profile_v1", "brand_context_v1", "source_criteria_v1",
             "viral_patterns_v1", "audience_insights_v1", "story_frameworks_v1",
-            "format_guide_v1", "format_guide_v2", "visual_style_v1", "shot_library_v1",
+            "format_guide_v1", "format_guide_v2", "visual_style_v1", "visual_style_v2", "shot_library_v1",
             "episode_format_v1",
         }
         if schema_name not in VALID_SCHEMAS:
@@ -1426,6 +1426,67 @@ SHOT_LIBRARY_ITEM_SCHEMA = {
 }
 
 
+VISUAL_TREATMENT_SCHEMA = {
+    "type": "object",
+    "required": [
+        "treatment_id", "version", "description", "reference_set", "palette",
+        "line_texture_lighting", "prohibited_characteristics", "allowed_formats",
+        "continuity", "tier1_generation_rules", "tier2_overlay_relationship",
+        "disclosure_requirements", "status", "provenance",
+    ],
+    "properties": {
+        "treatment_id": {"type": "string"},
+        "version": {"type": "string"},
+        "description": {"type": "string"},
+        "reference_set": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["ref_id", "role", "status"],
+                "properties": {
+                    "ref_id": {"type": "string"},
+                    "role": {"type": "string"},
+                    "status": {"type": "string", "enum": ["proposed", "approved", "retired"]},
+                },
+            },
+        },
+        "palette": {
+            "type": "object",
+            "required": ["allowed_colors", "prohibited_colors"],
+            "properties": {
+                "allowed_colors": {"type": "array", "items": {"type": "string"}},
+                "prohibited_colors": {"type": "array", "items": {"type": "string"}},
+            },
+        },
+        "line_texture_lighting": {
+            "type": "object",
+            "required": ["line_rule", "texture_rule", "lighting_rule"],
+            "properties": {
+                "line_rule": {"type": "string"},
+                "texture_rule": {"type": "string"},
+                "lighting_rule": {"type": "string"},
+            },
+        },
+        "prohibited_characteristics": {"type": "array", "items": {"type": "string"}},
+        "allowed_formats": {"type": "array", "items": {"type": "string"}},
+        "continuity": {
+            "type": "object",
+            "required": ["character", "location", "world_subjects"],
+            "properties": {
+                "character": {"type": "string"},
+                "location": {"type": "string"},
+                "world_subjects": {"type": "string"},
+            },
+        },
+        "tier1_generation_rules": {"type": "array", "items": {"type": "string"}},
+        "tier2_overlay_relationship": {"type": "string"},
+        "disclosure_requirements": {"type": "array", "items": {"type": "string"}},
+        "status": {"type": "string", "enum": ["proposed", "approved", "retired"]},
+        "provenance": {"type": "object"},
+    },
+}
+
+
 VISUAL_STYLE_SCHEMA = {
     "type": "object",
     "required": ["palette", "typography", "stylization_level",
@@ -1479,6 +1540,10 @@ VISUAL_STYLE_SCHEMA = {
         },
         "shot_library_usage": {"type": "string"},
         "summary": {"type": "string"},
+        "visual_treatments": {
+            "type": "array",
+            "items": VISUAL_TREATMENT_SCHEMA,
+        },
     },
 }
 
@@ -1488,6 +1553,9 @@ def visual_style_to_markdown(data: dict, version: str = "1.0") -> str:
     lines = [f"# Visual Style Guide — v{version}"]
 
     lines.append(f"\n## Summary\n{data.get('summary', '')}")
+    lines.append("\n## Structured data\n```json")
+    lines.append(json.dumps(data, indent=2, ensure_ascii=False, sort_keys=True))
+    lines.append("```")
 
     lines.append("\n## Palette")
     pal = data.get("palette", {})
@@ -1524,11 +1592,50 @@ def visual_style_to_markdown(data: dict, version: str = "1.0") -> str:
     if data.get("shot_library_usage"):
         lines.append(f"\n## Shot library usage\n{data['shot_library_usage']}")
 
+    treatments = data.get("visual_treatments", [])
+    if treatments:
+        lines.append("\n## Visual treatments")
+        for treatment in treatments:
+            lines.append(
+                f"\n### {treatment['treatment_id']} — v{treatment['version']} "
+                f"({treatment['status']})"
+            )
+            lines.append(f"- **Description:** {treatment['description']}")
+            lines.append(f"- **Allowed formats:** {', '.join(treatment.get('allowed_formats', []))}")
+            palette = treatment.get("palette", {})
+            lines.append(f"- **Allowed palette:** {', '.join(palette.get('allowed_colors', []))}")
+            lines.append(f"- **Prohibited palette:** {', '.join(palette.get('prohibited_colors', []))}")
+            lines.append(
+                f"- **Continuity:** {treatment.get('continuity', {}).get('world_subjects', '')}"
+            )
+            lines.append(
+                f"- **Disclosure:** {'; '.join(treatment.get('disclosure_requirements', []))}"
+            )
+
     lines.append(f"\n## Provenance\n- Version: {version}")
     lines.append(f"- Generated: {datetime.now(timezone.utc).isoformat()}")
-    lines.append(f"- Schema: visual_style_v1")
+    schema_name = "visual_style_v2" if treatments or version.startswith("2") else "visual_style_v1"
+    lines.append(f"- Schema: {schema_name}")
 
     return "\n".join(lines)
+
+
+def parse_visual_style_markdown(content: str) -> dict:
+    """Recover the exact structured Visual Style contract from module markdown."""
+    match = re.search(
+        r"^## Structured data\s+```json\s*(.*?)\s*```",
+        content,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    if not match:
+        raise ValueError("Visual Style markdown has no structured data block")
+    try:
+        data = json.loads(match.group(1))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid Visual Style structured data: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ValueError("Visual Style structured data must be an object")
+    return data
 
 
 def shot_library_to_markdown(items: list, version: str = "1.0") -> str:

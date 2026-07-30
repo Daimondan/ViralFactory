@@ -6,6 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-30 — BUILDER: Add versioned visual treatment contract and gate (VF-VIS-1615)
+
+**What:** Extended the generic Visual Style schema with optional versioned `visual_treatments[]` entries covering references, palette, line/texture/lighting, prohibited characteristics, allowed formats, continuity, Tier-1/Tier-2 relationship, disclosure, lifecycle status, and provenance. Added v2 structured Markdown round-trip with v1 compatibility, deterministic proposal diffs, reference-candidate validation, a deployed `/visual-treatments` operator gate, and shared navigation.
+
+**Type:** TECH / STRUCTURE / LOGIC / OPS
+
+**Rationale:** AMENDMENT-018 requires cinematic and flat-vector treatments to coexist without silent replacement. The module stores exact contracts; Python validates declared structure only. Treatment and reference proposals remain pending until the existing operator approve/reject gate decides.
+
+**Evidence:** `tests/test_vf_vis_1615_visual_treatments.py`; 61 focused visual/module regressions passed; deployed `/visual-treatments` page and proposal API returned HTTP 200 with a pending vector proposal, exact diff, and proposed reference candidates.
+
+**Files:** `src/module_store.py`, `src/visual_treatment_gate.py`, `src/app.py`, `src/templates/visual_treatments.html`, `src/templates/_nav.html`, `tests/test_vf_vis_1615_visual_treatments.py`
+
 ## 2026-07-30 — BUILDER: Complete controlled Source-Fit proof (VF-IDEA-1613)
 
 **What:** Completed the fixed-source policy/person/culture/money/AI proof through the protected real adapter and deployed Gate 1 UI. Added a config-owned deterministic critic backend, Ollama JSON-Schema response enforcement for that process, a fail-closed empty-source generation response, and a repeatable proof runner/config with sanitized evidence record.

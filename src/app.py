@@ -9178,6 +9178,92 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             return jsonify({"error": str(exc)}), 400
         return jsonify({"status": "pending", "proposal_ids": proposal_ids})
 
+    @app.route("/visual-treatments")
+    def visual_treatments_page():
+        """Operator gate for versioned Visual Style treatments and references."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return "Business not configured", 500
+
+        from proposal_store import ProposalStore
+        from visual_treatment_gate import visual_style_data
+
+        modules_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "modules")
+        current_style = visual_style_data(modules_dir, app.config["DB_PATH"], business_slug)
+        pending = ProposalStore(db_path=app.config["DB_PATH"]).list_proposals(
+            business_slug, status="pending", target_module="visual-style"
+        )
+        for proposal in pending:
+            try:
+                proposal["diff_payload"] = json.loads(proposal.get("exact_diff") or "{}")
+            except json.JSONDecodeError:
+                proposal["diff_payload"] = {}
+        return render_template(
+            "visual_treatments.html",
+            current_treatments=current_style.get("visual_treatments", []),
+            pending_proposals=pending,
+        )
+
+    @app.route("/api/visual-treatments/proposals", methods=["POST"])
+    def create_visual_treatment_proposal():
+        """Queue a proposed treatment and reference candidates for operator review."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        from proposal_store import ProposalStore
+        from validator import ValidationError
+        from visual_treatment_gate import (
+            treatment_diff,
+            validate_reference_candidates,
+            validate_visual_treatment,
+            visual_style_data,
+        )
+
+        payload = request.get_json(silent=True) or {}
+        candidate = payload.get("treatment")
+        if not isinstance(candidate, dict):
+            return jsonify({"error": "treatment object required"}), 400
+        if candidate.get("status") != "proposed":
+            return jsonify({"error": "visual treatment proposals must have status proposed"}), 400
+        try:
+            candidate = validate_visual_treatment(candidate)
+            references = validate_reference_candidates(payload.get("reference_candidates", []))
+        except (ValueError, ValidationError) as exc:
+            return jsonify({"error": str(exc)}), 400
+
+        modules_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "modules")
+        current_style = visual_style_data(modules_dir, app.config["DB_PATH"], business_slug)
+        current = next(
+            (item for item in current_style.get("visual_treatments", [])
+             if item.get("treatment_id") == candidate.get("treatment_id")),
+            None,
+        )
+        diff = treatment_diff(current, candidate, references)
+        exact_diff = json.dumps(
+            {"before": current, "after": candidate, "reference_candidates": references},
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        proposal_id = ProposalStore(db_path=app.config["DB_PATH"]).create_proposal(
+            business_slug=business_slug,
+            target_module="visual-style",
+            target_section=f"visual_treatments[{candidate['treatment_id']}@{candidate['version']}]",
+            proposal_type="modify" if current else "add",
+            evidence=payload.get("evidence", []),
+            change_description=candidate["description"],
+            exact_diff=exact_diff,
+            rationale=payload.get("rationale", ""),
+            confidence=payload.get("confidence", "medium"),
+        )
+        return jsonify({
+            "status": "pending",
+            "proposal_id": proposal_id,
+            "treatment": candidate,
+            "reference_candidates": references,
+            "diff": diff,
+        })
+
     @app.route("/proposals")
     def proposals_page():
         """Gate queue — module improvement proposals for operator approval."""

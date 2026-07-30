@@ -4,11 +4,13 @@
 > blocked, or changed. Any agent should be able to read this and know
 > exactly where we are.
 
-**Last Updated:** 2026-07-30 (VF-IDEA-1613 fixed-source real-adapter/Gate 1 proof complete; VF-VIS-1615 next)
+**Last Updated:** 2026-07-30 (VF-VIS-1615 visual treatment contract/gate complete; VF-VIS-1616 lineage next)
 
-2026-07-30 · VF-IDEA-1614 · Added the config-owned StackPenni source-111 review set for cards 81/88/92/97, a server-rendered queue filter, and explicit bulk park/kill actions. Every selected card remains operator-decided; kill reasons enter the normal Feedback Log and no delete path exists. Focused/regression tests: 56 passed. Live service restarted and review-set/API/page probes passed. · Q: VF-VIS-1615 versioned visual treatment contract
+2026-07-30 · VF-IDEA-1614 · Added the config-owned StackPenni source-111 review set for cards 81/88/92/97, a server-rendered queue filter, and explicit bulk park/kill actions. Every selected card remains operator-decided; kill reasons enter the normal Feedback Log and no delete path exists. Focused/regression tests: 56 passed. Live service restarted and review-set/API/page probes passed. · Q: VF-VIS-1616 exact treatment lineage
 
 2026-07-30 · VF-IDEA-1613 · Completed the fixed-source proof with policy/person/culture/money/AI evidence through the protected real adapter and deployed Gate 1 UI. Added structured Ollama JSON-Schema output for the config-owned judgment backend, an empty-source fail-closed response, and the reproducible proof runner/config. Real adapter proof returned exact source membership and five editorial lenses; deployed UI/API probes returned HTTP 200; focused adapter/source-fit/idea/proof tests: 80 passed. · Q: VF-VIS-1615 versioned visual treatment contract
+
+2026-07-30 · VF-VIS-1615 · Added the generic versioned `visual_treatments[]` contract with nested palette/line/texture/lighting, continuity, Tier-1/Tier-2, disclosure, allowed-format, status, reference, and provenance fields. Added v2 Visual Style Markdown structured round-trip while preserving v1 modules, deterministic proposal diffs/reference-candidate validation, and the linked operator Treatments gate. Focused visual/module regressions: 61 passed; deployed page/API probes returned HTTP 200 with a pending vector proposal and no self-approval. · Q: VF-VIS-1616 exact treatment lineage
 
 2026-07-30 · VF-IDEA-1612 · Added config-owned StackPenni Voice Profile, Audience Insights, and business-config exact proposal bundle plus `POST /api/governance/module-proposals`; it creates pending rows only and never writes target files. Focused/proposal tests: 23 passed. · Q: VF-IDEA-1613 controlled fixed-source proof
 
