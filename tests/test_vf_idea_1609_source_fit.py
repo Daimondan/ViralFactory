@@ -24,6 +24,11 @@ from source_fit_critic import (
 def valid_result():
     return {
         "critic_version": "1.0",
+        "card_fit": {
+            "lens_id": "ai", "verdict": "supported",
+            "evidence_quotes": ["Exact source sentence."],
+            "rationale": "The card fits AI.",
+        },
         "source_fit": [{
             "source_id": 111,
             "fits": [{
@@ -42,7 +47,7 @@ def valid_result():
 
 
 def test_source_fit_schema_has_exact_evidence_boundary():
-    assert set(SOURCE_FIT_CRITIC_SCHEMA["required"]) == {"critic_version", "source_fit", "batch_range"}
+    assert set(SOURCE_FIT_CRITIC_SCHEMA["required"]) == {"critic_version", "card_fit", "source_fit", "batch_range"}
     assert "source_id" in SOURCE_FIT_CRITIC_SCHEMA["properties"]["source_fit"]["items"]["properties"]
 
 

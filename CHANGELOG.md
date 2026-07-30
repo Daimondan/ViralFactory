@@ -6,6 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-30 — BUILDER: Wire Gate 1 Source-Fit Critic action (VF-IDEA-1613, blocked proof)
+
+**What:** Added the per-card Gate 1 Source-Fit Critic endpoint and UI action, persisted the critic-owned `card_fit` with exact critic evidence and provenance, and exercised the real adapter path with five fixed sources.
+
+**Type:** TECH / LOGIC / OPS
+
+**Rationale:** Python must not infer a primary lens from per-source results; the critic now returns `card_fit`. The real adapter proof is not claimed complete: Ollama returned `401 Unauthorized` because no provider credential is configured in this environment.
+
+**Files:** `src/source_fit_critic.py`, `src/pipeline.py`, `src/app.py`, `src/templates/ideas.html`, `tests/test_vf_idea_1613_fixed_source_proof.py`
+
+---
+
 ## 2026-07-30 — BUILDER: Prepare operator-gated module/config proposals (VF-IDEA-1612)
 
 **What:** Added a config-owned StackPenni proposal bundle and explicit API that queues exact Voice Profile, Audience Insights, and business-config diffs as pending records.

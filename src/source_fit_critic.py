@@ -17,9 +17,19 @@ except ImportError:
 
 SOURCE_FIT_CRITIC_SCHEMA = {
     "type": "object",
-    "required": ["critic_version", "source_fit", "batch_range"],
+    "required": ["critic_version", "card_fit", "source_fit", "batch_range"],
     "properties": {
         "critic_version": {"type": "string"},
+        "card_fit": {
+            "type": "object",
+            "required": ["lens_id", "verdict", "evidence_quotes", "rationale"],
+            "properties": {
+                "lens_id": {"type": "string"},
+                "verdict": {"type": "string", "enum": ["supported", "partial", "unsupported"]},
+                "evidence_quotes": {"type": "array", "items": {"type": "string"}},
+                "rationale": {"type": "string"},
+            },
+        },
         "source_fit": {
             "type": "array",
             "minItems": 1,
@@ -77,6 +87,11 @@ def validate_source_fit_result(
     if actual_sources != expected_sources or len(actual_sources) != len(source_ids):
         raise SourceFitValidationError("source membership does not match supplied source evidence")
     configured = set(lens_ids)
+    card_fit = result.get("card_fit", {})
+    if card_fit.get("lens_id") not in configured:
+        raise SourceFitValidationError("card lens is not configured")
+    if card_fit.get("verdict") not in {"supported", "partial", "unsupported"}:
+        raise SourceFitValidationError("card verdict is invalid")
     for source in result["source_fit"]:
         if not isinstance(source.get("source_id"), int) or isinstance(source.get("source_id"), bool):
             raise SourceFitValidationError("source_id must be an integer")

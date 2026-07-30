@@ -6,6 +6,8 @@
 
 **Last Updated:** 2026-07-30 (VF-IDEA-1608 editorial lens persistence complete; M16 implementation continues)
 
+2026-07-30 · VF-IDEA-1613 · Wired Gate 1 `POST /api/ideas/<id>/editorial-fit`, persisted critic-owned `card_fit` + evidence/provenance, and added the Ideas UI action. Fixed-source unit/UI boundary tests: 11 passed. **BLOCKED:** real adapter proof returned Ollama `401 Unauthorized`; no adapter credentials are configured in this environment. · Q: operator supplies provider credential through normal environment/config path, then rerun five-source proof
+
 2026-07-30 · VF-IDEA-1612 · Added config-owned StackPenni Voice Profile, Audience Insights, and business-config exact proposal bundle plus `POST /api/governance/module-proposals`; it creates pending rows only and never writes target files. Focused/proposal tests: 23 passed. · Q: VF-IDEA-1613 controlled fixed-source proof
 
 2026-07-30 · VF-IDEA-1611 · Added persisted-ID lens counts and separate registry-owned framing-family analysis with cached/provenance-logged adapter calls; analysis is advisory and does not reject source-required lenses. Focused/process tests: 22 passed. · Q: VF-IDEA-1612 operator-gated StackPenni module/config proposals

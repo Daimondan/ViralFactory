@@ -212,6 +212,7 @@
             <span class="expanded-cost">production continues now; required capture must arrive before final review</span>
             {% endif %}
             <button class="btn btn-small" onclick="toggleEditForm({{ card.id }})">Edit</button>
+            <button class="btn btn-small" onclick="runEditorialFit({{ card.id }})">Check source fit</button>
             <button class="btn btn-small" onclick="document.getElementById('kill-reason-{{ card.id }}').classList.add('show')">Kill · give reason</button>
             <button class="btn btn-small" onclick="cardAction({{ card.id }}, 'park')">Park</button>
             <div class="spacer"></div>
@@ -353,6 +354,23 @@
 </div>
 
 <script>
+function runEditorialFit(id) {
+    var raw = window.prompt('Configured lens IDs to test (comma-separated):');
+    if (!raw) return;
+    var lenses = raw.split(',').map(function(value) { return value.trim(); }).filter(Boolean);
+    if (!lenses.length) return;
+    fetch('/api/ideas/' + id + '/editorial-fit', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({proposed_fit: lenses.map(function(lens_id) {
+            return {lens_id: lens_id, reason: 'Operator-proposed Gate 1 lens'};
+        })})
+    }).then(function(response) { return response.json(); }).then(function(data) {
+        if (data.error) { alert(data.error); return; }
+        window.location.reload();
+    });
+}
+
 function cardAction(id, action) {
     if (action === 'kill') {
         document.getElementById('kill-reason-' + id).classList.add('show');

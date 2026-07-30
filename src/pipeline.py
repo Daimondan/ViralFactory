@@ -1229,6 +1229,18 @@ class PipelineStore:
         conn.close()
         return self.get_idea_card(card_id)
 
+    def update_card_editorial_fit(self, card_id: int, editorial_fit: dict, provenance: dict = None) -> dict:
+        """Persist a validated Source-Fit Critic result at Gate 1."""
+        conn = db.connect(self.db_path, foreign_keys=self._foreign_keys)
+        conn.execute(
+            "UPDATE idea_cards SET editorial_fit = ?, editorial_fit_provenance = ?, updated_at = ? WHERE id = ?",
+            (json.dumps(editorial_fit), json.dumps(provenance) if provenance is not None else None,
+             self._now(), card_id),
+        )
+        conn.commit()
+        conn.close()
+        return self.get_idea_card(card_id)
+
     def update_idea_card_fields(
         self, card_id: int, idea: str = None, hook_options: list = None,
     ) -> dict:

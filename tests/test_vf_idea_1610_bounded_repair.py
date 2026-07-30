@@ -9,6 +9,10 @@ from source_fit_critic import SourceFitCritic, SourceFitValidationError
 def valid_result():
     return {
         "critic_version": "1.0",
+        "card_fit": {
+            "lens_id": "ai", "verdict": "supported",
+            "evidence_quotes": ["quote"], "rationale": "r",
+        },
         "source_fit": [{
             "source_id": 111,
             "fits": [{"lens_id": "ai", "verdict": "supported", "evidence_quotes": ["quote"], "rationale": "r"}],

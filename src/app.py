@@ -5531,6 +5531,50 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         return jsonify({"status": "ok", "card_ids": cards_created, "count": len(cards_created)})
 
+    @app.route("/api/ideas/<int:card_id>/editorial-fit", methods=["POST"])
+    def ideas_editorial_fit(card_id):
+        """Run the Source-Fit Critic for one Gate 1 card and persist its evidence."""
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+        payload = request.get_json(silent=True) or {}
+        proposed_fit = payload.get("proposed_fit")
+        if not isinstance(proposed_fit, list) or not proposed_fit:
+            return jsonify({"error": "proposed_fit must be a non-empty list"}), 400
+        store = _get_pipeline_store()
+        card = store.get_idea_card(card_id)
+        if not card:
+            return jsonify({"error": "Card not found"}), 404
+        if card["business_slug"] != business_slug:
+            return jsonify({"error": "Card does not belong to this business"}), 403
+        try:
+            source_ids = json.loads(card.get("source_refs") or "[]")
+            sources = store.resolve_source_refs(business_slug, source_ids)
+            if not sources:
+                return jsonify({"error": "Card has no resolvable source evidence"}), 422
+            from config_loader import load_all
+            from llm_adapter import LLMAdapter
+            from source_fit_critic import SourceFitCritic
+            config = load_all(app.config["CONFIG_DIR"])
+            adapter = LLMAdapter(config["models"], db_path=app.config["DB_PATH"], prompts_dir="prompts")
+            critic = SourceFitCritic(adapter, config_dir=app.config["CONFIG_DIR"])
+            evidence = [{"id": src["id"], "title": src.get("title", ""), "content": src.get("content", ""), "url": src.get("url") or ""} for src in sources]
+            result = critic.run_with_bounded_repair(
+                business_slug=business_slug,
+                card_context={"card_id": card_id, "idea": card.get("idea", "")},
+                sources=evidence,
+                proposed_fit=proposed_fit,
+            )
+            card_fit = result["card_fit"]
+            stored_fit = dict(card_fit)
+            stored_fit["critic_result"] = result
+            provenance = {"critic_version": result["critic_version"], "source_ids": source_ids, "profile": "source_fit_critic"}
+            updated = store.update_card_editorial_fit(card_id, stored_fit, provenance)
+            return jsonify({"status": "ok", "card": updated, "critic": result})
+        except Exception as exc:
+            logger.exception("Source-Fit Critic failed for card %s", card_id)
+            return jsonify({"error": str(exc)[:300]}), 502
+
     @app.route("/api/ideas/<int:card_id>/gate", methods=["POST"])
     def ideas_gate_decision(card_id):
         """Gate 1 decision: approve / kill / park an idea card (T3.2)."""

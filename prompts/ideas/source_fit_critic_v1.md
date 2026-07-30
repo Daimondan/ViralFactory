@@ -14,8 +14,11 @@ quotes, or lens IDs. The operator remains the final gate.
 For every supplied source ID, return one `source_fit` object. For each proposed
 lens that the source can honestly support, provide a verdict (`supported`,
 `partial`, or `unsupported`), exact evidence quotes copied from the supplied
-source, and a concise rationale. If evidence is insufficient, use `unresolved`
-true and do not pad the result. `batch_range` is an advisory summary of which
-configured lens IDs are represented across this batch.
+source, and a concise rationale. Also return a `card_fit` containing the
+single best-supported configured lens for this card; if evidence is
+insufficient, use `unsupported` with an honest rationale. If a source is
+insufficient, use `unresolved` true and do not pad the result. `batch_range` is
+an advisory summary of which configured lens IDs are represented across this
+batch.
 
 Return only JSON matching the registered SOURCE_FIT_CRITIC_SCHEMA.
