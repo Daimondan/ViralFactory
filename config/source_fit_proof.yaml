@@ -1,0 +1,22 @@
+# Controlled fixed-source proof for VF-IDEA-1613.
+# IDs are operator-selected evidence references, not editorial classifications.
+source_fit_proof:
+  business_slug: stackpenni
+  sources:
+    - id: 74
+      evidence_role: policy
+    - id: 96
+      evidence_role: person
+    - id: 80
+      evidence_role: culture
+    - id: 78
+      evidence_role: money
+    - id: 95
+      evidence_role: ai
+  proposed_lenses:
+    - ai
+    - sou_sou
+    - entrepreneurship
+    - policy
+    - culture
+    - money

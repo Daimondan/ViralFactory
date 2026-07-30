@@ -1,4 +1,4 @@
-<!-- version: 1.0 -->
+<!-- version: 1.1 -->
 # Source-Fit Critic — bounded repair
 
 Repair the previous Source-Fit Critic result for this exact card. Do not add
@@ -19,3 +19,6 @@ the mechanical findings and preserve uncertainty as `unresolved: true`.
 
 Return only JSON matching SOURCE_FIT_CRITIC_SCHEMA. This is the one allowed
 repair pass; a result that still fails validation is omitted from production.
+`card_fit` must include `lens_id`, `verdict`, `evidence_quotes` as an array,
+and `rationale`; every `source_fit` item must include `source_id`, `fits`, and
+`unresolved`; `batch_range` must include `lens_ids` and `coverage_note`.

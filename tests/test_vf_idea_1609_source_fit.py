@@ -97,6 +97,7 @@ def test_critic_passes_exact_source_evidence_and_proposed_fit(tmp_path):
     assert captured["variables"]["source_evidence"][0]["id"] == 111
     assert captured["variables"]["proposed_fit"][0]["lens_id"] == "ai"
     assert captured["context"].startswith("Source-Fit Critic")
+    assert captured["backend"] == "source_fit_critic"
 
 
 def test_adapter_cache_and_provenance_are_used_for_unchanged_critic_input(tmp_path):

@@ -538,8 +538,32 @@ queries: []
 
         db_path = str(tmp_path / "test.db")
         app = create_app(config_dir=config_dir, db_path=db_path)
+        from pipeline import PipelineStore
+        PipelineStore(db_path=db_path).add_source(
+            business_slug="testbiz",
+            source_type="fixture",
+            title="Fixture source",
+            content="Exact fixture source evidence.",
+            origin="test",
+        )
         app.config["TESTING"] = True
         return app
+
+    def test_empty_source_bank_returns_clear_next_action(self, app_with_ideator):
+        from unittest.mock import patch
+        from pipeline import PipelineStore
+        from llm_adapter import LLMAdapter
+
+        with patch.object(PipelineStore, "list_sources_sampled", return_value=[]), \
+             patch.object(LLMAdapter, "complete", side_effect=AssertionError("LLM must not run")):
+            response = app_with_ideator.test_client().post("/api/ideas/generate", json={"count": 1})
+
+        assert response.status_code == 200
+        payload = response.get_json()
+        assert payload["card_ids"] == []
+        assert payload["count"] == 0
+        assert payload["next_action"] == "/sources"
+        assert "empty" in payload["message"].lower()
 
     def test_ideas_generate_uses_ideator_backend(self, app_with_ideator):
         """S1a: ideas_generate route calls the LLM with backend='ideator'."""

@@ -87,7 +87,7 @@ processes:
 
   source_fit_critic:
     prompt_file: "ideas/source_fit_critic_v1.md"
-    backend: "ideator"
+    backend: "source_fit_critic"
     schema: "SOURCE_FIT_CRITIC_SCHEMA"
     context_template: "Source-Fit Critic"
     inputs:
@@ -96,7 +96,7 @@ processes:
 
   source_fit_critic_repair:
     prompt_file: "ideas/source_fit_repair_v1.md"
-    backend: "ideator"
+    backend: "source_fit_critic"
     schema: "SOURCE_FIT_CRITIC_SCHEMA"
     context_template: "Source-Fit Critic bounded repair"
     inputs:

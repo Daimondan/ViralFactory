@@ -12,7 +12,7 @@
 > **On change:** bump `updated_at` date, add/update a decision note in
 > `docs/decisions/` if the change is non-obvious.
 
-**Updated:** 2026-07-30 (Charter v3.11 restored; AMENDMENT-015–019 incorporated in order; M16 implementation active.)
+**Updated:** 2026-07-30 (Charter v3.11 restored; AMENDMENT-015–019 incorporated in order; M16 Source-Fit proof complete and visual-treatment contract next)
 **Conforms to:** `docs/CHARTER-v3.11.md` (v3.11 — all prior amendments through AMENDMENT-014 remain in force; AMENDMENT-015 adds measured-VO shot subdivision and the two-tier render boundary; AMENDMENT-016 adds the narrow platform-native audio role; AMENDMENT-017 adds gated Format Guide production bindings; AMENDMENT-018 adds coexisting versioned visual treatments; AMENDMENT-019 adds persisted editorial fit and the Source-Fit Critic boundary)
 
 > **Current constitution:** `docs/CHARTER-v3.11.md` is the effective charter. It incorporates AMENDMENT-015, AMENDMENT-016, and AMENDMENT-017–019 in order. `docs/CHARTER-v3.10.md` remains preserved for audit history. M16 implementation must still keep module/config changes as exact operator-gated proposals and must preserve the Source-Fit Critic boundary: Python performs mechanical validation only.

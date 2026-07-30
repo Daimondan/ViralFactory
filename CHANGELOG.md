@@ -6,6 +6,20 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-30 — BUILDER: Complete controlled Source-Fit proof (VF-IDEA-1613)
+
+**What:** Completed the fixed-source policy/person/culture/money/AI proof through the protected real adapter and deployed Gate 1 UI. Added a config-owned deterministic critic backend, Ollama JSON-Schema response enforcement for that process, a fail-closed empty-source generation response, and a repeatable proof runner/config with sanitized evidence record.
+
+**Type:** TECH / LOGIC / OPS
+
+**Rationale:** Source-Fit judgment must remain LLM-owned and schema-validated. The real adapter was returning semantically useful but contract-invalid keys (`source_fits` instead of `source_fit`); structured output enforcement fixes the boundary without Python-side judgment or coercion. An empty AI-originated Source Bank must stop honestly rather than manufacture cards.
+
+**Evidence:** `docs/proofs/VF-IDEA-1613-fixed-source-proof.md`; 80 focused tests passed; real adapter runner succeeded with exact source membership and five returned lenses; deployed Gate 1 page/API probes returned HTTP 200.
+
+**Files:** `config/models.yaml`, `config/processes.yaml`, `config/source_fit_proof.yaml`, `prompts/ideas/source_fit_critic_v1.md`, `prompts/ideas/source_fit_repair_v1.md`, `scripts/source_fit_proof.py`, `src/app.py`, `src/llm_adapter.py`, `src/source_fit_critic.py`
+
+---
+
 ## 2026-07-30 — BUILDER: Add source-111 review set and bulk Gate 1 actions (VF-IDEA-1614)
 
 **What:** Added the config-owned `source_111` review set for cards 81, 88, 92, and 97; exposed it as a server-rendered Ideas queue filter; and added explicit bulk park/kill actions with select-all UI. Kill reasons are persisted through the normal Feedback Log path.

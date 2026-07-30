@@ -5466,6 +5466,15 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         active_sources = store.list_sources_sampled(
             business_slug, sample_size=sample_size, fresh_window=fresh_window,
         )
+        if not active_sources:
+            _get_jobs_store().complete_job(ideas_job_id, "source-bank-empty")
+            return jsonify({
+                "status": "ok",
+                "card_ids": [],
+                "count": 0,
+                "message": "Source Bank is empty. Add or activate a source before generating AI-originated ideas.",
+                "next_action": "/sources",
+            })
         if active_sources:
             source_lines = []
             for src in active_sources:
@@ -5584,7 +5593,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             updated = store.update_card_editorial_fit(card_id, stored_fit, provenance)
             return jsonify({"status": "ok", "card": updated, "critic": result})
         except Exception as exc:
-            logger.exception("Source-Fit Critic failed for card %s", card_id)
+            app.logger.exception("Source-Fit Critic failed for card %s", card_id)
             return jsonify({"error": str(exc)[:300]}), 502
 
     @app.route("/api/ideas/review-set/<name>", methods=["GET"])

@@ -15,6 +15,7 @@ active:
   drafter: "ollama_glm52_creative"  # content drafting (generative — real temperature)
   ideator: "ollama_glm52_creative"  # idea generation (generative — real temperature)
   converse: "ollama_gpt_oss_120b"  # P2-1: fast non-reasoning backend for conversational turns
+  source_fit_critic: "ollama_source_fit_critic"  # judgment-only source fit and bounded repair
   drafter_ab_candidate: null    # set to a backend name for M3 A/B test
 
 # ── Named backends ────────────────────────────────────────────────────
@@ -46,6 +47,13 @@ ollama_gpt_oss_120b:
   model: "gpt-oss:120b"
   temperature: 0
   max_tokens: 4096
+  base_url: "https://ollama.com"
+
+ollama_source_fit_critic:
+  provider: "ollama_cloud"
+  model: "gpt-oss:120b"
+  temperature: 0
+  max_tokens: 16384
   base_url: "https://ollama.com"
 
 ollama_kimi_k26:

@@ -137,6 +137,7 @@ class LLMAdapter:
         base_url: str,
         temperature: float,
         max_tokens: int,
+        response_format: Optional[dict] = None,
     ) -> tuple[str, int]:
         """
         Call an Ollama-compatible API. Returns (response_text, latency_ms).
@@ -158,6 +159,8 @@ class LLMAdapter:
                 "num_predict": max_tokens,
             },
         }
+        if response_format is not None:
+            payload["format"] = response_format
 
         headers = {"Content-Type": "application/json"}
         api_key = os.environ.get("OLLAMA_API_KEY", "")
@@ -310,10 +313,16 @@ class LLMAdapter:
         # Call the LLM
         call_fn = self._call_ollama if "ollama" in provider else self._call_openai_compatible
 
+        def call_backend(prompt_text: str) -> tuple[str, int]:
+            if "ollama" in provider and backend == "source_fit_critic":
+                return self._call_ollama(
+                    prompt_text, model, base_url, temperature, max_tokens,
+                    response_format=schema,
+                )
+            return call_fn(prompt_text, model, base_url, temperature, max_tokens)
+
         try:
-            raw_output, latency_ms = call_fn(
-                rendered, model, base_url, temperature, max_tokens
-            )
+            raw_output, latency_ms = call_backend(rendered)
         except LLMAdapterError:
             # Log the failure
             self.provenance.log(
@@ -379,9 +388,7 @@ class LLMAdapter:
                     # Retry once — include the actual validation error text so the
                     # model can correct the specific issue, not just "invalid JSON"
                     retry_prompt = rendered + f"\n\n---\nIMPORTANT: Your previous response failed validation: {e}. Please correct this error and respond with ONLY valid JSON, no markdown, no explanation."
-                    raw_output, latency_ms = call_fn(
-                        retry_prompt, model, base_url, temperature, max_tokens
-                    )
+                    raw_output, latency_ms = call_backend(retry_prompt)
                 else:
                     # Two attempts failed — log and flag for manual review
                     self.provenance.log(
