@@ -4380,10 +4380,35 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         llm_outputs = json.loads(run.get("llm_outputs") or "{}")
         guide = llm_outputs.get("guide")
 
+        approved_guide = None
+        format_history = []
+        from module_store import format_guide_proposal_diff
+        proposal_diff = format_guide_proposal_diff(None, guide) if guide else ""
+        try:
+            config = load_all(app.config["CONFIG_DIR"])
+            business_slug = config["business"]["business"]["slug"]
+            from module_store import ModuleStore
+
+            module_store = ModuleStore(
+                modules_dir=app.config.get("MODULES_DIR", "modules"),
+                db_path=app.config["DB_PATH"],
+            )
+            approved_guide = module_store.load_json(business_slug, "format-guide")
+            format_history = module_store.list_versions(business_slug, "format-guide")
+            if guide:
+                proposal_diff = format_guide_proposal_diff(approved_guide, guide)
+        except (ConfigError, OSError, ValueError, KeyError):
+            # The onboarding gate remains usable when no prior approved guide
+            # exists; the absence is not a production-route default.
+            pass
+
         return render_template("format_guide.html",
             playbook_name=playbook_name, run_id=run_id,
             format_observations=format_observations,
-            platform_norms=platform_norms, guide=guide)
+            platform_norms=platform_norms, guide=guide,
+            approved_guide=approved_guide,
+            format_history=format_history,
+            proposal_diff=proposal_diff)
 
     @app.route("/api/run/<int:run_id>/format-input", methods=["POST"])
     def add_format_input(run_id):

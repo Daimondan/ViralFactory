@@ -11,6 +11,7 @@ import os
 import json
 import re
 import sqlite3
+import difflib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -298,6 +299,15 @@ class ModuleStore:
                     "version": match.group(1),
                     "timestamp": match.group(2),
                     "filename": f.name,
+                    "structured_filename": next(
+                        (
+                            structured.name
+                            for structured in sorted(
+                                version_dir.glob(f"v{match.group(1)}_*.json")
+                            )
+                        ),
+                        None,
+                    ),
                 })
         return versions
 
@@ -1185,6 +1195,17 @@ FORMAT_GUIDE_SCHEMA = {
                     },
                     "aspect_ratio": {"type": "string"},
                     "provenance": {"type": "string"},
+                    "production_binding": {
+                        "type": ["object", "null"],
+                        "description": "Optional exact production route selected by the gated Format Guide entry.",
+                        "required": ["mode"],
+                        "properties": {
+                            "mode": {"type": "string", "enum": ["standard", "episode"]},
+                            "process_ref": {"type": ["string", "null"]},
+                            "governance_module_ref": {"type": ["string", "null"]},
+                            "governance_module_version": {"type": ["string", "null"]},
+                        },
+                    },
                     # ── VF-AU-301 enriched fields (optional, additive) ──
                     "canvas": {
                         "type": "object",
@@ -1274,6 +1295,13 @@ def format_guide_to_markdown(data: dict, version: str = "2.0") -> str:
     lines = [f"# Format Guide — v{version}"]
     lines.append(f"\n## Summary\n{data.get('summary', '')}")
 
+    # Preserve the exact structured contract in the module itself.  The JSON
+    # sidecar remains the preferred machine-readable source, while this block
+    # keeps markdown-only copies round-trippable for history and review.
+    lines.append("\n## Structured data\n```json")
+    lines.append(json.dumps(data, indent=2, ensure_ascii=False, sort_keys=True))
+    lines.append("```")
+
     # Compact affordance profiles are injected at idea-selection time. They
     # intentionally omit skeletons and contain no message-type routing table.
     lines.append("\n## Selection profiles")
@@ -1307,6 +1335,19 @@ def format_guide_to_markdown(data: dict, version: str = "2.0") -> str:
         lines.append(f"- **Production demands:** {'; '.join(f.get('production_demands', []))}")
         lines.append(f"- **Length:** {f.get('length', '')}")
         lines.append(f"- **Aspect ratio:** {f.get('aspect_ratio', '')}")
+        binding = f.get("production_binding")
+        if binding is None:
+            lines.append("- **Production binding:** not declared")
+        else:
+            lines.append("- **Production binding:**")
+            for key in (
+                "mode",
+                "process_ref",
+                "governance_module_ref",
+                "governance_module_version",
+            ):
+                if key in binding:
+                    lines.append(f"  - **{key}:** {binding[key]}")
         lines.append(f"- **Effort level:** {f.get('effort_level', '')}")
         lines.append(f"- **Requires human capture:** {f.get('requires_human_capture', 'none')}")
         if f.get("capture_tasks"):
@@ -1327,6 +1368,43 @@ def format_guide_to_markdown(data: dict, version: str = "2.0") -> str:
     lines.append(f"- Generated: {datetime.now(timezone.utc).isoformat()}")
     lines.append("- Schema: format_guide_v2")
     return "\n".join(lines)
+
+
+def parse_format_guide_markdown(content: str) -> dict:
+    """Recover the exact structured Format Guide embedded by the converter.
+
+    This parser is deliberately mechanical: it reads the JSON contract block
+    and performs no format-name or production-route inference.
+    """
+    match = re.search(
+        r"^## Structured data\s+```json\s*(.*?)\s*```",
+        content,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    if not match:
+        raise ValueError("Format Guide markdown has no structured data block")
+    try:
+        data = json.loads(match.group(1))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid Format Guide structured data: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ValueError("Format Guide structured data must be an object")
+    return data
+
+
+def format_guide_proposal_diff(current: dict | None, proposed: dict) -> str:
+    """Return a deterministic human-review diff for a Format Guide proposal."""
+    before = json.dumps(current or {}, indent=2, ensure_ascii=False, sort_keys=True).splitlines()
+    after = json.dumps(proposed, indent=2, ensure_ascii=False, sort_keys=True).splitlines()
+    return "\n".join(
+        difflib.unified_diff(
+            before,
+            after,
+            fromfile="approved-format-guide",
+            tofile="proposed-format-guide",
+            lineterm="",
+        )
+    )
 
 
 # ────────────────────────────────────────────────────────────────────

@@ -6,6 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-30 — BUILDER: Implemented Format Guide production binding round-trip (VF-FMT-1604)
+
+**What:** Added the optional `production_binding` contract to the Format Guide schema; embedded and parsed exact structured data in markdown; preserved structured binding data in module history; added deterministic approved-to-proposed diffs; and rendered binding, diff, and history information at the operator gate. Missing binding remains absent rather than being inferred as an episode route.
+
+**Type:** TECH / LOGIC / STRUCTURE
+
+**Rationale:** AMENDMENT-017 requires production routing to be an exact, human-gated Format Guide choice. The implementation must preserve the operator-visible contract through proposal, approval, and reload without hardcoded tenant routing or silent defaults. The full suite's 18 failures were unrelated baseline/environment issues and remain separately identified in `docs/PROGRESS.md`.
+
+**Files:** `src/module_store.py`, `src/validator.py`, `src/app.py`, `src/templates/format_guide.html`, `tests/test_vf_fmt_1604_production_binding.py`
+
+---
+
 ## 2026-07-30 — BUILDER: Completed M16 documentation alignment audit (VF-GOV-1603)
 
 **What:** Reconciled the M16 governance task state between `BUILD_PLAN.md` and `docs/PROGRESS.md`, confirmed the current README repo map includes AMENDMENT-015–019 and DIVERGENCE-023/025/026, corrected the DIVERGENCE-022 map status to implemented, and added a supersession note to `docs/corrections/CORRECTION-episode-wiring-and-source-diversity-v1.0.md`.

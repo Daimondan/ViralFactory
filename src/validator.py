@@ -202,6 +202,12 @@ def validate_json_schema(output: dict, schema: dict, context: str = "") -> dict:
                                     f"Field '{field}[{i}].{prop}' must be one of [{type_names}], "
                                     f"got {type(item[prop]).__name__} {context}"
                                 )
+                            if isinstance(item[prop], dict) and "properties" in prop_schema:
+                                validate_json_schema(
+                                    item[prop],
+                                    prop_schema,
+                                    f"in '{field}[{i}].{prop}' {context}",
+                                )
                         elif prop_type and prop_type in type_map:
                             # Don't let bool pass as int
                             if prop_type == "integer" and isinstance(item[prop], bool):

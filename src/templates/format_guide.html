@@ -56,9 +56,26 @@
         <span id="analyze-status"></span>
     </div>
 
-    <div class="card" id="review-section" style="display: none;">
+    <div class="card" id="review-section" style="display: {{ 'block' if guide else 'none' }};">
         <h2>4. Review — Format Guide</h2>
         <div id="guide-display"></div>
+        {% if proposal_diff %}
+        <div class="card" style="background: var(--bg);">
+            <h3>Proposal diff</h3>
+            <p class="muted">Exact structured changes from the approved guide to this proposal.</p>
+            <pre>{{ proposal_diff }}</pre>
+        </div>
+        {% endif %}
+        {% if format_history %}
+        <div class="card" style="background: var(--bg);">
+            <h3>Format Guide history</h3>
+            <ul>
+            {% for item in format_history %}
+                <li>v{{ item.version }} · {{ item.timestamp }}{% if item.structured_filename %} · structured contract preserved{% endif %}</li>
+            {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
         <h3>Gate</h3>
         <button class="btn btn-approve" onclick="store(true)">Approve</button>
         <button class="btn btn-secondary" onclick="store(false)">Park</button>
@@ -108,6 +125,17 @@
             h += `<li><strong>Limitations:</strong> ${esc((f.limitations || []).join(', '))}</li>`;
             h += `<li><strong>Production demands:</strong> ${esc((f.production_demands || []).join(', '))}</li>`;
             h += `<li><strong>Length:</strong> ${esc(f.length)}</li>`;
+            if (f.production_binding) {
+                h += `<li><strong>Production binding:</strong><ul>`;
+                for (const key of ['mode', 'process_ref', 'governance_module_ref', 'governance_module_version']) {
+                    if (Object.prototype.hasOwnProperty.call(f.production_binding, key)) {
+                        h += `<li><strong>${esc(key)}:</strong> ${esc(f.production_binding[key])}</li>`;
+                    }
+                }
+                h += `</ul></li>`;
+            } else {
+                h += `<li><strong>Production binding:</strong> not declared</li>`;
+            }
             h += `<li><strong>Requires human capture:</strong> ${esc(f.requires_human_capture)}</li>`;
             if (f.capture_tasks && f.capture_tasks.length) {
                 h += `<li><strong>Capture tasks:</strong><ul>`;
@@ -123,6 +151,10 @@
         }
         d.innerHTML = h;
     }
+
+    {% if guide %}
+    document.addEventListener('DOMContentLoaded', () => display({{ guide|tojson }}));
+    {% endif %}
 
     async function store(approved) {
         const status = document.getElementById('store-status');
