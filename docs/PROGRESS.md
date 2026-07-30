@@ -4,9 +4,13 @@
 > blocked, or changed. Any agent should be able to read this and know
 > exactly where we are.
 
-**Last Updated:** 2026-07-30 (VF-VIS-1615 visual treatment contract/gate complete; VF-VIS-1616 lineage next)
+**Last Updated:** 2026-07-30 (VF-VIS-1616 exact treatment lineage complete; VF-VIS-1617 proposal registered; VF-PROOF-1618 remains)
 
-2026-07-30 · VF-IDEA-1614 · Added the config-owned StackPenni source-111 review set for cards 81/88/92/97, a server-rendered queue filter, and explicit bulk park/kill actions. Every selected card remains operator-decided; kill reasons enter the normal Feedback Log and no delete path exists. Focused/regression tests: 56 passed. Live service restarted and review-set/API/page probes passed. · Q: VF-VIS-1616 exact treatment lineage
+2026-07-30 · VF-VIS-1616 · Bound exact `visual_treatment_ref` at Gate 1 and carried the canonical treatment identity through production sessions, requirements, centrally stamped candidate provenance, manifest candidates, CompositionPlan, RendererSpec, Gate 3 readiness/decision records, and writer hashes. Legacy unbound sessions remain compatible; bound sessions fail closed on missing, stale, or mixed refs. Focused lineage tests: 5 passed; adjacent production regressions: 115 passed. · Q: VF-VIS-1617 vector candidate registration
+
+2026-07-30 · VF-VIS-1617 · Registered the five real cleaned StackPenni vector comparison outputs as proposed-only reference candidates under the pending `flat_vector_pennifold@1.0` proposal. Recorded exact artifact hashes, dimensions, SVG palette-lock reports, zero forbidden SVG elements, and fullscreen-review paths in `config/visual_treatment_proposals/stackpenni_flat_vector_pennifold.yaml`. Deployed proposal API returned HTTP 200 and the `/visual-treatments` page showed pending proposal `2`; no treatment or candidate was approved. · Q: explicit operator treatment/reference approval
+
+2026-07-30 · VF-IDEA-1614 · Added the config-owned StackPenni source-111 review set for cards 81/88/92/97, a server-rendered queue filter, and explicit bulk park/kill actions. Every selected card remains operator-decided; kill reasons enter the normal Feedback Log and no delete path exists. Focused/regression tests: 56 passed. Live service restarted and review-set/API/page probes passed. · Q: VF-PROOF-1618 deep deployed walkthrough
 
 2026-07-30 · VF-IDEA-1613 · Completed the fixed-source proof with policy/person/culture/money/AI evidence through the protected real adapter and deployed Gate 1 UI. Added structured Ollama JSON-Schema output for the config-owned judgment backend, an empty-source fail-closed response, and the reproducible proof runner/config. Real adapter proof returned exact source membership and five editorial lenses; deployed UI/API probes returned HTTP 200; focused adapter/source-fit/idea/proof tests: 80 passed. · Q: VF-VIS-1615 versioned visual treatment contract
 

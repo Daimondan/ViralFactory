@@ -1,0 +1,144 @@
+# StackPenni vector treatment proposal — operator review input only.
+# This file is configuration/evidence, not approval. Every status remains proposed.
+treatment:
+  treatment_id: flat_vector_pennifold
+  version: "1.0"
+  description: "Flat-vector Pennifold world treatment for comparison review; proposed only and not production-active."
+  reference_set:
+    - ref_id: "asset:stackpenni:palette-lock:spec01:A-room-clean"
+      role: canonical-room
+      status: proposed
+    - ref_id: "asset:stackpenni:palette-lock:spec01:B-fitzroy-clean"
+      role: canonical-character-fitzroy
+      status: proposed
+    - ref_id: "asset:stackpenni:palette-lock:spec01:C-stacks-clean"
+      role: canonical-character-stacks
+      status: proposed
+    - ref_id: "asset:stackpenni:palette-lock:spec01:D-newspaper-clean"
+      role: canonical-prop-newspaper
+      status: proposed
+    - ref_id: "asset:stackpenni:palette-lock:spec01:E-controller-clean"
+      role: canonical-prop-controller
+      status: proposed
+  palette:
+    allowed_colors:
+      - "#1D1C21"
+      - "#FCF8E4"
+      - "#0E1A2F"
+      - "#D9A93F"
+      - "#8A5A2B"
+      - "#5E351F"
+      - "#8D5737"
+      - "#B87550"
+      - "#9E9B95"
+    prohibited_colors:
+      - "#0A4D5C"
+      - "#E8654A"
+      - "#F2B705"
+      - "#FAF6F0"
+      - teal
+      - turquoise
+      - coral
+      - pink
+      - gradients
+      - texture
+      - grain
+      - generated-text
+      - generated-signage
+  line_texture_lighting:
+    line_rule: "Use #1D1C21 flat outlines; no painterly edge treatment."
+    texture_rule: "Flat fills only; no texture or grain."
+    lighting_rule: "Flat graphic shading using only the declared palette; no gradients."
+  prohibited_characteristics:
+    - "mixed Tier-1 cinematic-painted subjects"
+    - "teal, turquoise, coral, or pink fills"
+    - "gradients, texture, or grain"
+    - "generated text or signage inside world assets"
+  allowed_formats:
+    - reel
+    - story
+    - carousel
+  continuity:
+    character: "Fitzroy and Stackwell Pennifold remain consistent across all vector world references."
+    location: "The Pennifold world uses the same approved location identity across vector references."
+    world_subjects: "Every Tier-1 world subject in a selected piece uses this exact treatment."
+  tier1_generation_rules:
+    - "Use only approved vector treatment references after operator approval."
+    - "Keep world subjects separate from deterministic Tier-2 renderer graphics."
+    - "Do not use this proposed treatment in production until its treatment and references are separately approved."
+  tier2_overlay_relationship: "Renderer captions, cards, and disclosures remain deterministic overlays and may use the declared palette."
+  disclosure_requirements:
+    - "Disclose generated vector visuals when they are the primary visual."
+    - "Never present generated vector subjects as real people, places, or events."
+  status: proposed
+  provenance:
+    source_decision: docs/decisions/AMENDMENT-018-versioned-visual-treatments.md
+    comparison_specification: docs/decisions/DIVERGENCE-025-fitzroy-vector-film-style-request.md
+    palette_lock: assets/reference/stackpenni/palette_lock_assets/spec01
+    operator_gate: "pending explicit treatment approval and five reference approvals"
+reference_candidates:
+  - ref_id: "asset:stackpenni:palette-lock:spec01:A-room-clean"
+    status: proposed
+    evidence:
+      - "assets/reference/stackpenni/palette_lock_assets/spec01/A-room-clean.report.json"
+      - "mechanical SVG palette-lock report"
+    artifact_path: assets/reference/stackpenni/palette_lock_assets/spec01/A-room-clean.png
+    artifact_sha256: 09cf01db793976d20a8a0c0b618ad837f88df216de51ba92d21a259719fcd738
+    dimensions: [774, 1376]
+    palette_evidence:
+      report_path: assets/reference/stackpenni/palette_lock_assets/spec01/A-room-clean.report.json
+      fill_set_identical: true
+      forbidden_svg_elements: {image: 0, base64: 0, linearGradient: 0, radialGradient: 0, transform: 0}
+      mechanical_verdict: pass
+  - ref_id: "asset:stackpenni:palette-lock:spec01:B-fitzroy-clean"
+    status: proposed
+    evidence:
+      - "assets/reference/stackpenni/palette_lock_assets/spec01/B-fitzroy-clean.report.json"
+      - "mechanical SVG palette-lock report"
+    artifact_path: assets/reference/stackpenni/palette_lock_assets/spec01/B-fitzroy-clean.png
+    artifact_sha256: 06f7ffd6bb7d6cc4f21415eed4ea0b52fbf7250bfe0ff2167567443b3ff95e32
+    dimensions: [774, 1376]
+    palette_evidence:
+      report_path: assets/reference/stackpenni/palette_lock_assets/spec01/B-fitzroy-clean.report.json
+      fill_set_identical: true
+      forbidden_svg_elements: {image: 0, base64: 0, linearGradient: 0, radialGradient: 0, transform: 0}
+      mechanical_verdict: pass
+  - ref_id: "asset:stackpenni:palette-lock:spec01:C-stacks-clean"
+    status: proposed
+    evidence:
+      - "assets/reference/stackpenni/palette_lock_assets/spec01/C-stacks-clean.report.json"
+      - "mechanical SVG palette-lock report"
+    artifact_path: assets/reference/stackpenni/palette_lock_assets/spec01/C-stacks-clean.png
+    artifact_sha256: e8f33b3093db6ef90daa036c8c3f731861eeafe6b0a2711e79d85dd575ca5cb7
+    dimensions: [774, 1376]
+    palette_evidence:
+      report_path: assets/reference/stackpenni/palette_lock_assets/spec01/C-stacks-clean.report.json
+      fill_set_identical: true
+      forbidden_svg_elements: {image: 0, base64: 0, linearGradient: 0, radialGradient: 0, transform: 0}
+      mechanical_verdict: pass
+  - ref_id: "asset:stackpenni:palette-lock:spec01:D-newspaper-clean"
+    status: proposed
+    evidence:
+      - "assets/reference/stackpenni/palette_lock_assets/spec01/D-newspaper-clean.report.json"
+      - "mechanical SVG palette-lock report"
+    artifact_path: assets/reference/stackpenni/palette_lock_assets/spec01/D-newspaper-clean.png
+    artifact_sha256: eca80b2bc4a4ec8a0e3d9cb327b7372385a369f3f48424ea569d320928e6e3e3
+    dimensions: [774, 1376]
+    palette_evidence:
+      report_path: assets/reference/stackpenni/palette_lock_assets/spec01/D-newspaper-clean.report.json
+      fill_set_identical: true
+      forbidden_svg_elements: {image: 0, base64: 0, linearGradient: 0, radialGradient: 0, transform: 0}
+      mechanical_verdict: pass
+  - ref_id: "asset:stackpenni:palette-lock:spec01:E-controller-clean"
+    status: proposed
+    evidence:
+      - "assets/reference/stackpenni/palette_lock_assets/spec01/E-controller-clean.report.json"
+      - "mechanical SVG palette-lock report"
+    artifact_path: assets/reference/stackpenni/palette_lock_assets/spec01/E-controller-clean.png
+    artifact_sha256: 194ba9afe9d460c479419ed5c455a0cd4c9acad449e094ca32869df2ad5673a1
+    dimensions: [774, 1376]
+    palette_evidence:
+      report_path: assets/reference/stackpenni/palette_lock_assets/spec01/E-controller-clean.report.json
+      fill_set_identical: true
+      forbidden_svg_elements: {image: 0, base64: 0, linearGradient: 0, radialGradient: 0, transform: 0}
+      mechanical_verdict: pass

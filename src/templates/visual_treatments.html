@@ -10,6 +10,10 @@
         .badge { display: inline-block; padding: .15rem .5rem; border-radius: 10px; font-size: .75rem; background: rgba(47,129,247,.15); color: var(--accent); }
         .badge-proposed { color: var(--yellow); } .badge-approved { color: var(--green); }
         .diff { white-space: pre-wrap; overflow-x: auto; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem; font: .78rem ui-monospace, monospace; max-height: 300px; }
+        .reference-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .8rem; }
+        .reference-card { display: flex; flex-direction: column; gap: .35rem; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: .6rem; min-width: 0; }
+        .reference-card img { width: 100%; aspect-ratio: 774 / 1376; object-fit: contain; background: #111; border-radius: 5px; }
+        .reference-card small { overflow-wrap: anywhere; color: var(--muted); }
         .muted { color: var(--muted); }
         button { padding: .45rem .8rem; border: 0; border-radius: 6px; cursor: pointer; }
         .approve { background: var(--green); color: white; } .reject { background: var(--red); color: white; }
@@ -49,7 +53,22 @@
 
 After: {{ proposal.diff_payload.after|tojson(indent=2) }}</div>
             <h4>Reference candidates</h4>
-            <div class="diff">{{ proposal.diff_payload.reference_candidates|tojson(indent=2) }}</div>
+            <div class="reference-grid">
+            {% for reference in proposal.diff_payload.reference_candidates %}
+                <article class="reference-card">
+                    {% if reference.reference_url %}
+                    <a href="{{ reference.reference_url }}" target="_blank" rel="noopener" title="Open fullscreen reference">
+                        <img src="{{ reference.reference_url }}" alt="Proposed reference {{ reference.ref_id }}" loading="lazy">
+                    </a>
+                    {% endif %}
+                    <strong>{{ reference.ref_id }}</strong>
+                    <span class="badge badge-proposed">{{ reference.status }}</span>
+                    {% if reference.artifact_sha256 %}<small>SHA-256: {{ reference.artifact_sha256 }}</small>{% endif %}
+                    {% if reference.dimensions %}<small>Dimensions: {{ reference.dimensions[0] }} × {{ reference.dimensions[1] }}</small>{% endif %}
+                    {% if reference.palette_evidence %}<small>Palette: {{ reference.palette_evidence.mechanical_verdict|default('not recorded') }}; forbidden: {{ reference.palette_evidence.forbidden_svg_elements|default({})|tojson }}</small>{% if reference.palette_evidence.report_path %}<small>Report: {{ reference.palette_evidence.report_path }}</small>{% endif %}{% endif %}
+                </article>
+            {% endfor %}
+            </div>
             <button class="approve" onclick="decide({{ proposal.id }}, 'approve')">Approve proposal</button>
             <button class="reject" onclick="rejectProposal({{ proposal.id }})">Reject proposal</button>
         </div>

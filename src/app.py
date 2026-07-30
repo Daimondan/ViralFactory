@@ -9268,11 +9268,31 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 proposal["diff_payload"] = json.loads(proposal.get("exact_diff") or "{}")
             except json.JSONDecodeError:
                 proposal["diff_payload"] = {}
+            for reference in proposal["diff_payload"].get("reference_candidates", []):
+                artifact_path = reference.get("artifact_path", "")
+                marker = "assets/reference/"
+                if artifact_path.startswith(marker):
+                    reference["reference_url"] = "/reference-assets/" + artifact_path[len(marker):]
         return render_template(
             "visual_treatments.html",
             current_treatments=current_style.get("visual_treatments", []),
             pending_proposals=pending,
         )
+
+    @app.route("/reference-assets/<path:asset_path>")
+    def reference_asset(asset_path):
+        """Serve only repository reference assets for operator inspection."""
+        reference_root = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "assets", "reference",
+        )
+        resolved_root = os.path.realpath(reference_root)
+        resolved_file = os.path.realpath(os.path.join(resolved_root, asset_path))
+        if not resolved_file.startswith(resolved_root + os.sep):
+            return jsonify({"error": "Reference asset path is outside the configured reference root"}), 400
+        if not os.path.isfile(resolved_file):
+            return jsonify({"error": "Reference asset not found"}), 404
+        return send_from_directory(resolved_root, os.path.relpath(resolved_file, resolved_root))
 
     @app.route("/api/visual-treatments/proposals", methods=["POST"])
     def create_visual_treatment_proposal():
@@ -10387,12 +10407,20 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
         if not session:
             # Create a new session — legacy assets get one on first visit
+            visual_treatment_ref = None
+            draft_for_lineage = store.get_draft(asset["draft_id"])
+            if draft_for_lineage:
+                card_for_lineage = store.get_idea_card(draft_for_lineage["idea_card_id"])
+                if card_for_lineage:
+                    card_treatment = json.loads(card_for_lineage.get("treatment") or "{}")
+                    visual_treatment_ref = card_treatment.get("visual_treatment_ref")
             session = session_svc.create_session(
                 business_slug=business_slug,
                 draft_id=asset["draft_id"],
                 asset_id=asset_id,
                 platform=asset["platform"],
                 format=asset.get("variant_type"),
+                visual_treatment_ref=visual_treatment_ref,
             )
             # If the asset already has VO/media, try to register them as candidates
             try:

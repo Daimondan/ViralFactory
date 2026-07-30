@@ -6,6 +6,26 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-30 — BUILDER: Carry exact visual-treatment lineage through production (VF-VIS-1616)
+
+**What:** Added the canonical `visual_treatment_ref` identity (`treatment_id`, exact version, and SHA-256 contract hash) to Gate 1 selection/revalidation, production sessions, requirements, candidate generation provenance, manifests, CompositionPlans, RendererSpecs, Gate 3 readiness/decisions, and writer-contract hashes. Added fail-closed stale/mixed lineage checks while preserving unbound legacy sessions.
+
+**Type:** TECH / STRUCTURE / LOGIC / OPS
+
+**Rationale:** AMENDMENT-018 requires one exact treatment per piece. A normal plan hash alone cannot prove that every world candidate was generated under the same treatment, so the reference is independently checked at every production boundary.
+
+**Evidence:** `docs/proofs/VF-VIS-1616-treatment-lineage.md`; lineage integration tests: 5 passed; adjacent production regressions: 115 passed.
+
+## 2026-07-30 — BUILDER: Register proposed StackPenni vector comparison set (VF-VIS-1617)
+
+**What:** Added tenant configuration for the five real cleaned comparison PNGs — Fitzroy, Stacks, room, newspaper, and controller — including exact paths, SHA-256 hashes, dimensions, palette-lock reports, and mechanical forbidden-element evidence. Submitted them through the deployed Visual Treatment proposal API under `flat_vector_pennifold@1.0`.
+
+**Type:** OPS / STRUCTURE / LOGIC
+
+**Rationale:** The architect ruling requires mechanical palette compliance to be visible evidence, but forbids bootstrap or self-approval. The proposal remains pending and existing cinematic assets are untouched.
+
+**Evidence:** `docs/proofs/VF-VIS-1617-vector-candidates.md`; deployed `POST /api/visual-treatments/proposals` returned HTTP 200; `/visual-treatments` showed pending proposal `2` with five preview cards; `tests/test_vf_vis_1617_vector_candidates.py` and the treatment suite: 13 passed.
+
 ## 2026-07-30 — BUILDER: Add versioned visual treatment contract and gate (VF-VIS-1615)
 
 **What:** Extended the generic Visual Style schema with optional versioned `visual_treatments[]` entries covering references, palette, line/texture/lighting, prohibited characteristics, allowed formats, continuity, Tier-1/Tier-2 relationship, disclosure, lifecycle status, and provenance. Added v2 structured Markdown round-trip with v1 compatibility, deterministic proposal diffs, reference-candidate validation, a deployed `/visual-treatments` operator gate, and shared navigation.
