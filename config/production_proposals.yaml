@@ -1,0 +1,54 @@
+# Operator-gated production proposals. Creation adds pending queue rows only.
+proposals:
+  stackpenni:
+    format_entry:
+      target_module: format-guide
+      target_section: "Formats > Instagram Reel — Fitzroy Parable"
+      proposal_type: add
+      change_description: "Add a parable Reel format with an exact episode production binding."
+      exact_diff: |
+        + ### Instagram Reel — Fitzroy Parable
+        + - Platforms: Instagram
+        + - Variant type: reel
+        + - Audience experience: a short vertical audiovisual story with spoken narration and purposeful scenes
+        + - Status: proposed
+        + - Production binding:
+        +   - mode: episode
+        +   - process_ref: episode-format
+        +   - governance_module_ref: episode-format-parable
+        +   - governance_module_version: '1.0'
+        + - Governing canon: fictional recurring persona disclosure and visual continuity prerequisites
+      evidence:
+        - "modules/stackpenni/episode-format-parable.md v1.0"
+        - "modules/stackpenni/visual-style-amendment-proposed.md"
+        - "AMENDMENT-017 generic gated production routing"
+      rationale: "Expose the existing parable affordance only as an exact operator-gated Format Guide entry."
+    process_binding:
+      target_module: process-registry
+      target_section: production_processes.episode-format
+      proposal_type: status_change
+      change_description: "Activate the registered episode process only after the format and canon proposals are approved."
+      exact_diff: |
+        - status: proposed
+        + status: approved
+        module_variable: episode_format
+        budget: 8000
+      evidence:
+        - "The process registry entry is present but proposed."
+        - "Dynamic resolver rejects non-approved process statuses."
+      rationale: "Process activation is a separate, inspectable operator decision and never a bootstrap side effect."
+    canon_prerequisite:
+      target_module: visual-style
+      target_section: "Blend rules > Fictional recurring persona"
+      proposal_type: add
+      change_description: "Add the proposed fictional-persona disclosure and continuity rule required by the episode format."
+      exact_diff: |
+        + ### Fictional recurring persona (episode format)
+        + - The narrator is an openly fictional AI-generated storytelling persona, not a real person.
+        + - Episodes using the persona follow platform AI-disclosure rules.
+        + - The persona makes no first-person claims about real events, results, or partnerships.
+        + - Existing real-person disclosure protections remain unchanged.
+      evidence:
+        - "modules/stackpenni/visual-style-amendment-proposed.md"
+        - "AMENDMENT-017 production binding must carry governing prerequisites."
+      rationale: "The episode format cannot be activated without its exact disclosure and canon prerequisite."

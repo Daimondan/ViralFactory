@@ -8962,6 +8962,29 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
 
     # ── T5.2: Gate as persistent async queue ──
 
+    @app.route("/api/production/episode/proposals", methods=["POST"])
+    def prepare_episode_proposals():
+        """Queue configured episode-format proposals for operator review.
+
+        Proposal preparation is deliberately separate from approval: this route
+        only creates pending rows and never changes modules or process status.
+        """
+        business_slug = _get_business_slug()
+        if not business_slug:
+            return jsonify({"error": "Business not configured"}), 500
+
+        from episode_proposal import create_episode_proposals
+        from proposal_store import ProposalStore
+
+        store = ProposalStore(db_path=app.config["DB_PATH"])
+        try:
+            proposal_ids = create_episode_proposals(
+                store, business_slug, app.config["CONFIG_DIR"]
+            )
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"status": "pending", "proposal_ids": proposal_ids})
+
     @app.route("/proposals")
     def proposals_page():
         """Gate queue — module improvement proposals for operator approval."""

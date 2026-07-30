@@ -6,6 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-30 — BUILDER: Prepare operator-gated episode proposals (VF-FMT-1607)
+
+**What:** Added a config-owned proposal bundle for the StackPenni parable Format Guide entry, episode process activation, and fictional-persona canon prerequisite. Added `POST /api/production/episode/proposals` to create pending queue rows only.
+
+**Type:** LOGIC / STRUCTURE / OPS
+
+**Rationale:** The episode route must not self-approve through bootstrap or tests. Exact format, process, and canon changes remain visible in the asynchronous operator gate; standard Reels remain unaffected while the process status is `proposed`.
+
+**Files:** `config/production_proposals.yaml`, `src/episode_proposal.py`, `src/app.py`, `tests/test_vf_fmt_1607_episode_proposals.py`
+
+---
+
 ## 2026-07-30 — BUILDER: Add fail-closed dynamic production resolver (VF-FMT-1606)
 
 **What:** Added a config-owned production-process registry and resolver. Standard bindings remain standard; episode bindings require an approved process, approved ModuleStore module, valid schema, and exact version. Dynamic module context is resolved before Writer adapter work. The active view map no longer hardcodes the tenant episode module.
