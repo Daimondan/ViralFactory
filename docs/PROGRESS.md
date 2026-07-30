@@ -4,7 +4,9 @@
 > blocked, or changed. Any agent should be able to read this and know
 > exactly where we are.
 
-**Last Updated:** 2026-07-25 (P1-5 closed — all 4 files migrated to db.py, full suite green, ffprobe verified)
+**Last Updated:** 2026-07-30 (architect inbox 018–021 review filed; M16 added; builder filing/implementation pending)
+
+2026-07-30 · ARCHITECT / INBOX 018–021 · Reviewed live `origin/main` at `ed85f0d` plus local BUILDER-NOTE-020. Approved DIVERGENCE-023 via AMENDMENT-017 (generic gated Format Guide production binding), approved DIVERGENCE-025 via AMENDMENT-018 (coexisting versioned Tier-1 visual treatments, one per piece), and ratified idea thematic-range gap as DIVERGENCE-026/AMENDMENT-019 (persisted editorial fit + LLM Source-Fit Critic; no keyword judgment). Added M16 tasks. Found P0 governance drift: AMENDMENT-016 claims Charter v3.11 but repo stops at v3.10; AMENDMENT-015 is also absent from charter. Found stale processed manifest still top-level. Verified kill feedback, render-state, and source restoration code/config; human UI and live Buffer proof remain open because browser automation timed out although `/health` passed and port 9121 listened. · Q: builder processes `MANIFEST-2026-07-30-inbox-018-021.md`
 
 2026-07-25 · P1-5 CLOSED · All four outstanding src/db.py connection factory migrations complete. app.py: 14 direct sqlite3.connect calls replaced with _db_connect (db.connect). materials.py, jobs.py, services/production_orchestrator.py were already migrated. Guard test updated with app.py in migrated list. Full suite: 2545 passed, 2 skipped. ffprobe on rendered master (asset 26/final_1.mp4): H.264 1080x1920 30fps 70s, AAC 48kHz mono 68.4s, MP4 isom 30.9MB. · Q: human UI walkthrough remains — operator must verify the live app at vf.glenbeu.com
 

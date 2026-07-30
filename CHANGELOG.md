@@ -6,6 +6,20 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-30 — ARCHITECT: Inbox 018–021 rulings and M16 work order
+
+**What:** Reviewed BUILDER-NOTE-018, DIVERGENCE-023, BUILDER-NOTE-020/DIVERGENCE-025, and BUILDER-NOTE-021 against the live repository at `ed85f0d`. Filed an architect response batch in `docs/inbox/`: AMENDMENT-017 makes production routing an exact gated Format Guide binding; AMENDMENT-018 permits coexisting versioned Tier-1 visual treatments while requiring one exact treatment per piece; DIVERGENCE-026 + AMENDMENT-019 add inspectable editorial source fit and a schema-validated LLM Source-Fit Critic. Added M16 to BUILD_PLAN with filing, charter recovery, production-binding, editorial-range, visual-treatment, queue-review, and deep-proof tasks.
+
+**Findings:** The kill-feedback and render-state defects are fixed in live code; feed/query restoration is present. The proposed source-fit keyword validator was rejected as judgment in code. The repo has a P0 governance drift: AMENDMENT-016 claims Charter v3.11 but no v3.11 file exists, and AMENDMENT-015 is absent from v3.10. The 07-25-C manifest was reported processed but remains top-level. Human UI and live Buffer proof remain open; the service health endpoint passed, but browser automation timed out.
+
+**Type:** STRATEGIC / STRUCTURE / LOGIC / FIX
+
+**Rationale:** Source variety does not correct a universal editorial frame; source-fit requires inspectable LLM judgment grounded in evidence. Format-specific production behavior and visual style are tenant governance and must be versioned/gated rather than inferred or hardcoded. Constitution and inbox drift are defects because builders cannot follow a charter that does not exist at the version documents claim.
+
+**Files:** `docs/inbox/MANIFEST-2026-07-30-inbox-018-021.md`, `docs/inbox/ARCHITECT-NOTE-2026-07-30-inbox-018-021.md`, `docs/inbox/REVIEW-inbox-018-021-2026-07-30.md`, `docs/inbox/AMENDMENT-017-format-guide-production-routing.md`, `docs/inbox/AMENDMENT-018-versioned-visual-treatments.md`, `docs/inbox/DIVERGENCE-026-idea-generation-source-fit-and-editorial-range.md`, `docs/inbox/AMENDMENT-019-source-fit-editorial-range.md`, `BUILD_PLAN.md`, `docs/PROGRESS.md`, `README.md`, `docs/CONTEXT.md`
+
+---
+
 ## 2026-07-26 — BUILDER: Filed DIVERGENCE-025 for 2D-vector Fitzroy request
 
 **What:** The operator asked for a standalone Fitzroy rocking-chair portrait to be "more like the 2d vector" after reviewing a cinematic-painted-realism render. Filed `docs/decisions/DIVERGENCE-025-fitzroy-vector-film-style-request.md` and `docs/inbox/BUILDER-NOTE-020-fitzroy-vector-style-request.md`. Generated a non-production flat-vector comparison set: the empty room plate, isolated Fitzroy, isolated Stacks, blank newspaper, and controller. Final PNGs were deterministically palette-locked and validated to contain only the declared outline, cream, navy, gold, wood, warm-brown skin, and newspaper-grey swatches; the canonical visual module, character references, prompts, configuration, renderer, and production path remain unchanged.

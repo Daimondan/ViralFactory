@@ -12,8 +12,10 @@
 > **On change:** bump `updated_at` date, add/update a decision note in
 > `docs/decisions/` if the change is non-obvious.
 
-**Updated:** 2026-07-23 (AMENDMENT-014: two-phase assembly — CompositionPlan with per-element previews and a composition ratification sub-gate between manifest freeze and render. Charter bumped to v3.10. Build order updated to VF-CW-001..010 → VF-CP-001..004 → VF-RA-001..004 → VF-CW-011..012. DIVERGENCE-019 reference recreation evidence preserved: both providers rendered one frozen composition; neither selected.)
+**Updated:** 2026-07-30 (architect inbox 018–021 review filed; M16 added. AMENDMENT-017–019 await builder filing. Known P0 governance defect: AMENDMENT-016 claims Charter v3.11 but the repository's latest charter file remains v3.10; M16 restores the chain before implementation.)
 **Conforms to:** `docs/CHARTER-v3.10.md` (v3.10 — all prior amendments through AMENDMENT-013 remain in force; AMENDMENT-014 adds a CompositionPlan with per-element previews and a composition ratification sub-gate between manifest freeze and render; rights/cost/evidence rules remain; AMENDMENT-013's ingredient selection before assembly and final-artifact Gate 3 are preserved)
+
+> **Pending constitution recovery:** Ratified AMENDMENT-015 and AMENDMENT-016 are not yet incorporated into an existing charter file, despite AMENDMENT-016's v3.11 claim. The 2026-07-30 architect batch also approves explicit Format Guide production bindings, versioned visual treatments, and source-fit editorial range. Treat `docs/inbox/MANIFEST-2026-07-30-inbox-018-021.md` and M16 as the active recovery work order; do not silently edit this mirror ahead of the actual charter revision.
 
 ---
 
