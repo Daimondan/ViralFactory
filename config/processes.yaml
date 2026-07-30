@@ -105,6 +105,16 @@ processes:
       proposed_fit: {source: dynamic}
       critic_findings: {source: dynamic}
 
+  framing_family_analysis:
+    prompt_file: "ideas/framing_family_analysis_v1.md"
+    backend: "default"
+    schema: "FRAMING_FAMILY_SCHEMA"
+    context_template: "Editorial framing-family analysis"
+    inputs:
+      recent_cards: {source: dynamic}
+      lens_counts: {source: dynamic}
+      current_candidates: {source: dynamic}
+
   # ── Writer (AMENDMENT-007, updated to v4 per AMENDMENT-009) ──
   # Writer v3 remains active for backward compatibility; Writer v4 is the new
   # Production Contract v2 path. Both are registered; the route/chain selects
@@ -336,6 +346,7 @@ schemas:
   EDIT_PLAN_SCHEMA: "pipeline.EDIT_PLAN_SCHEMA"
   COMPLIANCE_REVIEW_SCHEMA: "pipeline.COMPLIANCE_REVIEW_SCHEMA"
   SOURCE_FIT_CRITIC_SCHEMA: "source_fit_critic.SOURCE_FIT_CRITIC_SCHEMA"
+  FRAMING_FAMILY_SCHEMA: "editorial_balance.FRAMING_FAMILY_SCHEMA"
   REMEDIATION_INSTRUCTION_SCHEMA: "pipeline.REMEDIATION_INSTRUCTION_SCHEMA"
   PERFORMANCE_ANALYSIS_SCHEMA: "inline:performance_analysis_schema"
   COMPONENT_REQUIREMENTS_SCHEMA: "services.component_requirements.COMPONENT_REQUIREMENTS_SCHEMA"

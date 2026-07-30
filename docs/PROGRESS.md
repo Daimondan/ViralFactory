@@ -6,6 +6,8 @@
 
 **Last Updated:** 2026-07-30 (VF-IDEA-1608 editorial lens persistence complete; M16 implementation continues)
 
+2026-07-30 · VF-IDEA-1611 · Added persisted-ID lens counts and separate registry-owned framing-family analysis with cached/provenance-logged adapter calls; analysis is advisory and does not reject source-required lenses. Focused/process tests: 22 passed. · Q: VF-IDEA-1612 operator-gated StackPenni module/config proposals
+
 2026-07-30 · VF-IDEA-1610 · Added exact-input mechanical boundary checks, one card-specific bounded repair prompt/call, and invalid-result omission reporting without padding or fallback. Focused tests: 9 passed. · Q: VF-IDEA-1611 recent editorial-balance context
 
 2026-07-30 · VF-IDEA-1609 · Added versioned Source-Fit Critic prompt/schema/service, Process Registry and schema-registry entries, configured-lens/source membership validator, and shared adapter cache/provenance integration. Focused tests: 6 passed. · Q: VF-IDEA-1610 mechanical boundary and bounded repair

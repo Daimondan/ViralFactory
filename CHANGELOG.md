@@ -6,6 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-30 — BUILDER: Add advisory editorial-balance context (VF-IDEA-1611)
+
+**What:** Added mechanical counts from persisted `editorial_fit.lens_id` values and a separate versioned framing-family analysis process that receives recent cards, counts, and current candidates as exact prompt evidence.
+
+**Type:** TECH / LOGIC
+
+**Rationale:** Editorial range needs historical context without turning history into a hard rejection gate. Python counts persisted IDs only; repeated framing-family judgment remains an LLM task with provenance and cache.
+
+**Files:** `src/editorial_balance.py`, `prompts/ideas/framing_family_analysis_v1.md`, `config/processes.yaml`, `tests/test_vf_idea_1611_editorial_balance.py`
+
+---
+
 ## 2026-07-30 — BUILDER: Add bounded Source-Fit repair boundary (VF-IDEA-1610)
 
 **What:** Added exact source-content/unique-ID checks, a single card-specific repair prompt/call, and a retention helper that omits still-invalid cards with reasons rather than padding or bypassing validation.
