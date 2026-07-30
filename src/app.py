@@ -7328,6 +7328,30 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             )
             return jsonify({"error": f"Variant '{variant}' does not need VO"}), 400
 
+        # ── Pre-check: if valid VO segments already exist for all frames, return
+        # them instead of regenerating. This handles the race where the
+        # subprocess completed after the gunicorn timeout (the parent killed
+        # the wait but the child kept running and saved results).
+        existing_segments = json.loads(asset.get("vo_segments") or "[]")
+        if existing_segments and len(existing_segments) == len(posts):
+            import os as _os
+            all_exist = all(
+                _os.path.exists(s.get("path", "")) for s in existing_segments
+            )
+            if all_exist:
+                total_dur = sum(s.get("duration", 0) for s in existing_segments)
+                _get_jobs_store().complete_job(
+                    vo_job_id,
+                    f"vo:{len(existing_segments)}seg:{total_dur:.1f}s (cached)",
+                )
+                return jsonify({
+                    "status": "ok",
+                    "segments_generated": len(existing_segments),
+                    "total_duration": round(total_dur, 2),
+                    "take_id": existing_segments[0].get("take_id", ""),
+                    "cached": True,
+                })
+
         try:
             config = load_all(app.config["CONFIG_DIR"])
             models_config = config["models"]
@@ -7341,7 +7365,14 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         # TTS model (several GB of PyTorch + weights) into the gunicorn worker.
         # The subprocess loads the model, generates audio, writes files, and
         # exits — freeing all memory. The gunicorn worker just waits.
+        #
+        # start_new_session=True creates a new process group so we can kill
+        # the entire tree (PyTorch/Chatterbox spawn children) on timeout.
+        # Without this, TimeoutExpired kills only the Python parent and the
+        # model children keep running, consuming GPU/CPU and writing files
+        # that the parent never sees.
         import subprocess as _subprocess
+        import signal as _signal
 
         venv_python = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".venv", "bin", "python")
         if not os.path.exists(venv_python):
@@ -7356,12 +7387,17 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             "--business-slug", business_slug,
         ]
 
+        # 1200s = 20 min. Chatterbox takes ~5 min for model load + ~1-2 min
+        # per frame. A 6-frame reel needs ~15 min. 840s was too tight.
+        vo_timeout = 1200
+
         try:
             proc = _subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=840,
+                timeout=vo_timeout,
+                start_new_session=True,
             )
             if proc.returncode != 0:
                 error_msg = proc.stderr[-500:] if proc.stderr else "VO subprocess failed"
@@ -7379,8 +7415,34 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
                 return jsonify({"error": result.get("error", "VO generation failed")}), 500
 
         except _subprocess.TimeoutExpired:
-            _get_jobs_store().fail_job(vo_job_id, "VO generation timed out (840s)")
-            return jsonify({"error": "VO generation timed out"}), 500
+            # Kill the entire process group (start_new_session=True put the
+            # subprocess in its own group). Without this, PyTorch/Chatterbox
+            # children survive the parent's timeout and keep consuming GPU.
+            try:
+                os.killpg(os.getpgid(proc.pid), _signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+            # Check if the subprocess completed despite the timeout — it may
+            # have saved results to the DB before we killed it.
+            store = _get_pipeline_store()
+            asset = store.get_asset(asset_id)
+            existing = json.loads(asset.get("vo_segments") or "[]") if asset else []
+            if existing and len(existing) == len(posts):
+                if all(os.path.exists(s.get("path", "")) for s in existing):
+                    total_dur = sum(s.get("duration", 0) for s in existing)
+                    _get_jobs_store().complete_job(
+                        vo_job_id,
+                        f"vo:{len(existing)}seg:{total_dur:.1f}s (late-complete)",
+                    )
+                    return jsonify({
+                        "status": "ok",
+                        "segments_generated": len(existing),
+                        "total_duration": round(total_dur, 2),
+                        "take_id": existing[0].get("take_id", ""),
+                        "cached": True,
+                    })
+            _get_jobs_store().fail_job(vo_job_id, f"VO generation timed out ({vo_timeout}s)")
+            return jsonify({"error": f"VO generation timed out ({vo_timeout}s)"}), 500
         except Exception as exc:
             _get_jobs_store().fail_job(vo_job_id, str(exc)[:200])
             return jsonify({"error": f"VO generation failed: {exc}"}), 500
