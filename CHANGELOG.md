@@ -6,6 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-07-30 — BUILDER: Completed M16 documentation alignment audit (VF-GOV-1603)
+
+**What:** Reconciled the M16 governance task state between `BUILD_PLAN.md` and `docs/PROGRESS.md`, confirmed the current README repo map includes AMENDMENT-015–019 and DIVERGENCE-023/025/026, corrected the DIVERGENCE-022 map status to implemented, and added a supersession note to `docs/corrections/CORRECTION-episode-wiring-and-source-diversity-v1.0.md`.
+
+**Type:** STRUCTURE / LOGIC
+
+**Rationale:** AMENDMENT-019 supersedes only the old narrow claim that source diversity is exclusively a `sources.yaml` problem and that the ideas prompt must not change. Source variety remains a valid input control, while editorial source fit is a separate LLM-judged concern. Historical correction text remains preserved, but its conflicting instruction must not be mistaken for the current rule.
+
+**Files:** `BUILD_PLAN.md`, `README.md`, `docs/PROGRESS.md`, `docs/corrections/CORRECTION-episode-wiring-and-source-diversity-v1.0.md`
+
+---
+
 ## 2026-07-30 — BUILDER: Restored Charter v3.11 and aligned current pointers (VF-GOV-1602)
 
 **What:** Created `docs/CHARTER-v3.11.md`, preserving `docs/CHARTER-v3.10.md` as superseded audit history. Incorporated AMENDMENT-015 and AMENDMENT-016, then AMENDMENT-017, AMENDMENT-018, and AMENDMENT-019 in order. The revision records measured-VO shot subdivision, two-tier rendering, the narrow platform-native audio role, gated Format Guide production bindings, versioned visual treatments, and the Source-Fit Critic/editorial-fit boundary. Updated current start-here and status pointers in `README.md`, `docs/CONTEXT.md`, `BUILD_PLAN.md`, and `docs/PROGRESS.md`.

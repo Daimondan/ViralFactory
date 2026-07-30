@@ -320,7 +320,7 @@ The following tasks were marked complete but their acceptance criteria were met 
 
 - [x] VF-GOV-1601 **File the 2026-07-30 architect batch (P0):** follow the manifest exactly, mark DIVERGENCE-023/025/026 ratified, move answered notes and the stale already-processed 07-25-C manifest to `processed/`, and retain git history. — AC: top-level inbox contains only the protocol README and genuinely unanswered/new batches; every moved file is reachable in history.
 - [x] VF-GOV-1602 **Restore the charter chain (P0):** produce the missing current charter revision incorporating AMENDMENT-015, AMENDMENT-016, and AMENDMENT-017–019 in order; update README, CONTEXT, PROGRESS, and CHANGELOG references together. — AC: no document claims a nonexistent charter; all start-here pointers resolve; amendment index and effective rules agree; `origin/main` contains the same revision.
-- [ ] VF-GOV-1603 **Doc alignment audit (P0):** reconcile BUILD_PLAN checkboxes with PROGRESS, update the repo map through DIVERGENCE-026/AMENDMENT-019, and record the old source-diversity instruction as superseded where it conflicts with AMENDMENT-019. — AC: no current status says the diversity defect is only `sources.yaml`; no completed item still appears open or vice versa.
+- [x] VF-GOV-1603 **Doc alignment audit (P0):** reconcile BUILD_PLAN checkboxes with PROGRESS, update the repo map through DIVERGENCE-026/AMENDMENT-019, and record the old source-diversity instruction as superseded where it conflicts with AMENDMENT-019. — AC: no current status says the diversity defect is only `sources.yaml`; no completed item still appears open or vice versa.
 
 ### Phase M16-B — Generic Format Guide production binding (AMENDMENT-017; unblocks DIVERGENCE-023)
 

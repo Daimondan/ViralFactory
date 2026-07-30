@@ -1,5 +1,7 @@
 # CORRECTION — Episode wiring and source diversity — v1.0
 
+> **Status note (2026-07-30):** The source-variety diagnosis and config-driven feed/query work in this correction remain valid. The narrow instruction below that the diversity defect is only in `config/sources.yaml` and that `prompts/ideas/generate_v1.md` must not change is **superseded by AMENDMENT-019**. Source variety and source-fit/editorial framing are separate controls; source-fit judgment belongs to the versioned LLM Source-Fit Critic, not keyword or regex code.
+
 **Date:** 2026-07-25
 **From:** Architect
 **To:** Builder
