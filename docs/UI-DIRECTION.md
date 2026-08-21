@@ -1,6 +1,6 @@
-# UI Direction — The Console
+# UI Direction — Story Room Console
 
-*Repo location: `docs/UI-DIRECTION.md`. Direction for Hermes when building console screens. v1.3 — 2026-07-02 — patched per UI-REVIEW-001 (F3 session interaction model, F4 copy rule, Onboard surface redesigned as conversational sessions not procedure documents).*
+*Repo location: `docs/UI-DIRECTION.md`. Direction for Hermes when building operator screens. v2.0 — 2026-08-21 — AMENDMENT-020 makes one persistent Story Room per piece the target creative center while preserving conversational onboarding and the existing production tool bench.*
 
 ## Principles
 
@@ -14,8 +14,19 @@
 8. **Boring web tech.** Server-rendered Flask + minimal JS. No SPA framework. Fast on island bandwidth.
 9. **The console renders sessions, not documentation.** Playbook markdown is the machine's script. The operator's surface is always: AI asks → operator gives anything (text, paste, files) → AI clarifies → AI drafts → plain-language readback → gate. The AI is present at every stage; the operator is never handed a form or a procedure to execute manually. (UI-REVIEW-001 F3)
 10. **Every string the operator reads is written for a business owner.** File paths, module targets, and playbook internals are never visible in the default operator view — they live in a collapsible "technical details" element and the provenance log. Where a playbook step needs an operator-facing label, use `display_label`. (UI-REVIEW-001 F4)
+11. **One persistent Story Room per piece.** Stage changes swap goal, context, tools, and artifact inside the same room; they do not create separate chats or throw the operator into unrelated queues.
+12. **Conversation and artifact stay together.** Chat is the control surface; the current human-readable artifact, version, lock/stale state, and understanding map are always one action away.
+13. **One meaningful action at a time.** The primary button reflects the next decision; secondary tools remain available but do not compete. Green means externally or cryptographically verified truth, not “a job ran.”
 
-## The five surfaces
+## Primary information architecture
+
+The target primary navigation under Story Room experiment mode is:
+
+`Desk · Inspiration · Stories · Knowledge · Results`
+
+Setup, Upload, Treatments, Component Workbench, Composition, and technical logs remain reachable in context or utility navigation. They are not primary creative destinations. Legacy Pipeline remains a clearly labeled utility during the controlled comparison.
+
+## The primary surfaces
 
 ### 1. Onboard (runs once per business; M1–M2)
 **Conversational sessions, not procedure documents (UI-REVIEW-001 F3).** Each playbook runs as an AI-driven chat session through one reusable, config-driven session component:
@@ -29,24 +40,76 @@
 
 Playbook cards on the Onboard landing page are numbered and sorted by `run_order` from config. A playbook whose prerequisites haven't been approved yet renders as locked/pending. Exit state: all 8 modules at v1, `business.yaml` + `sources.yaml` written.
 
-### 2. Create (the co-production loop; M3)
-- **Ideas queue view:** cards from three origins (ai-originated, human-seeded, human-seeded-ai-developed), each tagged with an origin badge. Each card shows: the idea, hook/title options, suggested format, and evidence links. Per-card actions: approve / kill / park (Gate 1 — rigorous). Kill reasons logged to Feedback Log. This is the top of the funnel — most cards die here by design.
-- **Seed capture:** paste field + record button. A seed = 30 seconds of talking or a typed idea. Seeds become human-seeded (or human-seeded-ai-developed) idea cards. AI-suggested pairings from the Source Bank and approved experiments from the Experiments Queue appear alongside.
-- **Draft view:** the draft with self-audit flags inline (flagged lines subtly marked; click to see which tell fired). Draft = full text in voice + light visual direction (image prompts, reference notes, shot/format choices). **No rendered images at this stage.** Two input modes side by side:
-  - **Reaction mode:** per-line reaction chips + typed text. One button: **revise with my reactions**.
-  - **Direct-edit mode:** the draft text is editable. Human text is authoritative — it overrides the AI draft. Edits are logged to the Feedback Log at the highest weight with the draft version. The system encourages this mode; it's the strongest voice signal.
-- Then **ship-forward** (→ Assets stage) or **kill** (chip for why).
-- **Assets review view:** for ship-forward drafts only — real images generated per the visual direction, captions rendered, per-platform variants (X thread, IG carousel/reel, …) shown side by side. Per-variant actions: approve / fix / kill (Gate 3 — quick, per platform). Approved variants flow to Publish (Gate 4: go/hold + timing).
-- Target: 15–20 minutes of the person's time per piece, tracked and shown.
+### 2. Desk
 
-### 3. Review (the existing source queue, evolved; M2/M6)
-The current approve/reject/park queue for ingested items, plus: criteria-match score per item, bulk actions by group, and a "proposed new sources" tab fed by the Sources Engine loop (each with evidence + sample item).
+- Primary invitation: **“Pick up a story, or start with a thought.”**
+- “Start with a thought” accepts text, voice when available, files, links, or a source.
+- Active stories are ordered by the next meaningful human decision, not raw update time or an AI importance score.
+- Each row uses a descriptive story title, current front-stage artifact, visible version, friendly age, and one sentence explaining what needs the operator.
+- Parked, killed, failed, published, and empty states have clear next actions and no pressure mechanics.
+- Recent activity is a receipt trail, not a productivity score.
 
-### 4. Gate (the async queue; M5)
-Card stack of all pending proposals across the system: module updates, new/pruned sources, criteria amendments, experiments. Grouped by module, evidence on every card, exact diff shown. Approve = version bump with provenance, automatically. A counter shows "N pending"; every card shows age ("submitted N days ago"); newer proposals on the same module section supersede older ones (marked, not deleted). No deadline or pressure mechanics — the person clears when ready.
+### 3. Inspiration
 
-### 5. Library (transparency; M2+)
-Read-only browse of: the 8 modules with version history and provenance per entry · Source Bank with scores · shot library index · Feedback Log · provenance log per published piece ("which prompt, which model, which module versions made this"). This is where trust in the system lives — the person can always read what the machine believes and why.
+- Evidence workbench semantics from AMENDMENT-012 remain.
+- Cards preserve provider, endpoint meaning, region, metric/rank, age, availability, and exact observation evidence.
+- Primary creative action: **Take to Story Room**.
+- The action carries exact evidence into a room and asks what the operator sees or offers concrete possible uses. It does not generate a completed idea/treatment first.
+- Source Bank, Format Guide, module, experiment, and soundtrack actions remain distinct gated promotions.
+
+### 4. Stories / Story Room
+
+#### Laptop (1280px+)
+
+Use a working three-part layout:
+
+1. **Stage rail + understanding summary:** Brief · Idea · Shape · Draft · Build; Known / Assumed / Missing / Locked entries visible.
+2. **Conversation pane:** continuous transcript, concrete choices, composer, attachments, research/tool actions, local failures and retries.
+3. **Artifact pane:** current human-readable artifact, descriptive title, visible version, working/ready/locked/stale state, direct edit where allowed, diff/history, and one primary current action.
+
+The operator never has to leave the story to understand what changed. Component Workbench, Composition, final preview, and Publish may open as focused Build sub-surfaces, but retain story title/context and a reliable return path.
+
+#### Mobile (true 390px)
+
+- Compact horizontal stage rail.
+- Explicit **Conversation / Artifact / Understanding** views; none disappear.
+- No horizontal page overflow.
+- Composer remains reachable above the mobile keyboard.
+- Artifact content and platform previews expand fullscreen.
+- Version/lock/stale state and the primary action remain visible.
+- Browser emulation must prove actual inner width, not only requested device metrics.
+
+#### Artifact behavior
+
+- Brief, Idea Map, Story Map, exact copy, and Asset Plan are plain-language documents—not raw JSON.
+- A lock is attached to the exact artifact version and shows friendly time + visible version badge.
+- Revising upstream marks dependent work stale with an explanation and preserves unaffected work.
+- Direct edit is authoritative and creates a new version immediately.
+- “You decide” is valid for low-risk choices and appears as a visible assumption until the next relevant lock.
+
+### 5. Knowledge
+
+Browse and manage the eight modules, Source Bank, approved visual treatments, Format Guide/process bindings, Feedback Log, proposals, and provenance. Show versions and evidence. “Remember this” creates a proposal; it never silently edits a module.
+
+### 6. Results
+
+Published work is linked to its Story Room, exact artifacts, final asset, caption/audio choices, publish record, metrics, and learning proposals. Scheduled/Published labels require verified external truth. A Buffer/API failure is not green.
+
+### 7. Async proposal gate
+
+The existing persistent queue remains under Knowledge/Review. Keep age, superseding, exact diff, evidence, and bulk operations for queues over 50. No deadlines or pressure.
 
 ## Build sequencing for Hermes
-M1: Onboard (Voice path + calibration). M2: Onboard (remaining playbooks) + Library v0 + Review evolution. M3: Create (Ideas queue + Draft + Assets review — staged pipeline per AMENDMENT-003). M4: Publish status in Create/Library. M5: Gate. M6: Review's proposed-sources tab + Experiments in Create. Screens land ugly-but-working first; polish is never a milestone blocker.
+
+1. Truthful legacy baseline and feature flag.
+2. Story/event/artifact/lock/understanding contracts.
+3. Prompt-backed room turn and context views.
+4. Desk + Story Room shell.
+5. Brief → Idea → Shape.
+6. Collaborative Draft + exact copy lock.
+7. Asset Plan + reuse existing production tool bench.
+8. Inspiration/Results integration.
+9. Three-piece laptop/390px comparison.
+10. Operator cutover decision.
+
+Do not build navigation buttons before the durable room and artifact contracts. Do not treat the approved prototype as pixel-perfect acceptance; apply the 10-dimension human UI methodology to every real state.

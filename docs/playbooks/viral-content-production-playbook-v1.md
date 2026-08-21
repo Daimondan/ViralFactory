@@ -1,8 +1,10 @@
-# Viral Content Production Playbook v1
+# Viral Content Production Playbook v1.1
 
 <!-- playbook_type: production -->
 
-**Purpose:** convert a source-grounded idea into a complete script, media recipe, renderable edit plan, and measurable learning record. This playbook is generic; tenant voice, audience, visual style, formats, and evidence come from living modules.
+**Purpose:** compile locked Story Room artifacts into a complete production contract, media recipe, renderable edit plan, verified final asset, and measurable learning record. This playbook is generic; tenant voice, audience, visual style, formats, and evidence come from living modules.
+
+> **AMENDMENT-020 boundary:** `playbooks/story-room-co-creation.md` owns the front-stage Brief → Idea → Shape → Draft → Asset Plan conversation. This document is the backstage production procedure after the relevant human-readable artifact locks. Its Content Brief, pattern, and Writer contracts are compiled from the locked Story Room artifacts; they are not shown as the primary creative UI and may not introduce new creative judgment silently. Legacy mode may continue to invoke the historical stages during the controlled comparison.
 
 **Evidence source:** `docs/research/viral-content-meta-analysis-v2.md`.
 

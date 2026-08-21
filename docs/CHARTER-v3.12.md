@@ -1,8 +1,7 @@
-# ViralFactory Charter — v3.11
+# ViralFactory Charter — v3.12
 
 *The constitution of the system. Any AI or collaborator reads this before working on it.*
-*v3.11 — 2026-07-30 — supersedes v3.10. Incorporates AMENDMENT-015 (`docs/decisions/AMENDMENT-015-shots-per-beat-and-two-tier-render.md`), AMENDMENT-016 (`docs/decisions/AMENDMENT-016-platform-native-audio-attachment.md`), AMENDMENT-017 (`docs/decisions/AMENDMENT-017-format-guide-production-routing.md`), AMENDMENT-018 (`docs/decisions/AMENDMENT-018-versioned-visual-treatments.md`), and AMENDMENT-019 (`docs/decisions/AMENDMENT-019-source-fit-editorial-range.md`) in that order. All prior amendments through AMENDMENT-014 remain in force. Repo location: `docs/CHARTER-v3.11.md`.*
-*Superseded by `docs/CHARTER-v3.12.md` on 2026-08-21 via AMENDMENT-020. Preserved for audit history.*
+*v3.12 — 2026-08-21 — supersedes v3.11. Incorporates AMENDMENT-020 (`docs/decisions/AMENDMENT-020-story-room-conversational-co-creation.md`). All prior amendments through AMENDMENT-019 remain in force. Repo location: `docs/CHARTER-v3.12.md`.*
 
 ## What this is
 
@@ -30,7 +29,9 @@ The system never *requires* the person to produce. It defaults to AI production 
 - **Laptop-first, mobile-friendly.** The primary operator works on a laptop (1280px+); every screen scales responsively to mobile. Mobile-friendliness is a hard requirement for future customers, not an afterthought — but it does not constrain the primary design.
 - **Voice available everywhere, assumed nowhere.** Every input point offers recording; typed text and chips are equal citizens.
 - **Evidence beside every AI claim.** Proposals, flags, scores, and trend labels always show their supporting evidence. Provider, endpoint meaning, region, metric, and observation time travel with external evidence; recommendation, popularity, trend, usage rights, and causal interpretation are never treated as synonyms.
-- **One-go intake.** All human materials are gathered in a single onboarding session; afterward the system returns to the person only for reactions, edits, and gate decisions.
+- **One persistent Story Room per piece.** Conversation continues from unfinished thought through publish; stage changes alter the current goal, context view, tools, and artifact without starting a new siloed chat.
+- **Conversation controls; versioned artifacts govern.** The room is the operator control surface. Human-readable Creative Brief, Idea Map, Story Map, exact copy, and Asset Plan versions are the durable truth; machine production contracts compile only after the relevant artifact lock.
+- **One-go business intake.** Baseline business/voice/source materials are gathered in onboarding. A Story Room may later ask one high-leverage piece-specific question when lived experience, belief, boundary, or taste would materially change that story; it never re-runs setup questionnaires.
 
 ## The repeatability rule
 
@@ -51,43 +52,52 @@ For every module there is a **playbook**: procedure + prompt templates + output 
 
 ## The living modules (the accumulating intelligence)
 
-Eight versioned markdown documents per business in `modules/{business}/` — the system of record, gate-only writes, schema-checked on load, provenance per entry. Fully standalone — ViralFactory has its own database; no OB1 dependency. Loaded into every draft:
+Eight versioned markdown documents per business in `modules/{business}/` — the system of record, gate-only writes, schema-checked on load, provenance per entry. Fully standalone — ViralFactory has its own database; no OB1 dependency. Available to every Story Room and production process through declared context views; exact relevant entries and versions are logged:
 
 1. **Voice Profile** (incl. Tells Checklist) · 2. **Viral Patterns Playbook** · 3. **Story Frameworks** · 4. **Format Guide** · 5. **Audience Insights** · 6. **Feedback Log** · 7. **Visual Style Guide** · 8. **Source Bank** (+ its Source Criteria)
 
-## The core loop
+## The Story Room core loop
 
-1. **Gather** — automated, **configured by onboarding**: the person's onboarding inputs (seed sources, anti-examples) produce the Source Criteria and `sources.yaml`, which dictate what the AI scouts from then on. The Sources Engine ingests and scores every item against those criteria; the continuous loop proposes new sources and criteria amendments through the gate. New sources from RSS feeds and research enter with `status='new'` and require operator review before feeding ideation (DIVERGENCE-007). Only `status='active'` sources feed idea generation.
-2. **Ideas** — generation is **grounded in the living modules**, not just raw source material: AI-originated ideas are produced by crossing Source Bank items with the Viral Patterns, Audience Insights, Story Frameworks, and Format Guide modules. Cards come from three origins, each tagged with provenance:
-   - **ai-originated:** AI proposes from the Source Bank × modules
-   - **human-seeded:** the person's raw seed (spoken or typed; messy is fine)
-   - **human-seeded, ai-developed:** the person's seed sharpened by AI — angle variants proposed, supporting Source Bank material attached. This is the primary path; the person supplies sparks, never finished ideas.
-   Each card carries: the idea, its hook/title options, a **treatment** (scope, format from the Format Guide — including experimental formats debuting on the card, capture-required tasks with **capture policy** (capture_required, capture_preferred, archive_preferred, stock_allowed, generated_allowed, or text_card per capture task, approved with the treatment at Gate 1), reuse links, rationale, and any exact Format Guide production binding or visual treatment reference selected for the piece), origin, source_refs (Source Bank record IDs that ground this idea), and persisted `editorial_fit`. Cards approved with outstanding `capture_required` tasks carry a blocking capture flag for final compliance — drafting, VO, media planning, and preview rendering may continue, but Gate 3 readiness is blocked until the real capture is registered and mapped, or the operator changes the policy through an authoritative treatment revision. (AMENDMENT-009) **The format, platform set, production binding, and visual treatment selection are locked from the treatment at Gate 1. No code in the pipeline re-derives them.**
-   **GATE (rigorous):** approve / kill / park per card. The funnel kills most here — by design. Kill reasons logged to the Feedback Log.
-3. **Draft** — AI, all modules loaded, self-audited against the Tells Checklist, **auto-fixes flagged items**, and passes a **second-AI alignment check** (max 3 rounds) before the human sees it at Gate 2. A draft is: **complete per-platform text in voice + light visual direction** (image prompts, reference notes, shot/format choices per the Visual Style Guide). The Writer produces all platform variants in one pass — the format and platforms come from the locked treatment, not re-derived in code. **No rendered images at this stage** — visual direction is text; render cost is only spent on survivors. *(Amendable: if co-production evidence shows drafts can't be judged without pixels, a single rough reference render per draft may be added via a future amendment — evidence first.)*
-   **GATE (the human pass, unchanged from v3.1):** react via chips + text and/or direct edits (authoritative, highest Feedback Log weight); AI revises; **ship-forward or kill.** The self-audit flags and their fixes are shown to the human for transparency.
-4. **Assets** — for surviving drafts only: the system plans required component roles, generates immutable candidates, and presents a **Component Workbench** before assembly. The operator reviews and approves exact versions of narration, visual media, soundtrack, source sound/SFX, typography, graphics, and format-declared elements. Category completeness is computed mechanically. The operator then freezes an immutable manifest containing the approved Writer/VO/module/config hashes, exact selected artifact versions, and the exact visual treatment lineage. **The Assembler consumes only that manifest and does no audience-copy generation.** It may use schema-validated LLM judgment for component planning, edit planning, and compliance review, but may never generate or revise audience-facing content. The format, platform set, production binding, and visual treatment remain locked from Gate 1. A compliance contract defines every required narrative beat and planned representation; final review checks the exact rendered artifact against the Writer contract and manifest. A bounded remediation loop may fix safe media/plan/render defects but never approved text or silently substitute an unapproved component. Any changed component or treatment requires a new manifest and render. (AMENDMENT-008, AMENDMENT-009, AMENDMENT-013, AMENDMENT-018)
-   A **Visual Director** step translates Writer visual intent plus approved measured VO timing into concrete `visual_events[]`. A soundtrack plan makes audio intent explicit; rights-valid discovery, local acquisition, and candidate preview mixing may run before assembly. Discovery metadata never implies synchronization/republication rights. Only exact, current, locally hashed, rights-valid, cost-approved candidates may be selected. Soundtrack selection occurs in the Component Workbench using a representative approved-VO-under-bed preview; source sound and SFX are separately declared roles. (AMENDMENT-010, AMENDMENT-011, amended by AMENDMENT-013)
-   **COMPONENT SUB-GATE (before assembly, per platform):** review/select/reject/regenerate exact component versions by category; freeze only when every required role is complete. Ingredient approval answers "use this exact version" and does not approve the final piece. After freeze, a **CompositionPlan** declares every element of the video (text, audio, visual, graphics, transitions, canvas) as structured data with per-element previews; the operator **ratifies the composition plan** before render begins. Ratification binds the composition spec hash; any change invalidates and forces re-ratification. **GATE 3 (after assembly, quick):** approve / fix / kill the exact final artifact. Gate 3 binds final artifact hash + manifest hash + ratified composition spec hash + required evidence. Any component, Writer, VO, timing, module, composition, or render-config change creates a new manifest/composition/render and invalidates Gate 3 approval. Paid acquisition still requires separate fresh cost approval. (AMENDMENT-013, AMENDMENT-014)
-5. **Publish** — **every piece passes human approval before posting. No auto-publish, ever, at any trust level. Hard rule.** Go/hold + timing only; everything upstream is already approved. Approved pieces flow to Buffer for scheduling, posting, and metrics. *(Postiz→Buffer swap per DIVERGENCE-008, operator confirmed.)*
-6. **Learn** — two loops (below)
-7. **Improve** — gate-approved proposals update modules; every future draft inherits them
+The primary operator-facing creative experience is one persistent **Story Room per piece**. The staged pipeline remains available as a controlled compatibility/baseline mode until the AMENDMENT-020 comparison gate, but it is no longer the target creative boundary.
 
-Gate intensity tapers: Ideas is rigorous, Draft is the deep human pass, the Assets Component Workbench is deliberate selection followed by quick exact-artifact Gate 3 review, and Publish is go/hold. The Component Workbench is a conditional sub-gate inside Assets, not a fifth content stage. The four content stages remain Ideas, Draft, Assets, and Publish. (AMENDMENT-013)
+1. **Gather and notice** — Source Bank, operator materials, and Inspiration collect evidence with their existing semantics and gates. Nothing becomes a story or system rule automatically.
+2. **Brief** — the room accepts an unfinished thought, source, observation, file, voice note, or imported legacy piece. It reads relevant approved context, reflects the working understanding, and produces a human-readable Creative Brief: purpose, human stake, audience, desired effect, evidence, gaps, and red lines.
+3. **Idea** — the room develops two or three materially different directions when a choice is useful. The selected Idea Map binds core claim, source-grounded editorial lens, tension, audience promise, evidence, human stake, and emotional job.
+4. **Shape** — claim → frame → narrative movement → hook direction → ending → format → per-piece style. The Story Map carries the exact Format Guide reference, platform set, production binding, visual treatment, capture policy, and red lines. **Locking the Story Map is Gate 1.** It may compile a compatibility idea/treatment record but does not enqueue the legacy Writer chain in Story Room mode.
+5. **Draft** — skeleton, opening options, full draft, local collaborative revision, direct edit, and internal review happen in the room. Exact audience-facing artifacts remain separate: main text, spoken text, on-screen text, platform variants, public caption, hashtags, title, and evidence notes. **Locking exact copy is Gate 2.** Machine Writer/Production Contracts compile afterward and must prove no copy drift.
+6. **Build** — the room first produces a human-readable Asset Plan. Existing backstage production then runs: component requirements → immutable candidates → Component Workbench decisions → manifest freeze → CompositionPlan and local previews → composition ratification → RendererSpec → renderer → local artifact verification. New creative judgment pauses after the last lock; authorized deterministic mechanics may continue.
+7. **Final review and publish** — **Gate 3** approves/fixes/kills the exact final artifact bound to its current manifest/composition/render lineage. **Gate 4** is go/hold + timing. No auto-publish, ever.
+8. **Learn** — metrics and operator reaction link back to the exact room, artifacts, and decisions. Module/process changes remain exact proposals through the asynchronous gate.
 
-The system retains four AI responsibilities — Researcher, Writer, Assembler, Analyst — but operator navigation is organized by human jobs, not one tab per profile. Inspiration is a Researcher-owned workbench, not a fifth profile. The primary groups are `Home · Inspiration · Pipeline · Knowledge · Results · Setup`; Pipeline contains Ideas, Drafting, Assets, and Publish/Results transitions. (AMENDMENT-006, clarified by AMENDMENT-012)
+The room maintains a visible **Known / Assumed / Missing / Locked** understanding map. AI assumptions are labeled. Human corrections supersede rather than erase. A Locked entry requires a server-verified decision bound to an exact artifact version/hash.
 
-| Operator surface | Primary route | AI owner | What happens here |
-|---|---|---|---|
-| Inspiration | `/inspiration` | researcher | Read current external creative observations; no automatic promotion |
-| Pipeline · Ideas | `/ideas` | researcher | Gate 1: approve/kill/park idea cards |
-| Pipeline · Drafting | `/create` | drafter/writer | Gate 2: review draft, edit, ship or kill |
-| Pipeline · Assets | `/assemble` | assembler production processes | Component Workbench: approve exact inputs and freeze manifest; Gate 3: approve/fix/kill exact final artifact |
-| Results / Publish | `/published` | analyst | Gate 4: go/hold, metrics, learning loops |
+Question policy is materiality-based: read approved context first; research factual gaps where permitted; ask the human about lived experience, belief, boundaries, and taste; show concrete alternatives; ask one meaningful decision at a time; permit “you decide” for low-risk choices; never re-ask answered questions; label safe assumptions and proceed to a preview. Question selection is LLM judgment through versioned prompts/schemas/validators/provenance, never keyword code.
+
+Story Room uses one active-stage pointer plus append-only room events, artifact versions, decisions, dependencies, and understanding entries. It does not create a second giant workflow state machine. Existing `ProductionSession` remains authoritative for per-platform Build execution.
+
+The four content gates remain:
+
+- **Gate 1:** lock the Idea Map + Story Map/treatment meaning;
+- **Gate 2:** lock exact copy;
+- **Assets component sub-gate:** approve exact ingredients and freeze the immutable manifest;
+- **Gate 3:** approve the exact final artifact;
+- **Gate 4:** publish go/hold + timing.
+
+The target primary navigation is organized by human jobs: `Desk · Inspiration · Stories · Knowledge · Results`. Desk orders rooms by the next meaningful human decision. Setup, Upload, Treatments, Component Workbench, Composition, and technical utilities remain reachable in context but do not compete as primary creative destinations.
+
+| Operator surface | Primary route target | What happens here |
+|---|---|---|
+| Desk | `/desk` | Start with a thought; resume stories by next meaningful decision |
+| Inspiration | `/inspiration` | Inspect evidence and explicitly carry an exact observation into a room |
+| Stories / Story Room | `/stories`, `/stories/<story_id>` | Persistent conversation + live artifact + stage rail + understanding map |
+| Knowledge | `/knowledge` | Modules, sources, treatments, proposals, versions, and evidence |
+| Results | `/results` | Exact publish records, metrics, and learning linked back to a story |
+
+Legacy `/ideas`, `/create`, `/assemble`, workbench, composition, and publish routes remain available during the experiment. Story Room reuses their services and may deep-link tools from Build, but legacy rows may not silently outrank room artifact locks.
 
 ## Provenance requirement
 
-`origin` (ai-originated | human-seeded | human-seeded-ai-developed), `format`, and `scope` travel with a piece from idea card to Results. The nightly performance note records them, so the inward loop can answer: do the operator's seeds outperform AI-originated ideas? Do certain formats or scopes perform better? These are measurable claims of the whole product thesis — they must be instrumented from the first piece.
+Story Room preserves every typed contribution (human seed, Inspiration observation, Source Bank evidence, attachment, research, AI development) with exact refs. A derived compatibility `origin` (`ai-originated` | `human-seeded` | `human-seeded-ai-developed` | historical `inspiration`), plus `format` and `scope`, still travels to Results for baseline/performance comparison. The derived tag never replaces the contribution ledger.
 
 ## The learning system (two loops, one asynchronous gate)
 
@@ -103,8 +113,8 @@ The system retains four AI responsibilities — Researcher, Writer, Assembler, A
 
 ## Build architecture
 
-- **Claude = architect**: designs, documents, reviews; speaks only through versioned files in the repo.
-- **Hermes agent (open-source models, VPS) = builder**: works BUILD_PLAN top-down under its guardrails; never decides design.
+- **Hermes (`vf-architect`) = architect**: designs, documents, reviews; speaks through versioned files in the repo.
+- **Hermes (`viralfactory`) = builder**: works BUILD_PLAN top-down under its guardrails; never decides design.
 - **GitHub = the channel**: one repo for code and docs; divergences filed in `docs/decisions/`; architect reviews land in `docs/reviews/`.
 - **LLM backend swappable in config** (`models.yaml`): Ollama local/cloud or external API; processing at temperature 0; the drafter backend chosen by blind A/B on voice quality at the M3 checkpoint.
 - **The operator directs in plain language and gates. Never writes code.**
@@ -154,10 +164,15 @@ The system retains four AI responsibilities — Researcher, Writer, Assembler, A
 - **Format Guide production routing is explicit and gated.** A Format Guide entry may carry `production_binding: {mode, process_ref, governance_module_ref, governance_module_version}`. Standard entries may omit the governance module; non-standard entries require exact approved registry and module/version references. The generic harness resolves the binding from the locked Gate-1 treatment, never from names, filenames, tenant slugs, prompt views, or keywords. Missing, unapproved, stale, or mismatched references fail closed before spend. (AMENDMENT-017)
 - **Visual treatments are versioned and piece-scoped.** Visual Style carries `visual_treatments` with exact IDs, versions, references, palette/rules, allowed formats, continuity, disclosure, status, and provenance. One approved Tier-1 treatment governs every world subject in a piece; the exact treatment reference travels through requirements, candidates, manifest, CompositionPlan, RendererSpec, Gate 3, and provenance. Python validates identity, versions, hashes, declared palette membership, dimensions, and consistency only; it does not choose aesthetics. (AMENDMENT-018)
 - **Editorial identity is a point of view, not a compulsory wrapper.** Every generated concept persists an `editorial_fit` object with a configured primary lens, source-specific justification, evidence references, excluded default lenses, and identity expression. Lens choice and source-fit judgment belong to a versioned LLM Source-Fit Critic; Python checks structure, configured IDs, resolvable references, hashes, and counts only. One bounded repair pass may run, then invalid cards are omitted. Recent balance is prompt evidence, not a deterministic rejection gate, and module/config changes remain operator-gated proposals. (AMENDMENT-019)
+- **One persistent Story Room owns each piece's creative continuity.** It carries one conversation, typed contributions, a visible understanding map, immutable artifact versions, and exact locks from Brief through Publish. Separate stage chats and one global content chat are forbidden. (AMENDMENT-020)
+- **Creative automation stops at judgment boundaries.** After the last human lock, authorized deterministic compilation/mechanics may continue; new creative judgment must pause or be shown as a visible assumption. Tool failure is local and cannot erase conversation, locks, or unaffected artifacts. (AMENDMENT-020)
+- **Human-readable artifacts precede machine contracts.** Creative Brief, Idea Map, Story Map, exact copy, and Asset Plan are the operator artifacts. Production schemas compile only from current locks and must retain exact lineage and copy. (AMENDMENT-020)
+- **Story Room and production state remain separate.** Room stage is an artifact/navigation pointer, not a duplicate production state machine. Existing ProductionSession governs Build execution. Compatibility projections carry story/artifact/version/hash and cannot silently outrank room truth. (AMENDMENT-020)
+- **“Take to Story Room” preserves Inspiration as evidence.** It binds the exact item/observation/run and begins shared interpretation; it does not silently create Source Bank truth, a Format Guide rule, soundtrack rights, or a completed idea/treatment. (AMENDMENT-020)
 
-## Effective Amendment Contracts v3.11
+## Effective Amendment Contracts v3.12
 
-This section is the concise operational incorporation of the five amendments added after v3.10. Their full decision records remain the audit source of detail and are linked in the header.
+This section is the concise operational incorporation of the six amendments added after v3.10. Their full decision records remain the audit source of detail and are linked in the header.
 
 ### AMENDMENT-015 — shots per beat and two-tier rendering
 
@@ -179,11 +194,17 @@ The Visual Style module may contain multiple coexisting treatment versions. A Fo
 
 The Source-Fit Critic is the authority for whether a lens is materially supported and whether a batch has meaningful editorial range. The system may return fewer cards rather than bypassing the critic or manufacturing diversity. Policy, power, ownership, energy, trade, land, work, money, culture, memory, people, humour, and regional life are available editorial subjects; AI, sou-sou, entrepreneurship, friction, and direct entrepreneur address are optional lenses requiring source or human-seed support. Existing cards receive human review, not destructive migration.
 
+### AMENDMENT-020 — persistent Story Room conversational co-creation
+
+One tenant-scoped room carries a piece from unfinished input through publish. Conversation is the control surface; append-only events, contribution refs, Known/Assumed/Missing/Locked entries, artifact versions, and server-bound decisions are the truth. The front-stage progression is Brief → Idea → Shape → Draft → Build. Gate 1 locks story meaning/treatment; Gate 2 locks exact copy; existing component, composition, Gate 3, Gate 4, rights, cost, provenance, and learning boundaries remain.
+
+The legacy pipeline remains available during a controlled three-piece comparison. No destructive migration or default navigation cutover occurs until the operator judges a human-seeded carousel, source-led Reel, and half-formed personal story, including one recoverable tool failure and deep laptop/390px UI proof. DIVERGENCE-017 is superseded: Inspiration enters as exact evidence in a room rather than an immediately generated idea/treatment.
+
 ## Phases
 
 **Phase 0 — Foundations.** Fresh repo scaffolding, config system, LLM adapter, validator, provenance, cache, v2 database backup.
 **Phase 1 — Onboarding engine.** Generic playbook runner; Voice Profile end-to-end with calibration; then the remaining playbooks. Tenant #1's config re-entered through onboarding (no v2 migration).
-**Phase 2 — Co-production sprint.** ~10 pieces: seed → draft → self-audit → AI review loop → react/edit → ship or kill. Feedback Log grows.
+**Phase 2 — Co-production and Story Room proof.** Preserve the legacy sprint as baseline, then compare three real Story Room pieces through Brief → Idea → Shape → Draft → Build. Operator reaction—not automation—decides cutover. Feedback Log and room evidence grow.
 **Phase 3 — Publish + metrics.** Buffer API; per-piece approval enforced in the flow; nightly metrics.
 **Phase 4 — Learning loops.** Inward proposals + async gate queue; outward research + Source Bank + Experiments Queue (outward runs from v1 of this phase).
 **Phase 5 — Generalization proof.** Onboard business #2 through the console with zero code changes — executed when a real second business exists; the architecture for it is enforced from Phase 0 regardless.

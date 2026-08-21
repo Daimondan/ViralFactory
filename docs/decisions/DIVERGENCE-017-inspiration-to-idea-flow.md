@@ -2,8 +2,10 @@
 
 **Filed:** 2026-07-20
 **Filed by:** Builder (vf-coder)
-**Status:** PENDING — operator-directed; awaiting architect ratification
-**Related:** AMENDMENT-012 (Inspiration evidence workbench); DIVERGENCE-016; Charter v3.8
+**Status:** SUPERSEDED — resolved by DIVERGENCE-028 / AMENDMENT-020 (2026-08-21)
+**Related:** AMENDMENT-012 (Inspiration evidence workbench); DIVERGENCE-016; DIVERGENCE-028; AMENDMENT-020; Charter v3.12
+
+> **Architect ruling:** “Take to Story Room” is approved, but the action carries the exact Inspiration item/observation/run into a persistent room and begins shared interpretation. It does not immediately manufacture a full idea/treatment before the operator explains what matters. Existing `origin='inspiration'` compatibility records remain valid; new rooms use append-only contribution provenance because one story can combine human, Inspiration, research, and AI inputs. Format/mechanic learning remains an explicit gated proposal.
 
 ## Summary
 

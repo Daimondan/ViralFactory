@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ViralFactory — Story Room concept</title>
+  <style>
+    :root {
+      --paper: #F5F2E9;
+      --paper-2: #EEE9DE;
+      --paper-3: #E5DED0;
+      --ink: #1B1A17;
+      --ink-soft: #615C52;
+      --line: #D8D1C3;
+      --accent: #E54B2C;
+      --accent-deep: #B8321C;
+      --orange-wash: #F7DDD5;
+      --green: #356B4B;
+      --green-wash: #E0ECE3;
+      --blue: #3F6078;
+      --blue-wash: #E2EBF0;
+      --danger: #A1332A;
+      --serif: Georgia, 'Times New Roman', serif;
+      --sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --radius: 13px;
+      --shadow: 0 14px 36px rgba(53, 43, 29, .08);
+    }
+
+    * { box-sizing: border-box; }
+    html { background: var(--paper); }
+    body { margin: 0; color: var(--ink); background: var(--paper); font-family: var(--sans); font-size: 15px; line-height: 1.45; }
+    button, input, textarea { font: inherit; }
+    button { cursor: pointer; }
+    .app { min-height: 100vh; }
+
+    .topbar { height: 72px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 30px; padding: 0 36px; position: sticky; top: 0; z-index: 20; background: rgba(245,242,233,.96); backdrop-filter: blur(8px); }
+    .brand { font-family: var(--serif); font-size: 24px; font-weight: 700; letter-spacing: -.04em; white-space: nowrap; }
+    .brand i { color: var(--accent); font-style: normal; }
+    .nav { display: flex; align-items: center; gap: 5px; flex: 1; }
+    .nav button { appearance: none; border: 0; background: transparent; color: var(--ink-soft); padding: 9px 11px; border-radius: 8px; font-size: 14px; }
+    .nav button:hover { color: var(--ink); background: var(--paper-2); }
+    .nav button.active { color: var(--ink); background: var(--paper-3); font-weight: 700; }
+    .tenant { color: var(--ink-soft); font-size: 13px; white-space: nowrap; }
+    .tenant b { color: var(--ink); }
+    .prototype { color: var(--accent-deep); border: 1px solid #EAB4A6; background: var(--orange-wash); padding: 4px 8px; border-radius: 99px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+
+    main { max-width: 1500px; margin: 0 auto; padding: 38px 36px 64px; }
+    .eyebrow { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--accent-deep); margin-bottom: 10px; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { font-family: var(--serif); letter-spacing: -.055em; font-size: clamp(36px, 4.5vw, 64px); line-height: .98; font-weight: 700; max-width: 760px; margin-bottom: 16px; }
+    h2 { font-family: var(--serif); font-size: 28px; letter-spacing: -.035em; line-height: 1.05; margin-bottom: 8px; }
+    h3 { font-family: var(--serif); font-size: 20px; letter-spacing: -.025em; line-height: 1.12; margin-bottom: 7px; }
+    .lede { color: var(--ink-soft); max-width: 670px; font-size: 17px; }
+    .muted { color: var(--ink-soft); }
+    .tiny { font-size: 12px; color: var(--ink-soft); }
+    .btn { border: 1px solid var(--ink); background: var(--ink); color: white; padding: 10px 14px; border-radius: 9px; font-size: 14px; font-weight: 700; transition: .16s ease; }
+    .btn:hover { background: #38342D; transform: translateY(-1px); }
+    .btn-accent { border-color: var(--accent); background: var(--accent); }
+    .btn-accent:hover { background: var(--accent-deep); }
+    .btn-quiet { color: var(--ink); border-color: var(--line); background: transparent; }
+    .btn-quiet:hover { background: var(--paper-2); }
+    .btn-small { padding: 7px 10px; border-radius: 8px; font-size: 12px; }
+    .btn:focus-visible, .nav button:focus-visible { outline: 3px solid #F1BBAE; outline-offset: 2px; }
+    .actions { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; }
+    .rule { height: 1px; background: var(--line); margin: 30px 0; }
+
+    .page { display: none; animation: rise .25s ease both; }
+    .page.active { display: block; }
+    @keyframes rise { from { opacity: .25; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+
+    /* Desk — Operate */
+    .desk-head { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
+    .desk-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(290px, .55fr); gap: 46px; margin-top: 38px; }
+    .section-title { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 13px; }
+    .section-title h2 { margin: 0; }
+    .story-list { border-top: 1px solid var(--line); }
+    .story-row { width: 100%; text-align: left; display: grid; grid-template-columns: 90px minmax(0, 1fr) auto; gap: 18px; align-items: center; padding: 17px 0; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: inherit; }
+    .story-row:hover .story-name { color: var(--accent-deep); }
+    .story-row:hover { background: rgba(238,233,222,.46); }
+    .story-stage { font-size: 11px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-soft); }
+    .story-stage.current { color: var(--accent-deep); }
+    .story-name { font-family: var(--serif); font-size: 21px; letter-spacing: -.025em; line-height: 1.06; display: block; margin-bottom: 3px; }
+    .story-summary { color: var(--ink-soft); font-size: 13px; display: block; }
+    .story-meta { color: var(--ink-soft); font-size: 12px; text-align: right; white-space: nowrap; }
+    .callout { padding: 23px; border: 1px solid var(--line); background: #FCFAF5; border-radius: var(--radius); }
+    .callout h3 { font-size: 25px; }
+    .callout p { color: var(--ink-soft); }
+    .callout .actions { margin-top: 18px; }
+    .recent { margin-top: 30px; }
+    .note { display: flex; gap: 10px; align-items: flex-start; padding: 11px 0; border-top: 1px solid var(--line); font-size: 13px; }
+    .note:last-child { border-bottom: 1px solid var(--line); }
+    .dot { height: 8px; width: 8px; margin-top: 5px; border-radius: 100%; background: var(--accent); flex: 0 0 auto; }
+    .dot.green { background: var(--green); }
+
+    /* Inspiration — Explore */
+    .filterbar { display: flex; align-items: center; gap: 8px; margin: 27px 0 24px; flex-wrap: wrap; }
+    .filter { border: 1px solid var(--line); background: transparent; color: var(--ink-soft); padding: 7px 10px; border-radius: 100px; font-size: 13px; }
+    .filter.active { background: var(--ink); color: white; border-color: var(--ink); }
+    .inspiration-layout { display: grid; grid-template-columns: minmax(0, 1fr) 315px; gap: 42px; }
+    .observations { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .obs { min-height: 250px; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: #FBF9F3; text-align: left; color: inherit; }
+    .obs:hover { border-color: #B99A82; box-shadow: var(--shadow); }
+    .obs-art { height: 104px; border-radius: 8px; margin: -3px 0 18px; overflow: hidden; position: relative; background: #CCC2B1; }
+    .obs-art::before, .obs-art::after { content: ''; position: absolute; inset: 0; }
+    .obs-art.paper::before { background: linear-gradient(118deg, #192930 0 39%, transparent 39%), linear-gradient(144deg, transparent 0 43%, #D46A4C 43% 64%, transparent 64%), #B8A085; }
+    .obs-art.reel::before { background: linear-gradient(120deg, #5C261B 0 36%, transparent 36%), linear-gradient(132deg, transparent 0 56%, #E7AA4B 56% 73%, transparent 73%), #1D1D20; }
+    .obs-art.quote::before { background: linear-gradient(124deg, #284644 0 43%, transparent 43%), linear-gradient(145deg, transparent 0 67%, #E6DED0 67%), #BF5239; }
+    .obs-art.type::before { background: repeating-linear-gradient(90deg, #D9CFBF 0 13px, #BC3F28 13px 26px, #171716 26px 39px); opacity: .84; }
+    .obs-art span { position: absolute; z-index: 1; left: 12px; bottom: 9px; padding: 3px 6px; border-radius: 3px; color: white; background: rgba(0,0,0,.7); font-size: 10px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+    .obs-top { display: flex; gap: 8px; justify-content: space-between; align-items: center; }
+    .label { border-radius: 99px; display: inline-flex; padding: 4px 7px; background: var(--paper-2); color: var(--ink-soft); font-size: 10px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+    .label.evidence { color: var(--blue); background: var(--blue-wash); }
+    .obs p { color: var(--ink-soft); font-size: 13px; margin-bottom: 16px; }
+    .obs footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .inspiration-side { border-left: 1px solid var(--line); padding-left: 26px; }
+    .inspiration-side h3 { font-size: 25px; }
+    .principle { padding: 14px 0; border-top: 1px solid var(--line); }
+    .principle b { display: block; margin-bottom: 4px; }
+    .principle p { margin: 0; color: var(--ink-soft); font-size: 13px; }
+
+    /* Story Room — Command / Inspect */
+    .room-shell { min-height: calc(100vh - 150px); display: grid; grid-template-columns: 208px minmax(370px, .88fr) minmax(410px, 1.12fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .room-rail { border-right: 1px solid var(--line); padding: 19px 14px; }
+    .back-stories { appearance: none; padding: 0 0 13px; background: transparent; border: 0; color: var(--ink-soft); font-size: 12px; text-align: left; }
+    .room-title { font-family: var(--serif); font-size: 21px; letter-spacing: -.03em; line-height: 1.05; margin: 8px 0 19px; }
+    .stage-rail { display: grid; gap: 4px; }
+    .stage-button { text-align: left; border: 0; background: transparent; padding: 9px; border-radius: 8px; color: var(--ink-soft); font-size: 13px; display: flex; gap: 8px; align-items: center; }
+    .stage-button:hover { background: var(--paper-2); color: var(--ink); }
+    .stage-button.active { background: var(--paper-3); color: var(--ink); font-weight: 750; }
+    .stage-button .stage-num { width: 16px; color: var(--accent-deep); font-size: 11px; font-weight: 900; }
+    .stage-button.done .stage-num { color: var(--green); }
+    .room-side-rule { margin: 21px 0; height: 1px; background: var(--line); }
+    .understanding small { display: block; color: var(--ink-soft); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 8px; }
+    .understanding-line { margin: 7px 0; font-size: 12px; }
+    .understanding-line strong { display: inline-block; width: 61px; color: var(--ink); }
+    .understanding-line.assumed strong { color: var(--blue); }
+    .understanding-line.missing strong { color: var(--accent-deep); }
+    .understanding-line.locked strong { color: var(--green); }
+
+    .conversation { min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); background: #F9F6EF; }
+    .conversation-head, .artifact-head { padding: 18px 20px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+    .conversation-head b, .artifact-head b { font-size: 13px; }
+    .presence { color: var(--green); font-size: 12px; }
+    .messages { padding: 23px 20px; overflow: auto; flex: 1; max-height: 670px; }
+    .message { max-width: 88%; margin-bottom: 19px; }
+    .message .who { margin-bottom: 5px; font-size: 10px; font-weight: 900; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .08em; }
+    .message p { margin: 0; font-size: 14px; }
+    .message.assistant { padding: 0; }
+    .message.human { margin-left: auto; padding: 12px 13px; background: var(--ink); color: white; border-radius: 12px 12px 3px 12px; }
+    .message.human .who { color: #C8C1B5; }
+    .message .choice-row { display: grid; gap: 7px; margin-top: 11px; }
+    .choice { border: 1px solid var(--line); background: white; text-align: left; padding: 9px 10px; border-radius: 8px; color: var(--ink); font-size: 12px; }
+    .choice:hover { border-color: var(--accent); background: #FFF7F4; }
+    .composer { border-top: 1px solid var(--line); padding: 14px; background: var(--paper); }
+    .composer textarea { resize: none; width: 100%; min-height: 52px; color: var(--ink); background: #FCFBF7; border: 1px solid var(--line); border-radius: 9px; padding: 10px; outline: none; }
+    .composer textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #F5D5CD; }
+    .composer-footer { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin-top: 8px; }
+    .composer-tools { color: var(--ink-soft); font-size: 12px; }
+
+    .artifact { min-width: 0; background: var(--paper); }
+    .artifact-head { background: var(--paper); }
+    .artifact-body { padding: 25px; max-height: 720px; overflow: auto; }
+    .artifact-status { color: var(--blue); background: var(--blue-wash); border-radius: 99px; padding: 4px 8px; font-size: 11px; font-weight: 800; white-space: nowrap; }
+    .artifact-kicker { color: var(--accent-deep); font-size: 10px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 12px; }
+    .artifact h2 { max-width: 600px; font-size: 35px; }
+    .artifact-intro { font-family: var(--serif); max-width: 610px; color: #494238; font-size: 20px; line-height: 1.3; }
+    .map-section { border-top: 1px solid var(--line); padding: 15px 0; display: grid; grid-template-columns: 122px 1fr; gap: 18px; }
+    .map-section dt { color: var(--ink-soft); font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
+    .map-section dd { margin: 0; font-size: 14px; }
+    .map-section dd .tag { margin: 0 4px 4px 0; }
+    .tag { display: inline-flex; color: var(--ink-soft); padding: 3px 6px; border-radius: 4px; background: var(--paper-2); font-size: 11px; }
+    .artifact-cta { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line); }
+    .draft-copy { font-family: var(--serif); font-size: 19px; line-height: 1.47; max-width: 630px; padding-bottom: 28px; border-bottom: 1px solid var(--line); }
+    .draft-copy p { margin-bottom: 18px; }
+    .asset-plan { display: grid; gap: 10px; }
+    .asset-step { display: grid; grid-template-columns: 35px 1fr; gap: 11px; padding: 11px; border: 1px solid var(--line); border-radius: 9px; background: #FCFAF5; }
+    .asset-step b { font-size: 12px; }
+    .asset-step span { display: block; color: var(--ink-soft); font-size: 12px; margin-top: 2px; }
+    .asset-no { color: var(--accent-deep); font-family: var(--serif); font-size: 20px; }
+
+    /* Knowledge and results */
+    .knowledge-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(310px, .45fr); gap: 48px; margin-top: 34px; }
+    .knowledge-list { border-top: 1px solid var(--line); }
+    .knowledge-item { width: 100%; border: 0; border-bottom: 1px solid var(--line); background: transparent; padding: 17px 0; text-align: left; display: grid; grid-template-columns: 132px 1fr auto; gap: 16px; align-items: center; color: inherit; }
+    .knowledge-item:hover .knowledge-name { color: var(--accent-deep); }
+    .knowledge-kind { font-size: 11px; font-weight: 900; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .08em; }
+    .knowledge-name { font-family: var(--serif); font-size: 20px; }
+    .knowledge-version { font-size: 12px; color: var(--green); background: var(--green-wash); padding: 4px 6px; border-radius: 4px; }
+    .results-grid { display: grid; grid-template-columns: 1.25fr .75fr; gap: 18px; margin-top: 32px; }
+    .result-feature { padding: 28px; border: 1px solid var(--line); border-radius: var(--radius); background: #FBF9F3; }
+    .result-feature .result-title { font-family: var(--serif); font-size: 32px; letter-spacing: -.04em; line-height: 1.05; margin: 16px 0 8px; }
+    .result-list { border-top: 1px solid var(--line); }
+    .result-row { border-bottom: 1px solid var(--line); padding: 13px 0; display: flex; gap: 12px; justify-content: space-between; }
+
+    .toast { display: none; position: fixed; z-index: 50; right: 24px; bottom: 24px; max-width: 360px; padding: 13px 15px; border: 1px solid #BAD2C0; background: #F4FBF5; box-shadow: var(--shadow); color: #214A31; border-radius: 9px; font-size: 13px; }
+    .toast.show { display: block; animation: rise .2s ease both; }
+
+    @media (max-width: 980px) {
+      .topbar { padding: 0 18px; gap: 15px; overflow-x: auto; }
+      .nav { flex: none; }
+      .tenant, .prototype { display: none; }
+      main { padding: 29px 20px 48px; }
+      .desk-grid, .inspiration-layout, .knowledge-grid, .results-grid { grid-template-columns: 1fr; gap: 28px; }
+      .inspiration-side { border-left: 0; border-top: 1px solid var(--line); padding: 23px 0 0; }
+      .room-shell { grid-template-columns: 180px minmax(360px, 1fr); }
+      .artifact { grid-column: span 2; border-top: 1px solid var(--line); }
+      .conversation { border-right: 0; }
+    }
+    @media (max-width: 650px) {
+      .topbar { height: 62px; }
+      .brand { font-size: 21px; }
+      .nav button { padding: 7px 8px; font-size: 12px; }
+      h1 { font-size: 40px; }
+      .desk-head { align-items: start; flex-direction: column; }
+      .story-row { grid-template-columns: 73px 1fr; }
+      .story-meta { display: none; }
+      .observations { grid-template-columns: 1fr; }
+      .room-shell { display: block; }
+      .room-rail { border-right: 0; border-bottom: 1px solid var(--line); }
+      .stage-rail { grid-template-columns: repeat(5, minmax(max-content, 1fr)); overflow-x: auto; }
+      .stage-button { white-space: nowrap; }
+      .understanding { display: none; }
+      .conversation { min-height: 530px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">Viral<i>Factory</i></div>
+      <nav class="nav" aria-label="Primary navigation">
+        <button class="active" data-page="desk">Desk</button>
+        <button data-page="inspiration">Inspiration</button>
+        <button data-page="stories">Stories</button>
+        <button data-page="knowledge">Knowledge</button>
+        <button data-page="results">Results</button>
+      </nav>
+      <span class="prototype">Experience concept</span>
+      <div class="tenant"><b>StackPenni</b> · AST</div>
+    </header>
+
+    <main>
+      <section id="desk" class="page active" aria-labelledby="desk-title">
+        <div class="desk-head">
+          <div>
+            <div class="eyebrow">Your creative desk</div>
+            <h1 id="desk-title">Pick up a story, or start with a thought.</h1>
+            <p class="lede">ViralFactory holds the work in progress. You decide what deserves your attention; the system never pushes a card through on its own.</p>
+          </div>
+          <div class="actions">
+            <button class="btn btn-quiet" onclick="showPage('inspiration')">Browse inspiration</button>
+            <button class="btn btn-accent" onclick="showPage('stories')">Start a story</button>
+          </div>
+        </div>
+
+        <div class="desk-grid">
+          <div>
+            <div class="section-title"><h2>Stories waiting for you</h2><span class="tiny">Ordered by your next meaningful decision</span></div>
+            <div class="story-list">
+              <button class="story-row" onclick="showPage('stories')">
+                <span class="story-stage current">Shape</span>
+                <span><span class="story-name">AI receipts are getting expensive</span><span class="story-summary">The core claim is clear. Choose the frame: warning, personal realization, or receipts.</span></span>
+                <span class="story-meta">Your call</span>
+              </button>
+              <button class="story-row" onclick="showPage('stories'); setRoomStage('draft')">
+                <span class="story-stage">Draft</span>
+                <span><span class="story-name">Three papers, one uncomfortable lesson</span><span class="story-summary">The draft is ready to read. The ending needs your judgment.</span></span>
+                <span class="story-meta">Draft v2</span>
+              </button>
+              <button class="story-row" onclick="showPage('stories'); setRoomStage('assets')">
+                <span class="story-stage">Build</span>
+                <span><span class="story-name">Why a Caribbean business should own its AI receipts</span><span class="story-summary">Four approved slide jobs are ready. Review how they work together.</span></span>
+                <span class="story-meta">4 components</span>
+              </button>
+              <button class="story-row" onclick="showPage('stories'); setRoomStage('idea')">
+                <span class="story-stage">Idea</span>
+                <span><span class="story-name">The thing people mean when they say “AI changed everything”</span><span class="story-summary">Started from your note yesterday. It needs a real tension before it earns a draft.</span></span>
+                <span class="story-meta">Started yesterday</span>
+              </button>
+            </div>
+            <div class="recent">
+              <div class="section-title"><h2>Recent activity</h2><span class="tiny">Receipts, not pressure</span></div>
+              <div class="note"><span class="dot green"></span><span><b>You locked the exact Reel caption</b><br><span class="muted">“Ports and AI” now has an approved caption separate from its internal summary.</span></span></div>
+              <div class="note"><span class="dot"></span><span><b>ViralFactory found a source gap</b><br><span class="muted">The available research supports the AI-learning claim, not the jobs claim. It is asking whether to research that gap.</span></span></div>
+            </div>
+          </div>
+          <aside>
+            <div class="callout">
+              <div class="eyebrow">Not a pipeline</div>
+              <h3>Bring an unfinished thought.</h3>
+              <p>A link, a paper, a voice note, a reaction, or a story you cannot quite say yet. The first job is shared understanding—not filling a form.</p>
+              <div class="actions"><button class="btn btn-accent" onclick="showPage('stories')">Open a Story Room</button></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="inspiration" class="page" aria-labelledby="inspiration-title">
+        <div class="eyebrow">Evidence workbench</div>
+        <h1 id="inspiration-title">See something worth carrying into a story.</h1>
+        <p class="lede">Inspiration is a place to notice patterns and keep evidence. It does not decide what is “trending” unless the source proves it, and it never writes a story without you.</p>
+        <div class="filterbar" aria-label="Inspiration filters">
+          <button class="filter active">All observations</button><button class="filter">Saved for you</button><button class="filter">Visual language</button><button class="filter">Structure</button><button class="filter">Sound & rhythm</button>
+        </div>
+        <div class="inspiration-layout">
+          <div class="observations">
+            <article class="obs">
+              <div><div class="obs-art paper"><span>Example observation</span></div><div class="obs-top"><span class="label evidence">Evidence attached</span><span class="tiny">Saved today</span></div><h3>Receipts can become the visual rhythm—not just a citation.</h3><p>A saved example of a claim moving through a source, a highlighted finding, and a plain-language consequence.</p></div>
+              <footer><span class="tiny">Structure · carousel</span><button class="btn btn-small btn-accent" onclick="startFromInspiration('Receipts can become the visual rhythm—not just a citation.')">Take to Story Room</button></footer>
+            </article>
+            <article class="obs">
+              <div><div class="obs-art reel"><span>Example observation</span></div><div class="obs-top"><span class="label">Narrative movement</span><span class="tiny">Saved yesterday</span></div><h3>The turn lands after the detail, not before it.</h3><p>A Reel structure worth studying: a precise scene establishes credibility before the broader claim opens up.</p></div>
+              <footer><span class="tiny">Structure · Reel</span><button class="btn btn-small btn-accent" onclick="startFromInspiration('The turn lands after the detail, not before it.')">Take to Story Room</button></footer>
+            </article>
+            <article class="obs">
+              <div><div class="obs-art quote"><span>Example observation</span></div><div class="obs-top"><span class="label">Visual language</span><span class="tiny">Saved Monday</span></div><h3>The visual system behaves like a witness, not decoration.</h3><p>Source marks, timestamps, and highlighted language create a feeling of inspection without pretending to be objective.</p></div>
+              <footer><span class="tiny">Visual treatment</span><button class="btn btn-small btn-accent" onclick="startFromInspiration('The visual system behaves like a witness, not decoration.')">Take to Story Room</button></footer>
+            </article>
+            <article class="obs">
+              <div><div class="obs-art type"><span>Example observation</span></div><div class="obs-top"><span class="label">Voice</span><span class="tiny">Saved Friday</span></div><h3>A quiet first line can make a sharper second line hit harder.</h3><p>Not a reusable template—an observation to apply only if it serves the actual story.</p></div>
+              <footer><span class="tiny">Opening · copy</span><button class="btn btn-small btn-accent" onclick="startFromInspiration('A quiet first line can make a sharper second line hit harder.')">Take to Story Room</button></footer>
+            </article>
+          </div>
+          <aside class="inspiration-side">
+            <div class="eyebrow">The boundary</div><h3>Notice. Preserve. Choose.</h3>
+            <div class="principle"><b>Evidence stays evidence</b><p>A saved observation shows where it came from and when it was collected. It is not automatically a fact, source, format rule, or soundtrack right.</p></div>
+            <div class="principle"><b>You decide the connection</b><p>“Take to Story Room” carries the observation as a starting point. The room asks what you see in it and whether it matters for your story.</p></div>
+            <div class="principle"><b>Patterns remain proposals</b><p>If a pattern seems useful beyond one piece, ViralFactory can propose a change to the Format Guide. It never silently turns a passing observation into a system rule.</p></div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="stories" class="page" aria-labelledby="room-heading">
+        <div class="room-shell">
+          <aside class="room-rail">
+            <button class="back-stories" onclick="showPage('desk')">← Back to your desk</button>
+            <div class="eyebrow">Story Room</div>
+            <div id="room-heading" class="room-title">AI receipts are getting expensive</div>
+            <div class="stage-rail" aria-label="Story stages">
+              <button class="stage-button done" data-stage="brief" onclick="setRoomStage('brief')"><span class="stage-num">01</span> Brief</button>
+              <button class="stage-button" data-stage="idea" onclick="setRoomStage('idea')"><span class="stage-num">02</span> Idea</button>
+              <button class="stage-button active" data-stage="shape" onclick="setRoomStage('shape')"><span class="stage-num">03</span> Shape</button>
+              <button class="stage-button" data-stage="draft" onclick="setRoomStage('draft')"><span class="stage-num">04</span> Draft</button>
+              <button class="stage-button" data-stage="assets" onclick="setRoomStage('assets')"><span class="stage-num">05</span> Build</button>
+            </div>
+            <div class="room-side-rule"></div>
+            <div class="understanding">
+              <small>Understanding map</small>
+              <div class="understanding-line"><strong>Known</strong> AI tools can make polished work cheap.</div>
+              <div class="understanding-line assumed"><strong>Assumed</strong> The deeper worry is loss of judgment, not AI itself.</div>
+              <div class="understanding-line missing"><strong>Missing</strong> What real moment made this feel true to you?</div>
+              <div class="understanding-line locked"><strong>Locked</strong> Audience: Caribbean founders and builders.</div>
+            </div>
+          </aside>
+
+          <section class="conversation" aria-label="Conversation with ViralFactory">
+            <header class="conversation-head"><b>Co-creation conversation</b><span class="presence">● ready when you are</span></header>
+            <div id="messages" class="messages">
+              <div class="message human"><div class="who">You</div><p>Everybody says AI makes work faster. I’m worried it makes people stop knowing what good work is.</p></div>
+              <div class="message assistant"><div class="who">ViralFactory</div><p>I hear a stronger thought beneath that: the danger is not that AI makes mediocre work easy—it is that it can make people mistake polished output for judgment.</p><div class="choice-row"><button class="choice" onclick="chooseDirection('warning')"><b>A. The warning</b><br>Polish is becoming cheap; discernment is not.</button><button class="choice" onclick="chooseDirection('receipts')"><b>B. The receipts</b><br>Use three moments where the output looked right but the thinking was wrong.</button><button class="choice" onclick="chooseDirection('realization')"><b>C. The realization</b><br>Start with the moment you caught yourself accepting an answer too quickly.</button></div></div>
+              <div class="message assistant"><div class="who">ViralFactory</div><p>Before I choose a frame: do you have a real moment from your work, or should I research examples and keep this as a broader argument?</p></div>
+            </div>
+            <div class="composer"><textarea id="message-input" placeholder="Tell ViralFactory what you mean, change direction, paste a source, or say “you decide”…"></textarea><div class="composer-footer"><span class="composer-tools">Attach source · Add note · Research</span><button class="btn btn-small btn-accent" onclick="sendMessage()">Send</button></div></div>
+          </section>
+
+          <section class="artifact" aria-label="Current story artifact">
+            <header class="artifact-head"><b id="artifact-title">Story Map</b><span id="artifact-status" class="artifact-status">Needs your frame</span></header>
+            <div id="artifact-body" class="artifact-body"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="knowledge" class="page" aria-labelledby="knowledge-title">
+        <div class="eyebrow">Your accumulated insight</div>
+        <h1 id="knowledge-title">Knowledge that helps the room understand—not rules that replace you.</h1>
+        <p class="lede">These are living, versioned reference materials. ViralFactory retrieves only what is relevant to the current story and shows when a piece is using it.</p>
+        <div class="knowledge-grid">
+          <div>
+            <div class="knowledge-list">
+              <button class="knowledge-item"><span class="knowledge-kind">Voice</span><span class="knowledge-name">How StackPenni thinks, not just how it sounds</span><span class="knowledge-version">v6</span></button>
+              <button class="knowledge-item"><span class="knowledge-kind">Audience</span><span class="knowledge-name">Caribbean builders: aspirations, pressures, and false promises</span><span class="knowledge-version">v4</span></button>
+              <button class="knowledge-item"><span class="knowledge-kind">Story</span><span class="knowledge-name">Frames that let a complicated point move</span><span class="knowledge-version">v3</span></button>
+              <button class="knowledge-item"><span class="knowledge-kind">Format</span><span class="knowledge-name">Native structures for carousels, Reels, threads, and essays</span><span class="knowledge-version">v7</span></button>
+              <button class="knowledge-item"><span class="knowledge-kind">Visual</span><span class="knowledge-name">Approved visual treatments and what each one is for</span><span class="knowledge-version">v5</span></button>
+              <button class="knowledge-item"><span class="knowledge-kind">Sources</span><span class="knowledge-name">Grounding sources, evidence quality, and source boundaries</span><span class="knowledge-version">v8</span></button>
+            </div>
+          </div>
+          <aside class="callout"><div class="eyebrow">Learning stays gated</div><h3>“Remember this” is a proposal, not a silent edit.</h3><p>At the end of a piece, you can tell ViralFactory what it got right or wrong. It drafts a precise proposed update, shows what would change, and waits for approval.</p><button class="btn btn-quiet">Review proposed learning</button></aside>
+        </div>
+      </section>
+
+      <section id="results" class="page" aria-labelledby="results-title">
+        <div class="eyebrow">Published work</div>
+        <h1 id="results-title">What went out—and what the work taught us.</h1>
+        <p class="lede">Results are not a vanity dashboard. They link performance back to the exact story, decisions, visual treatment, and platform package that were actually approved.</p>
+        <div class="results-grid">
+          <article class="result-feature"><span class="label evidence">Published example</span><div class="result-title">Ports and AI</div><p class="muted">A Reel about infrastructure, agency, and the distinction between adopting a tool and surrendering judgment.</p><div class="rule"></div><div class="map-section"><dt>Story frame</dt><dd>Personal realization → evidence → challenge</dd></div><div class="map-section"><dt>What to learn</dt><dd>This ending made people reply with their own operational examples. Ask whether that conversational ending belongs in the Voice Profile.</dd></div><div class="actions" style="margin-top:18px"><button class="btn btn-quiet">Open the Story Room record</button><button class="btn btn-quiet">Propose learning</button></div></article>
+          <aside><div class="section-title"><h2>Recent publish records</h2></div><div class="result-list"><div class="result-row"><span><b>Three receipts, one month</b><br><span class="tiny">Carousel · approved caption attached</span></span><span class="tiny">Published Thu</span></div><div class="result-row"><span><b>The cost of looking smart</b><br><span class="tiny">Thread · exact text archived</span></span><span class="tiny">Published Tue</span></div><div class="result-row"><span><b>When the tool is not the strategy</b><br><span class="tiny">Reel · audio proof retained</span></span><span class="tiny">Published Sun</span></div></div></aside>
+        </div>
+      </section>
+    </main>
+    <div id="toast" class="toast" role="status"></div>
+  </div>
+
+  <script>
+    const stageData = {
+      brief: {
+        title: 'Creative Brief', status: 'Brief locked',
+        content: `<div class="artifact-kicker">What we are trying to say</div><h2>Polished output is not the same as judgment.</h2><p class="artifact-intro">A story about the moment fast, convincing AI output becomes an excuse to stop thinking.</p><dl><div class="map-section"><dt>Why now</dt><dd>AI fluency is often being mistaken for discernment.</dd></div><div class="map-section"><dt>Audience</dt><dd>Caribbean founders and builders deciding where automation helps—and where it hollows out capability.</dd></div><div class="map-section"><dt>Human stake</dt><dd>You have seen “good enough” output win approval before anyone asks whether it is actually right.</dd></div><div class="map-section"><dt>Red line</dt><dd>Do not turn this into generic anti-AI content.</dd></div></dl><div class="artifact-cta"><button class="btn btn-accent" onclick="setRoomStage('idea')">Move into the Idea Map</button></div>`
+      },
+      idea: {
+        title: 'Idea Map', status: 'Choose a direction',
+        content: `<div class="artifact-kicker">The story underneath the thought</div><h2>When polish becomes cheap, discernment becomes visible.</h2><p class="artifact-intro">The piece earns its point by showing that output can look finished while the thinking is unfinished.</p><dl><div class="map-section"><dt>Core claim</dt><dd>AI does not remove the need for judgment; it makes the lack of judgment easier to hide.</dd></div><div class="map-section"><dt>Tension</dt><dd>Speed feels like competence. Sometimes it is only speed.</dd></div><div class="map-section"><dt>Evidence to find</dt><dd><span class="tag">a plausible wrong answer</span><span class="tag">a human correction</span><span class="tag">a consequence</span></dd></div><div class="map-section"><dt>Audience promise</dt><dd>A practical way to tell whether a tool is amplifying their thinking or replacing it.</dd></div></dl><div class="artifact-cta"><button class="btn btn-accent" onclick="setRoomStage('shape')">Shape this story</button></div>`
+      },
+      shape: {
+        title: 'Story Map', status: 'Needs your frame',
+        content: `<div class="artifact-kicker">How the meaning unfolds</div><h2>The most dangerous AI answer is the one that feels finished.</h2><p class="artifact-intro">We begin with a believable output, then reveal the question nobody asked, then return agency to the reader.</p><dl><div class="map-section"><dt>Frame</dt><dd><b>Receipts → realization</b><br>Three “looks right” moments expose the gap between polish and judgment.</dd></div><div class="map-section"><dt>Movement</dt><dd>1. The seductive finished answer<br>2. The missing human question<br>3. The cost of not noticing<br>4. What discernment looks like in practice</dd></div><div class="map-section"><dt>Hook direction</dt><dd>“The problem with AI is not that it can be wrong. It is that it can be wrong beautifully.”</dd></div><div class="map-section"><dt>Style for this piece</dt><dd><span class="tag">clear-eyed</span><span class="tag">specific</span><span class="tag">not preachy</span></dd></div></dl><div class="artifact-cta"><button class="btn btn-accent" onclick="setRoomStage('draft')">Write a first draft</button> <button class="btn btn-quiet" onclick="showToast('Nothing is locked yet. You can revise the frame in the conversation.')">Keep shaping</button></div>`
+      },
+      draft: {
+        title: 'Draft v2', status: 'Read and revise',
+        content: `<div class="artifact-kicker">Exact words · editable</div><h2>The answer looked finished. The thinking was not.</h2><div class="draft-copy"><p>The most dangerous AI answer is not the obviously bad one.</p><p>It is the one that sounds complete enough that nobody asks a second question.</p><p>It has the clean structure. The confident tone. The familiar language. It gives you the feeling that work happened.</p><p>But a polished answer can still be built on a missing assumption. A beautiful deck can still describe the wrong problem. A fast strategy can still be borrowed from a place that has nothing to do with your reality.</p><p>That is why the valuable skill is not “using AI.” It is recognizing when an answer has not earned your trust yet.</p></div><div class="artifact-cta"><button class="btn btn-accent" onclick="setRoomStage('assets')">Plan the carousel</button> <button class="btn btn-quiet" onclick="showToast('In the real product, direct edits create a new draft version and show what downstream work is now stale.')">Edit text</button></div>`
+      },
+      assets: {
+        title: 'Asset Plan', status: 'Plan before building',
+        content: `<div class="artifact-kicker">Carousel · approved copy required</div><h2>Five slides. One movement.</h2><p class="artifact-intro">Each slide has a distinct job. The visual system behaves like a witness, not a decoration.</p><div class="asset-plan"><div class="asset-step"><div class="asset-no">01</div><div><b>The visual promise</b><span>“The most dangerous AI answer is the one that feels finished.” Big type, quiet evidence mark.</span></div></div><div class="asset-step"><div class="asset-no">02</div><div><b>The familiar feeling</b><span>What “finished” looks like: crisp structure, confidence, no visible doubt.</span></div></div><div class="asset-step"><div class="asset-no">03</div><div><b>The missing question</b><span>Highlight the assumption that the polished answer quietly relies on.</span></div></div><div class="asset-step"><div class="asset-no">04</div><div><b>The consequence</b><span>Show what changes when nobody tests the answer against the real situation.</span></div></div><div class="asset-step"><div class="asset-no">05</div><div><b>The return of agency</b><span>Discernment is the thing that decides whether speed is useful.</span></div></div></div><div class="artifact-cta"><button class="btn btn-accent" onclick="showToast('This would open the Component Workbench with only this approved Asset Plan. No assembly starts until you approve exact candidates.')">Open Component Workbench</button></div>`
+      }
+    };
+
+    function showPage(pageId) {
+      document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === pageId));
+      document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('active', b.dataset.page === pageId));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function setRoomStage(stage) {
+      const data = stageData[stage];
+      document.querySelectorAll('.stage-button').forEach(b => b.classList.toggle('active', b.dataset.stage === stage));
+      document.getElementById('artifact-title').textContent = data.title;
+      document.getElementById('artifact-status').textContent = data.status;
+      // `data.content` is static, developer-authored prototype markup; user input never reaches this sink.
+      document.getElementById('artifact-body').innerHTML = data.content;
+      const messages = document.getElementById('messages');
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function chooseDirection(direction) {
+      const labels = { warning: 'the warning', receipts: 'the receipts', realization: 'the personal realization' };
+      const messages = document.getElementById('messages');
+      messages.insertAdjacentHTML('beforeend', `<div class="message human"><div class="who">You</div><p>Let’s take ${labels[direction]}.</p></div><div class="message assistant"><div class="who">ViralFactory</div><p>Good. I have updated the working Story Map rather than treating that choice as a final lock. The next useful decision is the frame: do we lead with a real moment, or let the three receipts carry the opening?</p></div>`);
+      setRoomStage('shape');
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function startFromInspiration(observation) {
+      showPage('stories');
+      setRoomStage('brief');
+      const messages = document.getElementById('messages');
+      messages.insertAdjacentHTML('beforeend', `<div class="message assistant"><div class="who">ViralFactory</div><p>I brought in this observation from Inspiration: <b>“${escapeHtml(observation)}”</b></p><p>What do <i>you</i> see in it? We can use it as a visual treatment, a structural clue, or decide it has nothing to do with your story.</p></div>`);
+      messages.scrollTop = messages.scrollHeight;
+      showToast('Observation carried into a new Story Room. It remains evidence, not a system rule.');
+    }
+
+    function sendMessage() {
+      const input = document.getElementById('message-input');
+      const text = input.value.trim();
+      if (!text) return;
+      const messages = document.getElementById('messages');
+      messages.insertAdjacentHTML('beforeend', `<div class="message human"><div class="who">You</div><p>${escapeHtml(text)}</p></div><div class="message assistant"><div class="who">ViralFactory</div><p>I have captured that as your direction. I will keep the current approved story pieces intact and treat this as a change to the working version—not a reason to restart everything.</p></div>`);
+      input.value = '';
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function escapeHtml(value) { const el = document.createElement('div'); el.textContent = value; return el.innerHTML; }
+    function showToast(text) { const toast = document.getElementById('toast'); toast.textContent = text; toast.classList.add('show'); clearTimeout(window.toastTimer); window.toastTimer = setTimeout(() => toast.classList.remove('show'), 4200); }
+
+    setRoomStage('shape');
+  </script>
+</body>
+</html>

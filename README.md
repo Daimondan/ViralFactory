@@ -12,8 +12,8 @@ A content co-creation system for entrepreneurs who have ideas and domain experie
 
 | You are | Read, in order |
 |---|---|
-| **Builder agent (Hermes)** | 1. `docs/CONTEXT.md` (the domain + decisions) → 2. `docs/CHARTER-v3.11.md` (the constitution) → 3. `BUILD_PLAN.md` (your tasks, guardrails) → 4. `playbooks/` (the procedures you implement). Then work `BUILD_PLAN.md` top-down, one task at a time. |
-| **Architect / reviewer (Claude)** | `docs/CONTEXT.md` → `docs/CHARTER-v3.11.md` → `docs/decisions/DIVERGENCE-001-charter-amendments.md` → `docs/PROGRESS.md` → latest `review-wN` tag diff → write `docs/reviews/review-wN.md`. Incorporate approved divergences through a versioned charter amendment. |
+| **Builder agent (Hermes)** | 1. `docs/CONTEXT.md` (the domain + decisions) → 2. `docs/CHARTER-v3.12.md` (the constitution) → 3. `BUILD_PLAN.md` (your tasks, guardrails) → 4. `playbooks/` (the procedures you implement). Then work `BUILD_PLAN.md` top-down, one task at a time. |
+| **Architect / reviewer (Hermes, vf-architect)** | `docs/CONTEXT.md` → `docs/CHARTER-v3.12.md` → `docs/decisions/DIVERGENCE-001-charter-amendments.md` → `docs/PROGRESS.md` → latest `review-wN` tag diff → write `docs/reviews/review-wN.md`. Incorporate approved divergences through a versioned charter amendment. |
 | **Operator (human)** | `docs/CONTEXT.md` (what we're building and why) → `docs/INTAKE-USER1.md` (what materials you need to provide). You direct in plain language, react to drafts, and approve at gates. You never write code. |
 | **New contributor / other AI** | `docs/CONTEXT.md`, then this README's repo map. |
 
@@ -42,6 +42,7 @@ docs/
     AMENDMENT-017-format-guide-production-routing.md ← gated generic production binding
     AMENDMENT-018-versioned-visual-treatments.md ← coexisting exact Tier-1 treatments
     AMENDMENT-019-source-fit-editorial-range.md ← inspectable editorial fit + Source-Fit Critic
+    AMENDMENT-020-story-room-conversational-co-creation.md ← persistent one-room-per-piece creative experience
     DIVERGENCE-019-provider-neutral-render-execution-boundary.md ← portable RendererSpec + hosted/local renderer adapters
     DIVERGENCE-020-two-phase-composition-plan-and-ratification.md ← filed divergence (ratified as AMENDMENT-014)
     DIVERGENCE-021-operator-visual-engagement-criteria.md ← operator visual engagement criteria (4s max clip, caption emphasis, VO-only visual life, video-over-stills)
@@ -49,8 +50,9 @@ docs/
     DIVERGENCE-023-episode-format-guide-resolution.md ← ratified by AMENDMENT-017
     DIVERGENCE-025-fitzroy-vector-film-style-request.md ← ratified by AMENDMENT-018
     DIVERGENCE-026-idea-generation-source-fit-and-editorial-range.md ← ratified by AMENDMENT-019
+    DIVERGENCE-028-story-room-conversational-co-creation.md ← ratified by AMENDMENT-020
   inbox/                         ← architect→builder filing protocol (README + processed/)
-  reviews/                      ← Claude's weekly review notes (review-wN.md)
+  reviews/                      ← architect review notes and deep UI findings
   diagrams/                     ← system diagrams (Mermaid + vertical-flow text + SVG)
 playbooks/                       ← written procedures the system's AI runs (text, not code)
   business-profile-intake.md        ← runs FIRST; builds business.yaml + brand context
@@ -61,6 +63,7 @@ playbooks/                       ← written procedures the system's AI runs (te
   story-frameworks-starter.md        ← how to tell a story per subject type
   format-guide-starter.md            ← which format fits which message on which platform
   visual-style-intake.md             ← brand look + shot library + real-vs-generated blend rules
+  story-room-co-creation.md          ← Brief → Idea → Shape → Draft → Build conversational workflow
 prompts/                         ← every LLM prompt template, versioned (no prompts in code)
 config/                          ← ALL business-specific values: business.yaml, models.yaml, sources.yaml
 modules/{business}/             ← the 8 living modules per business (versioned markdown, gate-only writes)
@@ -86,9 +89,9 @@ Builder works `BUILD_PLAN.md` top-down → commit per task (task ID in message) 
 
 ## Status
 
-**Current engineering state (2026-07-30):** The 2026-07-30 architect batch is filed and Charter v3.11 is current. M16 is active: AMENDMENT-017 resolves DIVERGENCE-023 with a generic gated Format Guide production binding; AMENDMENT-018 resolves DIVERGENCE-025 with coexisting versioned visual treatments; DIVERGENCE-026/AMENDMENT-019 resolves repetitive thematic framing with persisted editorial fit and an LLM Source-Fit Critic. The controlled five-source Source-Fit proof and deployed Gate 1 UI/API proof are complete. VF-VIS-1615's generic versioned treatment contract, v1/v2 module round-trip, proposal diff/reference-candidate gate, and deployed Treatments page are complete; VF-VIS-1616 exact downstream lineage is next. The proposed keyword-based source-fit validator remains rejected as judgment in code. P1-5 migrations, full-suite baseline (**2545 passed, 2 skipped**), ffprobe proof, kill-feedback plumbing, render-state transition, and source restoration are recorded complete. The deep human UI walkthrough, live Buffer auth/scheduled-post proof, and fresh end-to-end release proof remain open.
+**Current engineering state (2026-08-21):** Charter v3.12 is current. The operator approved the Story Room experience direction, and AMENDMENT-020 adds M17 as a controlled experiment: one persistent room per piece, Brief → Idea → Shape → Draft → Build, human-readable artifact versions and locks, and the existing production stack reused backstage. The legacy pipeline remains the default/baseline until a three-piece comparison and explicit operator cutover decision. VF-PROOF-1618 remains open because requested 390px emulation reported an 833px inner/scroll width instead of proving mobile behavior, one asset has truncated VO and needs re-render, Results exposes a Buffer Instagram contract failure, and the full suite timed out; those truthfulness blockers close before M17 implementation becomes the comparison baseline.
 
-`docs/CHARTER-v3.11.md` is the current constitution. It incorporates AMENDMENT-015 and AMENDMENT-016, then AMENDMENT-017–019 in order; `docs/CHARTER-v3.10.md` remains preserved for audit history. The existing Component Workbench, CompositionPlan, RendererSpec, exact-artifact gates, gated production bindings, versioned visual treatments, and Source-Fit Critic boundary remain in force.
+`docs/CHARTER-v3.12.md` is the current constitution. It incorporates AMENDMENT-020 while preserving every prior Component Workbench, CompositionPlan, RendererSpec, exact-artifact, rights/cost, publish, provenance, visual-treatment, and Source-Fit rule. `docs/CHARTER-v3.11.md` remains preserved for audit history.
 
 ## Original architect docs (preserved for reference)
 

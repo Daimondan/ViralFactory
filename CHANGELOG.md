@@ -6,6 +6,22 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-08-21 — ARCHITECT: Story Room direction ratified as controlled M17 experiment
+
+**What:** The operator approved the interactive Story Room experience direction. Filed DIVERGENCE-028 and AMENDMENT-020; superseded DIVERGENCE-017; published Charter v3.12; added the Story Room co-creation playbook, live-code baseline review, detailed controlled implementation plan, and BUILD_PLAN M17 tasks VF-SR-1701..1718. Updated README, CONTEXT, UI-DIRECTION, PROGRESS, and the architect→builder inbox handoff.
+
+The target front-stage flow is `Desk → one persistent Story Room → Brief → Idea → Shape → Draft → Build`. Conversation is the control surface; append-only room events, typed contributions, Known/Assumed/Missing/Locked entries, immutable human-readable artifact versions, and server-bound locks are the truth. Existing Source Bank, modules, provenance, component workbench, immutable manifest, CompositionPlan, RendererSpec, exact final review, Buffer, metrics, and gated learning remain the backstage tool bench.
+
+**Type:** STRATEGIC / STRUCTURE / LOGIC / OPS
+
+**Rationale:** Direct collaboration with an agent repeatedly produces better creative work because it preserves shared understanding and supports targeted questions/options/revisions. The current Gate 1 route immediately enqueues the Writer and fragments one creative story across idea/draft/asset/production screens. The redesign repairs the product boundary without discarding the strong downstream governance harness.
+
+**Controlled-cutover conditions:** Legacy remains default and becomes the comparison baseline. VF-PROOF-1618 truthfulness blockers close first. No destructive migration, no second giant production state machine, no auto Writer chain from Story Room Gate 1, and no default navigation cutover before a human-seeded carousel, source-led Reel, half-formed personal story, one recoverable tool failure, deep laptop/390px review, full suite, and explicit operator cutover decision.
+
+**Files:** `docs/decisions/DIVERGENCE-028-story-room-conversational-co-creation.md`, `docs/decisions/AMENDMENT-020-story-room-conversational-co-creation.md`, `docs/CHARTER-v3.12.md`, `docs/reviews/REVIEW-story-room-redesign-baseline-2026-08-21.md`, `docs/mockups/story-room-experience-v1.html`, `playbooks/story-room-co-creation.md`, `docs/playbooks/viral-content-production-playbook-v1.md`, `docs/plans/2026-08-21-story-room-controlled-implementation.md`, `BUILD_PLAN.md`, `README.md`, `docs/CONTEXT.md`, `docs/UI-DIRECTION.md`, `docs/PROGRESS.md`, `docs/inbox/`
+
+---
+
 ## 2026-07-30 — BUILDER: Carry exact visual-treatment lineage through production (VF-VIS-1616)
 
 **What:** Added the canonical `visual_treatment_ref` identity (`treatment_id`, exact version, and SHA-256 contract hash) to Gate 1 selection/revalidation, production sessions, requirements, candidate generation provenance, manifests, CompositionPlans, RendererSpecs, Gate 3 readiness/decisions, and writer-contract hashes. Added fail-closed stale/mixed lineage checks while preserving unbound legacy sessions.

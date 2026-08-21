@@ -1,6 +1,6 @@
 # Context: ViralFactory
 
-> **This is an operational mirror of `docs/CHARTER-v3.11.md`.** It captures
+> **This is an operational mirror of `docs/CHARTER-v3.12.md`.** It captures
 > current shared language, workflows, and implementation state. It conforms
 > to the charter and BUILD_PLAN; where it conflicts, that conflict is a bug
 > or a new divergence to file — never a silent override.
@@ -12,10 +12,10 @@
 > **On change:** bump `updated_at` date, add/update a decision note in
 > `docs/decisions/` if the change is non-obvious.
 
-**Updated:** 2026-07-30 (Charter v3.11 restored; AMENDMENT-015–019 incorporated in order; M16 Source-Fit proof complete and visual-treatment contract next)
-**Conforms to:** `docs/CHARTER-v3.11.md` (v3.11 — all prior amendments through AMENDMENT-014 remain in force; AMENDMENT-015 adds measured-VO shot subdivision and the two-tier render boundary; AMENDMENT-016 adds the narrow platform-native audio role; AMENDMENT-017 adds gated Format Guide production bindings; AMENDMENT-018 adds coexisting versioned visual treatments; AMENDMENT-019 adds persisted editorial fit and the Source-Fit Critic boundary)
+**Updated:** 2026-08-21 (Charter v3.12; AMENDMENT-020 ratifies the controlled persistent Story Room redesign and M17)
+**Conforms to:** `docs/CHARTER-v3.12.md` (v3.12 — all prior amendments through AMENDMENT-019 remain in force; AMENDMENT-020 makes one persistent Story Room per piece the target creative experience while retaining the existing production/gate harness and a legacy comparison mode)
 
-> **Current constitution:** `docs/CHARTER-v3.11.md` is the effective charter. It incorporates AMENDMENT-015, AMENDMENT-016, and AMENDMENT-017–019 in order. `docs/CHARTER-v3.10.md` remains preserved for audit history. M16 implementation must still keep module/config changes as exact operator-gated proposals and must preserve the Source-Fit Critic boundary: Python performs mechanical validation only.
+> **Current constitution:** `docs/CHARTER-v3.12.md` is the effective charter. It incorporates AMENDMENT-020 on top of every prior rule through AMENDMENT-019. `docs/CHARTER-v3.11.md` remains preserved for audit history. The Story Room redesign does not weaken Source-Fit, component/manifest/composition, rights/cost, exact-artifact, provenance, or no-auto-publish boundaries.
 
 ---
 
@@ -31,7 +31,7 @@ The system is generic: **the harness is code, the business lives entirely in con
 
 - **Primary user (v1):** Daimon, operating StackPenni. Laptop-primary. Not a developer. Supplies seeds and taste; sometimes writes/edits directly.
 - **Future users (near-term):** Paying customers — other entrepreneurs who have ideas and domain experience but don't produce content themselves. These users may be mobile-primary. The system must be mobile-friendly for them.
-- **Architect (Claude):** Designs the system, writes/updates the charter, playbooks, and build plan. Reviews builder work. Not a daily user.
+- **Architect (Hermes, `vf-architect` profile):** Designs the system, writes/updates the charter, playbooks, and build plan. Reviews builder work. Not a daily user.
 - **Builder (Hermes agent):** Implements the build plan task by task. Open-source models on the VPS.
 
 ## North Star
@@ -56,16 +56,16 @@ The generic content co-creation system (the harness/code). Not specific to any b
 The first business using ViralFactory. All StackPenni-specific values (brand name, topics, feeds, queries, voice, audience) live in config and modules, never in code.
 
 ### Seed
-A spoken or typed idea/take/story from the user. In the staged pipeline, a seed becomes a **human-seeded** idea card (or a **human-seeded-ai-developed** card when the AI sharpens it). A seed can produce multiple pieces (different platforms/formats).
+A spoken or typed idea/take/story from the user. In Story Room mode it becomes a typed room contribution and helps form the Creative Brief/Idea Map. In legacy mode it becomes a **human-seeded** idea card (or **human-seeded-ai-developed** when the AI sharpens it). A seed can produce multiple linked pieces.
 
 ### Idea card
-The first artifact in the staged pipeline. Each card carries: the idea, hook/title options, a **treatment** (scope: one-off | series-of-N | pillar-with-derivatives; format from the Format Guide — including experimental formats debuting on the card; capture-required tasks; reuse links; rationale), origin tag (`ai-originated` | `human-seeded` | `human-seeded-ai-developed`), and **source_refs** (JSON list of `sources.id` — one or more Source Bank records that ground this idea). `evidence_links` is a derived display field resolved from the referenced source rows, not the grounding mechanism. Every idea cites at least one source by ID; one idea may compose multiple sources into a single story. Treatment is approved WITH the idea at Gate 1 — not developed after. **The format and platform set are locked from the treatment at Gate 1 — no code in the pipeline re-derives them** (AMENDMENT-007). Capture tasks are a **non-blocking flag** on the card (per AMENDMENT-006 — awaiting-capture is deprecated as a blocking state; cards with capture tasks flow through approved → Writer like any other). Gate 1 (rigorous: approve/kill/park) decides which cards proceed to production. **Gate 1 approval triggers the Writer chain automatically** — the Writer produces complete per-platform text, runs the AI review loop, and stops at `draft_ready` for Gate 2 human review. Publishing is never automatic.
+A legacy pipeline artifact and Story Room compatibility projection. Each card carries the idea, hook/title options, treatment, origin tag, and exact Source Bank references. In Story Room mode, the current locked Idea Map + Story Map are authoritative; projection records carry their story/artifact/version/hash and **must not trigger the legacy Writer chain**. In legacy mode the historical Gate 1 approval→Writer behavior remains available for baseline/fallback operation. Publishing is never automatic in either mode.
 
 ### Treatment
-The decision of how an idea becomes a piece — scope, format, capture needs, reuse, and rationale. Lives ON the card, approved AT Gate 1. The human may edit any part at the gate (direct-edit authority). Compact treatment line (scope · format · capture flag) shown on cards for fast kills; full treatment expands on demand. Not a new stage or gate — it's a property of the card.
+The decision of how an idea becomes a piece — scope, format, platforms, production binding, visual treatment, capture needs, reuse, and rationale. In Story Room mode it is part of the Story Map locked at Gate 1 and projected into the compatibility card/contract. In legacy mode it lives on the idea card. No downstream code re-derives it.
 
 ### Origin
-The provenance tag that travels with a piece from idea card to Results: `ai-originated`, `human-seeded`, or `human-seeded-ai-developed`. Along with `format` and `scope`, the nightly performance note records them so the inward loop can answer: do the operator's seeds outperform AI-originated ideas? Do certain formats or scopes perform better? Instrumented from the first piece.
+Legacy compatibility/performance tag: `ai-originated`, `human-seeded`, `human-seeded-ai-developed`, or historical `inspiration`. Story Rooms additionally preserve append-only typed contributions because one piece may combine human seed, Inspiration evidence, Source Bank research, attachments, and AI development. A derived primary origin may remain for comparison metrics; it never replaces the contribution ledger.
 
 ### Piece
 A single content output — one post, one thread, one reel script, or one caption. A seed can produce multiple pieces.
@@ -75,7 +75,7 @@ One of 8 living knowledge documents (see below). Markdown files, versioned, gate
 
 ### Gate
 A human approval checkpoint. Three types:
-- **Content gates (four, in the staged pipeline):** Gate 1 (Ideas — rigorous: approve/kill/park per card), Gate 2 (Draft — the human pass: chips + text + direct edits; ship-forward or kill), Gate 3 (Assets — quick, per-platform: approve/fix/kill), Gate 4 (Publish — go/hold + timing only). Gate intensity tapers: Ideas is rigorous, Draft is deep, Assets is quick, Publish is go/hold.
+- **Content gates (four):** Gate 1 locks the current Idea Map + Story Map/treatment; Gate 2 locks exact copy; Gate 3 approves/fixes/kills the exact final artifact; Gate 4 is publish go/hold + timing. The Assets component decisions and composition ratification remain sub-gates, not new content stages. Legacy mode retains the equivalent card/draft/assets/publish controls for comparison.
 - **Async proposal queue:** Module updates, source proposals, experiments accumulate in a persistent queue. Daimon clears them when ready — not on a schedule. Every card shows age ("submitted N days ago"). Newer proposals on the same module section supersede older ones (marked, not deleted). No deadline or pressure mechanics. If the queue grows faster than it clears, the proposals are too weak or too many — fix the proposal prompt, never pressure the person.
 
 ### Ship
@@ -102,6 +102,27 @@ A versioned production contract linked by `contract_id` that makes each Reel's a
 ### Inspiration
 A top-level Researcher-owned operator workbench at `/inspiration`, not a fifth AI profile and not a living module. Scheduled jobs write tenant-scoped, append-only observations with provider, endpoint meaning, platform, region, exact metric/rank, and collection time; the page reads the database and remains useful when providers fail. “Trending” and “Top” are evidence claims: chart-backed audio may say “Trending audio,” while recommendation/seed feeds say “Video inspiration” or “Provider recommendations.” The first slice is read-only. Later Bookmark, Source Bank, experiment, module, and production paths are explicit and keep their own gates/contracts. No trend audio is production-safe without AMENDMENT-011 rights resolution.
 
+### Story Room
+
+One persistent, tenant-scoped co-creation workspace per content piece. It carries the conversation, typed contributions, understanding map, human-readable artifact versions, exact locks, tool results/failures, and downstream lineage from an unfinished thought through publish. A room is neither a global content chat nor a new chat per stage.
+
+The front-stage rail is **Brief → Idea → Shape → Draft → Build**. The current stage changes the AI goal, declared context view, allowed tools, and artifact shown beside the conversation. Existing Source Bank, modules, Writer/production prompts, Component Workbench, manifest, CompositionPlan, RendererSpec, final review, Buffer, metrics, and learning are backstage tools beneath the room.
+
+### Story artifact
+
+An immutable version in one of five human-readable lineages: Creative Brief, Idea Map, Story Map, exact copy, or Asset Plan. Lock/reject decisions bind an exact version and canonical hash. Revision creates a new version. A dependency change stales only downstream artifacts and approvals; unaffected work remains valid.
+
+### Understanding map
+
+Visible room knowledge in four types:
+
+- **Known:** human-stated or directly evidenced.
+- **Assumed:** a labeled AI working interpretation.
+- **Missing:** an answer that would materially change the piece.
+- **Locked:** an explicit operator decision bound to an exact artifact version.
+
+Entries are append-only with supersession. AI output cannot self-promote an assumption to Known or Locked.
+
 ## The 8 Living Modules
 
 Every business has 8 versioned knowledge documents, stored as markdown in `modules/{business}/`, loaded into every draft, updated only through the human gate:
@@ -121,81 +142,78 @@ Every module has: a fixed schema, a version number, a provenance note, and an up
 
 ## Core Workflows
 
-### The Core Loop (staged pipeline — four content gates)
-```
-GATHER (automated — configured by onboarding)
-Sources Engine scouts per the person's seed sources + anti-examples
-ingests + scores every item against Source Criteria
-new sources enter status='new' → operator review → status='active'
+### The Story Room core loop (four content gates preserved)
+
+```text
+GATHER + INSPIRATION
+Source Bank, materials, and truthful external observations
+nothing becomes a story or rule automatically
         │
         ▼
-INSPIRATION (parallel Researcher observatory)
-scheduled provider observations → truthful audio/video evidence labels
-read-only first slice; no automatic Source Bank/module/production transfer
-        │ explicit later promotion only
-        ▼
-IDEAS  ◄── living modules ground idea generation
-cards from 3 origins: ai-originated · human-seeded · human-seeded-ai-developed
-ai-originated = Source Bank × Viral/Audience/Story/Format modules
-each card: idea + hook options + treatment (format + platforms LOCKED here) + origin tag + source_refs
+DESK / START WITH A THOUGHT
+text · voice · file · link · source · Inspiration observation · legacy import
         │
         ▼
-■ GATE 1 — RIGOROUS: approve / kill / park per card
-  the funnel kills most here, by design — kill reasons → Feedback Log
-  APPROVAL = PRODUCTION TRIGGER (Writer chain auto-starts)
-  format + platforms LOCKED from treatment — no code re-derives them
+ONE PERSISTENT STORY ROOM
+conversation + live artifact + understanding map
         │
         ▼
-WRITER CHAIN (auto-produced)
-AI, all modules + grounding sources loaded
-produces COMPLETE PER-PLATFORM TEXT in one pass (all platforms from treatment)
-self-audits against Voice Profile + shared AI Tells Catalog → auto-fixes HIGH-confidence tells with concrete revised text
-second-AI alignment check against approved idea + surviving HIGH-confidence AI tells (max 3 rounds)
-= per-platform content in voice + LIGHT VISUAL DIRECTION (prompts, refs, format)
-  NO rendered images at this stage
+BRIEF
+why it matters · human stake · audience · effect · evidence · gaps · red lines
+        │ lock/version
+        ▼
+IDEA
+claim · source-fit lens · tension · promise · evidence · emotional job
         │
         ▼
-■ GATE 2 — HUMAN PASS: chips + text + DIRECT EDITS (authoritative)
-  self-audit flags + fixes shown for transparency
-  AI revises → ship-forward or kill · edits → Feedback Log (highest weight)
+SHAPE
+frame · movement · hook direction · ending · format · treatment · visual style
         │
         ▼
-COMPONENT PRODUCTION (survivors only — MEDIA ONLY, no audience-copy generation)
-Visual Director maps approved visual intent + measured VO to semantic visual events
-requirements planner declares exact narration, visual, soundtrack, SFX, typography, graphics, and format roles
-candidate versions generated/acquired with preview, provenance, rights/cost, measurements, and hashes
+■ GATE 1 — LOCK IDEA MAP + STORY MAP / TREATMENT
+  server decision binds exact artifact versions + hashes
+  Story Room mode does NOT enqueue the legacy Writer chain
         │
         ▼
-■ ASSETS COMPONENT SUB-GATE: review / select / reject / regenerate exact versions by category
-  category completeness must pass; freeze immutable manifest of approved inputs
+DRAFT COLLABORATION
+skeleton → opening options → full draft → local revision/direct edit → AI review
+exact copy keeps spoken/on-screen/platform/caption/title/evidence artifacts separate
         │
         ▼
-ASSEMBLER consumes the manifest only
-phrase-level captions (3–6 words) and approved media assembled with approved Writer text
-no latest-file lookup, unlisted fallback, or silent component substitution
+■ GATE 2 — LOCK EXACT COPY
+  deterministic compiler creates current Writer/Production Contract
+  byte/hash fidelity required; no audience-copy drift
         │
         ▼
-■ GATE 3 — QUICK, PER PLATFORM: approve / fix / kill exact asset version, side by side
-  exact final artifact hash + manifest hash + evidence visible
-  any ingredient change creates a new manifest/render and invalidates approval
+BUILD / ASSET PLAN
+human-readable format-specific plan; no copy rewriting
         │
         ▼
-■ GATE 4 — PUBLISH: go/hold + timing only
-  NO AUTO-PUBLISH, EVER, AT ANY TRUST LEVEL — HARD RULE
+EXISTING PRODUCTION TOOL BENCH
+requirements → candidates → Component Workbench decisions → immutable manifest
         │
         ▼
-SHIP → Buffer publish queue → posted → metrics
+CompositionPlan + local previews → composition ratification
+        │
+        ▼
+RendererSpec → renderer → local hash/probe/compliance evidence
+        │
+        ▼
+■ GATE 3 — APPROVE / FIX / KILL EXACT FINAL ARTIFACT
+        │
+        ▼
+■ GATE 4 — PUBLISH GO / HOLD + TIMING
+  NO AUTO-PUBLISH, EVER
+        │
+        ▼
+Buffer verified handoff → posted → metrics
         │
         ▼
 LEARN
-inward loop (weekly proposals) + outward loop (continuous research)
-origin tag travels idea → nightly note: do human seeds outperform?
-        │
-        ▼
-IMPROVE
-proposals land in async gate queue
-user clears when ready → approved = module version bump
+room-linked operator reaction + performance evidence → exact gated proposals
 ```
+
+The legacy `/ideas` → `/create` → `/assemble` route remains available as the comparison/fallback mode until M17's operator cutover gate. Existing records are not destructively migrated. Story Room compatibility projections carry exact story/artifact/version/hash identity and cannot silently outrank a room lock.
 
 ### Onboarding Flow
 ```
@@ -271,8 +289,14 @@ Scheduled research of what works in the wild: monitors top accounts/hashtags/cha
 28. **Production resumes from persisted state per platform asset.** Human waits are durable states, not long-running jobs. Operator routes and autonomous production advance the same orchestrator; one draft's first child never stands in for all platform assets. (Per AMENDMENT-013)
 29. **The CompositionPlan declares every element of the final video.** After manifest freeze, a provider-neutral CompositionPlan structures every text, audio, visual, graphics, transition, and canvas element with exact source hashes, timing, position, style, and animation. The plan is generated mechanically from the frozen manifest and Writer contract. (Per AMENDMENT-014)
 30. **Per-element previews are generated locally before ratification.** Text specimens, audio waveforms, visual thumbnails, graphics frames, transition diagrams, and a full timeline diagram are produced from the CompositionPlan using local tools. No provider API is called for previews. (Per AMENDMENT-014)
-31. **Composition ratification is a sub-gate between manifest freeze and render.** The operator reviews per-element previews and ratifies or rejects the plan. Ratification binds the composition spec hash. Any change invalidates and forces re-ratification. Ratification does not approve the final artifact — Gate 3 still does. (Per AMENDMENT-014)
+31. **Composition ratification is a sub-gate between manifest freeze and render.** The operator reviews per-element previews and ratifies or rejects the plan. Ratification binds the spec hash. Any change invalidates and forces re-ratification. Ratification does not approve the final artifact — Gate 3 still does. (Per AMENDMENT-014)
 32. **Assembly consumes only a ratified CompositionPlan.** The RendererSpec compiles from the ratified plan. Unratified, stale, rejected, or hash-mismatched plans fail closed. (Per AMENDMENT-014)
+33. **One persistent Story Room owns each piece's creative continuity.** Not one global chat and not separate chats per stage. Room events, contributions, artifacts, locks, tools, and failures are append-only and tenant-scoped. (Per AMENDMENT-020)
+34. **Conversation controls; versioned artifacts govern.** Chat text alone is not approval. Gate decisions bind exact Creative Brief, Idea Map, Story Map, exact-copy, Asset Plan, manifest, composition, or final-artifact versions/hashes as applicable. (Per AMENDMENT-020)
+35. **Questions are materiality-based LLM judgment.** Read approved context first; research factual gaps; ask the human about lived experience, belief, boundaries, and taste; one meaningful question at a time; concrete options over abstract questionnaires; “you decide” creates a visible assumption. No keyword question policy in Python. (Per AMENDMENT-020)
+36. **Creative automation stops at new judgment.** Authorized deterministic work may continue after a lock, but new creative choices pause or appear as explicit assumptions. A tool failure is local and cannot erase locks or unaffected work. (Per AMENDMENT-020)
+37. **Room stage and production state are separate.** The active Brief/Idea/Shape/Draft/Build pointer is derived from artifact work; existing ProductionSession remains the Build execution state. Do not create a duplicate giant state machine. (Per AMENDMENT-020)
+38. **Inspiration enters Story Room as exact evidence.** “Take to Story Room” binds item/observation/run identities and begins interpretation. It does not silently create Source Bank truth, a Format Guide rule, soundtrack rights, or a completed idea/treatment. (Per AMENDMENT-020)
 
 ## Edge Cases
 
@@ -322,7 +346,19 @@ This reference is useful transport/composition evidence, not the VF-RA-003 selec
 
 ## M14 Inspiration status
 
-AMENDMENT-012 is ratified as design only. M14 begins after M13 proof. VF-INSP-001..004 define the read-only first slice: strict evidence contracts and redacted fixtures; scheduled append-only collection; DB-only top-level UI; and separate deployed live-provider smoke. VF-INSP-005 adds explicit bookmark/promotion paths only after operator sign-off. No Inspiration code or schema existed at ratification.
+VF-INSP-001..005 are implemented: strict evidence contracts and redacted fixtures, scheduled append-only collection, DB-only Inspiration UI, deployed provider/offline proof, and explicit bookmark/promotion paths. The required deep operator/architect checkpoint remains open. AMENDMENT-020 changes the creative handoff in Story Room mode: “Take to Story Room” carries exact observation evidence and begins interpretation; it does not immediately generate a complete idea/treatment. Existing legacy Inspiration idea records remain intact.
+
+## M17 Story Room status
+
+AMENDMENT-020 is ratified after operator approval of the interactive Story Room direction. M17 is a controlled additive experiment, not a completed implementation and not an authorization to delete the legacy pipeline.
+
+- The target operator flow is Desk → one Story Room → Brief → Idea → Shape → Draft → Build.
+- The legacy staged pipeline remains default and becomes the comparison baseline.
+- VF-PROOF-1618 truthfulness blockers close before the Story Room comparison baseline is accepted.
+- M17 builds storage/event/artifact/lock/context contracts before UI.
+- Existing M15 Component Workbench, manifest, CompositionPlan, RendererSpec, final review, Buffer, metrics, and learning services are reused.
+- DIVERGENCE-017 is superseded: new Story Room mode carries exact Inspiration evidence into a room rather than generating a full idea/treatment first.
+- Default navigation/mode changes only after three real pieces, one injected recoverable tool failure, full automated proof, deep laptop/390px UI review, and an explicit operator cutover decision.
 
 **Video generation handoff status (2026-07-10):** VH-1 through VH-6 corrections applied. Both video generation routes (`generate-clip` and `generate-media`) poll, download, and register AI-generated video in `asset_media` with valid file paths. Google/Veo bugs were fixed (aspect ratio, response nesting, download API key, env var). Duration is read from the LLM media plan. Zero-byte render files are cleaned up and output size validation is present. See `docs/reviews/REVIEW-video-generation-handoff-2026-07-09.md` and `docs/inbox/processed/CORRECTION-video-generation-handoff-v1.0.md`.
 
@@ -336,11 +372,11 @@ AMENDMENT-012 is ratified as design only. M14 begins after M13 proof. VF-INSP-00
 - **systemd** on the VPS for deployment
 - **GitHub** for code AND docs (one repo, public — deliberate so architect can read without auth)
 - **Console auth (R10):** the Flask console has no authentication in M0–M2 code. Deployment posture: bind to localhost/VPN only on the VPS, or add auth before the operator end-to-end test. Endpoints trigger paid LLM calls and overwrite config files — not safe to expose publicly.
-- **Claude = architect** | **Hermes = builder** | **Daimon = operator**
+- **Hermes (`vf-architect`) = architect** | **Hermes (`viralfactory`) = builder** | **Daimon = operator**
 - **LLM backend swappable in config** — Ollama local/cloud, external APIs
 - **Render execution swappable behind RendererSpec v1** — Creatomate and Shotstack are the first controlled candidates; local FFmpeg/PIL remains the verified fallback. The renderer executes exact approved composition only and cannot select media, rewrite text, regenerate, publish, or replace local evidence/Gate 3.
-- **The console renders sessions, not documentation.** Playbook markdown is the machine's script. The operator's surface is always: AI asks → operator gives anything (text, paste, files) → AI clarifies → AI drafts → plain-language readback → gate. The AI is present at every stage; the operator is never handed a form or a procedure to execute manually.
+- **The console renders persistent rooms and sessions, not documentation.** Onboarding remains a conversational session. Production uses one persistent Story Room per piece: conversation + live artifact + understanding map. Playbook markdown is the machine's script; machine schemas compile behind human-readable artifacts.
 
 ## System Diagram
 
-See `docs/diagrams/README.md` for the system overview (vertical-flow text + Mermaid + SVG). It predates Charter v3.10 and must be refreshed to include the Component Workbench, composition plan + ratification sub-gate, and RendererSpec boundary. (Review-w9 builder fixes applied: composition route now wired to CompositionPlanGenerator + PreviewGenerator, navigation links added, hardcoded values moved to config.) The binding flow is: Gather plus parallel Inspiration observations → explicit promotion where chosen → Ideas+Treatment (Gate 1) → Writer Chain → Gate 2 → component requirements/candidates → Component Workbench exact-input approval → immutable manifest freeze → CompositionPlan generation → per-element previews → composition ratification sub-gate → provider-neutral RendererSpec → selected/local renderer execution → local download/hash/probe/evidence → Gate 3 exact-artifact approval → Publish (Gate 4) → Learn.
+See `docs/diagrams/README.md` for the historical system overview. It predates Charter v3.12 and must be refreshed in M17 after the durable Story Room contracts exist—not before. The binding target is: Gather + Inspiration → Desk → persistent Story Room (Brief → Idea → Shape → Draft → Build) → exact artifact locks → existing component requirements/candidates → Component Workbench → immutable manifest → CompositionPlan/previews/ratification → RendererSpec/render/local evidence → Gate 3 → Gate 4 → Results/Learn. The legacy pipeline remains visible as comparison/fallback until operator cutover.
