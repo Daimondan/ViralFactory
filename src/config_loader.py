@@ -46,6 +46,10 @@ BUSINESS_SCHEMA = {
         "goals": {"required": [], "item_type": str},
         "red_lines": {"required": [], "item_type": str},
         "audience_description": {"type": str, "required": False},
+        "story_room": {
+            "required": ["enabled", "default_mode"],
+            "types": {"enabled": bool, "default_mode": str},
+        },
     },
 }
 
@@ -176,6 +180,18 @@ def load_business(config_dir: str = "config") -> dict:
     filepath = os.path.join(config_dir, "business.yaml")
     data = load_yaml(filepath)
     validate_section(data, BUSINESS_SCHEMA, "business.yaml", filepath)
+    story_room = data.get("story_room")
+    if story_room is not None:
+        if story_room["default_mode"] not in ("legacy", "story_room"):
+            raise ConfigError(
+                "Field 'story_room.default_mode' must be 'legacy' or 'story_room' "
+                f"({filepath})"
+            )
+        if not story_room["enabled"] and story_room["default_mode"] != "legacy":
+            raise ConfigError(
+                "Disabled Story Room config must use default_mode='legacy' "
+                f"({filepath})"
+            )
     return data
 
 

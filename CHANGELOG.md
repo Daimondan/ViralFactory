@@ -30,6 +30,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 **Files:** `docs/inbox/processed/MANIFEST-2026-08-21-story-room.md`, `docs/inbox/processed/ARCHITECT-NOTE-2026-08-21-story-room.md`, `docs/inbox/processed/BUILDER-NOTE-022-carousel-native-audio.md`, `BUILD_PLAN.md`, `docs/PROGRESS.md`
 
+## 2026-08-22 — BUILDER: Add config-owned Story Room experiment boundary (VF-SR-1703)
+
+**What:** Added the optional tenant-owned `story_room` block to `business.yaml`, with explicit `enabled` and `default_mode` fields. Added schema validation, fail-closed invalid combinations, canonical config hashing, and `app.config["STORY_ROOM_CONFIG"]` runtime visibility. The current StackPenni config is explicitly disabled/legacy; absent blocks preserve legacy mode with a visible compatibility source.
+
+**Verification:** Enabled and disabled tenant fixtures pass with zero Python edits; invalid mode/config combinations fail validation; disabled app route map retains `/ideas` and no `/stories`; live `/` and `/ideas` retain the legacy Pipeline navigation with no Story Room nav cutover; focused/config regressions: 54 passed; service health HTTP 200.
+
+**Type:** TECH / STRUCTURE / OPS
+
+**Rationale:** M17 is an additive experiment. Tenant opt-in must be config-driven and provenance-identifiable, while legacy mode remains unchanged until the three-piece comparison and explicit operator cutover decision.
+
+**Files:** `config/business.yaml`, `src/config_loader.py`, `src/story_room_config.py`, `src/app.py`, `tests/test_vf_sr_1703_story_room_config.py`, `BUILD_PLAN.md`, `docs/PROGRESS.md`
+
 ## 2026-08-21 — ARCHITECT: Story Room direction ratified as controlled M17 experiment
 
 **What:** The operator approved the interactive Story Room experience direction. Filed DIVERGENCE-028 and AMENDMENT-020; superseded DIVERGENCE-017; published Charter v3.12; added the Story Room co-creation playbook, live-code baseline review, detailed controlled implementation plan, and BUILD_PLAN M17 tasks VF-SR-1701..1718. Updated README, CONTEXT, UI-DIRECTION, PROGRESS, and the architect→builder inbox handoff.

@@ -7,6 +7,12 @@ business:
   slug: "stackpenni"               # used for modules/{slug}/ directory
   description: "Caribbean AI + wealth brand"
 
+# Story Room is an additive experiment. Legacy remains the tenant default
+# until the controlled three-piece comparison and operator cutover decision.
+story_room:
+  enabled: false
+  default_mode: "legacy"
+
 brands:
   - name: "StackPenni"
     purpose: "Main brand — Caribbean AI + wealth content"

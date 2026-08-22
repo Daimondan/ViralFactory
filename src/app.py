@@ -18,13 +18,15 @@ from flask import Flask, render_template, request, redirect, jsonify, send_from_
 
 # Support both package and direct imports
 try:
-    from .config_loader import load_all, ConfigError
+    from .config_loader import load_all, load_business, ConfigError
     from .playbook_runner import PlaybookParser, PlaybookRunner
     from .db import connect as _db_connect
+    from .story_room_config import resolve_story_room_config
 except ImportError:
-    from config_loader import load_all, ConfigError
+    from config_loader import load_all, load_business, ConfigError
     from playbook_runner import PlaybookParser, PlaybookRunner
     from db import connect as _db_connect
+    from story_room_config import resolve_story_room_config
 
 
 def _archive_config_file(filepath):
@@ -300,6 +302,12 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
     app.config["CONFIG_DIR"] = config_dir
     app.config["DB_PATH"] = db_path
     app.config["PLAYBOOKS_DIR"] = playbooks_dir
+    try:
+        app.config["STORY_ROOM_CONFIG"] = resolve_story_room_config(
+            load_business(config_dir)
+        )
+    except ValueError as exc:
+        raise ConfigError(f"Invalid Story Room configuration: {exc}") from exc
 
     # WAL is a persistent database property — setting it once here means readers
     # never block writers for any later connection, in any process. busy_timeout
