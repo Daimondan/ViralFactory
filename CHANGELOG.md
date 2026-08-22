@@ -6,6 +6,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-08-22 — BUILDER: Close truthful legacy baseline before Story Room (VF-SR-1702)
+
+**What:** Corrected the legacy topbar's true 390px horizontal overflow, added an explicit operator-only VO regeneration action that bypasses only the cached-take shortcut, verified the current Instagram Reel Buffer payload contract, and reran the deployed legacy walkthrough. Recorded the exact draft 35 → asset 29 mapping, historical `needs_rerender` state, operator stop, and live-publish authorization boundary in the baseline proof artifact.
+
+**Verification:** Focused baseline/changed-surface tests: 50 passed. Full suite: 2631 passed, 2 skipped in 460.14s. Live `/health`: HTTP 200. True mobile emulation: `innerWidth=390`, `scrollWidth=390`, `clientWidth=390`, `overflow=false`.
+
+**Type:** FIX / TECH / OPS / STRUCTURE
+
+**Rationale:** M17 must compare against a truthful legacy baseline, not a false green. The operator declined VO regeneration and live publishing, so those conditions remain explicitly operator-stopped/not authorized rather than being silently retried or reported as passes.
+
+**Evidence:** `docs/proofs/VF-PROOF-1618-legacy-baseline-2026-08-22.md`; `tests/test_mobile_layout_css.py`; `tests/test_ui_review_display_fixes.py`; `tests/test_thread_publish_fix.py`
+
 ## 2026-08-21 — ARCHITECT: Story Room direction ratified as controlled M17 experiment
 
 **What:** The operator approved the interactive Story Room experience direction. Filed DIVERGENCE-028 and AMENDMENT-020; superseded DIVERGENCE-017; published Charter v3.12; added the Story Room co-creation playbook, live-code baseline review, detailed controlled implementation plan, and BUILD_PLAN M17 tasks VF-SR-1701..1718. Updated README, CONTEXT, UI-DIRECTION, PROGRESS, and the architect→builder inbox handoff.
@@ -422,6 +434,7 @@ The target front-stage flow is `Desk → one persistent Story Room → Brief →
 **Rationale:** Operator observed the last several rendered videos had images held for long periods, felt static and boring. The 4-second visual change rule existed in the Writer prompt but the validator was advisory-only (`pass`). Operator directed: enforce 4-second max as a blocking rule, add criteria for caption emphasis with varied fonts/styles, supporting visual elements (graphs/icons/images), VO-only videos must have background visual life, prefer video clips over stills with Ken Burns, richer motion vocabulary, and scene-to-scene coherence.
 
 **Changes:**
+- `prompts/assembly/visual_director_v1.md` (v1.2→v1.5): tightened renderer-graphic copy boundaries with a null-by-default rule for `required_text`; added a long-abstract-beat cutaway rule so continuous generated motion is not requested unnecessarily. Invented descriptive audience copy remains validator-blocked.
 - `src/services/edit_planning.py`: 4-second max clip duration validator changed from advisory (`pass`) to blocking error. Segments >4s without an overlay at or before the 4s mark are rejected. Exception: segments with an early overlay pass — the overlay IS the visual change.
 - `prompts/assembly/edit_plan_v1.md` (v1.5→v1.6): Standing order 2 rewritten from "pace by meaning" to "4-second hard floor" with overlay exception. Added standing orders 11 (supporting visual elements), 12 (VO-only visual life), 13 (scene-to-scene coherence).
 - `prompts/assembly/visual_director_v1.md` (v1.1→v1.2): Added rules 7-10: prefer video over stills, supporting visual elements (renderer_graphic for numbers/icons/charts), scene-to-scene coherence, 4-second event splitting.

@@ -247,6 +247,32 @@ class TestThreadPublish:
         thread = meta["instagram"]["thread"]
         assert len(thread) == 3
 
+    def test_instagram_reel_sets_required_feed_metadata(self, tmp_path):
+        """Instagram Reel video payloads must explicitly share to the feed."""
+        adapter = self._make_adapter(tmp_path)
+        captured_input = {}
+
+        def mock_gql(query, variables):
+            captured_input.update(variables.get("input", {}))
+            return {"createPost": {"post": {"id": "buf_reel_001", "status": "posted"}}}
+
+        adapter._gql = mock_gql
+        adapter.get_integration_for_platform = MagicMock(return_value="channel_reel")
+
+        adapter.publish_piece(
+            business_slug="test",
+            asset_id=1,
+            platform="instagram",
+            content="reel caption",
+            videos=[{"url": "https://media.example/reel.mp4"}],
+            asset_state="approved",
+        )
+
+        assert captured_input["metadata"]["instagram"] == {
+            "type": "reel",
+            "shouldShareToFeed": True,
+        }
+
     def test_thread_unknown_platform_no_metadata(self, tmp_path):
         """Unknown platform: no thread metadata, but text still uses posts[0]."""
         adapter = self._make_adapter(tmp_path)

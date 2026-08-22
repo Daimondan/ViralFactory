@@ -751,6 +751,17 @@
                     <div class="status-line" id="vo-status-{{ asset.id }}" style="display: none;"></div>
                 </div>
                 {% endif %}
+                {% if asset.has_vo and is_reel %}
+                <div class="step">
+                    <div class="step-label">
+                        <span class="step-num">↻</span>
+                        Regenerate voice-over
+                    </div>
+                    <p style="font-size:0.78rem;color:#6B675D;margin:4px 0;">Creates a new measured take without changing the approved script. Use after an audio review identifies a cut-off or other VO defect.</p>
+                    <button class="btn btn-secondary" onclick="generateVO({{ asset.id }}, this, true)">Regenerate voice-over</button>
+                    <div class="status-line" id="vo-regenerate-status-{{ asset.id }}" style="display: none;"></div>
+                </div>
+                {% endif %}
                 {# Step 2: Generate visuals — Reels need B-roll images before an edit plan can be built.
                    The autonomous chain generates these automatically, but the operator UI must offer
                    the same path for cards that enter assembling without media (e.g. retried cards). #}
@@ -991,12 +1002,12 @@ function generateVisuals(assetId, btn) {
     });
 }
 
-function generateVO(assetId, btn) {
-    var statusElem = document.getElementById('vo-status-' + assetId);
+function generateVO(assetId, btn, regenerate) {
+    var statusElem = document.getElementById((regenerate ? 'vo-regenerate-status-' : 'vo-status-') + assetId);
     busyAction(btn, '/api/assets/' + assetId + '/generate-vo', {
-        busyLabel: 'Generating voice-over…',
+        busyLabel: regenerate ? 'Regenerating voice-over…' : 'Generating voice-over…',
         statusElem: statusElem,
-        body: '{}',
+        body: regenerate ? JSON.stringify({regenerate: true}) : '{}',
         reloadOnSuccess: true,
         onError: function(msg) { statusElem.style.color = '#C0392B'; statusElem.textContent = msg; }
     });

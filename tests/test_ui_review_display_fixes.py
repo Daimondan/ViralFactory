@@ -779,3 +779,6 @@ def test_reel_with_vo_and_visuals_enables_plan_final_cut(template_app):
     assert "generateEditPlan(17, this)" in html
     assert "needs VO" not in html
     assert "needs visuals" not in html
+    assert "Regenerate voice-over" in html
+    assert "generateVO(17, this, true)" in html
+    assert 'JSON.stringify({regenerate: true})' in html

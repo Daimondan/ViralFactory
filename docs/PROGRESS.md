@@ -4,7 +4,9 @@
 > blocked, or changed. Any agent should be able to read this and know
 > exactly where we are.
 
-**Last Updated:** 2026-08-21 (operator approved Story Room direction; AMENDMENT-020 / Charter v3.12 / M17 filed; VF-PROOF-1618 blockers remain the legacy baseline prerequisite)
+**Last Updated:** 2026-08-22 (VF-SR-1702 legacy baseline recorded; M17 Story Room work is next)
+
+2026-08-22 · VF-SR-1702 · Closed the truthful legacy comparison baseline before Story Room work. Corrected the shared topbar mobile overflow and verified true 390px `scrollWidth == clientWidth`; added an explicit operator-only VO regeneration control without changing approved copy; verified the current Buffer Reel metadata contract; reran the deployed walkthrough; full suite: 2631 passed, 2 skipped in 460.14s. Draft 35 VO remediation is recorded operator-stopped after the requested stop and failed subprocess output; live Buffer publish is not authorized. · Evidence: `docs/proofs/VF-PROOF-1618-legacy-baseline-2026-08-22.md` · Q: consume Story Room manifest and begin VF-SR-1701
 
 2026-08-21 · ARCHITECT / AMENDMENT-020 · Operator approved the interactive Story Room direction. Ratified DIVERGENCE-028 and superseded DIVERGENCE-017: one persistent room per piece, Brief → Idea → Shape → Draft → Build, append-only conversation/contribution/understanding records, immutable human-readable artifact versions and exact locks, materiality-based questions, deterministic compilation into the existing production contracts, and reuse of M15 as the backstage tool bench. Added Charter v3.12, Story Room playbook, baseline review, controlled implementation plan, and M17 tasks VF-SR-1701..1718. Legacy remains default until a three-piece comparison and explicit operator cutover. · Q: builder consumes MANIFEST-2026-08-21-story-room and finishes VF-PROOF-1618 baseline blockers first
 

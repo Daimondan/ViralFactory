@@ -7407,12 +7407,17 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
             )
             return jsonify({"error": f"Variant '{variant}' does not need VO"}), 400
 
+        request_payload = request.get_json(silent=True) or {}
+        regenerate = bool(request_payload.get("regenerate")) or request.args.get("regenerate") in {
+            "1", "true", "yes"
+        }
+
         # ── Pre-check: if valid VO segments already exist for all frames, return
         # them instead of regenerating. This handles the race where the
         # subprocess completed after the gunicorn timeout (the parent killed
         # the wait but the child kept running and saved results).
         existing_segments = json.loads(asset.get("vo_segments") or "[]")
-        if existing_segments and len(existing_segments) == len(posts):
+        if not regenerate and existing_segments and len(existing_segments) == len(posts):
             import os as _os
             all_exist = all(
                 _os.path.exists(s.get("path", "")) for s in existing_segments
