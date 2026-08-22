@@ -54,6 +54,16 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 **Files:** `src/story_room_store.py`, `src/app.py`, `tests/test_vf_sr_1704_story_room_store.py`, `BUILD_PLAN.md`, `docs/PROGRESS.md`
 
+## 2026-08-22 — BUILDER: Preserve legacy config fixtures at Story Room startup (VF-SR-1704)
+
+**What:** Changed Story Room startup discovery to read only the optional `business.yaml` Story Room block, while leaving the existing full business schema validation at its established config-loading boundaries. This keeps additive Story Room initialization from forcing unrelated legacy/test tenants to provide fields they do not use.
+
+**Verification:** The previously failing Format Guide production-binding test now passes; focused Story Room/config tests: 14 passed; full suite: 2644 passed, 2 skipped in 450.04s.
+
+**Type:** FIX / TECH
+
+**Rationale:** Adding a new optional experiment must not create a new startup failure for existing legacy routes or fixture configurations. Story Room settings remain validated by their own strict resolver; legacy business validation remains unchanged where the business config is consumed.
+
 ## 2026-08-21 — ARCHITECT: Story Room direction ratified as controlled M17 experiment
 
 **What:** The operator approved the interactive Story Room experience direction. Filed DIVERGENCE-028 and AMENDMENT-020; superseded DIVERGENCE-017; published Charter v3.12; added the Story Room co-creation playbook, live-code baseline review, detailed controlled implementation plan, and BUILD_PLAN M17 tasks VF-SR-1701..1718. Updated README, CONTEXT, UI-DIRECTION, PROGRESS, and the architect→builder inbox handoff.

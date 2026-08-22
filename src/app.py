@@ -18,13 +18,13 @@ from flask import Flask, render_template, request, redirect, jsonify, send_from_
 
 # Support both package and direct imports
 try:
-    from .config_loader import load_all, load_business, ConfigError
+    from .config_loader import load_all, load_yaml, ConfigError
     from .playbook_runner import PlaybookParser, PlaybookRunner
     from .db import connect as _db_connect
     from .story_room_config import resolve_story_room_config
     from .story_room_store import StoryRoomStore
 except ImportError:
-    from config_loader import load_all, load_business, ConfigError
+    from config_loader import load_all, load_yaml, ConfigError
     from playbook_runner import PlaybookParser, PlaybookRunner
     from db import connect as _db_connect
     from story_room_config import resolve_story_room_config
@@ -306,7 +306,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
     app.config["PLAYBOOKS_DIR"] = playbooks_dir
     try:
         app.config["STORY_ROOM_CONFIG"] = resolve_story_room_config(
-            load_business(config_dir)
+            load_yaml(os.path.join(config_dir, "business.yaml"))
         )
     except ValueError as exc:
         raise ConfigError(f"Invalid Story Room configuration: {exc}") from exc
