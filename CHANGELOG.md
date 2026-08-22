@@ -74,6 +74,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 **Rationale:** Adding a new optional experiment must not create a new startup failure for existing legacy routes or fixture configurations. Story Room settings remain validated by their own strict resolver; legacy business validation remains unchanged where the business config is consumed.
 
+## 2026-08-22 — BUILDER: Add immutable Story Room artifacts and staleness cascade (VF-SR-1705)
+
+**What:** Added strict contracts for the five human-readable Story Room artifact types, immutable monotonic versions, exact hash-bound lock decisions, dependency records, downstream-only staleness propagation, stale compile/lock rejection, compare-and-set current-version checks, and authoritative direct-edit versions with persisted revision metadata and visible diffs.
+
+**Verification:** 14 focused artifact/storage tests passed; full suite: 2649 passed, 2 skipped in 457.88s, including malformed/unknown payload rejection, Story Map → exact copy → Asset Plan invalidation without staling the Brief, exact lock hashes, direct-edit authority, stale rejection, and compare-and-set conflicts.
+
+**Type:** TECH / LOGIC / STRUCTURE
+
+**Rationale:** Creative artifacts must govern production by immutable version/hash, while changing an upstream decision invalidates only dependent work. Direct operator edits remain authoritative without deleting prior AI or human versions.
+
+**Files:** `src/story_room_artifacts.py`, `src/story_room_store.py`, `tests/test_vf_sr_1705_artifacts.py`, `BUILD_PLAN.md`, `docs/PROGRESS.md`
+
 ## 2026-08-21 — ARCHITECT: Story Room direction ratified as controlled M17 experiment
 
 **What:** The operator approved the interactive Story Room experience direction. Filed DIVERGENCE-028 and AMENDMENT-020; superseded DIVERGENCE-017; published Charter v3.12; added the Story Room co-creation playbook, live-code baseline review, detailed controlled implementation plan, and BUILD_PLAN M17 tasks VF-SR-1701..1718. Updated README, CONTEXT, UI-DIRECTION, PROGRESS, and the architect→builder inbox handoff.

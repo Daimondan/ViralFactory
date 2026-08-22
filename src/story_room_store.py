@@ -412,6 +412,7 @@ class StoryRoomStore:
         idempotency_key: str | None = None,
         based_on: list[str] | None = None,
         status: str = "working",
+        expected_current_version_id: str | None = None,
     ) -> dict[str, Any]:
         if status not in _ARTIFACT_STATUSES:
             raise ValueError(f"Unsupported artifact status: {status}")
@@ -432,6 +433,12 @@ class StoryRoomStore:
                 if existing["content_hash"] != content_hash:
                     raise StoryRoomConflictError("artifact version idempotency key reused for different content")
                 return self._row(existing)
+            conn.execute("BEGIN IMMEDIATE")
+            artifact = conn.execute(
+                "SELECT current_version_id FROM story_artifacts WHERE artifact_id = ?", (artifact_id,)
+            ).fetchone()
+            if expected_current_version_id is not None and artifact["current_version_id"] != expected_current_version_id:
+                raise StoryRoomConflictError("Artifact current version changed during compare-and-set")
             version = conn.execute(
                 "SELECT COALESCE(MAX(version), 0) + 1 AS next_version FROM story_artifact_versions WHERE artifact_id = ?",
                 (artifact_id,),
