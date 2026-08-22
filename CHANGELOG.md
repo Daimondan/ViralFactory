@@ -42,6 +42,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 **Files:** `config/business.yaml`, `src/config_loader.py`, `src/story_room_config.py`, `src/app.py`, `tests/test_vf_sr_1703_story_room_config.py`, `BUILD_PLAN.md`, `docs/PROGRESS.md`
 
+## 2026-08-22 — BUILDER: Additive Story Room storage contract (VF-SR-1704)
+
+**What:** Added `StoryRoomStore` with defensive initialization for tenant-scoped `stories`, ordered append-only room events, typed contributions, artifact lineages/versions, exact hash-bound artifact decisions, superseding understanding entries, and tool runs including failures/retry identity. Every write carries an idempotency key where the operation can be retried; app startup initializes the additive tables without altering legacy tables or routes.
+
+**Verification:** 9 focused storage/app-startup tests passed. Coverage includes schema creation, ordered events, idempotent retries/conflicts, cross-tenant fail-closed access, exact contribution/tool refs, monotonic artifact versions and lock hashes, understanding supersession without deletion, and restart persistence.
+
+**Type:** TECH / STRUCTURE / LOGIC
+
+**Rationale:** Story Room needs one durable creative ledger while `ProductionSession` remains the production state machine. Append-only records and tenant scope preserve auditability, recovery, and legacy coexistence before any UI or prompt orchestration is added.
+
+**Files:** `src/story_room_store.py`, `src/app.py`, `tests/test_vf_sr_1704_story_room_store.py`, `BUILD_PLAN.md`, `docs/PROGRESS.md`
+
 ## 2026-08-21 — ARCHITECT: Story Room direction ratified as controlled M17 experiment
 
 **What:** The operator approved the interactive Story Room experience direction. Filed DIVERGENCE-028 and AMENDMENT-020; superseded DIVERGENCE-017; published Charter v3.12; added the Story Room co-creation playbook, live-code baseline review, detailed controlled implementation plan, and BUILD_PLAN M17 tasks VF-SR-1701..1718. Updated README, CONTEXT, UI-DIRECTION, PROGRESS, and the architect→builder inbox handoff.

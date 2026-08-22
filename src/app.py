@@ -22,11 +22,13 @@ try:
     from .playbook_runner import PlaybookParser, PlaybookRunner
     from .db import connect as _db_connect
     from .story_room_config import resolve_story_room_config
+    from .story_room_store import StoryRoomStore
 except ImportError:
     from config_loader import load_all, load_business, ConfigError
     from playbook_runner import PlaybookParser, PlaybookRunner
     from db import connect as _db_connect
     from story_room_config import resolve_story_room_config
+    from story_room_store import StoryRoomStore
 
 
 def _archive_config_file(filepath):
@@ -308,6 +310,7 @@ def create_app(config_dir: str = "config", db_path: str = "data/viralfactory.db"
         )
     except ValueError as exc:
         raise ConfigError(f"Invalid Story Room configuration: {exc}") from exc
+    app.extensions["story_room_store"] = StoryRoomStore(db_path)
 
     # WAL is a persistent database property — setting it once here means readers
     # never block writers for any later connection, in any process. busy_timeout
