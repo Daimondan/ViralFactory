@@ -86,6 +86,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 **Files:** `src/story_room_artifacts.py`, `src/story_room_store.py`, `tests/test_vf_sr_1705_artifacts.py`, `BUILD_PLAN.md`, `docs/PROGRESS.md`
 
+## 2026-08-22 — BUILDER: Enforce evidence-backed Story Room understanding (VF-SR-1706)
+
+**What:** Added `StoryRoomUnderstandingService` as the authority boundary for Known, Assumed, Missing, and Locked entries. AI/tool Known entries require exact tenant/story-scoped event, contribution, or artifact-version refs; Locked entries require a verified artifact lock decision; human corrections retain and supersede prior entries; retries remain idempotent.
+
+**Verification:** 5 focused tests passed: missing evidence blocks AI Known, cross-tenant/unknown refs fail closed, AI cannot self-lock, verified locks permit Locked entries, and human supersession preserves history without duplicate retries.
+
+**Type:** LOGIC / TECH / STRUCTURE
+
+**Rationale:** The understanding map is shared creative context, not free-form AI metadata. Evidence and operator decisions must be exact, scoped, and durable before they can govern later artifacts or production.
+
+**Files:** `src/story_room_understanding.py`, `tests/test_vf_sr_1706_understanding.py`, `BUILD_PLAN.md`, `docs/PROGRESS.md`
+
 ## 2026-08-21 — ARCHITECT: Story Room direction ratified as controlled M17 experiment
 
 **What:** The operator approved the interactive Story Room experience direction. Filed DIVERGENCE-028 and AMENDMENT-020; superseded DIVERGENCE-017; published Charter v3.12; added the Story Room co-creation playbook, live-code baseline review, detailed controlled implementation plan, and BUILD_PLAN M17 tasks VF-SR-1701..1718. Updated README, CONTEXT, UI-DIRECTION, PROGRESS, and the architect→builder inbox handoff.
