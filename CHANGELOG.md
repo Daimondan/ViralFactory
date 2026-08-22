@@ -90,7 +90,7 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 **What:** Added `StoryRoomUnderstandingService` as the authority boundary for Known, Assumed, Missing, and Locked entries. AI/tool Known entries require exact tenant/story-scoped event, contribution, or artifact-version refs; Locked entries require a verified artifact lock decision; human corrections retain and supersede prior entries; retries remain idempotent.
 
-**Verification:** 5 focused tests passed: missing evidence blocks AI Known, cross-tenant/unknown refs fail closed, AI cannot self-lock, verified locks permit Locked entries, and human supersession preserves history without duplicate retries.
+**Verification:** 5 focused tests passed; full suite: 2654 passed, 2 skipped in 453.27s. Coverage includes missing evidence blocks AI Known, cross-tenant/unknown refs fail closed, AI cannot self-lock, verified locks permit Locked entries, and human supersession preserves history without duplicate retries.
 
 **Type:** LOGIC / TECH / STRUCTURE
 
