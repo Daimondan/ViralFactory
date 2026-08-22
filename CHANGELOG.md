@@ -18,6 +18,18 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 **Evidence:** `docs/proofs/VF-PROOF-1618-legacy-baseline-2026-08-22.md`; `tests/test_mobile_layout_css.py`; `tests/test_ui_review_display_fixes.py`; `tests/test_thread_publish_fix.py`
 
+## 2026-08-22 — BUILDER: Consume Story Room constitutional batch (VF-SR-1701)
+
+**What:** Read and consumed the 2026-08-21 Story Room manifest and architect note. Moved both to `docs/inbox/processed/`, moved the pre-existing superseded `BUILDER-NOTE-022-carousel-native-audio.md` under its own history, and preserved all canonical decision, charter, review, playbook, and plan files in place.
+
+**Verification:** Top-level `docs/inbox/` now contains only the permanent protocol README. `docs/CHARTER-v3.12.md`, README, CONTEXT, BUILD_PLAN, PROGRESS, and CHANGELOG all point to the M17 Story Room work order; DIVERGENCE-017 is superseded by DIVERGENCE-028 / AMENDMENT-020. Canonical batch is present on `origin/main` after this filing commit.
+
+**Type:** STRUCTURE / OPS
+
+**Rationale:** The architect batch must be consumed exactly once before M17 implementation, while the unrelated superseded builder note must not be mixed into the constitutional ruling.
+
+**Files:** `docs/inbox/processed/MANIFEST-2026-08-21-story-room.md`, `docs/inbox/processed/ARCHITECT-NOTE-2026-08-21-story-room.md`, `docs/inbox/processed/BUILDER-NOTE-022-carousel-native-audio.md`, `BUILD_PLAN.md`, `docs/PROGRESS.md`
+
 ## 2026-08-21 — ARCHITECT: Story Room direction ratified as controlled M17 experiment
 
 **What:** The operator approved the interactive Story Room experience direction. Filed DIVERGENCE-028 and AMENDMENT-020; superseded DIVERGENCE-017; published Charter v3.12; added the Story Room co-creation playbook, live-code baseline review, detailed controlled implementation plan, and BUILD_PLAN M17 tasks VF-SR-1701..1718. Updated README, CONTEXT, UI-DIRECTION, PROGRESS, and the architect→builder inbox handoff.
