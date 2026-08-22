@@ -85,11 +85,11 @@ tests/                           ← keep green; every task lands with a test
 
 ## Workflow
 
-Builder works `BUILD_PLAN.md` top-down → commit per task (task ID in message) → append to `docs/PROGRESS.md` → log every decision to `CHANGELOG.md` → blocked? open a GitHub issue, move on → every ~7 days tag `review-wN` → operator shares repo with Claude → corrections arrive as `docs/reviews/review-wN.md` → builder applies them before new milestone work.
+Builder works `BUILD_PLAN.md` top-down → commit per task (task ID in message) → append one line to `docs/PROGRESS.md` → log every decision to `CHANGELOG.md` → blocked? open a GitHub issue, move on → at each milestone tag `review-wN` → architect reviews the live repo and UI → corrections arrive in `docs/reviews/` → builder applies them before new milestone work.
 
 ## Status
 
-**Current engineering state (2026-08-21):** Charter v3.12 is current. The operator approved the Story Room experience direction, and AMENDMENT-020 adds M17 as a controlled experiment: one persistent room per piece, Brief → Idea → Shape → Draft → Build, human-readable artifact versions and locks, and the existing production stack reused backstage. The legacy pipeline remains the default/baseline until a three-piece comparison and explicit operator cutover decision. VF-PROOF-1618 remains open because requested 390px emulation reported an 833px inner/scroll width instead of proving mobile behavior, one asset has truncated VO and needs re-render, Results exposes a Buffer Instagram contract failure, and the full suite timed out; those truthfulness blockers close before M17 implementation becomes the comparison baseline.
+**Current engineering state (2026-08-22):** Charter v3.12 and AMENDMENT-020 govern the controlled Story Room experiment. The truthful legacy baseline is closed: true 390px no longer overflows, the operator-only VO regeneration control exists, the stopped historical VO and unauthorized live publish are recorded honestly, and the full suite passed. M17 is now underway: VF-SR-1701 through VF-SR-1704 are complete, establishing the consumed constitutional batch, config-owned experiment boundary (StackPenni remains disabled/legacy), and the tenant-scoped append-only Story Room ledger. **VF-SR-1705—artifact versions, exact locks, dependency staleness, and authoritative direct-edit behavior—is next.** No Story Room UI or default navigation cutover exists yet.
 
 `docs/CHARTER-v3.12.md` is the current constitution. It incorporates AMENDMENT-020 while preserving every prior Component Workbench, CompositionPlan, RendererSpec, exact-artifact, rights/cost, publish, provenance, visual-treatment, and Source-Fit rule. `docs/CHARTER-v3.11.md` remains preserved for audit history.
 

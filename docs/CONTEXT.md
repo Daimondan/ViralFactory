@@ -350,12 +350,14 @@ VF-INSP-001..005 are implemented: strict evidence contracts and redacted fixture
 
 ## M17 Story Room status
 
-AMENDMENT-020 is ratified after operator approval of the interactive Story Room direction. M17 is a controlled additive experiment, not a completed implementation and not an authorization to delete the legacy pipeline.
+AMENDMENT-020 is ratified after operator approval of the interactive Story Room direction. M17 is an active controlled additive experiment, not an authorization to delete the legacy pipeline.
 
 - The target operator flow is Desk → one Story Room → Brief → Idea → Shape → Draft → Build.
-- The legacy staged pipeline remains default and becomes the comparison baseline.
-- VF-PROOF-1618 truthfulness blockers close before the Story Room comparison baseline is accepted.
-- M17 builds storage/event/artifact/lock/context contracts before UI.
+- The truthful legacy baseline is complete: true 390px behavior, operator-only VO control, current Buffer contract, stopped/not-authorized boundaries, and the full suite are recorded in `docs/proofs/VF-PROOF-1618-legacy-baseline-2026-08-22.md`.
+- VF-SR-1701 consumed the architect batch; top-level inbox contains only the permanent README.
+- VF-SR-1703 added the config-owned experiment boundary; StackPenni remains explicitly disabled/legacy and no Story Room routes/nav are live.
+- VF-SR-1704 added the tenant-scoped append-only story/event/contribution/artifact/decision/understanding/tool-run storage ledger with restart, idempotency, and cross-tenant proof.
+- VF-SR-1705 artifact version/lock/dependency/staleness behavior is next. UI still waits on the durable contracts.
 - Existing M15 Component Workbench, manifest, CompositionPlan, RendererSpec, final review, Buffer, metrics, and learning services are reused.
 - DIVERGENCE-017 is superseded: new Story Room mode carries exact Inspiration evidence into a room rather than generating a full idea/treatment first.
 - Default navigation/mode changes only after three real pieces, one injected recoverable tool failure, full automated proof, deep laptop/390px UI review, and an explicit operator cutover decision.

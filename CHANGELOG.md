@@ -6,6 +6,16 @@ All decisions — tech, logic, structure, strategy, ops — logged here with typ
 
 ---
 
+## 2026-08-22 — ARCHITECT: Align active docs after Story Room ledger foundation (VF-SR-1704)
+
+**What:** Updated README, CONTEXT, and PROGRESS current-state sections after verifying `origin/main` through `e442a98`. The truthful legacy baseline and VF-SR-1701..1704 are complete; M17 is active; StackPenni remains Story Room-disabled/legacy; the append-only room ledger exists; VF-SR-1705 artifact version/lock/staleness work is next; no Story Room UI or navigation cutover exists.
+
+**Type:** FIX / OPS / STRUCTURE
+
+**Rationale:** Top-of-file progress entries and BUILD_PLAN checkboxes were current, but README and the PROGRESS “Current Phase” paragraph still reported VF-PROOF-1618 as open and M17 as not started. Active mirrors must describe the real implementation state so the operator and builder are not guided by stale status.
+
+---
+
 ## 2026-08-22 — BUILDER: Close truthful legacy baseline before Story Room (VF-SR-1702)
 
 **What:** Corrected the legacy topbar's true 390px horizontal overflow, added an explicit operator-only VO regeneration action that bypasses only the cached-take shortcut, verified the current Instagram Reel Buffer payload contract, and reran the deployed legacy walkthrough. Recorded the exact draft 35 → asset 29 mapping, historical `needs_rerender` state, operator stop, and live-publish authorization boundary in the baseline proof artifact.
